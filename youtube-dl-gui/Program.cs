@@ -269,15 +269,15 @@ internal static class Program {
     }
 
     internal static void KillProcessTree(uint ProcessId) {
-        ManagementObjectSearcher searcher = new("SELECT * FROM Win32_Process WHERE ParentProcessId=" + ProcessId);
-        ManagementObjectCollection collection = searcher.Get();
+        using ManagementObjectSearcher searcher = new("SELECT * FROM Win32_Process WHERE ParentProcessId=" + ProcessId);
+        using ManagementObjectCollection collection = searcher.Get();
         if (collection.Count > 0) {
             foreach (var proc in collection) {
                 uint id = (uint)proc["ProcessID"];
                 if ((int)id != ProcessId) {
                     try {
                         KillProcessTree(id);
-                        Process procInstance = Process.GetProcessById((int)id);
+                        using Process procInstance = Process.GetProcessById((int)id);
                         if (!procInstance.HasExited)
                             procInstance.Kill();
                     }

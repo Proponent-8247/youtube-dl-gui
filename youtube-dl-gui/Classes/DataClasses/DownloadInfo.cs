@@ -211,7 +211,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                 }
                 else {
                     if (UseVBR) {
-                        ArgumentsBuffer.Add($"--extract-audio --audio-quality {AudioVBRQuality}");
+                        ArgumentsBuffer.Add($"--extract-audio --audio-quality {(int)AudioVBRQuality}");
                     }
                     else {
                         ArgumentsBuffer.Add($"--extract-audio --audio-quality {Formats.GetAudioQuality(AudioCBRQuality)}");

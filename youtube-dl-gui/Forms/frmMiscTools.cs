@@ -29,7 +29,7 @@ public partial class frmMiscTools : LocalizedForm {
         if (ofd.ShowDialog() == DialogResult.OK) {
             string newFile = Path.GetDirectoryName(ofd.FileName) + "\\" + Path.GetFileNameWithoutExtension(ofd.FileName) + "-noaudio" + Path.GetExtension(ofd.FileName);
             if (newFile.Length > 250) {
-                newFile = Path.GetDirectoryName(ofd.FileName + "\\output" + Path.GetExtension(ofd.FileName)); // Rare case, file is a lorge name
+                newFile = Path.Combine(Path.GetDirectoryName(ofd.FileName) ?? Environment.CurrentDirectory, "output" + Path.GetExtension(ofd.FileName)); // Rare case, file is a lorge name
             }
 
             Process ffmpeg = new() {

@@ -199,7 +199,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
     public AudioSampleRates AudioSampleRate { get; set; } = AudioSampleRates.none;
 
     private bool ShouldExtractSubstreams() {
-        return OutputFilePath!.ToLowerInvariant()[OutputFilePath.LastIndexOf('.')..] switch {
+        return System.IO.Path.GetExtension(OutputFilePath).ToLowerInvariant() switch {
             ".webm" => false,
             ".mkv" => false,
             _ => true,
@@ -538,8 +538,8 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
             return false;
         }
 
-        bool CopyCodecs = this.CopyCodecs && InputFilePath[InputFilePath.LastIndexOf('.')..].Equals(
-            OutputFilePath[OutputFilePath.LastIndexOf('.')..], StringComparison.InvariantCultureIgnoreCase);
+        bool CopyCodecs = this.CopyCodecs && System.IO.Path.GetExtension(InputFilePath).Equals(
+            System.IO.Path.GetExtension(OutputFilePath), StringComparison.InvariantCultureIgnoreCase);
 
         ArgumentList Args = new($"-i \"{InputFilePath}\"");
         List<int> DisabledVideoStreams = [];
@@ -681,7 +681,9 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
 
         List<string> Arguments = [];
 
-        string OutputDir = this.OutputFilePath[..this.OutputFilePath.LastIndexOf('.')];
+        string OutputDir = System.IO.Path.Combine(
+            System.IO.Path.GetDirectoryName(this.OutputFilePath) ?? string.Empty,
+            System.IO.Path.GetFileNameWithoutExtension(this.OutputFilePath));
 
         this.EnabledSubtitles.For((Stream) => Arguments.Add($"-i \"{this.InputFilePath}\" -map 0:{Stream} \"{OutputDir}\\subs\\\""));
 

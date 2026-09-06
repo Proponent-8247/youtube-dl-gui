@@ -1,0 +1,23 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/ExtendedConversionDetails.cs",
+      "old": "cmV0dXJuIE91dHB1dEZpbGVQYXRoIS5Ub0xvd2VySW52YXJpYW50KClbT3V0cHV0RmlsZVBhdGguTGFzdEluZGV4T2YoJy4nKS4uXSBzd2l0Y2ggew==",
+      "new": "cmV0dXJuIFN5c3RlbS5JTy5QYXRoLkdldEV4dGVuc2lvbihPdXRwdXRGaWxlUGF0aCkuVG9Mb3dlckludmFyaWFudCgpIHN3aXRjaCB7",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/ExtendedConversionDetails.cs",
+      "old": "Ym9vbCBDb3B5Q29kZWNzID0gdGhpcy5Db3B5Q29kZWNzICYmIElucHV0RmlsZVBhdGhbSW5wdXRGaWxlUGF0aC5MYXN0SW5kZXhPZignLicpLi5dLkVxdWFscygKICAgICAgICAgICAgT3V0cHV0RmlsZVBhdGhbT3V0cHV0RmlsZVBhdGguTGFzdEluZGV4T2YoJy4nKS4uXSwgU3RyaW5nQ29tcGFyaXNvbi5JbnZhcmlhbnRDdWx0dXJlSWdub3JlQ2FzZSk7",
+      "new": "Ym9vbCBDb3B5Q29kZWNzID0gdGhpcy5Db3B5Q29kZWNzICYmIFN5c3RlbS5JTy5QYXRoLkdldEV4dGVuc2lvbihJbnB1dEZpbGVQYXRoKS5FcXVhbHMoCiAgICAgICAgICAgIFN5c3RlbS5JTy5QYXRoLkdldEV4dGVuc2lvbihPdXRwdXRGaWxlUGF0aCksIFN0cmluZ0NvbXBhcmlzb24uSW52YXJpYW50Q3VsdHVyZUlnbm9yZUNhc2UpOw==",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/ExtendedConversionDetails.cs",
+      "old": "c3RyaW5nIE91dHB1dERpciA9IHRoaXMuT3V0cHV0RmlsZVBhdGhbLi50aGlzLk91dHB1dEZpbGVQYXRoLkxhc3RJbmRleE9mKCcuJyldOw==",
+      "new": "c3RyaW5nIE91dHB1dERpciA9IFN5c3RlbS5JTy5QYXRoLkNvbWJpbmUoCiAgICAgICAgICAgIFN5c3RlbS5JTy5QYXRoLkdldERpcmVjdG9yeU5hbWUodGhpcy5PdXRwdXRGaWxlUGF0aCkgPz8gc3RyaW5nLkVtcHR5LAogICAgICAgICAgICBTeXN0ZW0uSU8uUGF0aC5HZXRGaWxlTmFtZVdpdGhvdXRFeHRlbnNpb24odGhpcy5PdXRwdXRGaWxlUGF0aCkpOw==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: handle extensionless paths in extended converter"
+}

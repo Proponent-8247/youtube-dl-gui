@@ -1,0 +1,17 @@
+{
+  "commit_message": "fix: validate saved custom-argument index",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmMain.cs",
+      "old": "ICAgICAgICAgICAgaWYgKFNhdmVkLkN1c3RvbUFyZ3VtZW50c0luZGV4IDwgY2JDdXN0b21Bcmd1bWVudHMuSXRlbXMuQ291bnQpIHsNCg==",
+      "new": "ICAgICAgICAgICAgaWYgKFNhdmVkLkN1c3RvbUFyZ3VtZW50c0luZGV4ID49IC0xICYmIFNhdmVkLkN1c3RvbUFyZ3VtZW50c0luZGV4IDwgY2JDdXN0b21Bcmd1bWVudHMuSXRlbXMuQ291bnQpIHsNCg==",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmMain.cs",
+      "old": "ICAgICAgICBpZiAoRG93bmxvYWRzLlNhdmVGb3JtYXRRdWFsaXR5KQ0KICAgICAgICAgICAgY2JDdXN0b21Bcmd1bWVudHMuU2VsZWN0ZWRJbmRleCA9IFNhdmVkLkN1c3RvbUFyZ3VtZW50c0luZGV4Ow0K",
+      "new": "ICAgICAgICBpZiAoRG93bmxvYWRzLlNhdmVGb3JtYXRRdWFsaXR5ICYmIFNhdmVkLkN1c3RvbUFyZ3VtZW50c0luZGV4ID49IC0xICYmIFNhdmVkLkN1c3RvbUFyZ3VtZW50c0luZGV4IDwgY2JDdXN0b21Bcmd1bWVudHMuSXRlbXMuQ291bnQpDQogICAgICAgICAgICBjYkN1c3RvbUFyZ3VtZW50cy5TZWxlY3RlZEluZGV4ID0gU2F2ZWQuQ3VzdG9tQXJndW1lbnRzSW5kZXg7DQo=",
+      "count": 1
+    }
+  ]
+}

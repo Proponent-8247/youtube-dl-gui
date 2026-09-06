@@ -58,6 +58,8 @@ public partial class frmConverter : LocalizedProcessingForm {
             Converts.CloseAfterFinish = chkConverterCloseAfterConversion.Checked;
 
             this.DialogResult = Finish;
+            ConverterProcess?.Dispose();
+            ConverterProcess = null;
             this.Dispose();
         }
     }
@@ -134,6 +136,8 @@ public partial class frmConverter : LocalizedProcessingForm {
     }
 
     private void BeginConversion() {
+        ConverterProcess?.Dispose();
+        ConverterProcess = null;
         if (!CurrentConversion.FullCustomArguments && CurrentConversion.InputFile.IsNullEmptyWhitespace()) {
             rtbConsoleOutput.AppendText("The input file is null or empty. Cannot continue converting.");
             CurrentConversion.Status = ConversionStatus.ProgramError;

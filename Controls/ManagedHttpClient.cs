@@ -1,6 +1,7 @@
 ﻿#nullable enable
 namespace murrty.controls;
 using System.IO;
+using System.IO.Compression;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
@@ -126,7 +127,10 @@ internal sealed class ManagedHttpClient : IDisposable {
             if (!Response.IsSuccessStatusCode)
                 throw await GetException(Response, uri);
 
-            CurrentTotalSize = Response.Content.Headers.ContentLength ?? 0;
+            string? ContentEncoding = Response.Content.Headers.ContentEncoding.FirstOrDefault()?.ToLowerInvariant();
+            CurrentTotalSize = ContentEncoding is "gzip" or "deflate"
+                ? 0
+                : Response.Content.Headers.ContentLength ?? 0;
 
             using FileStream Destination = new(
                 path: destination,
@@ -135,7 +139,19 @@ internal sealed class ManagedHttpClient : IDisposable {
                 share: FileShare.Read);
             using Stream ContentStream = await Response.Content.ReadAsStreamAsync();
 
-            await WriteStream(ContentStream, Destination, Token);
+            switch (ContentEncoding) {
+                case "gzip": {
+                    using GZipStream DecompressedStream = new(ContentStream, CompressionMode.Decompress);
+                    await WriteStream(DecompressedStream, Destination, Token);
+                } break;
+                case "deflate": {
+                    using DeflateStream DecompressedStream = new(ContentStream, CompressionMode.Decompress);
+                    await WriteStream(DecompressedStream, Destination, Token);
+                } break;
+                default:
+                    await WriteStream(ContentStream, Destination, Token);
+                    break;
+            }
             await Destination.FlushAsync();
             Destination.Close();
             FinishedCallback();

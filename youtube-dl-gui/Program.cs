@@ -308,15 +308,19 @@ internal static class Program {
                         DownloadInfo NewVideo = new(Arg.Data) {
                             Type = DownloadType.Video,
                             VideoQuality = (VideoQualityType)Saved.videoQuality,
+                            VideoFormat = (VideoFormatType)Saved.VideoFormat,
+                            SkipAudioForVideos = !Downloads.VideoDownloadSound,
                         };
                         new frmDownloader(NewVideo).Show();
                     } break;
                     case ArgumentType.DownloadAudio: {
                         DownloadInfo NewAudio = new(Arg.Data) {
                             Type = DownloadType.Audio,
+                            UseVBR = Downloads.AudioDownloadAsVBR,
+                            AudioFormat = (AudioFormatType)Saved.AudioFormat,
                         };
                         if (Downloads.AudioDownloadAsVBR)
-                            NewAudio.AudioVBRQuality = (AudioVBRQualityType)Saved.audioQuality;
+                            NewAudio.AudioVBRQuality = (AudioVBRQualityType)Saved.AudioVBRQuality;
                         else
                             NewAudio.AudioCBRQuality = (AudioCBRQualityType)Saved.audioQuality;
                         new frmDownloader(NewAudio).Show();

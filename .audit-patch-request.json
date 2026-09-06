@@ -2,8 +2,8 @@
   "replacements": [
     {
       "path": "youtube-dl-gui/Enums/VideoProfiles.cs",
-      "old": "ICAgIGhpZ2g0NDIsCg==",
-      "new": "ICAgIGhpZ2g0MjIsCg==",
+      "old": "ICAgIGhpZ2g0NDIsDQo=",
+      "new": "ICAgIGhpZ2g0MjIsDQo=",
       "count": 1
     }
   ],

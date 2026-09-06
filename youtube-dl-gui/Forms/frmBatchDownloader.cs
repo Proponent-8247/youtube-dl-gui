@@ -108,6 +108,16 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
     }
 
     private void frmBatchDownloader_FormClosing(object sender, FormClosingEventArgs e) {
+        if (InProgress) {
+            e.Cancel = true;
+            if (Downloader is not null && !Downloader.IsDisposed && Downloader.IsHandleCreated) {
+                Downloader.Invoke((Action)delegate {
+                    Downloader.RetryOrAbort();
+                });
+            }
+            return;
+        }
+
         if (this.WindowState == FormWindowState.Minimized) {
             this.Opacity = 0;
             this.WindowState = FormWindowState.Normal;

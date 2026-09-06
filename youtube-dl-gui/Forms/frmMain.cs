@@ -688,7 +688,7 @@ public partial class frmMain : LocalizedForm {
         cbFormat.Enabled = false;
         chkDownloadSound.Checked = false;
         chkDownloadSound.Enabled = false;
-        if ((string)cbCustomArguments.Items[0] == Language.GenericDoNotInclude)
+        if (cbCustomArguments.Items.Count > 0 && (string)cbCustomArguments.Items[0] == Language.GenericDoNotInclude)
             cbCustomArguments.Items.RemoveAt(0);
         if (Downloads.SaveFormatQuality)
             cbCustomArguments.SelectedIndex = Saved.CustomArgumentsIndex;

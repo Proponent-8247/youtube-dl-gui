@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DownloadHelper.cs",
+      "old": "ICAgIHB1YmxpYyBzdGF0aWMgYm9vbCBJc1lvdXR1YmVMaW5rKHN0cmluZyB1cmwpID0+IFJlZ2V4LklzTWF0Y2godXJsLCBAIigoKGh0dHB8aHR0cHMpOlwvXC8pPyguKXswLDV9XC4oeW91dHViZVwuY29tfHlvdXR1XC5iZSlcLyh3YXRjaFw/dj0pPyk/W2EtekEtWjAtOS1fXXsxMX0iKTsNCg==",
+      "new": "ICAgIHB1YmxpYyBzdGF0aWMgYm9vbCBJc1lvdXR1YmVMaW5rKHN0cmluZyB1cmwpID0+DQogICAgICAgIElzWW91dHViZUtleSh1cmwpIHx8IFJlZ2V4LklzTWF0Y2goDQogICAgICAgICAgICB1cmwsDQogICAgICAgICAgICBAIl4oPzooPzpodHRwcz86Ly8pPyg/Oig/Ond3d3xtKVwuKT95b3V0dWJlXC5jb20vd2F0Y2hcP3Y9fCg/Omh0dHBzPzovLyk/KD86KD86d3d3fG0pXC4pP3lvdXR1XC5iZS8pW2EtekEtWjAtOV8tXXsxMX0oPzpbPyYjXS4qKT8kIiwNCiAgICAgICAgICAgIFJlZ2V4T3B0aW9ucy5JZ25vcmVDYXNlKTsNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: validate YouTube archive links strictly"
+}

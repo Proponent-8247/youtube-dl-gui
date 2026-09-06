@@ -42,10 +42,15 @@ internal static class ConvertHelper {
     /// <param name="InputFile">The file to test</param>
     /// <returns>An int of the file type; video, audio, and default</returns>
     public static ConversionType GetFiletype(string InputFile) {
-        string[] File = InputFile.Split('.');
-        if (File.Length > 0) {
-            string Format = File[^1];
-            return Formats.VideoFormats.Contains(Format) ? ConversionType.Video : (Formats.AudioFormats.Contains(Format) ? ConversionType.Audio : ConversionType.FfmpegDefault);
+        string Format = System.IO.Path.GetExtension(InputFile).TrimStart('.');
+        if (Format.Length > 0) {
+            string Pattern = "*." + Format;
+            if (Formats.AllKnownVideoFormats.Split(';').Any(x => x.Equals(Pattern, StringComparison.OrdinalIgnoreCase))) {
+                return ConversionType.Video;
+            }
+            if (Formats.AllKnownAudioFormats.Split(';').Any(x => x.Equals(Pattern, StringComparison.OrdinalIgnoreCase))) {
+                return ConversionType.Audio;
+            }
         }
         return ConversionType.FfmpegDefault;
     }

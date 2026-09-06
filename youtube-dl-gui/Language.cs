@@ -2425,6 +2425,7 @@ public static class Language {
                 return true;
             }
             else {
+                LoadInternalEnglish(); // Use English for strings missing from the external language file.
                 if (!LanguageFile.EndsWith(".ini")) { LanguageFile += ".ini"; }
                 Log.Write($"Loading external language file \"{System.IO.Path.GetFileName(LanguageFile)}\".");
 

@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: validate batch saved custom-argument index",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmBatchDownloader.cs",
+      "old": "ICAgICAgICAgICAgY2JBcmd1bWVudHMuU2VsZWN0ZWRJbmRleCA9IFNhdmVkLkN1c3RvbUFyZ3VtZW50c0luZGV4Ow0K",
+      "new": "ICAgICAgICAgICAgaWYgKFNhdmVkLkN1c3RvbUFyZ3VtZW50c0luZGV4ID49IC0xICYmIFNhdmVkLkN1c3RvbUFyZ3VtZW50c0luZGV4IDwgY2JBcmd1bWVudHMuSXRlbXMuQ291bnQpIHsNCiAgICAgICAgICAgICAgICBjYkFyZ3VtZW50cy5TZWxlY3RlZEluZGV4ID0gU2F2ZWQuQ3VzdG9tQXJndW1lbnRzSW5kZXg7DQogICAgICAgICAgICB9DQo=",
+      "count": 2
+    }
+  ]
+}

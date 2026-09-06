@@ -2,8 +2,8 @@
   "replacements": [
     {
       "path": "youtube-dl-gui/Forms/frmMain.cs",
-      "old": "ICAgICAgICBpZiAoQ2xpcGJvYXJkLkNvbnRhaW5zVGV4dCgpIHx8IFNhdmVkLkN1c3RvbUFyZ3VtZW50c0luZGV4IDwgMCkgewo=",
-      "new": "ICAgICAgICBpZiAoIUNsaXBib2FyZC5Db250YWluc1RleHQoKSB8fCBTYXZlZC5DdXN0b21Bcmd1bWVudHNJbmRleCA8IDApIHsK",
+      "old": "ICAgICAgICBpZiAoQ2xpcGJvYXJkLkNvbnRhaW5zVGV4dCgpIHx8IFNhdmVkLkN1c3RvbUFyZ3VtZW50c0luZGV4IDwgMCkgew0K",
+      "new": "ICAgICAgICBpZiAoIUNsaXBib2FyZC5Db250YWluc1RleHQoKSB8fCBTYXZlZC5DdXN0b21Bcmd1bWVudHNJbmRleCA8IDApIHsNCg==",
       "count": 1
     }
   ],

@@ -40,13 +40,18 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                         break;
                     default:
                         if (DownloadThread?.IsAlive == true) {
-                            if (DownloadProcess?.HasExited == false) {
-                                if (DownloadProcess.StartInfo.RedirectStandardOutput) {
-                                    DownloadProcess.CancelOutputRead();
+                            try {
+                                if (DownloadProcess?.HasExited == false) {
+                                    if (DownloadProcess.StartInfo.RedirectStandardOutput) {
+                                        DownloadProcess.CancelOutputRead();
+                                    }
+                                    if (DownloadProcess.StartInfo.RedirectStandardError) {
+                                        DownloadProcess.CancelErrorRead();
+                                    }
                                 }
-                                if (DownloadProcess.StartInfo.RedirectStandardError) {
-                                    DownloadProcess.CancelErrorRead();
-                                }
+                            }
+                            catch (InvalidOperationException) {
+                                // The process may not have started async reads yet.
                             }
                             DownloadThread.Abort();
                         }
@@ -379,8 +384,15 @@ internal partial class frmDownloader : LocalizedProcessingForm {
             }
             catch (ThreadAbortException) {
                 if (DownloadProcess is not null) {
-                    Program.KillProcessTree((uint)DownloadProcess.Id);
-                    DownloadProcess?.Kill();
+                    try {
+                        if (!DownloadProcess.HasExited) {
+                            Program.KillProcessTree((uint)DownloadProcess.Id);
+                            DownloadProcess.Kill();
+                        }
+                    }
+                    catch (InvalidOperationException) {
+                        // The process may not have started or may have already exited.
+                    }
                 }
 
                 this.BeginInvoke(() => {

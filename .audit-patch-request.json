@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": ".github/workflows/audit-build.yml",
+      "old": "ICAgICAgLSBuYW1lOiBCdWlsZCBzb2x1dGlvbgogICAgICAgIHJ1bjogbXNidWlsZCB5b3V0dWJlLWRsLWd1aS5zbG4gL20gL3A6Q29uZmlndXJhdGlvbj1EZWJ1ZyAiL3A6UGxhdGZvcm09QW55IENQVSIKCiAgICAgIC0gbmFtZTogQ29tbWl0IHZlcmlmaWVkIGF1ZGl0IHBhdGNoCg==",
+      "new": "ICAgICAgLSBuYW1lOiBCdWlsZCBzb2x1dGlvbgogICAgICAgIHJ1bjogbXNidWlsZCB5b3V0dWJlLWRsLWd1aS5zbG4gL20gL3A6Q29uZmlndXJhdGlvbj1EZWJ1ZyAiL3A6UGxhdGZvcm09QW55IENQVSIKCiAgICAgIC0gbmFtZTogQnVpbGQgcmVsZWFzZSB1cGRhdGVyCiAgICAgICAgcnVuOiBtc2J1aWxkIHlvdXR1YmUtZGwtZ3VpLXVwZGF0ZXJceW91dHViZS1kbC1ndWktdXBkYXRlci5jc3Byb2ogL20gL3A6Q29uZmlndXJhdGlvbj1SZWxlYXNlIC9wOlBsYXRmb3JtPUFueUNQVQoKICAgICAgLSBuYW1lOiBCdWlsZCByZWxlYXNlIG1haW4gYXBwbGljYXRpb24KICAgICAgICBydW46IG1zYnVpbGQgeW91dHViZS1kbC1ndWlceW91dHViZS1kbC1ndWkuY3Nwcm9qIC9tIC9wOkNvbmZpZ3VyYXRpb249UmVsZWFzZSAvcDpQbGF0Zm9ybT1BbnlDUFUgL3A6QnVpbGRQcm9qZWN0UmVmZXJlbmNlcz1mYWxzZSAvcDpQcmVCdWlsZEV2ZW50PSAvcDpQb3N0QnVpbGRFdmVudD0KCiAgICAgIC0gbmFtZTogQ29tbWl0IHZlcmlmaWVkIGF1ZGl0IHBhdGNoCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "ci: add release compile gate to audit workflow"
+}

@@ -61,7 +61,8 @@ public static class Log {
         }
 #endif
 
-        ManagementObjectSearcher MgtSearcher = new("SELECT * FROM Win32_OperatingSystem");
+        try {
+            ManagementObjectSearcher MgtSearcher = new("SELECT * FROM Win32_OperatingSystem");
         ManagementObject MgtInfo = MgtSearcher?.Get().Cast<ManagementObject>().FirstOrDefault();
         ComputerVersionInformation = $$"""
             Current version: {{Program.CurrentVersion}}
@@ -72,6 +73,10 @@ public static class Log {
             Service Pack major: {{MgtInfo.Properties["ServicePackMajorVersion"].Value ?? "could not query"}}
             Service Pack minor: {{MgtInfo.Properties["ServicePackMinorVersion"].Value ?? "could not query"}}
             """);
+        }
+        catch (Exception ex) {
+            ComputerVersionInformation = $"Current version: {Program.CurrentVersion}\nCurrent culture: {Thread.CurrentThread.CurrentCulture.EnglishName}\nOS information unavailable: {ex.GetType().Name}: {ex.Message}";
+        }
     }
 
     #region Exception handling

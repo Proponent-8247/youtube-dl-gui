@@ -96,7 +96,8 @@ internal static class Log {
 
         // Build up a string containing relevant information about the computer.
         Write("Creating ComputerVersionInformation for exceptions.");
-        ManagementObjectSearcher MgtSearcher = new("SELECT * FROM Win32_OperatingSystem");
+        try {
+            ManagementObjectSearcher MgtSearcher = new("SELECT * FROM Win32_OperatingSystem");
         ManagementObject? MgtInfo = MgtSearcher?.Get().Cast<ManagementObject>().FirstOrDefault();
 
         ComputerVersionInformation = $$"""
@@ -108,6 +109,10 @@ internal static class Log {
             Service Pack Major: {{MgtInfo.Properties["ServicePackMajorVersion"].Value ?? "couldn't query"}}
             Service Pack Minor: {{MgtInfo.Properties["ServicePackMinorVersion"].Value ?? "couldn't query"}}
             """);
+        }
+        catch (Exception ex) {
+            ComputerVersionInformation = $"Current Version: {Program.CurrentVersion}\nCurrent Culture: {Thread.CurrentThread.CurrentCulture.EnglishName}\nOS information unavailable: {ex.GetType().Name}: {ex.Message}";
+        }
     }
 
     /// <summary>

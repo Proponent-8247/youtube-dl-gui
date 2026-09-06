@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: clear attachment selection before regenerating conversion args",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/ExtendedConversionDetails.cs",
+      "old": "ICAgICAgICBFbmFibGVkVmlkZW9TdHJlYW1zLkNsZWFyKCk7DQogICAgICAgIEVuYWJsZWRBdWRpb1N0cmVhbXMuQ2xlYXIoKTsNCiAgICAgICAgRW5hYmxlZFN1YnRpdGxlcy5DbGVhcigpOw0KICAgICAgICBFbmFibGVkU3VidGl0bGVzLkNsZWFyKCk7DQogICAgICAgIEVuYWJsZWREYXRhRmlsZXMuQ2xlYXIoKTsNCiAgICAgICAgVG90YWxFbmFibGVkU3RyZWFtcy5DbGVhcigpOw==",
+      "new": "ICAgICAgICBFbmFibGVkVmlkZW9TdHJlYW1zLkNsZWFyKCk7DQogICAgICAgIEVuYWJsZWRBdWRpb1N0cmVhbXMuQ2xlYXIoKTsNCiAgICAgICAgRW5hYmxlZFN1YnRpdGxlcy5DbGVhcigpOw0KICAgICAgICBFbmFibGVkQXR0YWNobWVudHMuQ2xlYXIoKTsNCiAgICAgICAgRW5hYmxlZERhdGFGaWxlcy5DbGVhcigpOw0KICAgICAgICBUb3RhbEVuYWJsZWRTdHJlYW1zLkNsZWFyKCk7",
+      "count": 1
+    }
+  ]
+}

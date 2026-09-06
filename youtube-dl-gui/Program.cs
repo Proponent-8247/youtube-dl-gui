@@ -512,7 +512,29 @@ internal static class Program {
             } break;
 
             case ArgumentType.DownloadArchived: {
-                // TODO: Implement download archived argument
+                if (DownloadHelper.IsYoutubeLink(URL)) {
+                    Log.Write("YouTube link given for archival download.");
+                    URL = DownloadHelper.GetYoutubeVideoKey(URL);
+                }
+
+                if (!DownloadHelper.IsYoutubeKey(URL)) {
+                    Log.Write("The YouTube key given for archival download is not a valid video key.");
+                    return;
+                }
+
+                Form DownloadForm;
+                if (Downloads.ExtendedDownloaderPreferExtendedForm) {
+                    DownloadForm = new frmExtendedDownloader($"ytarchive:{URL}", true);
+                }
+                else {
+                    DownloadInfo NewInfo = new($"https://archived.youtube.com/watch?v={URL}") {
+                        CustomArguments = $"ytarchive:{URL}",
+                        MostlyCustomArguments = true,
+                        Type = DownloadType.Custom
+                    };
+                    DownloadForm = new frmDownloader(NewInfo);
+                }
+                DownloadForm.Show();
             } break;
         }
     }

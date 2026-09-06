@@ -305,13 +305,14 @@ internal static class Updater {
                     })
                     .ToArray();
 
-                if (Files.Length > 0) {
-                    for (int i = 0; i < Files.Length; i++)
-                        await Task.Run(() => Files[i].ExtractToFile($"{FfmpegPath}\\{Files[i].Name}", true));
-                }
-                else {
+                bool HasFfmpeg = Files.Any(e => e.Name.Equals("ffmpeg.exe", StringComparison.OrdinalIgnoreCase));
+                bool HasFfprobe = Files.Any(e => e.Name.Equals("ffprobe.exe", StringComparison.OrdinalIgnoreCase));
+                if (!HasFfmpeg || !HasFfprobe) {
                     return false;
                 }
+
+                for (int i = 0; i < Files.Length; i++)
+                    await Task.Run(() => Files[i].ExtractToFile($"{FfmpegPath}\\{Files[i].Name}", true));
 
                 CanRetry = false;
             }

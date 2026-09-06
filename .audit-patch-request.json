@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/Formats.cs",
+      "old": "KjNncDsqM2cyOw==",
+      "new": "Ki4zZ3A7Ki4zZzI7",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: match 3gp filters with file extensions"
+}

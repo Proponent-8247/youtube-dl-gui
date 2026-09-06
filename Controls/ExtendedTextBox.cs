@@ -457,7 +457,7 @@ public class ExtendedTextBox : TextBox {
                                 } break;
 
                                 case Keys.V: {
-                                    e.SuppressKeyPress = Clipboard.ContainsText() && Regex.IsMatch(Clipboard.GetText(), $"^[0-9{(AllowSpace ? " " : "")}]+$");
+                                    e.SuppressKeyPress = Clipboard.ContainsText() && !Regex.IsMatch(Clipboard.GetText(), $"^[0-9{(AllowSpace ? " " : "")}]+$");
                                 } break;
 
                                 default: {

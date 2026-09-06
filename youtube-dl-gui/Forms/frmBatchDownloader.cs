@@ -217,7 +217,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
             }
             else {
                 cbBatchQuality.Items.AddRange(Formats.AudioQualityNamesArray);
-                cbBatchQuality.SelectedIndex = Batch.SelectedAudioQualityVBR;
+                cbBatchQuality.SelectedIndex = Batch.SelectedAudioQuality;
             }
         }
     }

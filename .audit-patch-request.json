@@ -1,0 +1,47 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/YoutubeDlData.cs",
+      "old": "QXJndW1lbnRzLkFkZCgiLS11c2VybmFtZSAiICsgQXV0aC5Vc2VybmFtZSk7",
+      "new": "QXJndW1lbnRzLkFkZCgiLS11c2VybmFtZSAiICsgQXJndW1lbnRMaXN0LkVzY2FwZUFyZ3VtZW50KEF1dGguVXNlcm5hbWUpKTs=",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/YoutubeDlData.cs",
+      "old": "QXJndW1lbnRzLkFkZCgiLS1wYXNzd29yZCAiICsgQXV0aC5HZXRQYXNzd29yZCgpKTs=",
+      "new": "QXJndW1lbnRzLkFkZCgiLS1wYXNzd29yZCAiICsgQXJndW1lbnRMaXN0LkVzY2FwZUFyZ3VtZW50KEF1dGguR2V0UGFzc3dvcmQoKSkpOw==",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/YoutubeDlData.cs",
+      "old": "QXJndW1lbnRzLkFkZCgiLS10d29mYWN0b3IgIiArIEF1dGguVHdvRmFjdG9yKTs=",
+      "new": "QXJndW1lbnRzLkFkZCgiLS10d29mYWN0b3IgIiArIEFyZ3VtZW50TGlzdC5Fc2NhcGVBcmd1bWVudChBdXRoLlR3b0ZhY3RvcikpOw==",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/YoutubeDlData.cs",
+      "old": "QXJndW1lbnRzLkFkZCgiLS12aWRlby1wYXNzd29yZCAiICsgQXV0aC5HZXRNZWRpYVBhc3N3b3JkKCkpOw==",
+      "new": "QXJndW1lbnRzLkFkZCgiLS12aWRlby1wYXNzd29yZCAiICsgQXJndW1lbnRMaXN0LkVzY2FwZUFyZ3VtZW50KEF1dGguR2V0TWVkaWFQYXNzd29yZCgpKSk7",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/YoutubeDlData.cs",
+      "old": "QXJndW1lbnRzLkFkZCgiLS1jb29raWVzIFwiIiArIEF1dGguQ29va2llc0ZpbGUgKyAiXCIiKTs=",
+      "new": "QXJndW1lbnRzLkFkZCgiLS1jb29raWVzICIgKyBBcmd1bWVudExpc3QuRXNjYXBlQXJndW1lbnQoQXV0aC5Db29raWVzRmlsZSkpOw==",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/YoutubeDlData.cs",
+      "old": "QXJndW1lbnRzLkFkZCgiLS1jb29raWVzLWZyb20tYnJvd3NlciAiICsgQXV0aC5Db29raWVzRnJvbUJyb3dzZXIpOw==",
+      "new": "QXJndW1lbnRzLkFkZCgiLS1jb29raWVzLWZyb20tYnJvd3NlciAiICsgQXJndW1lbnRMaXN0LkVzY2FwZUFyZ3VtZW50KEF1dGguQ29va2llc0Zyb21Ccm93c2VyKSk7",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/YoutubeDlData.cs",
+      "old": "QXJndW1lbnRzLkFkZChVUkwpOw==",
+      "new": "QXJndW1lbnRzLkFkZChBcmd1bWVudExpc3QuRXNjYXBlQXJndW1lbnQoVVJMKSk7",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: escape dynamic metadata probe arguments"
+}

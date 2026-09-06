@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmExtendedDownloader.cs",
+      "old": "ICAgICAgICAgICAgdGhpcy5JbnZva2UoKCkgPT4gew0KICAgICAgICAgICAgICAgIGlmIChTdGF0dXMgPT0gRG93bmxvYWRTdGF0dXMuRG93bmxvYWRpbmcgJiYgQmF0Y2hIYWRFcnJvcnMpIHsNCg==",
+      "new": "ICAgICAgICAgICAgdGhpcy5JbnZva2UoKCkgPT4gew0KICAgICAgICAgICAgICAgIG1Eb3dubG9hZC5FbmFibGVkID0gbURvd25sb2FkV2l0aEF1dGhlbnRpY2F0aW9uLkVuYWJsZWQgPSB0cnVlOw0KICAgICAgICAgICAgICAgIHBiU3RhdHVzLlNob3dJblRhc2tiYXIgPSBmYWxzZTsNCg0KICAgICAgICAgICAgICAgIGlmIChTdGF0dXMgPT0gRG93bmxvYWRTdGF0dXMuRG93bmxvYWRpbmcgJiYgQmF0Y2hIYWRFcnJvcnMpIHsNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: restore extended batch download controls"
+}

@@ -183,7 +183,7 @@ internal static class Formats {
             if (MinimumList > 0) {
                 CustomFormats = string.Empty;
                 for (int i = 0; i < MinimumList; i++) {
-                    CustomFormats += $"{Names[i]} (*.{Extensions[i]})|*.{Extensions[i]}";
+                    CustomFormats += $"{(i > 0 ? "|" : string.Empty)}{Names[i]} (*.{Extensions[i]})|*.{Extensions[i]}";
                 }
             }
             else {

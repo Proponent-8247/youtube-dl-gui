@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmMain.cs",
+      "old": "ICAgICAgICAgICAgQXJndW1lbnRzID0gY2JDdXN0b21Bcmd1bWVudHMuSXRlbXNbU2F2ZWQuQ3VzdG9tQXJndW1lbnRzSW5kZXhdIGFzIHN0cmluZywNCg==",
+      "new": "ICAgICAgICAgICAgQXJndW1lbnRzID0gY2JDdXN0b21Bcmd1bWVudHMuSXRlbXNbU2F2ZWQuQ3VzdG9tQXJndW1lbnRzSW5kZXggKyAocmJDdXN0b20uQ2hlY2tlZCA/IDAgOiAxKV0gYXMgc3RyaW5nLA0K",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: offset tray saved custom argument for sentinel"
+}

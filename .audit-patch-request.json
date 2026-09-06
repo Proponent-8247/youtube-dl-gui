@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/ExtendedMediaDetails.cs",
+      "old": "ICAgICAgICAgICAgQ3VzdG9tQXJndW1lbnRzID0gbnVsbDsNCiAgICAgICAgICAgIE1lZGlhRGF0YSA9IG51bGw7DQogICAgICAgICAgICBBcmd1bWVudHNDZW5zb3JlZCA9IHN0cmluZy5FbXB0eTsNCiAgICAgICAgICAgIFRodW1ibmFpbCA9IG51bGw7DQo=",
+      "new": "ICAgICAgICAgICAgQ3VzdG9tQXJndW1lbnRzID0gbnVsbDsNCiAgICAgICAgICAgIE1lZGlhRGF0YSA9IG51bGw7DQogICAgICAgICAgICBBcmd1bWVudHNDZW5zb3JlZCA9IHN0cmluZy5FbXB0eTsNCiAgICAgICAgICAgIFRodW1ibmFpbD8uRGlzcG9zZSgpOw0KICAgICAgICAgICAgVGh1bWJuYWlsID0gbnVsbDsNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: dispose extended media thumbnails"
+}

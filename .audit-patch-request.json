@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmMerger.cs",
+      "old": "ICAgIHByaXZhdGUgdm9pZCB0dlNlbGVjdGVkU3RyZWFtc19Ob2RlTW91c2VEb3VibGVDbGljayhvYmplY3Qgc2VuZGVyLCBUcmVlTm9kZU1vdXNlQ2xpY2tFdmVudEFyZ3MgZSkgew0KICAgICAgICB0dlNlbGVjdGVkU3RyZWFtcy5TZWxlY3RlZE5vZGUuUmVtb3ZlKCk7DQogICAgfQ0K",
+      "new": "ICAgIHByaXZhdGUgdm9pZCB0dlNlbGVjdGVkU3RyZWFtc19Ob2RlTW91c2VEb3VibGVDbGljayhvYmplY3Qgc2VuZGVyLCBUcmVlTm9kZU1vdXNlQ2xpY2tFdmVudEFyZ3MgZSkgew0KICAgICAgICBpZiAoZS5Ob2RlLlBhcmVudCBpcyBub3QgbnVsbCkgew0KICAgICAgICAgICAgZS5Ob2RlLlJlbW92ZSgpOw0KICAgICAgICB9DQogICAgfQ0K",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: keep merger stream category roots intact"
+}

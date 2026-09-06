@@ -134,13 +134,13 @@ public partial class frmConverter : LocalizedProcessingForm {
     }
 
     private void BeginConversion() {
-        if (CurrentConversion.InputFile.IsNullEmptyWhitespace()) {
+        if (!CurrentConversion.FullCustomArguments && CurrentConversion.InputFile.IsNullEmptyWhitespace()) {
             rtbConsoleOutput.AppendText("The input file is null or empty. Cannot continue converting.");
             CurrentConversion.Status = ConversionStatus.ProgramError;
             Log.Write("Conversion cannot conintue.");
             return;
         }
-        if (CurrentConversion.OutputFile.IsNullEmptyWhitespace()) {
+        if (!CurrentConversion.FullCustomArguments && CurrentConversion.OutputFile.IsNullEmptyWhitespace()) {
             rtbConsoleOutput.AppendText("The output file is null or empty. Cannot continue converting.");
             CurrentConversion.Status = ConversionStatus.ProgramError;
             Log.Write("Conversion cannot conintue.");

@@ -1,7 +1,11 @@
 {
-  "path": "youtube-dl-gui/Enums/VideoProfiles.cs",
-  "expected_count": 1,
-  "old_b64": "ICAgIGhpZ2g0NDIsCg==",
-  "new_b64": "ICAgIGhpZ2g0MjIsCg==",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Enums/VideoProfiles.cs",
+      "old": "ICAgIGhpZ2g0NDIsCg==",
+      "new": "ICAgIGhpZ2g0MjIsCg==",
+      "count": 1
+    }
+  ],
   "commit_message": "fix: correct high422 video profile name"
 }

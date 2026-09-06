@@ -366,7 +366,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
         this.EnabledVideoStreams.Clear();
         this.EnabledAudioStreams.Clear();
         this.EnabledSubtitles.Clear();
-        this.EnabledSubtitles.Clear();
+        this.EnabledAttachments.Clear();
         this.EnabledDataFiles.Clear();
         this.TotalEnabledStreams.Clear();
 

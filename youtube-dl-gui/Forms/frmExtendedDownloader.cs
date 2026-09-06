@@ -1532,13 +1532,19 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     }
 
                     if (CurrentMedia is null) {
-                        Status = DownloadStatus.None;
-                        sbtnDownload.Invoke(() => sbtnDownload.Enabled = true);
-                        lock (QueueSync) {
-                            if (QueueList.Count == 0) {
-                                QueueResolverRunning = false;
-                                break;
+                        bool StopResolver = false;
+                        this.Invoke(() => {
+                            lock (QueueSync) {
+                                if (QueueList.Count == 0) {
+                                    QueueResolverRunning = false;
+                                    Status = DownloadStatus.None;
+                                    sbtnDownload.Enabled = true;
+                                    StopResolver = true;
+                                }
                             }
+                        });
+                        if (StopResolver) {
+                            break;
                         }
                         Status = DownloadStatus.Preparing;
                         continue;

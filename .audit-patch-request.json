@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: detach thumbnail image from disposed stream",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/YoutubeDlData.cs",
+      "old": "ICAgICAgICB1c2luZyBNZW1vcnlTdHJlYW0gU3RyZWFtID0gbmV3KHRodW1iQnl0ZXMpOw0KICAgICAgICByZXR1cm4gSW1hZ2UuRnJvbVN0cmVhbShTdHJlYW0pOw0K",
+      "new": "ICAgICAgICB1c2luZyBNZW1vcnlTdHJlYW0gU3RyZWFtID0gbmV3KHRodW1iQnl0ZXMpOw0KICAgICAgICB1c2luZyBJbWFnZSBUaHVtYm5haWwgPSBJbWFnZS5Gcm9tU3RyZWFtKFN0cmVhbSk7DQogICAgICAgIHJldHVybiBuZXcgQml0bWFwKFRodW1ibmFpbCk7DQo=",
+      "count": 1
+    }
+  ]
+}

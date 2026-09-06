@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Program.cs",
+      "old": "ICAgIFtTVEFUaHJlYWRdDQogICAgcHJpdmF0ZSBzdGF0aWMgaW50IE1haW4oc3RyaW5nW10gYXJncykgew0KI2lmIERFQlVHDQo=",
+      "new": "ICAgIFtTVEFUaHJlYWRdDQogICAgcHJpdmF0ZSBzdGF0aWMgaW50IE1haW4oc3RyaW5nW10gYXJncykgew0KICAgICAgICBpZiAoYXJncy5MZW5ndGggPT0gMSAmJiBhcmdzWzBdLlRyaW1TdGFydCgnLScpLkVxdWFscygiaW5zdGFsbHByb3RvY29sIiwgU3RyaW5nQ29tcGFyaXNvbi5PcmRpbmFsSWdub3JlQ2FzZSkpIHsNCiAgICAgICAgICAgIElzQWRtaW4gPSBuZXcgV2luZG93c1ByaW5jaXBhbChXaW5kb3dzSWRlbnRpdHkuR2V0Q3VycmVudCgpKS5Jc0luUm9sZShXaW5kb3dzQnVpbHRJblJvbGUuQWRtaW5pc3RyYXRvcik7DQogICAgICAgICAgICByZXR1cm4gU3lzdGVtUmVnaXN0cnkuU2V0UmVnaXN0cnkoKTsNCiAgICAgICAgfQ0KDQojaWYgREVCVUcNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: run protocol installer before single-instance forwarding"
+}

@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmExtendedDownloader.cs",
+      "old": "ICAgICAgICBpZiAodGhpcy5NZWRpYURldGFpbHMgaXMgbm90IG51bGwpIHsNCiAgICAgICAgICAgIFNhdmVNZWRpYU9wdGlvbnMoKTsNCiAgICAgICAgfQ0KDQogICAgICAgIHRoaXMuTWVkaWFEZXRhaWxzID0gTWVkaWFEZXRhaWxzOw0K",
+      "new": "ICAgICAgICBpZiAodGhpcy5NZWRpYURldGFpbHMgaXMgbm90IG51bGwpIHsNCiAgICAgICAgICAgIFNhdmVNZWRpYU9wdGlvbnMoKTsNCiAgICAgICAgfQ0KDQogICAgICAgIGx2VmlkZW9Gb3JtYXRzLkl0ZW1zLkNsZWFyKCk7DQogICAgICAgIGx2QXVkaW9Gb3JtYXRzLkl0ZW1zLkNsZWFyKCk7DQogICAgICAgIGx2VW5rbm93bkZvcm1hdHMuSXRlbXMuQ2xlYXIoKTsNCiAgICAgICAgbGJFeHRlbmRlZERvd25sb2FkZXJOb1ZpZGVvRm9ybWF0c0F2YWlsYWJsZS5WaXNpYmxlID0gZmFsc2U7DQogICAgICAgIGxiRXh0ZW5kZWREb3dubG9hZGVyTm9BdWRpb0Zvcm1hdHNBdmFpbGFibGUuVmlzaWJsZSA9IGZhbHNlOw0KICAgICAgICBsYkV4dGVuZGVkRG93bmxvYWRlck5vVW5rbm93bkZvcm1hdHNGb3VuZC5WaXNpYmxlID0gZmFsc2U7DQoNCiAgICAgICAgdGhpcy5NZWRpYURldGFpbHMgPSBNZWRpYURldGFpbHM7DQo=",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: reset extended format views between queue items"
+}

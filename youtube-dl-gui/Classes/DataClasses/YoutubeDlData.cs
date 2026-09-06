@@ -150,8 +150,6 @@ internal sealed class YoutubeDlData {
 
         if (this.ThumbnailLink.Split('?')[0].EndsWith(".webp")) {
             Log.Write("The thumbnail is a .webp file and must be converted to be viewable.");
-            string ThumbPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + $"\\temp\\{DateTime.Now:yyyyMMddhmmssfffffff}s";
-            File.WriteAllBytes($"{ThumbPath}.webp", thumbBytes);
             if (!Verification.FfmpegAvailable) {
                 Verification.RefreshFFmpegLocation();
                 if (!Verification.FfmpegAvailable) {
@@ -159,24 +157,37 @@ internal sealed class YoutubeDlData {
                 }
             }
 
-            //-vf \"scale=1920:-1\"
-            Process ffmpegConvert = new() {
-                StartInfo = new(Verification.FFmpegPath) {
-                    Arguments = $"-nostats -hide_banner -i \"{ThumbPath}.webp\" \"{ThumbPath}.jpg\"",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    WindowStyle = ProcessWindowStyle.Hidden,
+            string ThumbPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + $"\\temp\\{DateTime.Now:yyyyMMddhmmssfffffff}s";
+            string WebpPath = ThumbPath + ".webp";
+            string JpgPath = ThumbPath + ".jpg";
+            File.WriteAllBytes(WebpPath, thumbBytes);
+
+            try {
+                //-vf \"scale=1920:-1\"
+                using Process ffmpegConvert = new() {
+                    StartInfo = new(Verification.FFmpegPath) {
+                        Arguments = $"-nostats -hide_banner -i \"{WebpPath}\" \"{JpgPath}\"",
+                        CreateNoWindow = true,
+                        UseShellExecute = false,
+                        WindowStyle = ProcessWindowStyle.Hidden,
+                    }
+                };
+                ffmpegConvert.Start();
+                ffmpegConvert.WaitForExit();
+
+                if (!File.Exists(JpgPath))
+                    return null;
+
+                thumbBytes = File.ReadAllBytes(JpgPath);
+            }
+            finally {
+                if (File.Exists(WebpPath)) {
+                    File.Delete(WebpPath);
                 }
-            };
-            ffmpegConvert.Start();
-            ffmpegConvert.WaitForExit();
-
-            if (!File.Exists(ThumbPath + ".jpg"))
-                return null;
-
-            thumbBytes = File.ReadAllBytes(ThumbPath + ".jpg");
-            File.Delete(ThumbPath + ".webp");
-            File.Delete(ThumbPath + ".jpg");
+                if (File.Exists(JpgPath)) {
+                    File.Delete(JpgPath);
+                }
+            }
         }
 
         using MemoryStream Stream = new(thumbBytes);

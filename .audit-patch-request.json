@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmExtendedDownloader.cs",
+      "old": "TmV3TWVkaWEuQXV0aGVudGljYXRpb24gPSBDb3B5RnJvbS5BdXRoZW50aWNhdGlvbjs=",
+      "new": "TmV3TWVkaWEuQXV0aGVudGljYXRpb24gPSBDb3B5RnJvbS5BdXRoZW50aWNhdGlvbj8uQ2xvbmUoKTs=",
+      "count": 2
+    }
+  ],
+  "commit_message": "fix: clone authentication when copying queue options"
+}

@@ -928,7 +928,7 @@ public partial class frmMain : LocalizedForm {
                             NewInfo.Type = DownloadType.Audio;
                             break;
                         case DownloadType.Custom:
-                            NewInfo.Arguments = BatchCustomArguments;
+                            NewInfo.CustomArguments = BatchCustomArguments;
                             NewInfo.Type = DownloadType.Custom;
                             break;
                         case DownloadType.Unknown:
@@ -1073,7 +1073,7 @@ public partial class frmMain : LocalizedForm {
             }
             else {
                 NewInfo.Type = DownloadType.Custom;
-                NewInfo.Arguments = cbCustomArguments.Text;
+                NewInfo.CustomArguments = cbCustomArguments.Text;
                 if (!cbCustomArguments.Text.IsNullEmptyWhitespace() && !cbCustomArguments.Items.Contains(cbCustomArguments.Text)) {
                     cbCustomArguments.SelectedIndex = cbCustomArguments.Items.Add(cbCustomArguments.Text);
                     CustomArguments.AddYtdlArgument(cbCustomArguments.Text, true);
@@ -1084,7 +1084,7 @@ public partial class frmMain : LocalizedForm {
 
             if ((rbVideo.Checked || rbAudio.Checked) && cbCustomArguments.SelectedIndex != 0) {
                 if (!cbCustomArguments.Text.IsNullEmptyWhitespace()) {
-                    NewInfo.Arguments = cbCustomArguments.Text;
+                    NewInfo.CustomArguments = cbCustomArguments.Text;
                     if (!cbCustomArguments.Items.Contains(cbCustomArguments.Text)) {
                         cbCustomArguments.Items.Add(cbCustomArguments.Text);
                         CustomArguments.AddYtdlArgument(cbCustomArguments.Text, true);

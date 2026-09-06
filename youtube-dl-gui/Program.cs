@@ -406,7 +406,7 @@ internal static class Program {
                         VideoQuality = (VideoQualityType)Saved.videoQuality,
                         VideoFormat = (VideoFormatType)Saved.VideoFormat,
                         SkipAudioForVideos = Type == ArgumentType.DownloadVideoNoSound || Type == ArgumentType.DownloadAuthenticateVideoNoSound,
-                        Arguments = CustomArguments,
+                        CustomArguments = CustomArguments,
                         Authentication = Auth,
                     };
                     DownloadForm = new frmDownloader(Info: NewInfo);
@@ -438,7 +438,7 @@ internal static class Program {
                         Type = DownloadType.Audio,
                         UseVBR = Downloads.AudioDownloadAsVBR,
                         AudioFormat = (AudioFormatType)Saved.AudioFormat,
-                        Arguments = CustomArguments,
+                        CustomArguments = CustomArguments,
                         Authentication = Auth,
                     };
 
@@ -474,7 +474,7 @@ internal static class Program {
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {
                         Type = DownloadType.Custom,
-                        Arguments = CustomArguments,
+                        CustomArguments = CustomArguments,
                         Authentication = Auth,
                     };
                     DownloadForm = new frmDownloader(Info: NewInfo);
@@ -520,7 +520,7 @@ internal static class Program {
                         VideoQuality = (VideoQualityType)Saved.videoQuality,
                         VideoFormat = (VideoFormatType)Saved.VideoFormat,
                         SkipAudioForVideos = !Downloads.VideoDownloadSound,
-                        Arguments = CustomArguments,
+                        CustomArguments = CustomArguments,
                         Authentication = Auth,
                     };
                     DownloadForm = new frmDownloader(Info: NewInfo);
@@ -552,7 +552,7 @@ internal static class Program {
                         Type = DownloadType.Audio,
                         UseVBR = Downloads.AudioDownloadAsVBR,
                         AudioFormat = (AudioFormatType)Saved.AudioFormat,
-                        Arguments = CustomArguments,
+                        CustomArguments = CustomArguments,
                         Authentication = Auth,
                     };
 
@@ -588,7 +588,7 @@ internal static class Program {
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {
                         Type = DownloadType.Custom,
-                        Arguments = CustomArguments,
+                        CustomArguments = CustomArguments,
                     Authentication = Auth,
                     };
                     DownloadForm = new frmDownloader(Info: NewInfo);

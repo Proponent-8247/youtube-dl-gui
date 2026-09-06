@@ -1,0 +1,17 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmSettings.cs",
+      "old": "ICAgICAgICBjaGtFeHRlbmRlZEF1dG9tYXRpY2FsbHlEb3dubG9hZFRodW1ibmFpbC5DaGVja2VkID0gRG93bmxvYWRzLkV4dGVuZGVkRG93bmxvYWRlckF1dG9Eb3dubG9hZFRodW1ibmFpbDsNCg==",
+      "new": "ICAgICAgICBjaGtFeHRlbmRlZEF1dG9tYXRpY2FsbHlEb3dubG9hZFRodW1ibmFpbC5DaGVja2VkID0gRG93bmxvYWRzLkV4dGVuZGVkRG93bmxvYWRlckF1dG9Eb3dubG9hZFRodW1ibmFpbDsNCiAgICAgICAgY2hrRXh0ZW5kZWRJbmNsdWRlQ3VzdG9tQXJndW1lbnRzLkNoZWNrZWQgPSBEb3dubG9hZHMuRXh0ZW5kZWREb3dubG9hZGVySW5jbHVkZUN1c3RvbUFyZ3VtZW50czsNCg==",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmSettings.cs",
+      "old": "ICAgICAgICBEb3dubG9hZHMuRXh0ZW5kZWREb3dubG9hZGVyQXV0b0Rvd25sb2FkVGh1bWJuYWlsID0gY2hrRXh0ZW5kZWRBdXRvbWF0aWNhbGx5RG93bmxvYWRUaHVtYm5haWwuQ2hlY2tlZDsNCg==",
+      "new": "ICAgICAgICBEb3dubG9hZHMuRXh0ZW5kZWREb3dubG9hZGVyQXV0b0Rvd25sb2FkVGh1bWJuYWlsID0gY2hrRXh0ZW5kZWRBdXRvbWF0aWNhbGx5RG93bmxvYWRUaHVtYm5haWwuQ2hlY2tlZDsNCiAgICAgICAgRG93bmxvYWRzLkV4dGVuZGVkRG93bmxvYWRlckluY2x1ZGVDdXN0b21Bcmd1bWVudHMgPSBjaGtFeHRlbmRlZEluY2x1ZGVDdXN0b21Bcmd1bWVudHMuQ2hlY2tlZDsNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: persist extended custom argument setting"
+}

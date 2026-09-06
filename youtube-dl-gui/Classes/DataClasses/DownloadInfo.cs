@@ -310,7 +310,12 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                 ArgumentsBuffer.Add("--write-description");
             }
             if (Downloads.SaveAnnotations) {
-                ArgumentsBuffer.Add("--write-annotations");
+                if (Downloads.YtdlType == (int)GitID.YoutubeDl || Downloads.YtdlType == (int)GitID.YoutubeDlNightly) {
+                    ArgumentsBuffer.Add("--write-annotations");
+                }
+                else {
+                    Verbose("Annotations are not supported by yt-dlp; skipping --write-annotations.");
+                }
             }
             if (Downloads.SaveThumbnail) {
                 // ArgumentsBuffer += "--write-all-thumbnails "; // Maybe?

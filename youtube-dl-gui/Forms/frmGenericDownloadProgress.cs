@@ -73,7 +73,14 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
                 if (File.Exists(Output))
                     File.Move(Output, BackupFile);
 
-                File.Move(TempFile, Output);
+                try {
+                    File.Move(TempFile, Output);
+                }
+                catch {
+                    if (!File.Exists(Output) && File.Exists(BackupFile))
+                        File.Move(BackupFile, Output);
+                    throw;
+                }
 
                 CanRetry = false;
                 Downloaded = true;

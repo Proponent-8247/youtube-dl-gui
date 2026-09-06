@@ -248,6 +248,8 @@ public partial class frmMerger : LocalizedForm {
         //    ((FfprobeNodeTag)tvSelectedSources.SelectedNode.Tag).Stream.QueuedNode);
     }
     private void tvSelectedStreams_NodeMouseDoubleClick(object sender, TreeNodeMouseClickEventArgs e) {
-        tvSelectedStreams.SelectedNode.Remove();
+        if (e.Node.Parent is not null) {
+            e.Node.Remove();
+        }
     }
 }

@@ -629,7 +629,6 @@ public partial class frmSettings : LocalizedForm {
 
     #region General
     private void chkSettingsGeneralUseStaticYoutubeDl_CheckedChanged(object sender, EventArgs e) {
-        General.UseStaticYtdl = chkSettingsGeneralUseStaticYoutubeDl.Checked;
     }
     private void btnSettingsGeneralBrowseYoutubeDl_Click(object sender, EventArgs e) {
         using OpenFileDialog ofd = new() {
@@ -645,7 +644,6 @@ public partial class frmSettings : LocalizedForm {
     }
 
     private void chkSettingsGeneralUseStaticFFmpeg_CheckedChanged(object sender, EventArgs e) {
-        General.UseStaticFFmpeg = chkSettingsGeneralUseStaticFFmpeg.Checked;
     }
     private void btnSettingsGeneralBrowseFFmpeg_Click(object sender, EventArgs e) {
         using OpenFileDialog ofd = new() {

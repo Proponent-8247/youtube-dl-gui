@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmMiscTools.cs",
+      "old": "XFxcIiBzY2FsZT0zMjA6LTE6ZmxhZ3M9bGFuY3pvcyxmcHM9MTAgZnJhbWVzL291dGZyYW1lcyUwM2QucG5n",
+      "new": "XFxcIiAtdmYgc2NhbGU9MzIwOi0xOmZsYWdzPWxhbmN6b3MsZnBzPTEwIGZyYW1lcy9vdXRmcmFtZXMlMDNkLnBuZw==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: pass video-to-gif transform as ffmpeg filter"
+}

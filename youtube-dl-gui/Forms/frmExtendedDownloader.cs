@@ -310,7 +310,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
     private void frmExtendedDownloader_FormClosing(object sender, FormClosingEventArgs e) {
         switch (Status) {
-            case DownloadStatus.Downloading: {
+            case DownloadStatus.Downloading:
+            case DownloadStatus.MergingFiles:
+            case DownloadStatus.Converting:
+            case DownloadStatus.ExtractingAudio:
+            case DownloadStatus.FfmpegPostProcessing:
+            case DownloadStatus.EmbeddingSubtitles:
+            case DownloadStatus.EmbeddingMetadata: {
                 Status = DownloadStatus.Aborted;
                 e.Cancel = true;
             } break;

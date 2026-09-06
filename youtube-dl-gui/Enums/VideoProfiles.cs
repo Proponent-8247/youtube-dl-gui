@@ -6,6 +6,6 @@ internal enum VideoProfiles {
     main,
     high,
     high10,
-    high442,
+    high422,
     high444
 }

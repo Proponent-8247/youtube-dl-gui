@@ -701,7 +701,8 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
                 ArgumentBuffer.Add("--ignore-errors");
             }
 
-            if (FragmentThreads > 1) {
+            if (FragmentThreads > 1
+            && (Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly)) {
                 ArgumentBuffer.Add("--concurrent-fragments " + FragmentThreads);
             }
 

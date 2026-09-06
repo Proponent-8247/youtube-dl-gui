@@ -640,11 +640,16 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
             if (Downloads.SaveThumbnail) {
                 ArgumentBuffer.Add("--write-thumbnail");
                 if (Downloads.EmbedThumbnails) {
-                    switch (SelectedType) {
-                        case DownloadType.Video when VideoFormat?.VideoThumbnailEmbedding == true || VideoEncoderIndex == 4:
-                        case DownloadType.Audio when AudioFormat?.AudioThumbnailEmbedding == true || AudioEncoderIndex == 1 || AudioEncoderIndex == 2: {
-                            ArgumentBuffer.Add("--embed-thumbnail");
-                        } break;
+                    string? ThumbnailOutputExtension = SelectedType switch {
+                        DownloadType.Video when VideoRemuxIndex > 0 => Formats.ExtendedVideoFormats[VideoRemuxIndex - 1],
+                        DownloadType.Video when VideoEncoderIndex > 0 => Formats.ExtendedVideoFormats[VideoEncoderIndex - 1],
+                        DownloadType.Video => VideoFormat?.Extension,
+                        DownloadType.Audio when AudioEncoderIndex > 0 => Formats.ExtendedAudioFormats[AudioEncoderIndex - 1],
+                        DownloadType.Audio => AudioFormat?.Extension,
+                        _ => null
+                    };
+                    if (ThumbnailOutputExtension?.ToLowerInvariant() is "mp4" or "mkv" or "mp3" or "m4a") {
+                        ArgumentBuffer.Add("--embed-thumbnail");
                     }
                 }
             }

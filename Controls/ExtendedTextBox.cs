@@ -308,7 +308,13 @@ public class ExtendedTextBox : TextBox {
         set {
             fTextHint = value;
             if (this.IsHandleCreated) {
-                NativeMethods.SendMessage(this.Handle, 0x1501, 1, Marshal.StringToHGlobalUni(value));
+                nint TextHintPointer = Marshal.StringToHGlobalUni(value);
+                try {
+                    NativeMethods.SendMessage(this.Handle, 0x1501, 1, TextHintPointer);
+                }
+                finally {
+                    Marshal.FreeHGlobal(TextHintPointer);
+                }
             }
         }
     }
@@ -368,7 +374,13 @@ public class ExtendedTextBox : TextBox {
             }
 
             if (!string.IsNullOrWhiteSpace(fTextHint)) {
-                NativeMethods.SendMessage(this.Handle, 0x1501, 1, Marshal.StringToHGlobalUni(fTextHint));
+                nint TextHintPointer = Marshal.StringToHGlobalUni(fTextHint);
+                try {
+                    NativeMethods.SendMessage(this.Handle, 0x1501, 1, TextHintPointer);
+                }
+                finally {
+                    Marshal.FreeHGlobal(TextHintPointer);
+                }
             }
         }
     }

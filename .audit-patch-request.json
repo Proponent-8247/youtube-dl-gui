@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: tolerate incomplete protocol registry keys",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/SystemRegistry.cs",
+      "old": "ICAgICAgICBib29sIEF2YWlsYWJsZSA9IFByb3RvY29sS2V5Py5HZXRWYWx1ZSgiVVJMIFByb3RvY29sIikgaXMgbm90IG51bGwgJiYNCiAgICAgICAgICAgIFByb3RvY29sS2V5Lk9wZW5TdWJLZXkoInNoZWxsXFxvcGVuXFxjb21tYW5kIikuR2V0VmFsdWUoIiIpLlRvU3RyaW5nKCkNCiAgICAgICAgICAgICAgICAuRXF1YWxzKCQiXCJ7UHJvZ3JhbS5GdWxsUHJvZ3JhbVBhdGh9XCIgXCIlMVwiIiwgU3RyaW5nQ29tcGFyaXNvbi5JbnZhcmlhbnRDdWx0dXJlSWdub3JlQ2FzZSk7DQo=",
+      "new": "ICAgICAgICBzdHJpbmc/IENvbW1hbmQgPSBQcm90b2NvbEtleT8uT3BlblN1YktleSgic2hlbGxcXG9wZW5cXGNvbW1hbmQiKT8uR2V0VmFsdWUoIiIpPy5Ub1N0cmluZygpOw0KICAgICAgICBib29sIEF2YWlsYWJsZSA9IFByb3RvY29sS2V5Py5HZXRWYWx1ZSgiVVJMIFByb3RvY29sIikgaXMgbm90IG51bGwgJiYNCiAgICAgICAgICAgIENvbW1hbmQ/LkVxdWFscygkIlwie1Byb2dyYW0uRnVsbFByb2dyYW1QYXRofVwiIFwiJTFcIiIsIFN0cmluZ0NvbXBhcmlzb24uSW52YXJpYW50Q3VsdHVyZUlnbm9yZUNhc2UpID09IHRydWU7DQo=",
+      "count": 1
+    }
+  ]
+}

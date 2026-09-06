@@ -1007,11 +1007,18 @@ public partial class frmMain : LocalizedForm {
                 }
             }
 
+            ArgumentType InitialArgumentType =
+                rbVideo.Checked ? (chkDownloadSound.Checked ? ArgumentType.DownloadVideo : ArgumentType.DownloadVideoNoSound) :
+                rbAudio.Checked ? ArgumentType.DownloadAudio :
+                rbCustom.Checked ? ArgumentType.DownloadCustom :
+                ArgumentType.NoArguments;
+
             Downloader = new frmExtendedDownloader(
                 URL,
                 Arguments,
                 false,
-                Auth);
+                Auth,
+                InitialArgumentType);
         }
         else {
             DownloadInfo NewInfo = new(URL);

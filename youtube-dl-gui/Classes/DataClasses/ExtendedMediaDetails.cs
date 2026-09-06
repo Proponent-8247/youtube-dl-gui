@@ -849,6 +849,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
             CustomArguments = null;
             MediaData = null;
             ArgumentsCensored = string.Empty;
+            Thumbnail?.Dispose();
             Thumbnail = null;
         }
 

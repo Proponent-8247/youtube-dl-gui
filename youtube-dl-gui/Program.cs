@@ -245,7 +245,7 @@ internal static class Program {
         (MainForm = new frmMain()).ShowDialog();
         MainForm = null;
 
-        if (RunningActions.Count > 0) {
+        if (!RunningActions.IsEmpty) {
             AwaitActions();
         }
 

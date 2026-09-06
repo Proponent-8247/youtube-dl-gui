@@ -37,7 +37,7 @@ public partial class MessageHandler : Form {
     }
 
     public void CheckExit() {
-        if (!AwaitingExit || Program.RunningActions.Count > 0)
+        if (!AwaitingExit || !Program.RunningActions.IsEmpty)
             return;
         AcceptMessages = false;
         AwaitingExit = false;
@@ -70,8 +70,8 @@ public partial class MessageHandler : Form {
                 if (Program.MainForm is not null) {
                     Program.MainForm.Activate();
                 }
-                else if (Program.RunningActions.Count > 0) {
-                    Program.RunningActions[0].Show();
+                else if (Program.RunningActions.TryPeek(out Form RunningForm)) {
+                    RunningForm.Show();
                 }
                 m.Result = IntPtr.Zero;
             } break;

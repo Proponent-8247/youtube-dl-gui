@@ -872,9 +872,13 @@ public partial class frmMain : LocalizedForm {
             DownloadType Type = DownloadType.None;
             int BatchQuality = 0;
             string schema = string.Empty;
+            bool BatchSoundSetting = false;
+            string BatchCustomArguments = string.Empty;
 
             this.Invoke((Action)delegate {
-                if (!chkDownloadSound.Checked) { videoArguments += "-nosound"; }
+                BatchSoundSetting = chkDownloadSound.Checked;
+                BatchCustomArguments = cbCustomArguments.Text;
+                if (!BatchSoundSetting) { videoArguments += "-nosound"; }
                 BatchQuality = cbQuality.SelectedIndex;
                 if (!string.IsNullOrWhiteSpace(cbSchema.Text)) {
                     schema = cbSchema.Text;
@@ -906,7 +910,7 @@ public partial class frmMain : LocalizedForm {
                     };
                     switch (Type) {
                         case DownloadType.Video:
-                            if (!chkDownloadSound.Checked) {
+                            if (!BatchSoundSetting) {
                                 NewInfo.SkipAudioForVideos = true;
                             }
                             NewInfo.Arguments = videoArguments;
@@ -914,7 +918,7 @@ public partial class frmMain : LocalizedForm {
                             NewInfo.Type = DownloadType.Video;
                             break;
                         case DownloadType.Audio:
-                            if (chkDownloadSound.Checked) {
+                            if (BatchSoundSetting) {
                                 NewInfo.AudioVBRQuality = (AudioVBRQualityType)BatchQuality;
                                 NewInfo.UseVBR = true;
                             }
@@ -924,7 +928,7 @@ public partial class frmMain : LocalizedForm {
                             NewInfo.Type = DownloadType.Audio;
                             break;
                         case DownloadType.Custom:
-                            NewInfo.Arguments = cbCustomArguments.Text;
+                            NewInfo.Arguments = BatchCustomArguments;
                             NewInfo.Type = DownloadType.Custom;
                             break;
                         case DownloadType.Unknown:

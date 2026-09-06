@@ -1,0 +1,23 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmMiscTools.cs",
+      "old": "ICAgICAgICBpZiAob2ZkLlNob3dEaWFsb2coKSA9PSBEaWFsb2dSZXN1bHQuT0spIHsNCiAgICAgICAgICAgIFByb2Nlc3MgZmZtcGVnID0gbmV3KCkgew0K",
+      "new": "ICAgICAgICBpZiAob2ZkLlNob3dEaWFsb2coKSA9PSBEaWFsb2dSZXN1bHQuT0spIHsNCiAgICAgICAgICAgIHN0cmluZyBXb3JraW5nRGlyZWN0b3J5ID0gUGF0aC5HZXREaXJlY3RvcnlOYW1lKG9mZC5GaWxlTmFtZSkgPz8gRW52aXJvbm1lbnQuQ3VycmVudERpcmVjdG9yeTsNCiAgICAgICAgICAgIERpcmVjdG9yeS5DcmVhdGVEaXJlY3RvcnkoUGF0aC5Db21iaW5lKFdvcmtpbmdEaXJlY3RvcnksICJmcmFtZXMiKSk7DQoNCiAgICAgICAgICAgIFByb2Nlc3MgZmZtcGVnID0gbmV3KCkgew0K",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmMiscTools.cs",
+      "old": "ICAgICAgICAgICAgICAgICAgICBVc2VTaGVsbEV4ZWN1dGUgPSBmYWxzZSwNCiAgICAgICAgICAgICAgICAgICAgQXJndW1lbnRzID0gc3RyaW5nLkZvcm1hdCgiL2MgXCJ7MH1cIiIsICJjZCAiICsgUGF0aC5HZXREaXJlY3RvcnlOYW1lKG9mZC5GaWxlTmFtZSkgKyAiIHwgbWtkaXIgZnJhbWVzIHwgZmZtcGVnIC1pIFwiIiArIG9mZC5GaWxlTmFtZSArICJcIiAtdmYgc2NhbGU9MzIwOi0xOmZsYWdzPWxhbmN6b3MsZnBzPTEwIGZyYW1lcy9vdXRmcmFtZXMlMDNkLnBuZyIpLA0K",
+      "new": "ICAgICAgICAgICAgICAgICAgICBVc2VTaGVsbEV4ZWN1dGUgPSBmYWxzZSwNCiAgICAgICAgICAgICAgICAgICAgV29ya2luZ0RpcmVjdG9yeSA9IFdvcmtpbmdEaXJlY3RvcnksDQogICAgICAgICAgICAgICAgICAgIEFyZ3VtZW50cyA9IHN0cmluZy5Gb3JtYXQoIi9jIFwiezB9XCIiLCAiZmZtcGVnIC1pIFwiIiArIG9mZC5GaWxlTmFtZSArICJcIiAtdmYgc2NhbGU9MzIwOi0xOmZsYWdzPWxhbmN6b3MsZnBzPTEwIGZyYW1lcy9vdXRmcmFtZXMlMDNkLnBuZyIpLA0K",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmMiscTools.cs",
+      "old": "ICAgICAgICAgICAgICAgICAgICBVc2VTaGVsbEV4ZWN1dGUgPSBmYWxzZSwNCiAgICAgICAgICAgICAgICAgICAgQXJndW1lbnRzID0gc3RyaW5nLkZvcm1hdCgiL2MgXCJ7MH1cIiIsICJjb252ZXJ0IC1sb29wIDAgZnJhbWVzL291dGZyYW1lcyoucG5nIFwiIiArIFBhdGguR2V0RGlyZWN0b3J5TmFtZShvZmQuRmlsZU5hbWUpICsgIlxcIiArIFBhdGguR2V0RmlsZU5hbWVXaXRob3V0RXh0ZW5zaW9uKG9mZC5GaWxlTmFtZSkgKyAiLmdpZlwiIiksDQo=",
+      "new": "ICAgICAgICAgICAgICAgICAgICBVc2VTaGVsbEV4ZWN1dGUgPSBmYWxzZSwNCiAgICAgICAgICAgICAgICAgICAgV29ya2luZ0RpcmVjdG9yeSA9IFdvcmtpbmdEaXJlY3RvcnksDQogICAgICAgICAgICAgICAgICAgIEFyZ3VtZW50cyA9IHN0cmluZy5Gb3JtYXQoIi9jIFwiezB9XCIiLCAiY29udmVydCAtbG9vcCAwIGZyYW1lcy9vdXRmcmFtZXMqLnBuZyBcIiIgKyBQYXRoLkdldERpcmVjdG9yeU5hbWUob2ZkLkZpbGVOYW1lKSArICJcXCIgKyBQYXRoLkdldEZpbGVOYW1lV2l0aG91dEV4dGVuc2lvbihvZmQuRmlsZU5hbWUpICsgIi5naWZcIiIpLA0K",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: keep video-to-gif stages in source directory"
+}

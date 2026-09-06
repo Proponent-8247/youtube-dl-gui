@@ -1,0 +1,17 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmConverter.cs",
+      "old": "aWYgKEN1cnJlbnRDb252ZXJzaW9uLklucHV0RmlsZS5Jc051bGxFbXB0eVdoaXRlc3BhY2UoKSk=",
+      "new": "aWYgKCFDdXJyZW50Q29udmVyc2lvbi5GdWxsQ3VzdG9tQXJndW1lbnRzICYmIEN1cnJlbnRDb252ZXJzaW9uLklucHV0RmlsZS5Jc051bGxFbXB0eVdoaXRlc3BhY2UoKSk=",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmConverter.cs",
+      "old": "aWYgKEN1cnJlbnRDb252ZXJzaW9uLk91dHB1dEZpbGUuSXNOdWxsRW1wdHlXaGl0ZXNwYWNlKCkp",
+      "new": "aWYgKCFDdXJyZW50Q29udmVyc2lvbi5GdWxsQ3VzdG9tQXJndW1lbnRzICYmIEN1cnJlbnRDb252ZXJzaW9uLk91dHB1dEZpbGUuSXNOdWxsRW1wdHlXaGl0ZXNwYWNlKCkp",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: allow full-custom converter arguments"
+}

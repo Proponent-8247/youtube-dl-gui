@@ -159,11 +159,16 @@ internal static class Verification {
         return false;
     }
     private static bool ProgramInSystemPath(string ProgramName, [NotNullWhen(true)] out string? OutputDir) {
-        string[] PathLocations = Environment.GetEnvironmentVariable("PATH").Split(';');
+        string? SystemPath = Environment.GetEnvironmentVariable("PATH");
+        if (SystemPath.IsNullEmptyWhitespace()) {
+            OutputDir = null;
+            return false;
+        }
 
+        string[] PathLocations = SystemPath.Split(';');
         for (int i = 0; i < PathLocations.Length; i++) {
             if (File.Exists($"{PathLocations[i]}\\{ProgramName}")) {
-                OutputDir = $"{PathLocations[i]}\\{ProgramName}";
+                OutputDir = PathLocations[i];
                 return true;
             }
         }

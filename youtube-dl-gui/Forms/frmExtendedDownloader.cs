@@ -504,6 +504,11 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             };
             DownloadProcess.OutputDataReceived += (s, e) => {
                 if (e.Data?.Length > 0) {
+                    if (e.Data.Length < 8) {
+                        rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data));
+                        return;
+                    }
+
                     switch (e.Data[..8].ToLowerInvariant()) {
                         case "[downloa": case "[ffmpeg]":
                         case "[embedsu": case "[metadat": {
@@ -580,10 +585,19 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
                 if (Msg is not null) {
                     string Line = Msg.ReplaceWhitespace();
+                    if (Line.Length < 5) {
+                        Msg = null;
+                        continue;
+                    }
+
                     string[] LineParts = Line.Split(' ');
                     switch (Line[..5].ToLowerInvariant()) {
                         case "[down": {
                             Status = DownloadStatus.Downloading;
+                            if (LineParts.Length < 2 || LineParts[1].Length == 0) {
+                                break;
+                            }
+
                             switch (LineParts[1][0]) {
                                 case '1': case '2': case '3':
                                 case '4': case '5': case '6':
@@ -758,6 +772,11 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 };
                 DownloadProcess.OutputDataReceived += (s, e) => {
                     if (e.Data?.Length > 0) {
+                        if (e.Data.Length < 8) {
+                            rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data));
+                            return;
+                        }
+
                         switch (e.Data[..8].ToLower()) {
                             case "[downloa": case "[ffmpeg]":
                             case "[embedsu": case "[metadat": {
@@ -807,9 +826,18 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
                     if (Msg is not null) {
                         string Line = Msg.ReplaceWhitespace();
+                        if (Line.Length < 5) {
+                            Msg = null;
+                            continue;
+                        }
+
                         string[] LineParts = Line.Split(' ');
                         switch (Line[..5].ToLower()) {
                             case "[down": {
+                                if (LineParts.Length < 2 || LineParts[1].Length == 0) {
+                                    break;
+                                }
+
                                 switch (LineParts[1][0]) {
                                     case '1': case '2': case '3':
                                     case '4': case '5': case '6':

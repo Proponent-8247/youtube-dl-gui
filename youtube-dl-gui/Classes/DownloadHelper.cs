@@ -78,21 +78,37 @@ public static class DownloadHelper {
     public static bool SupportedDownloadLink(string Url) => BasicUrlRegex.IsMatch(Url);
 
     public static string GetTransferData(string[] LineParts, ref float Percentage, ref string Eta) {
-        if (LineParts[1].Contains('%')) {
-            Percentage = float.Parse(LineParts[1][..LineParts[1].IndexOf('%')],
-                System.Globalization.CultureInfo.InvariantCulture);
-
-            if (LineParts[3] == "~") {
-                Eta = LineParts[8];
-                return $"{LineParts[1]} of ~{LineParts[4]} @ {LineParts[6]}";
-            }
-            else {
-                Eta = LineParts[7];
-                return $"{LineParts[1]} of {LineParts[3]} @ {LineParts[5]}";
-            }
-        }
         Eta = "Unknown";
-        return "Could not parse line";
+        if (LineParts is null || LineParts.Length < 2 || LineParts[1].IsNullEmptyWhitespace()) {
+            return "Could not parse line";
+        }
+
+        int PercentIndex = LineParts[1].IndexOf('%');
+        if (PercentIndex <= 0 || !float.TryParse(
+            LineParts[1][..PercentIndex],
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out float ParsedPercentage)) {
+            return "Could not parse line";
+        }
+
+        if (LineParts.Length > 3 && LineParts[3] == "~") {
+            if (LineParts.Length <= 8) {
+                return "Could not parse line";
+            }
+
+            Percentage = ParsedPercentage;
+            Eta = LineParts[8];
+            return $"{LineParts[1]} of ~{LineParts[4]} @ {LineParts[6]}";
+        }
+
+        if (LineParts.Length <= 7) {
+            return "Could not parse line";
+        }
+
+        Percentage = ParsedPercentage;
+        Eta = LineParts[7];
+        return $"{LineParts[1]} of {LineParts[3]} @ {LineParts[5]}";
     }
 
     public static bool IsYoutubeKey([NotNullWhen(true)] string? key) {

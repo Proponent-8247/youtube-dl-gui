@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "Controls/ManagedHttpClient.cs",
+      "old": "UmVzcG9uc2UuQ29udGVudC5IZWFkZXJzLkNvbnRlbnRFbmNvZGluZy5GaXJzdE9yRGVmYXVsdCgp",
+      "new": "UmVzcG9uc2UuQ29udGVudC5IZWFkZXJzLkNvbnRlbnRFbmNvZGluZy5GaXJzdE9yRGVmYXVsdCgpPy5Ub0xvd2VySW52YXJpYW50KCk=",
+      "count": 2
+    }
+  ],
+  "commit_message": "fix: normalize HTTP content encoding tokens"
+}

@@ -1,0 +1,17 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmMain.cs",
+      "old": "ICAgICAgICAgICAgY2JRdWFsaXR5Lkl0ZW1zLkFkZFJhbmdlKG5ldyBzdHJpbmdbXSB7ICIwIiwgIjEiLCAiMiIsICIzIiwgIjQiLCAiNSIsICI2IiwgIjciLCAiOCIsICI5IiB9KTsNCg==",
+      "new": "ICAgICAgICAgICAgY2JRdWFsaXR5Lkl0ZW1zLkFkZFJhbmdlKEZvcm1hdHMuVmJyUXVhbGl0aWVzKTsNCg==",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmMain.cs",
+      "old": "ICAgICAgICAgICAgY2JRdWFsaXR5LlNlbGVjdGVkSW5kZXggPSBTYXZlZC5hdWRpb1F1YWxpdHk7DQo=",
+      "new": "ICAgICAgICAgICAgY2JRdWFsaXR5LlNlbGVjdGVkSW5kZXggPSBEb3dubG9hZHMuQXVkaW9Eb3dubG9hZEFzVkJSID8gU2F2ZWQuQXVkaW9WQlJRdWFsaXR5IDogU2F2ZWQuYXVkaW9RdWFsaXR5Ow0K",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: restore saved VBR quality in audio mode"
+}

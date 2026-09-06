@@ -325,6 +325,12 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     ProcessingThread.Abort();
                 }
 
+                if (ClipboardScannerActive) {
+                    NativeMethods.RemoveClipboardFormatListener(this.Handle);
+                    Application.ApplicationExit -= ApplicationExit;
+                    ClipboardScannerActive = false;
+                }
+
                 Downloads.CloseExtendedDownloaderAfterFinish = chkDownloaderCloseAfterDownload.Checked;
                 Saved.ExtendedDownloaderLocation = this.Location;
                 Saved.ExtendedDownloaderSize = this.Size;

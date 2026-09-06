@@ -118,6 +118,12 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
             return;
         }
 
+        if (ClipboardScannerActive) {
+            NativeMethods.RemoveClipboardFormatListener(this.Handle);
+            Application.ApplicationExit -= ApplicationExit;
+            ClipboardScannerActive = false;
+        }
+
         if (this.WindowState == FormWindowState.Minimized) {
             this.Opacity = 0;
             this.WindowState = FormWindowState.Normal;

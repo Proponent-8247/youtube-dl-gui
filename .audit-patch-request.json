@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/ExtendedMediaDetails.cs",
+      "old": "ICAgICAgICAgICAgICAgICAgICBBcmd1bWVudCArPSBWaWRlb1NlcGFyYXRlQXVkaW8gPyAiL2Jlc3QsIiA6ICIrIiArIEF1ZGlvRm9ybWF0LklkZW50aWZpZXIgKyAiL2Jlc3QiOw0K",
+      "new": "ICAgICAgICAgICAgICAgICAgICBBcmd1bWVudCArPSBWaWRlb1NlcGFyYXRlQXVkaW8gPyAiL2Jlc3QsIiArIEF1ZGlvRm9ybWF0LklkZW50aWZpZXIgKyAiL2Jlc3QiIDogIisiICsgQXVkaW9Gb3JtYXQuSWRlbnRpZmllciArICIvYmVzdCI7DQo=",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: include selected audio in separate format selector"
+}

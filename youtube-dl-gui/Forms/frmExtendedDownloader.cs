@@ -398,13 +398,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     ArgumentType.DownloadCustom or ArgumentType.DownloadAuthenticateCustom => DownloadType.Custom,
                     _ => DownloadType.None,
                 };
+                if (InitialArgumentType is ArgumentType.DownloadVideoNoSound or ArgumentType.DownloadAuthenticateVideoNoSound) {
+                    MediaDetails.VideoDownloadAudio = false;
+                }
                 if (InitialDownloadType != DownloadType.None && MediaDetails.SelectedType != InitialDownloadType) {
                     if ((InitialDownloadType == DownloadType.Video && MediaDetails.VideoFormats.Count < 1)
                     || (InitialDownloadType == DownloadType.Audio && MediaDetails.AudioFormats.Count < 1)) {
                         throw new DownloadException(MediaDetails.URL, $"The requested {InitialDownloadType.ToString().ToLowerInvariant()} format is not available for this media.");
-                    }
-                    if (InitialArgumentType is ArgumentType.DownloadVideoNoSound or ArgumentType.DownloadAuthenticateVideoNoSound) {
-                        MediaDetails.VideoDownloadAudio = false;
                     }
                     MediaDetails.ChangeMediaType(InitialDownloadType);
                 }

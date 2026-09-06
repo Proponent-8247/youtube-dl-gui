@@ -126,7 +126,10 @@ internal sealed class YoutubeDlData {
 
         if (!RetrievedData.IsNullEmptyWhitespace()) {
             Log.Write($"Finished downloading info for \"{URL}\", deserializing the data.");
-            var Data = RetrievedData.JsonDeserialize<YoutubeDlData>();
+            YoutubeDlData? Data = RetrievedData.JsonDeserialize<YoutubeDlData>();
+            if (Data is null) {
+                return null;
+            }
             Data.URL = URL;
             return Data;
         }

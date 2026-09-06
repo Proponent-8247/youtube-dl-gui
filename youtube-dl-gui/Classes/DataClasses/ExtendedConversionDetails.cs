@@ -345,6 +345,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
         }
 
         InfoRetrieved = true;
+        InfoParsed = true;
     }
     public override bool GenerateArguments() {
         if (this.OutputFilePath.IsNullEmptyWhitespace()) {

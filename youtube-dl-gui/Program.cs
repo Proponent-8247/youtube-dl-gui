@@ -87,6 +87,11 @@ internal static class Program {
 
     [STAThread]
     private static int Main(string[] args) {
+        if (args.Length == 1 && args[0].TrimStart('-').Equals("installprotocol", StringComparison.OrdinalIgnoreCase)) {
+            IsAdmin = new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
+            return SystemRegistry.SetRegistry();
+        }
+
 #if DEBUG
         DebugMode = true;
         Instance = new(true, ProgramGUID);

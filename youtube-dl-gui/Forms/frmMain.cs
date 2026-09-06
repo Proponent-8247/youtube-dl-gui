@@ -907,7 +907,12 @@ public partial class frmMain : LocalizedForm {
                     return;
                 }
                 for (int i = 0; i < ReadFile.Length; i++) {
-                    DownloadInfo NewInfo = new(ReadFile[i].Trim()) {
+                    string URL = ReadFile[i].Trim();
+                    if (URL.IsNullEmptyWhitespace()) {
+                        continue;
+                    }
+
+                    DownloadInfo NewInfo = new(URL) {
                         BatchDownload = true,
                         BatchTime = BatchTime,
                         FileNameSchema = schema

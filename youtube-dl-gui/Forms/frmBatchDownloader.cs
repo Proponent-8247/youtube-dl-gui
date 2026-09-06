@@ -409,7 +409,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
     }
 
     private void AddItemToList(string URL) {
-        if (!string.IsNullOrEmpty(URL) && cbBatchDownloadType.SelectedIndex != -1) {
+        if (!string.IsNullOrWhiteSpace(URL) && cbBatchDownloadType.SelectedIndex != -1) {
             for (int i = 0; i < lvBatchDownloadQueue.Items.Count; i++) {
                 if (lvBatchDownloadQueue.Items[i].Text[1..] == URL) {
                     System.Media.SystemSounds.Asterisk.Play();

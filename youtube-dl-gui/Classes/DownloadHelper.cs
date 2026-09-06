@@ -72,7 +72,9 @@ public static class DownloadHelper {
             }
         }
 
-        return Url;
+        char[] InvalidFileNameChars = System.IO.Path.GetInvalidFileNameChars();
+        Url = new string(Url.Select(c => InvalidFileNameChars.Contains(c) ? '_' : c).ToArray()).TrimEnd(' ', '.');
+        return Url.Length > 0 ? Url : "_";
     }
 
     public static bool SupportedDownloadLink(string Url) => BasicUrlRegex.IsMatch(Url);

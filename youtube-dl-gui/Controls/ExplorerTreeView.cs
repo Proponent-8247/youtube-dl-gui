@@ -7,7 +7,7 @@ internal class ExplorerTreeView : TreeView {
         get {
             CreateParams param = base.CreateParams;
             param.ExStyle |= 0x10000; // WS_EX_CONTROLPARENT
-            param.ExStyle &= 0x200; // WS_EX_CLIENTEDGE
+            param.ExStyle &= ~0x200; // WS_EX_CLIENTEDGE
             param.Style &= (~0x800000); // WS_BORDER
             param.Style |= 0x800000;
             return param;

@@ -697,18 +697,31 @@ public partial class frmSettings : LocalizedForm {
     #region Downloads
     private void chkSettingsDownloadsDownloadPathUseRelativePath_CheckedChanged(object sender, EventArgs e) {
         if (!LoadingForm) {
-            if (chkSettingsDownloadsDownloadPathUseRelativePath.Checked && txtSettingsDownloadsSavePath.Text.StartsWith(Program.ProgramPath)) {
-                txtSettingsDownloadsSavePath.Text = ".\\" + txtSettingsDownloadsSavePath.Text[(Program.ProgramPath.Length + 1)..];
+            if (chkSettingsDownloadsDownloadPathUseRelativePath.Checked) {
+                if (string.Equals(txtSettingsDownloadsSavePath.Text, Program.ProgramPath, StringComparison.InvariantCultureIgnoreCase)) {
+                    txtSettingsDownloadsSavePath.Text = ".\\";
+                }
+                else if (txtSettingsDownloadsSavePath.Text.StartsWith(Program.ProgramPath + "\\", StringComparison.InvariantCultureIgnoreCase)) {
+                    txtSettingsDownloadsSavePath.Text = ".\\" + txtSettingsDownloadsSavePath.Text[(Program.ProgramPath.Length + 1)..];
+                }
             }
             else if (txtSettingsDownloadsSavePath.Text.StartsWith("./") || txtSettingsDownloadsSavePath.Text.StartsWith(".\\")) {
-                txtSettingsDownloadsSavePath.Text = Program.ProgramPath + "\\" + txtSettingsDownloadsSavePath.Text[2..];
+                txtSettingsDownloadsSavePath.Text = txtSettingsDownloadsSavePath.Text.Length == 2 ?
+                    Program.ProgramPath : Program.ProgramPath + "\\" + txtSettingsDownloadsSavePath.Text[2..];
             }
         }
     }
     private void btnSettingsDownloadsBrowseSavePath_Click(object sender, EventArgs e) {
-        string GetSelectedPath(string path) => chkSettingsDownloadsDownloadPathUseRelativePath.Checked
-        && path.StartsWith(Program.ProgramPath, StringComparison.InvariantCultureIgnoreCase) ?
-            (".\\" + path[(Program.ProgramPath.Length + 1)..]) : path;
+        string GetSelectedPath(string path) {
+            if (!chkSettingsDownloadsDownloadPathUseRelativePath.Checked) {
+                return path;
+            }
+            if (string.Equals(path, Program.ProgramPath, StringComparison.InvariantCultureIgnoreCase)) {
+                return ".\\";
+            }
+            return path.StartsWith(Program.ProgramPath + "\\", StringComparison.InvariantCultureIgnoreCase) ?
+                ".\\" + path[(Program.ProgramPath.Length + 1)..] : path;
+        }
 
         using BetterFolderBrowserNS.BetterFolderBrowser fbd = new() {
             RootFolder = chkSettingsDownloadsDownloadPathUseRelativePath.Checked ?

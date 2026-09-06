@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmMiscTools.cs",
+      "old": "ICAgICAgICAgICAgICAgIG5ld0ZpbGUgPSBQYXRoLkdldERpcmVjdG9yeU5hbWUob2ZkLkZpbGVOYW1lICsgIlxcb3V0cHV0IiArIFBhdGguR2V0RXh0ZW5zaW9uKG9mZC5GaWxlTmFtZSkpOyAvLyBSYXJlIGNhc2UsIGZpbGUgaXMgYSBsb3JnZSBuYW1lDQo=",
+      "new": "ICAgICAgICAgICAgICAgIG5ld0ZpbGUgPSBQYXRoLkNvbWJpbmUoUGF0aC5HZXREaXJlY3RvcnlOYW1lKG9mZC5GaWxlTmFtZSkgPz8gRW52aXJvbm1lbnQuQ3VycmVudERpcmVjdG9yeSwgIm91dHB1dCIgKyBQYXRoLkdldEV4dGVuc2lvbihvZmQuRmlsZU5hbWUpKTsgLy8gUmFyZSBjYXNlLCBmaWxlIGlzIGEgbG9yZ2UgbmFtZQ0K",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: preserve distinct misc-tool output for long filenames"
+}

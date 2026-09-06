@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: bound saved batch argument index",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmBatchDownloader.cs",
+      "old": "ICAgICAgICAgICAgaWYgKFNhdmVkLkN1c3RvbUFyZ3VtZW50c0luZGV4ID4gLTEgJiYgU2F2ZWQuQ3VzdG9tQXJndW1lbnRzSW5kZXggPD0gY2JBcmd1bWVudHMuSXRlbXMuQ291bnQpIHsNCiAgICAgICAgICAgICAgICBjYkFyZ3VtZW50cy5TZWxlY3RlZEluZGV4ID0gU2F2ZWQuQ3VzdG9tQXJndW1lbnRzSW5kZXg7DQogICAgICAgICAgICB9DQo=",
+      "new": "ICAgICAgICAgICAgaWYgKFNhdmVkLkN1c3RvbUFyZ3VtZW50c0luZGV4ID4gLTEgJiYgU2F2ZWQuQ3VzdG9tQXJndW1lbnRzSW5kZXggPCBjYkFyZ3VtZW50cy5JdGVtcy5Db3VudCkgew0KICAgICAgICAgICAgICAgIGNiQXJndW1lbnRzLlNlbGVjdGVkSW5kZXggPSBTYXZlZC5DdXN0b21Bcmd1bWVudHNJbmRleDsNCiAgICAgICAgICAgIH0NCg==",
+      "count": 1
+    }
+  ]
+}

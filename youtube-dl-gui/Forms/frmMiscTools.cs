@@ -76,10 +76,14 @@ public partial class frmMiscTools : LocalizedForm {
     private void btnMiscToolsVideoToGif_Click(object sender, EventArgs e) {
         using OpenFileDialog ofd = new();
         if (ofd.ShowDialog() == DialogResult.OK) {
+            string WorkingDirectory = Path.GetDirectoryName(ofd.FileName) ?? Environment.CurrentDirectory;
+            Directory.CreateDirectory(Path.Combine(WorkingDirectory, "frames"));
+
             Process ffmpeg = new() {
                 StartInfo = new("cmd") {
                     UseShellExecute = false,
-                    Arguments = string.Format("/c \"{0}\"", "cd " + Path.GetDirectoryName(ofd.FileName) + " | mkdir frames | ffmpeg -i \"" + ofd.FileName + "\" -vf scale=320:-1:flags=lanczos,fps=10 frames/outframes%03d.png"),
+                    WorkingDirectory = WorkingDirectory,
+                    Arguments = string.Format("/c \"{0}\"", "ffmpeg -i \"" + ofd.FileName + "\" -vf scale=320:-1:flags=lanczos,fps=10 frames/outframes%03d.png"),
                 }
             };
             ffmpeg.Start();
@@ -88,6 +92,7 @@ public partial class frmMiscTools : LocalizedForm {
             Process imageMagick = new() {
                 StartInfo = new("cmd") {
                     UseShellExecute = false,
+                    WorkingDirectory = WorkingDirectory,
                     Arguments = string.Format("/c \"{0}\"", "convert -loop 0 frames/outframes*.png \"" + Path.GetDirectoryName(ofd.FileName) + "\\" + Path.GetFileNameWithoutExtension(ofd.FileName) + ".gif\""),
                 }
             };

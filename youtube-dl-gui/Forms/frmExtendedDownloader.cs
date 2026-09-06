@@ -1449,6 +1449,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
     private void mDownload_Click(object sender, EventArgs e) {
         switch (Status) {
+            case DownloadStatus.Aborted when ProcessingThread?.IsAlive == true:
+                break;
+
             case DownloadStatus.Downloading:
             case DownloadStatus.MergingFiles:
             case DownloadStatus.Converting:
@@ -1466,6 +1469,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
     private void mDownloadWithAuthentication_Click(object sender, EventArgs e) {
         switch (Status) {
+            case DownloadStatus.Aborted when ProcessingThread?.IsAlive == true:
+                break;
+
             case DownloadStatus.Downloading:
             case DownloadStatus.MergingFiles:
             case DownloadStatus.Converting:

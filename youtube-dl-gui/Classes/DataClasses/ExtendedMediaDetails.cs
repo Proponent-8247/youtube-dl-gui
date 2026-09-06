@@ -691,8 +691,14 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
                 ArgumentBuffer.Add("--abort-on-unavailable-fragment");
             }
 
-            if (!AbortOnError) {
+            if (AbortOnError) {
+                ArgumentBuffer.Add("--abort-on-error");
+            }
+            else if (Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly) {
                 ArgumentBuffer.Add("--no-abort-on-error");
+            }
+            else {
+                ArgumentBuffer.Add("--ignore-errors");
             }
 
             if (FragmentThreads > 1) {

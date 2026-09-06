@@ -66,29 +66,29 @@ internal sealed class YoutubeDlData {
 
         if (Auth is not null) {
             if (!Auth.Username.IsNullEmptyWhitespace()) {
-                Arguments.Add("--username " + Auth.Username);
+                Arguments.Add("--username " + ArgumentList.EscapeArgument(Auth.Username));
             }
             if (Auth.Password?.Length > 0) {
-                Arguments.Add("--password " + Auth.GetPassword());
+                Arguments.Add("--password " + ArgumentList.EscapeArgument(Auth.GetPassword()));
             }
             if (!Auth.TwoFactor.IsNullEmptyWhitespace()) {
-                Arguments.Add("--twofactor " + Auth.TwoFactor);
+                Arguments.Add("--twofactor " + ArgumentList.EscapeArgument(Auth.TwoFactor));
             }
             if (Auth.MediaPassword?.Length > 0) {
-                Arguments.Add("--video-password " + Auth.GetMediaPassword());
+                Arguments.Add("--video-password " + ArgumentList.EscapeArgument(Auth.GetMediaPassword()));
             }
             if (Auth.NetRC) {
                 Arguments.Add("--netrc");
             }
             if (!Auth.CookiesFile.IsNullEmptyWhitespace()) {
-                Arguments.Add("--cookies \"" + Auth.CookiesFile + "\"");
+                Arguments.Add("--cookies " + ArgumentList.EscapeArgument(Auth.CookiesFile));
             }
             if (!Auth.CookiesFromBrowser.IsNullEmptyWhitespace()) {
-                Arguments.Add("--cookies-from-browser " + Auth.CookiesFromBrowser);
+                Arguments.Add("--cookies-from-browser " + ArgumentList.EscapeArgument(Auth.CookiesFromBrowser));
             }
         }
 
-        Arguments.Add(URL);
+        Arguments.Add(ArgumentList.EscapeArgument(URL));
 
         Process Enumeration = new() {
             StartInfo = new(Verification.YoutubeDlPath) {

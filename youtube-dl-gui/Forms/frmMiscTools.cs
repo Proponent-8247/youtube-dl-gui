@@ -79,7 +79,7 @@ public partial class frmMiscTools : LocalizedForm {
             Process ffmpeg = new() {
                 StartInfo = new("cmd") {
                     UseShellExecute = false,
-                    Arguments = string.Format("/c \"{0}\"", "cd " + Path.GetDirectoryName(ofd.FileName) + " | mkdir frames | ffmpeg -i \"" + ofd.FileName + "\" scale=320:-1:flags=lanczos,fps=10 frames/outframes%03d.png"),
+                    Arguments = string.Format("/c \"{0}\"", "cd " + Path.GetDirectoryName(ofd.FileName) + " | mkdir frames | ffmpeg -i \"" + ofd.FileName + "\" -vf scale=320:-1:flags=lanczos,fps=10 frames/outframes%03d.png"),
                 }
             };
             ffmpeg.Start();

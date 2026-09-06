@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: authenticate no-sound video IPC requests",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Program.cs",
+      "old": "ICAgICAgICAgICAgICAgIGlmIChUeXBlID09IEFyZ3VtZW50VHlwZS5Eb3dubG9hZEF1dGhlbnRpY2F0ZVZpZGVvKSB7DQo=",
+      "new": "ICAgICAgICAgICAgICAgIGlmIChUeXBlID09IEFyZ3VtZW50VHlwZS5Eb3dubG9hZEF1dGhlbnRpY2F0ZVZpZGVvIHx8IFR5cGUgPT0gQXJndW1lbnRUeXBlLkRvd25sb2FkQXV0aGVudGljYXRlVmlkZW9Ob1NvdW5kKSB7DQo=",
+      "count": 1
+    }
+  ]
+}

@@ -82,22 +82,22 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
     }
 
     private void frmBatchDownloader_Load(object sender, EventArgs e) {
-        cbBatchDownloadType.SelectedIndex = Batch.SelectedType;
+        if (Batch.SelectedType >= -1 && Batch.SelectedType < cbBatchDownloadType.Items.Count) cbBatchDownloadType.SelectedIndex = Batch.SelectedType;
         if (Batch.SelectedType == 0) {
             chkBatchDownloaderSoundVBR.Checked = Batch.DownloadVideoSound;
-            cbBatchQuality.SelectedIndex = Batch.SelectedVideoQuality;
-            cbBatchFormat.SelectedIndex = Batch.SelectedVideoFormat;
+            if (Batch.SelectedVideoQuality >= -1 && Batch.SelectedVideoQuality < cbBatchQuality.Items.Count) cbBatchQuality.SelectedIndex = Batch.SelectedVideoQuality;
+            if (Batch.SelectedVideoFormat >= -1 && Batch.SelectedVideoFormat < cbBatchFormat.Items.Count) cbBatchFormat.SelectedIndex = Batch.SelectedVideoFormat;
         }
         else if (Batch.SelectedType == 1) {
             if (Batch.DownloadAudioVBR) {
                 chkBatchDownloaderSoundVBR.Checked = true;
-                cbBatchQuality.SelectedIndex = Batch.SelectedAudioQualityVBR;
+                if (Batch.SelectedAudioQualityVBR >= -1 && Batch.SelectedAudioQualityVBR < cbBatchQuality.Items.Count) cbBatchQuality.SelectedIndex = Batch.SelectedAudioQualityVBR;
             }
             else {
                 chkBatchDownloaderSoundVBR.Checked = false;
-                cbBatchQuality.SelectedIndex = Batch.SelectedAudioQuality;
+                if (Batch.SelectedAudioQuality >= -1 && Batch.SelectedAudioQuality < cbBatchQuality.Items.Count) cbBatchQuality.SelectedIndex = Batch.SelectedAudioQuality;
             }
-            cbBatchFormat.SelectedIndex = Batch.SelectedAudioFormat;
+            if (Batch.SelectedAudioFormat >= -1 && Batch.SelectedAudioFormat < cbBatchFormat.Items.Count) cbBatchFormat.SelectedIndex = Batch.SelectedAudioFormat;
         }
 
         if (Saved.BatchDownloaderLocation.Valid) {
@@ -227,11 +227,11 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
             cbBatchQuality.Items.Clear();
             if (chkBatchDownloaderSoundVBR.Checked) {
                 cbBatchQuality.Items.AddRange(new string[] { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" });
-                cbBatchQuality.SelectedIndex = Batch.SelectedAudioQualityVBR;
+                if (Batch.SelectedAudioQualityVBR >= -1 && Batch.SelectedAudioQualityVBR < cbBatchQuality.Items.Count) cbBatchQuality.SelectedIndex = Batch.SelectedAudioQualityVBR;
             }
             else {
                 cbBatchQuality.Items.AddRange(Formats.AudioQualityNamesArray);
-                cbBatchQuality.SelectedIndex = Batch.SelectedAudioQuality;
+                if (Batch.SelectedAudioQuality >= -1 && Batch.SelectedAudioQuality < cbBatchQuality.Items.Count) cbBatchQuality.SelectedIndex = Batch.SelectedAudioQuality;
             }
         }
     }
@@ -250,8 +250,8 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
                 case 0: {
                     cbBatchQuality.Items.AddRange(Formats.VideoQualityArray);
                     cbBatchFormat.Items.AddRange(Formats.VideoFormatsNamesArray);
-                    cbBatchQuality.SelectedIndex = Batch.SelectedVideoQuality;
-                    cbBatchFormat.SelectedIndex = Batch.SelectedVideoFormat;
+                    if (Batch.SelectedVideoQuality >= -1 && Batch.SelectedVideoQuality < cbBatchQuality.Items.Count) cbBatchQuality.SelectedIndex = Batch.SelectedVideoQuality;
+                    if (Batch.SelectedVideoFormat >= -1 && Batch.SelectedVideoFormat < cbBatchFormat.Items.Count) cbBatchFormat.SelectedIndex = Batch.SelectedVideoFormat;
                     chkBatchDownloaderSoundVBR.Text = Language.GenericSound;
                     chkBatchDownloaderSoundVBR.Checked = Batch.DownloadVideoSound;
 
@@ -261,14 +261,14 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
                 case 1: {
                     if (Batch.DownloadAudioVBR) {
                         cbBatchQuality.Items.AddRange(new string[] { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" });
-                        cbBatchQuality.SelectedIndex = Batch.SelectedAudioQualityVBR;
+                        if (Batch.SelectedAudioQualityVBR >= -1 && Batch.SelectedAudioQualityVBR < cbBatchQuality.Items.Count) cbBatchQuality.SelectedIndex = Batch.SelectedAudioQualityVBR;
                     }
                     else {
                         cbBatchQuality.Items.AddRange(Formats.AudioQualityNamesArray);
-                        cbBatchQuality.SelectedIndex = Batch.SelectedAudioQuality;
+                        if (Batch.SelectedAudioQuality >= -1 && Batch.SelectedAudioQuality < cbBatchQuality.Items.Count) cbBatchQuality.SelectedIndex = Batch.SelectedAudioQuality;
                     }
                     cbBatchFormat.Items.AddRange(Formats.AudioFormatsArray);
-                    cbBatchFormat.SelectedIndex = Batch.SelectedAudioFormat;
+                    if (Batch.SelectedAudioFormat >= -1 && Batch.SelectedAudioFormat < cbBatchFormat.Items.Count) cbBatchFormat.SelectedIndex = Batch.SelectedAudioFormat;
                     chkBatchDownloaderSoundVBR.Text = "VBR";
                     chkBatchDownloaderSoundVBR.Checked = Batch.DownloadAudioVBR;
 

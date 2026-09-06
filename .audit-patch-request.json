@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmExtendedDownloader.cs",
+      "old": "YXJncyA9IE1lZGlhRGV0YWlscy5Bcmd1bWVudHM7",
+      "new": "aWYgKCFNZWRpYURldGFpbHMuR2VuZXJhdGVBcmd1bWVudHMoKSkgew0KICAgICAgICAgICAgICAgICAgICBsdlF1ZXVlZE1lZGlhLkludm9rZSgoKSA9PiBsdlF1ZXVlZE1lZGlhLkl0ZW1zW2ldLkltYWdlSW5kZXggPSBTdGF0dXNJY29uLkVycm9yZWQpOw0KICAgICAgICAgICAgICAgICAgICBjb250aW51ZTsNCiAgICAgICAgICAgICAgICB9DQogICAgICAgICAgICAgICAgYXJncyA9IE1lZGlhRGV0YWlscy5Bcmd1bWVudHM7",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: generate arguments for extended batch downloads"
+}

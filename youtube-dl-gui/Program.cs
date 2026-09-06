@@ -349,7 +349,7 @@ internal static class Program {
             case ArgumentType.DownloadVideoNoSound:
             case ArgumentType.DownloadAuthenticateVideoNoSound: {
                 AuthenticationDetails? Auth = null;
-                if (Type == ArgumentType.DownloadAuthenticateVideo) {
+                if (Type == ArgumentType.DownloadAuthenticateVideo || Type == ArgumentType.DownloadAuthenticateVideoNoSound) {
                     Auth = AuthenticationDetails.GetAuthentication();
                     if (Auth is null) {
                         Log.Write("Authentication required, but the user cancelled the dialog.");

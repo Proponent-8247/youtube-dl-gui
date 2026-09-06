@@ -236,7 +236,7 @@ partial class frmExtendedConverter {
             "main",
             "high",
             "high10",
-            "high442",
+            "high422",
             "high444"});
             this.cbVideoProfile.Location = new System.Drawing.Point(299, 34);
             this.cbVideoProfile.Name = "cbVideoProfile";

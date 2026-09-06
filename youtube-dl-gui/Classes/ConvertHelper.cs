@@ -30,7 +30,7 @@ internal static class ConvertHelper {
             0 => "baseline",
             2 => "high",
             3 => "high10",
-            4 => "high442",
+            4 => "high422",
             5 => "high444",
             _ => "main",
         };

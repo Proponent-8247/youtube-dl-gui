@@ -1480,7 +1480,7 @@
             "main",
             "high",
             "high10",
-            "high442",
+            "high422",
             "high444"});
             this.cbConvertVideoProfile.Location = new System.Drawing.Point(131, 67);
             this.cbConvertVideoProfile.Name = "cbConvertVideoProfile";

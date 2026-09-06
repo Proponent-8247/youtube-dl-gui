@@ -303,7 +303,7 @@ internal static class Program {
 
                 PassedCount++;
                 AuthenticationDetails? Auth = null;
-                if (Arg.Type == ArgumentType.DownloadAuthenticateVideo || Arg.Type == ArgumentType.DownloadAuthenticateAudio) {
+                if (Arg.Type == ArgumentType.DownloadAuthenticateVideo || Arg.Type == ArgumentType.DownloadAuthenticateAudio || Arg.Type == ArgumentType.DownloadAuthenticateCustom) {
                     Auth = AuthenticationDetails.GetAuthentication();
                     if (Auth is null) {
                         PassedCount--;
@@ -346,9 +346,11 @@ internal static class Program {
                             NewAudio.AudioCBRQuality = (AudioCBRQualityType)Saved.audioQuality;
                         new frmDownloader(NewAudio).Show();
                     } break;
-                    case ArgumentType.DownloadCustom: {
+                    case ArgumentType.DownloadCustom:
+                    case ArgumentType.DownloadAuthenticateCustom: {
                         DownloadInfo NewCustom = new(Arg.Data) {
                             Type = DownloadType.Custom,
+                            Authentication = Auth,
                         };
                         new frmDownloader(NewCustom).Show();
                     } break;

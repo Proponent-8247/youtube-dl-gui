@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: defer batch downloader close until worker unwind",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmDownloader.cs",
+      "old": "ICAgICAgICAgICAgICAgICAgICAgICAgcnRiVmVyYm9zZS5BcHBlbmRMaW5lKCJBZGRpdGlvbmFsbHksIHRoZSBiYXRjaCBkb3dubG9hZCBoYXMgYmVlbiBjYW5jZWxsZWQuIik7DQogICAgICAgICAgICAgICAgICAgICAgICBDdXJyZW50RG93bmxvYWQuU3RhdHVzID0gRG93bmxvYWRTdGF0dXMuQWJvcnRlZDsNCiAgICAgICAgICAgICAgICAgICAgICAgIHRoaXMuQ2xvc2UoKTsNCiAgICAgICAgICAgICAgICAgICAgICAgIGJyZWFrOw0K",
+      "new": "ICAgICAgICAgICAgICAgICAgICAgICAgcnRiVmVyYm9zZS5BcHBlbmRMaW5lKCJBZGRpdGlvbmFsbHksIHRoZSBiYXRjaCBkb3dubG9hZCBoYXMgYmVlbiBjYW5jZWxsZWQuIik7DQogICAgICAgICAgICAgICAgICAgICAgICBDdXJyZW50RG93bmxvYWQuU3RhdHVzID0gRG93bmxvYWRTdGF0dXMuQWJvcnRlZDsNCiAgICAgICAgICAgICAgICAgICAgICAgIGJyZWFrOw0K",
+      "count": 1
+    }
+  ]
+}

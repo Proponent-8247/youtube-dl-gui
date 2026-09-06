@@ -43,6 +43,7 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
 
         this.FormClosing += (s, e) => {
             if (!Finished) {
+                e.Cancel = true;
                 CancelToken.Cancel();
                 return;
             }

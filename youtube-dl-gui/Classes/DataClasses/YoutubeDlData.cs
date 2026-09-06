@@ -60,7 +60,7 @@ internal sealed class YoutubeDlData {
             Arguments.Add("--force-ipv6");
         }
 
-        if (Downloads.UseProxy && Downloads.ProxyType > -1 && !Downloads.ProxyIP.IsNullEmptyWhitespace() && !Downloads.ProxyPort.IsNullEmptyWhitespace()) {
+        if (Downloads.UseProxy && Downloads.ProxyType > -1 && Downloads.ProxyType < DownloadHelper.ProxyProtocols.Length && !Downloads.ProxyIP.IsNullEmptyWhitespace() && !Downloads.ProxyPort.IsNullEmptyWhitespace()) {
             Arguments.Add($"--proxy {DownloadHelper.ProxyProtocols[Downloads.ProxyType]}{Downloads.ProxyIP}:{Downloads.ProxyPort}/");
         }
 

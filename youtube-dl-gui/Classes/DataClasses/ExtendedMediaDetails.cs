@@ -669,6 +669,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
 
             if (Downloads.UseProxy
             && Downloads.ProxyType > -1
+            && Downloads.ProxyType < DownloadHelper.ProxyProtocols.Length
             && !Downloads.ProxyIP.IsNullEmptyWhitespace()
             && !Downloads.ProxyPort.IsNullEmptyWhitespace()) {
                 ArgumentBuffer.Add(

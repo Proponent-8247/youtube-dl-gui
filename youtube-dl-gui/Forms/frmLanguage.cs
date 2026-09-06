@@ -35,11 +35,12 @@ public partial class frmLanguage : Form {
         }
     }
     public void LoadFiles() {
+        cbLanguages.Items.Clear();
+        cbLanguages.Items.Add("English (Internal)");
+
         if (Directory.Exists(Environment.CurrentDirectory + "\\lang\\")) {
             DirectoryInfo LangFolder = new(Environment.CurrentDirectory + "\\lang\\");
             FileInfo[] LangFiles = LangFolder.GetFiles("*.ini");
-            cbLanguages.Items.Clear();
-            cbLanguages.Items.Add("English (Internal)");
             foreach (FileInfo File in LangFiles) {
                 cbLanguages.Items.Add(File.Name[..^4]);
             }

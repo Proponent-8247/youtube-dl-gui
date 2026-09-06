@@ -651,7 +651,7 @@ public partial class frmMain : LocalizedForm {
         cbFormat.SelectedIndex = -1;
         cbQuality.Items.Clear();
         if (Downloads.AudioDownloadAsVBR) {
-            cbQuality.Items.AddRange(new string[] { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" });
+            cbQuality.Items.AddRange(Formats.VbrQualities);
         }
         else {
             cbQuality.Items.AddRange(Formats.AudioQualityNamesArray);
@@ -667,7 +667,7 @@ public partial class frmMain : LocalizedForm {
         chkDownloadSound.Checked = Downloads.AudioDownloadAsVBR;
         chkDownloadSound.Text = "VBR";
         if (Downloads.SaveFormatQuality) {
-            cbQuality.SelectedIndex = Saved.audioQuality;
+            cbQuality.SelectedIndex = Downloads.AudioDownloadAsVBR ? Saved.AudioVBRQuality : Saved.audioQuality;
             cbFormat.SelectedIndex = Saved.AudioFormat;
         }
         else {

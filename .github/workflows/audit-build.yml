@@ -1,0 +1,26 @@
+name: Audit build
+
+on:
+  push:
+    branches:
+      - audit-fixes
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build main application
+        run: msbuild youtube-dl-gui\youtube-dl-gui.csproj /m /p:Configuration=Release /p:Platform=AnyCPU
+
+      - name: Build updater
+        run: msbuild youtube-dl-gui-updater\youtube-dl-gui-updater.csproj /m /p:Configuration=Release /p:Platform=AnyCPU
+
+      - name: Build solution
+        run: msbuild youtube-dl-gui.sln /m /p:Configuration=Release "/p:Platform=Any CPU"

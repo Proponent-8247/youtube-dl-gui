@@ -255,7 +255,7 @@ public sealed class DownloadInfo {
                     }
 
                     if (PlaylistSelectionIndexEnd > 0) {
-                        ArgumentsBuffer.Add($"--playlist-end {PlaylistSelectionIndexStart + PlaylistSelectionIndexEnd}");
+                        ArgumentsBuffer.Add($"--playlist-end {PlaylistSelectionIndexEnd}");
                     }
                     break;
                 case PlaylistSelectionType.PlaylistItems: // playlist-items

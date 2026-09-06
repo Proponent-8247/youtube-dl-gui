@@ -12,8 +12,8 @@ public partial class frmConverter : LocalizedProcessingForm {
 
     public frmConverter(ConvertInfo Info) {
         InitializeComponent();
-        LoadLanguage();
         this.CurrentConversion = Info;
+        LoadLanguage();
     }
     private void frmConverter_Shown(object sender, EventArgs e) {
         BeginConversion();

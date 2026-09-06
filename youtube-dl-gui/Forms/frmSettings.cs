@@ -460,6 +460,8 @@ public partial class frmSettings : LocalizedForm {
         chksettingsDownloadsUseYoutubeDlsUpdater.Checked = useYtdlUpdater_Last = Downloads.useYtdlUpdater;
         cbSettingsDownloadsUpdatingYtdlType.SelectedIndex = YtdlType_Last = Downloads.YtdlType;
         chkSettingsDownloadsAutomaticallyDeleteYoutubeDlWhenClosing.Checked = Downloads.deleteYtdlOnClose;
+        chkSettingsDownloadsSeparateBatchDownloads.Checked = Downloads.SeparateBatchDownloads;
+        chkSettingsDownloadsAddDateToBatchDownloadFolders.Checked = Downloads.AddDateToBatchDownloadFolders;
         chkExtendedPreferExtendedDialog.Checked = Downloads.ExtendedDownloaderPreferExtendedForm;
         chkExtendedAutomaticallyDownloadThumbnail.Checked = Downloads.ExtendedDownloaderAutoDownloadThumbnail;
         chkExtendedIncludeCustomArguments.Checked = Downloads.ExtendedDownloaderIncludeCustomArguments;
@@ -580,6 +582,8 @@ public partial class frmSettings : LocalizedForm {
         }
         Downloads.YtdlType = cbSettingsDownloadsUpdatingYtdlType.SelectedIndex;
         Downloads.deleteYtdlOnClose = chkSettingsDownloadsAutomaticallyDeleteYoutubeDlWhenClosing.Checked;
+        Downloads.SeparateBatchDownloads = chkSettingsDownloadsSeparateBatchDownloads.Checked;
+        Downloads.AddDateToBatchDownloadFolders = chkSettingsDownloadsAddDateToBatchDownloadFolders.Checked;
         Downloads.ExtendedDownloaderPreferExtendedForm = chkExtendedPreferExtendedDialog.Checked;
         Downloads.ExtendedDownloaderAutoDownloadThumbnail = chkExtendedAutomaticallyDownloadThumbnail.Checked;
         Downloads.ExtendedDownloaderIncludeCustomArguments = chkExtendedIncludeCustomArguments.Checked;

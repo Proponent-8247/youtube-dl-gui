@@ -75,8 +75,13 @@ internal partial class frmUpdater : Form {
     }
     private async Task RunUpdate() {
         // Check if the latest version needs to be downloaded.
-        if (DownloadLatest)
+        if (DownloadLatest) {
             await GetVersionFromGithub();
+            if (string.IsNullOrWhiteSpace(UpdateData.FileName)) {
+                Program.ExitCode = 1;
+                return;
+            }
+        }
 
         // Wait for the main application to exit.
         if (ProgramProcess is not null)

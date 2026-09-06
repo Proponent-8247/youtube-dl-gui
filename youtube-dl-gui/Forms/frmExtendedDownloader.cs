@@ -696,9 +696,12 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             }
 
             DownloadProcess.WaitForExit();
+            int ExitCode = DownloadProcess.ExitCode;
+            DownloadProcess.Dispose();
+            DownloadProcess = null;
 
             if (Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
-                Status = DownloadProcess.ExitCode == 0 ? DownloadStatus.Finished : DownloadStatus.YtdlError;
+                Status = ExitCode == 0 ? DownloadStatus.Finished : DownloadStatus.YtdlError;
             }
 
             this.Invoke(() => {
@@ -947,9 +950,12 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 }
 
                 DownloadProcess.WaitForExit();
+                int ExitCode = DownloadProcess.ExitCode;
+                DownloadProcess.Dispose();
+                DownloadProcess = null;
 
                 if (Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
-                    bool ItemSucceeded = DownloadProcess.ExitCode == 0;
+                    bool ItemSucceeded = ExitCode == 0;
                     if (!ItemSucceeded) {
                         BatchHadErrors = true;
                     }

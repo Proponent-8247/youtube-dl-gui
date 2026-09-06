@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmExtendedDownloader.cs",
+      "old": "ICAgIHB1YmxpYyBmcm1FeHRlbmRlZERvd25sb2FkZXIoc3RyaW5nIFVSTCwgc3RyaW5nPyBDdXN0b21Bcmd1bWVudHMsIGJvb2wgQXJjaGl2ZWQpIDogdGhpcyhVUkwsIEFyY2hpdmVkKSB7DQogICAgICAgIHR4dEN1c3RvbUFyZ3VtZW50cy5UZXh0ID0gQ3VzdG9tQXJndW1lbnRzLklzTnVsbEVtcHR5V2hpdGVzcGFjZSgpID8gc3RyaW5nLkVtcHR5IDogQ3VzdG9tQXJndW1lbnRzOw0KICAgICAgICBwbkJhdGNoRG93bmxvYWQuRW5hYmxlZCA9IHBuQmF0Y2hEb3dubG9hZC5WaXNpYmxlID0gZmFsc2U7DQogICAgfQ0K",
+      "new": "ICAgIHB1YmxpYyBmcm1FeHRlbmRlZERvd25sb2FkZXIoc3RyaW5nIFVSTCwgc3RyaW5nPyBDdXN0b21Bcmd1bWVudHMsIGJvb2wgQXJjaGl2ZWQpIDogdGhpcyhVUkwsIEFyY2hpdmVkKSB7DQogICAgICAgIHN0cmluZyBJbml0aWFsQ3VzdG9tQXJndW1lbnRzID0gQ3VzdG9tQXJndW1lbnRzLklzTnVsbEVtcHR5V2hpdGVzcGFjZSgpID8gc3RyaW5nLkVtcHR5IDogQ3VzdG9tQXJndW1lbnRzOw0KICAgICAgICB0eHRDdXN0b21Bcmd1bWVudHMuVGV4dCA9IEluaXRpYWxDdXN0b21Bcmd1bWVudHM7DQogICAgICAgIE1lZGlhRGV0YWlscyEuQ3VzdG9tQXJndW1lbnRzID0gSW5pdGlhbEN1c3RvbUFyZ3VtZW50czsNCiAgICAgICAgcG5CYXRjaERvd25sb2FkLkVuYWJsZWQgPSBwbkJhdGNoRG93bmxvYWQuVmlzaWJsZSA9IGZhbHNlOw0KICAgIH0NCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: preserve extended custom arguments after metadata load"
+}

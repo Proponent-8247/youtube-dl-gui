@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/FfprobeData.cs",
+      "old": "ICAgICAgICBQcm9jZXNzIEVudW1lcmF0aW9uID0gbmV3KCkgew0K",
+      "new": "ICAgICAgICB1c2luZyBQcm9jZXNzIEVudW1lcmF0aW9uID0gbmV3KCkgew0K",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: dispose ffprobe metadata process"
+}

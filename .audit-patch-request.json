@@ -1,0 +1,17 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmExtendedDownloader.cs",
+      "old": "ICAgICAgICAgICAgICAgIFRocmVhZC5TbGVlcCgyNTApOw0KICAgICAgICAgICAgfQ0KDQogICAgICAgICAgICBpZiAoU3RhdHVzICE9IERvd25sb2FkU3RhdHVzLkFib3J0ZWQgJiYgU3RhdHVzICE9IERvd25sb2FkU3RhdHVzLkFib3J0Rm9yQ2xvc2UpIHsNCg==",
+      "new": "ICAgICAgICAgICAgICAgIFRocmVhZC5TbGVlcCgyNTApOw0KICAgICAgICAgICAgfQ0KDQogICAgICAgICAgICBEb3dubG9hZFByb2Nlc3MuV2FpdEZvckV4aXQoKTsNCg0KICAgICAgICAgICAgaWYgKFN0YXR1cyAhPSBEb3dubG9hZFN0YXR1cy5BYm9ydGVkICYmIFN0YXR1cyAhPSBEb3dubG9hZFN0YXR1cy5BYm9ydEZvckNsb3NlKSB7DQo=",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmExtendedDownloader.cs",
+      "old": "ICAgICAgICAgICAgICAgICAgICBUaHJlYWQuU2xlZXAoMjUwKTsNCiAgICAgICAgICAgICAgICB9DQoNCiAgICAgICAgICAgICAgICBpZiAoU3RhdHVzICE9IERvd25sb2FkU3RhdHVzLkFib3J0ZWQgJiYgU3RhdHVzICE9IERvd25sb2FkU3RhdHVzLkFib3J0Rm9yQ2xvc2UpIHsNCg==",
+      "new": "ICAgICAgICAgICAgICAgICAgICBUaHJlYWQuU2xlZXAoMjUwKTsNCiAgICAgICAgICAgICAgICB9DQoNCiAgICAgICAgICAgICAgICBEb3dubG9hZFByb2Nlc3MuV2FpdEZvckV4aXQoKTsNCg0KICAgICAgICAgICAgICAgIGlmIChTdGF0dXMgIT0gRG93bmxvYWRTdGF0dXMuQWJvcnRlZCAmJiBTdGF0dXMgIT0gRG93bmxvYWRTdGF0dXMuQWJvcnRGb3JDbG9zZSkgew0K",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: drain extended async process output"
+}

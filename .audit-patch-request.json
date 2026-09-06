@@ -1,0 +1,17 @@
+{
+  "replacements": [
+    {
+      "path": "Controls/ExtendedProgressBar.cs",
+      "old": "ICAgICAgICB9DQogICAgICAgIGJhc2UuRGlzcG9zZShkaXNwb3NpbmcpOw0KICAgIH0NCg0KICAgIC8vLyA8aW5oZXJpdGRvYy8+DQogICAgcHJvdGVjdGVkIG92ZXJyaWRlIHZvaWQgT25IYW5kbGVDcmVhdGVkKEV2ZW50QXJncyBlKSB7DQogICAgICAgIGJhc2UuT25IYW5kbGVDcmVhdGVkKGUpOw0KICAgICAgICBUZXh0R3JhcGhpY3MgPSBDcmVhdGVHcmFwaGljcygpOw0K",
+      "new": "ICAgICAgICB9DQogICAgICAgIGlmIChkaXNwb3NpbmcpIHsNCiAgICAgICAgICAgIFRleHRHcmFwaGljcz8uRGlzcG9zZSgpOw0KICAgICAgICAgICAgVGV4dEdyYXBoaWNzID0gbnVsbDsNCiAgICAgICAgfQ0KICAgICAgICBiYXNlLkRpc3Bvc2UoZGlzcG9zaW5nKTsNCiAgICB9DQoNCiAgICAvLy8gPGluaGVyaXRkb2MvPg0KICAgIHByb3RlY3RlZCBvdmVycmlkZSB2b2lkIE9uSGFuZGxlQ3JlYXRlZChFdmVudEFyZ3MgZSkgew0KICAgICAgICBiYXNlLk9uSGFuZGxlQ3JlYXRlZChlKTsNCiAgICAgICAgVGV4dEdyYXBoaWNzPy5EaXNwb3NlKCk7DQogICAgICAgIFRleHRHcmFwaGljcyA9IENyZWF0ZUdyYXBoaWNzKCk7DQo=",
+      "count": 1
+    },
+    {
+      "path": "Controls/ExtendedProgressBar.cs",
+      "old": "ICAgIHByaXZhdGUgdm9pZCBEcmF3VGV4dCgpIHsNCiAgICAgICAgVGV4dEdyYXBoaWNzID0gQ3JlYXRlR3JhcGhpY3MoKTsNCg==",
+      "new": "ICAgIHByaXZhdGUgdm9pZCBEcmF3VGV4dCgpIHsNCiAgICAgICAgVGV4dEdyYXBoaWNzPy5EaXNwb3NlKCk7DQogICAgICAgIFRleHRHcmFwaGljcyA9IENyZWF0ZUdyYXBoaWNzKCk7DQo=",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: dispose progress bar graphics contexts"
+}

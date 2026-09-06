@@ -64,6 +64,12 @@ jobs:
       - name: Build solution
         run: msbuild youtube-dl-gui.sln /m /p:Configuration=Debug "/p:Platform=Any CPU"
 
+      - name: Build release updater
+        run: msbuild youtube-dl-gui-updater\youtube-dl-gui-updater.csproj /m /p:Configuration=Release /p:Platform=AnyCPU
+
+      - name: Build release main application
+        run: msbuild youtube-dl-gui\youtube-dl-gui.csproj /m /p:Configuration=Release /p:Platform=AnyCPU /p:BuildProjectReferences=false /p:PreBuildEvent= /p:PostBuildEvent=
+
       - name: Commit verified audit patch
         if: steps.audit_patch.outputs.applied == 'true'
         shell: pwsh

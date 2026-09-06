@@ -491,7 +491,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
         ofd.Title = "Select a text file to import...";
         ofd.Filter = "Text document (*.txt)|*.txt";
         if (ofd.ShowDialog() == DialogResult.OK) {
-            System.IO.StreamReader reader = new(ofd.FileName);
+            using System.IO.StreamReader reader = new(ofd.FileName);
             string CurrentLine;
             while ((CurrentLine = reader.ReadLine()) != null) {
                 AddItemToList(CurrentLine);

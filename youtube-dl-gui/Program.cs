@@ -705,16 +705,12 @@ internal static class Program {
     internal static void SetTls() {
         try { //try TLS 1.3
             System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)12288
-                                                            | System.Net.SecurityProtocolType.Tls12
-                                                            | System.Net.SecurityProtocolType.Tls11
-                                                            |  System.Net.SecurityProtocolType.Tls;
-            Log.Write("TLS 1.3 will be used.");
+                                                            | System.Net.SecurityProtocolType.Tls12;
+            Log.Write("TLS 1.3 and TLS 1.2 are enabled.");
         }
         catch (NotSupportedException) {
             try { //try TLS 1.2
-                System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls12
-                                                                | System.Net.SecurityProtocolType.Tls11
-                                                                |  System.Net.SecurityProtocolType.Tls;
+                System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls12;
                 Log.Write("TLS 1.2 will be used.");
             }
             catch (NotSupportedException) {

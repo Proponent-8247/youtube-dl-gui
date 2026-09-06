@@ -576,7 +576,7 @@ public partial class frmMain : LocalizedForm {
         }
 
         DownloadInfo NewInfo = new(Clipboard.GetText()) {
-            Arguments = cbCustomArguments.Items[Saved.CustomArgumentsIndex] as string,
+            Arguments = cbCustomArguments.Items[Saved.CustomArgumentsIndex + (rbCustom.Checked ? 0 : 1)] as string,
             Type = DownloadType.Custom,
         };
         frmDownloader Downloader = new(NewInfo);

@@ -666,6 +666,8 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 Thread.Sleep(250);
             }
 
+            DownloadProcess.WaitForExit();
+
             if (Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
                 Status = DownloadProcess.ExitCode == 0 ? DownloadStatus.Finished : DownloadStatus.YtdlError;
             }
@@ -901,6 +903,8 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
                     Thread.Sleep(250);
                 }
+
+                DownloadProcess.WaitForExit();
 
                 if (Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
                     lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = DownloadProcess.ExitCode == 0 ? StatusIcon.Finished : StatusIcon.Errored);

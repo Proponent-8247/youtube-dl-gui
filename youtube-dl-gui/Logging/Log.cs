@@ -134,9 +134,11 @@ internal static class Log {
     //[DebuggerStepThrough]
     public static void DisableLogging() {
         if (LogFormEnabled) {
-            if (LogForm?.IsDisposed == false && (LogForm.WindowState == FormWindowState.Minimized || LogForm.WindowState == FormWindowState.Maximized)) {
-                LogForm.Opacity = 0;
-                LogForm.WindowState = FormWindowState.Normal;
+            if (LogForm?.IsDisposed == false) {
+                if (LogForm.WindowState == FormWindowState.Minimized || LogForm.WindowState == FormWindowState.Maximized) {
+                    LogForm.Opacity = 0;
+                    LogForm.WindowState = FormWindowState.Normal;
+                }
 
                 Saved.LogLocation = LogForm.Location;
                 Saved.LogSize = LogForm.Size;

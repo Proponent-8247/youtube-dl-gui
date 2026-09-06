@@ -392,7 +392,8 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                 ArgumentsBuffer.Add("--ignore-errors");
             }
 
-            if (Downloads.FragmentThreads > 1) {
+            if (Downloads.FragmentThreads > 1
+            && (Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly)) {
                 ArgumentsBuffer.Add("--concurrent-fragments " + Downloads.FragmentThreads);
             }
 

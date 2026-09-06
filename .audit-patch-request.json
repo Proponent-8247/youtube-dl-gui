@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Logging/Forms/frmLog.cs",
+      "old": "ICAgIHB1YmxpYyB2b2lkIEFkZEV4Y2VwdGlvbihFeGNlcHRpb25JbmZvIEV4Y2VwdGlvbikgew0KICAgICAgICBUYWJQYWdlIEV4Y2VwdGlvblBhZ2UgPSBuZXcoJCJ7RXhjZXB0aW9uLkV4Y2VwdGlvbi5HZXRUeXBlKCkuTmFtZX0gQCB7RXhjZXB0aW9uLkV4Y2VwdGlvblRpbWU6eXl5eS9NTS9kZCBISDptbTpzcy5mZmZ9Iik7",
+      "new": "ICAgIHB1YmxpYyB2b2lkIEFkZEV4Y2VwdGlvbihFeGNlcHRpb25JbmZvIEV4Y2VwdGlvbikgew0KICAgICAgICBpZiAodGhpcy5JbnZva2VSZXF1aXJlZCkgew0KICAgICAgICAgICAgdGhpcy5JbnZva2UoKCkgPT4gQWRkRXhjZXB0aW9uKEV4Y2VwdGlvbikpOw0KICAgICAgICAgICAgcmV0dXJuOw0KICAgICAgICB9DQoNCiAgICAgICAgVGFiUGFnZSBFeGNlcHRpb25QYWdlID0gbmV3KCQie0V4Y2VwdGlvbi5FeGNlcHRpb24uR2V0VHlwZSgpLk5hbWV9IEAge0V4Y2VwdGlvbi5FeGNlcHRpb25UaW1lOnl5eXkvTU0vZGQgSEg6bW06c3MuZmZmfSIpOw==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: marshal exception log UI updates"
+}

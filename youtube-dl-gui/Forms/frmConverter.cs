@@ -257,15 +257,6 @@ public partial class frmConverter : LocalizedProcessingForm {
                         rtbConsoleOutput.BeginInvoke(() => rtbConsoleOutput.AppendLine($"Error: {e.Data}"));
                     }
                 };
-                ConverterProcess.Exited += (s, e) => {
-                    if (ConverterProcess.ExitCode == 0) {
-                        CurrentConversion.Status = ConversionStatus.Finished;
-                    }
-                    else if (CurrentConversion.Status != ConversionStatus.Aborted) {
-                        CurrentConversion.Status = ConversionStatus.FfmpegError;
-                    }
-                };
-
                 if (CurrentConversion.Status != ConversionStatus.Aborted) {
                     ConverterProcess.Start();
 
@@ -274,9 +265,13 @@ public partial class frmConverter : LocalizedProcessingForm {
 
                     ConverterProcess.BeginOutputReadLine();
                     ConverterProcess.BeginErrorReadLine();
+                    ConverterProcess.WaitForExit();
 
-                    while (!ConverterProcess.HasExited) {
-                        Thread.Sleep(1000);
+                    if (ConverterProcess.ExitCode == 0) {
+                        CurrentConversion.Status = ConversionStatus.Finished;
+                    }
+                    else if (CurrentConversion.Status != ConversionStatus.Aborted) {
+                        CurrentConversion.Status = ConversionStatus.FfmpegError;
                     }
                 }
             }

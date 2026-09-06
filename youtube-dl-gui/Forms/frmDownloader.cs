@@ -252,11 +252,20 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                     }
                 };
                 DownloadProcess.ErrorDataReceived += (s, e) => {
-                    this.BeginInvoke(() => {
-                        if (e.Data?.Length > 0) {
-                            rtbVerbose?.AppendLine($"Error: {e.Data}");
-                        }
-                    });
+                    if (e.Data is null || e.Data.Length == 0 || this.IsDisposed || !this.IsHandleCreated) {
+                        return;
+                    }
+
+                    try {
+                        this.BeginInvoke(() => {
+                            if (!this.IsDisposed && !rtbVerbose.IsDisposed) {
+                                rtbVerbose.AppendLine($"Error: {e.Data}");
+                            }
+                        });
+                    }
+                    catch (InvalidOperationException) {
+                        // The form can close between the handle check and BeginInvoke.
+                    }
                 };
 
                 if (CurrentDownload.Status == DownloadStatus.Aborted) {

@@ -321,14 +321,15 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
                     SelectedAudioItem.ImageIndex = MediaStatusIcon.SelectedDisabled;
                 }
 
+                int BestUnknownIndex = UnknownFormatsOnly ? 0 : 1;
                 if (SelectedUnknownItem is not null) {
-                    if (SelectedUnknownItem.Index != 1) {
-                        UnknownItems[1].ImageIndex = MediaStatusIcon.BestDisabled;
+                    if (SelectedUnknownItem.Index != BestUnknownIndex && UnknownItems.Count > BestUnknownIndex) {
+                        UnknownItems[BestUnknownIndex].ImageIndex = MediaStatusIcon.BestDisabled;
                     }
                     SelectedUnknownItem.ImageIndex = MediaStatusIcon.SelectedDisabled;
                 }
-                else if (UnknownItems.Count > 0) {
-                    UnknownItems[1].ImageIndex = MediaStatusIcon.BestDisabled;
+                else if (UnknownItems.Count > BestUnknownIndex) {
+                    UnknownItems[BestUnknownIndex].ImageIndex = MediaStatusIcon.BestDisabled;
                 }
 
                 SelectedType = DownloadType.Custom;

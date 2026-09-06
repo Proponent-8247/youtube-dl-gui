@@ -875,6 +875,7 @@ public partial class frmMain : LocalizedForm {
             string schema = string.Empty;
             bool BatchSoundSetting = false;
             string BatchCustomArguments = string.Empty;
+            string BatchTime = BatchHelper.CurrentTime;
 
             this.Invoke((Action)delegate {
                 BatchSoundSetting = chkDownloadSound.Checked;
@@ -908,6 +909,7 @@ public partial class frmMain : LocalizedForm {
                 for (int i = 0; i < ReadFile.Length; i++) {
                     DownloadInfo NewInfo = new(ReadFile[i].Trim()) {
                         BatchDownload = true,
+                        BatchTime = BatchTime,
                         FileNameSchema = schema
                     };
                     switch (Type) {

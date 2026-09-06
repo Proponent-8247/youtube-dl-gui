@@ -185,6 +185,8 @@ public partial class frmMerger : LocalizedForm {
                         tvSelectedSources.Nodes[3].Nodes.Add(Streams[i].Node);
                     } break;
 
+                    case "attachments":
+                    case "attachment":
                     case "attatchments":
                     case "attatchment": {
                         tvSelectedSources.Nodes[4].Nodes.Add(Streams[i].Node);

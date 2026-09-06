@@ -185,9 +185,11 @@ internal partial class frmUpdater : Form {
 
             if (MovedNewVersion) {
                 File.Delete(UpdateData.FileName);
-                File.Move(BackupLocation, UpdateData.FileName);
+                if (MovedOldVersion && File.Exists(BackupLocation)) {
+                    File.Move(BackupLocation, UpdateData.FileName);
+                }
             }
-            else if (MovedOldVersion) {
+            else if (MovedOldVersion && File.Exists(BackupLocation)) {
                 File.Move(BackupLocation, UpdateData.FileName);
             }
             else if (File.Exists(UpdateDestination)) {

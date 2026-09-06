@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: avoid unsupported annotation option with yt-dlp",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/DownloadInfo.cs",
+      "old": "ICAgICAgICAgICAgaWYgKERvd25sb2Fkcy5TYXZlQW5ub3RhdGlvbnMpIHsNCiAgICAgICAgICAgICAgICBBcmd1bWVudHNCdWZmZXIuQWRkKCItLXdyaXRlLWFubm90YXRpb25zIik7DQogICAgICAgICAgICB9DQo=",
+      "new": "ICAgICAgICAgICAgaWYgKERvd25sb2Fkcy5TYXZlQW5ub3RhdGlvbnMpIHsNCiAgICAgICAgICAgICAgICBpZiAoRG93bmxvYWRzLll0ZGxUeXBlID09IChpbnQpR2l0SUQuWW91dHViZURsIHx8IERvd25sb2Fkcy5ZdGRsVHlwZSA9PSAoaW50KUdpdElELllvdXR1YmVEbE5pZ2h0bHkpIHsNCiAgICAgICAgICAgICAgICAgICAgQXJndW1lbnRzQnVmZmVyLkFkZCgiLS13cml0ZS1hbm5vdGF0aW9ucyIpOw0KICAgICAgICAgICAgICAgIH0NCiAgICAgICAgICAgICAgICBlbHNlIHsNCiAgICAgICAgICAgICAgICAgICAgVmVyYm9zZSgiQW5ub3RhdGlvbnMgYXJlIG5vdCBzdXBwb3J0ZWQgYnkgeXQtZGxwOyBza2lwcGluZyAtLXdyaXRlLWFubm90YXRpb25zLiIpOw0KICAgICAgICAgICAgICAgIH0NCiAgICAgICAgICAgIH0NCg==",
+      "count": 1
+    }
+  ]
+}

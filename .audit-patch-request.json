@@ -1,0 +1,23 @@
+{
+  "commit_message": "fix: guard quick downloader progress line parsing",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmDownloader.cs",
+      "old": "aWYgKGUuRGF0YT8uTGVuZ3RoID4gMCkgew0KICAgICAgICAgICAgICAgICAgICAgICAgc3dpdGNoIChlLkRhdGFbLi44XS5Ub0xvd2VySW52YXJpYW50KCkpIHs=",
+      "new": "aWYgKGUuRGF0YT8uTGVuZ3RoID4gMCkgew0KICAgICAgICAgICAgICAgICAgICAgICAgaWYgKGUuRGF0YS5MZW5ndGggPCA4KSB7DQogICAgICAgICAgICAgICAgICAgICAgICAgICAgcnRiVmVyYm9zZT8uSW52b2tlKCgpID0+IHJ0YlZlcmJvc2UuQXBwZW5kTGluZShlLkRhdGEpKTsNCiAgICAgICAgICAgICAgICAgICAgICAgICAgICByZXR1cm47DQogICAgICAgICAgICAgICAgICAgICAgICB9DQoNCiAgICAgICAgICAgICAgICAgICAgICAgIHN3aXRjaCAoZS5EYXRhWy4uOF0uVG9Mb3dlckludmFyaWFudCgpKSB7",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmDownloader.cs",
+      "old": "c3RyaW5nIExpbmUgPSBNc2cuUmVwbGFjZVdoaXRlc3BhY2UoKTsNCiAgICAgICAgICAgICAgICAgICAgICAgIHN3aXRjaCAoTGluZVsuLjVdLlRvTG93ZXJJbnZhcmlhbnQoKSkgew==",
+      "new": "c3RyaW5nIExpbmUgPSBNc2cuUmVwbGFjZVdoaXRlc3BhY2UoKTsNCiAgICAgICAgICAgICAgICAgICAgICAgIGlmIChMaW5lLkxlbmd0aCA8IDUpIHsNCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBNc2cgPSBudWxsOw0KICAgICAgICAgICAgICAgICAgICAgICAgICAgIGNvbnRpbnVlOw0KICAgICAgICAgICAgICAgICAgICAgICAgfQ0KDQogICAgICAgICAgICAgICAgICAgICAgICBzd2l0Y2ggKExpbmVbLi41XS5Ub0xvd2VySW52YXJpYW50KCkpIHs=",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmDownloader.cs",
+      "old": "c3RyaW5nW10gTGluZVBhcnRzID0gTGluZS5TcGxpdCgnICcpOw0KICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBzd2l0Y2ggKExpbmVQYXJ0c1sxXVswXSkgew==",
+      "new": "c3RyaW5nW10gTGluZVBhcnRzID0gTGluZS5TcGxpdCgnICcpOw0KICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBpZiAoTGluZVBhcnRzLkxlbmd0aCA8IDIgfHwgTGluZVBhcnRzWzFdLkxlbmd0aCA9PSAwKSB7DQogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBicmVhazsNCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgfQ0KDQogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHN3aXRjaCAoTGluZVBhcnRzWzFdWzBdKSB7",
+      "count": 1
+    }
+  ]
+}

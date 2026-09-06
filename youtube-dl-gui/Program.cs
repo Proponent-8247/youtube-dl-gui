@@ -297,27 +297,43 @@ internal static class Program {
                 }
 
                 PassedCount++;
+                AuthenticationDetails? Auth = null;
+                if (Arg.Type == ArgumentType.DownloadAuthenticateVideo || Arg.Type == ArgumentType.DownloadAuthenticateAudio) {
+                    Auth = AuthenticationDetails.GetAuthentication();
+                    if (Auth is null) {
+                        PassedCount--;
+                        continue;
+                    }
+                }
+
                 if (Downloads.ExtendedDownloaderPreferExtendedForm) {
-                    new frmExtendedDownloader(Arg.Data, false).Show();
+                    if (Auth is null)
+                        new frmExtendedDownloader(Arg.Data, false).Show();
+                    else
+                        new frmExtendedDownloader(Arg.Data, null, false, Auth).Show();
                     continue;
                 }
 
                 // TODO: Implement the rest of the argument types
                 switch (Arg.Type) {
-                    case ArgumentType.DownloadVideo: {
+                    case ArgumentType.DownloadVideo:
+                    case ArgumentType.DownloadAuthenticateVideo: {
                         DownloadInfo NewVideo = new(Arg.Data) {
                             Type = DownloadType.Video,
                             VideoQuality = (VideoQualityType)Saved.videoQuality,
                             VideoFormat = (VideoFormatType)Saved.VideoFormat,
                             SkipAudioForVideos = !Downloads.VideoDownloadSound,
+                            Authentication = Auth,
                         };
                         new frmDownloader(NewVideo).Show();
                     } break;
-                    case ArgumentType.DownloadAudio: {
+                    case ArgumentType.DownloadAudio:
+                    case ArgumentType.DownloadAuthenticateAudio: {
                         DownloadInfo NewAudio = new(Arg.Data) {
                             Type = DownloadType.Audio,
                             UseVBR = Downloads.AudioDownloadAsVBR,
                             AudioFormat = (AudioFormatType)Saved.AudioFormat,
+                            Authentication = Auth,
                         };
                         if (Downloads.AudioDownloadAsVBR)
                             NewAudio.AudioVBRQuality = (AudioVBRQualityType)Saved.AudioVBRQuality;

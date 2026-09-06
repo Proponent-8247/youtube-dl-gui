@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: normalize archived YouTube URLs to video keys",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Program.cs",
+      "old": "ICAgICAgICAgICAgICAgIGlmICghRG93bmxvYWRIZWxwZXIuSXNZb3V0dWJlTGluayhVUkwpKSB7DQo=",
+      "new": "ICAgICAgICAgICAgICAgIGlmIChEb3dubG9hZEhlbHBlci5Jc1lvdXR1YmVMaW5rKFVSTCkpIHsNCg==",
+      "count": 1
+    }
+  ]
+}

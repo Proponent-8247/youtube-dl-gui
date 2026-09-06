@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: use TimePicker SetValue hour parameter",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Controls/TimePicker.cs",
+      "old": "ICAgICAgICB0aGlzLkhvdXJzID0gSG91ciA+PSAyNCAmJiBEYXRlQmFzZWRUaW1lID8gMjQgOiBIb3VycyA8IDAgPyAwIDogSG91cnM7DQo=",
+      "new": "ICAgICAgICB0aGlzLkhvdXJzID0gSG91ciA+PSAyNCAmJiBEYXRlQmFzZWRUaW1lID8gMjQgOiBIb3VyIDwgMCA/IDAgOiBIb3VyOw0K",
+      "count": 1
+    }
+  ]
+}

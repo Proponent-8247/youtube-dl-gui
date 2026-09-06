@@ -370,6 +370,8 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                     Thread.Sleep(250);
                 }
 
+                DownloadProcess.WaitForExit();
+
                 CurrentDownload.Status = DownloadProcess.ExitCode switch {
                     0 => DownloadStatus.Finished,
                     _ => CurrentDownload.Status == DownloadStatus.Aborted ? DownloadStatus.Aborted : DownloadStatus.YtdlError

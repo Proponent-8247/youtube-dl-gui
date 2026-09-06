@@ -2,6 +2,7 @@
 namespace youtube_dl_gui;
 using System.IO;
 using System.Windows.Forms;
+using murrty.updater;
 public partial class frmLanguage : Form {
     public frmLanguage() {
         InitializeComponent();
@@ -50,8 +51,17 @@ public partial class frmLanguage : Form {
     private void btnLanguageRefresh_Click(object sender, EventArgs e) {
         LoadFiles();
     }
-    private void btnLanguageDownload_Click(object sender, EventArgs e) {
-        using frmDownloadLanguage DownloadLanguage = new();
+    private async void btnLanguageDownload_Click(object sender, EventArgs e) {
+        GithubRepoContent[] AvailableLanguages;
+        try {
+            AvailableLanguages = await Updater.GetAvailableLanguages();
+        }
+        catch (Exception ex) {
+            AvailableLanguages = [];
+            Log.ReportException(ex);
+        }
+
+        using frmDownloadLanguage DownloadLanguage = new(AvailableLanguages);
         DialogResult result = DownloadLanguage.ShowDialog();
         string CurrentFile = cbLanguages.GetItemText(cbLanguages.SelectedItem);
         cbLanguages.SelectedIndex = -1;

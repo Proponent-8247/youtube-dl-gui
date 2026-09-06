@@ -8,11 +8,11 @@ public partial class frmDownloadLanguage : LocalizedForm {
 
     public string? FileName { get; private set; }
 
-    public frmDownloadLanguage() {
+    public frmDownloadLanguage(GithubRepoContent[] AvailableLanguages) {
         InitializeComponent();
 
         try {
-            EnumeratedLanguages = Updater.GetAvailableLanguages()
+            EnumeratedLanguages = AvailableLanguages
                 .Where(x => !x.name.IsNullEmptyWhitespace() && !x.download_url.IsNullEmptyWhitespace())
                 .ToArray();
 

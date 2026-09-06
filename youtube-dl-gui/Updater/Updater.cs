@@ -334,14 +334,11 @@ internal static class Updater {
     /// </summary>
     /// <returns></returns>
     /// <exception cref="ArgumentOutOfRangeException"></exception>
-    public static GithubRepoContent[] GetAvailableLanguages() {
+    public static async Task<GithubRepoContent[]> GetAvailableLanguages() {
         Log.Write("Enumerating languages available.");
         const string Url = "https://api.github.com/repos/murrty/youtube-dl-gui/contents/Languages";
 
-        Task<string?> JsonTask = GetJSON(Url);
-        JsonTask.Wait();
-
-        string? JSON = JsonTask.Result;
+        string? JSON = await GetJSON(Url);
 
         if (JSON.IsNullEmptyWhitespace()) {
             throw new NullReferenceException("Github api is null empty or whitespace.");

@@ -77,7 +77,7 @@ internal sealed class ManagedHttpClient : IDisposable {
     }
     private static async Task<HttpException> GetException(HttpResponseMessage Response, Uri uri) {
         using Stream ResponseStream = await Response.Content.ReadAsStreamAsync();
-        byte[] ResponseContent = Response.Content.Headers.ContentEncoding.FirstOrDefault() switch {
+        byte[] ResponseContent = Response.Content.Headers.ContentEncoding.FirstOrDefault()?.ToLowerInvariant() switch {
             "gzip" => await WebDecompress.GetGZip(ResponseStream),
             "deflate" => await WebDecompress.GetDeflate(ResponseStream),
             _ => await WebDecompress.GetRaw(ResponseStream)
@@ -165,7 +165,7 @@ internal sealed class ManagedHttpClient : IDisposable {
             await Destination.FlushAsync();
             FinishedCallback();
 
-            byte[] Bytes = Response.Content.Headers.ContentEncoding.FirstOrDefault() switch {
+            byte[] Bytes = Response.Content.Headers.ContentEncoding.FirstOrDefault()?.ToLowerInvariant() switch {
                 "gzip" => await WebDecompress.GetGZip(Destination),
                 "deflate" => await WebDecompress.GetDeflate(Destination),
                 _ => await WebDecompress.GetRaw(Destination),

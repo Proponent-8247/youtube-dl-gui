@@ -1472,7 +1472,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
         if (CopySelectedOptions && CopyFrom is not null) {
             SaveMediaOptions();
-            NewMedia.Authentication = CopyFrom.Authentication;
+            NewMedia.Authentication = CopyFrom.Authentication?.Clone();
             NewMedia.SelectedType = CopyFrom.SelectedType;
             NewMedia.FileNameSchema = CopyFrom.FileNameSchema;
             NewMedia.FileNameSchemaIndex = CopyFrom.FileNameSchemaIndex;
@@ -1493,7 +1493,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
         if (Authenticate && !CopySelectedOptions) {
             if (CopySelectedAuthentication && CopyFrom is not null) {
-                NewMedia.Authentication = CopyFrom.Authentication;
+                NewMedia.Authentication = CopyFrom.Authentication?.Clone();
             }
             else {
                 using frmAuthentication Auth = new();

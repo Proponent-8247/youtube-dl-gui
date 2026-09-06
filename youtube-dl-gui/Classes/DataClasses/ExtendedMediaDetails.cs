@@ -631,7 +631,8 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
                 ArgumentBuffer.Add("--write-description");
             }
 
-            if (Downloads.SaveAnnotations) {
+            if (Downloads.SaveAnnotations
+            && (Downloads.YtdlType == (int)GitID.YoutubeDl || Downloads.YtdlType == (int)GitID.YoutubeDlNightly)) {
                 ArgumentBuffer.Add("--write-annotations");
             }
 

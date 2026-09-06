@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/ExtendedMediaDetails.cs",
+      "old": "ICAgICAgICAgICAgaWYgKCFTa2lwVW5hdmFpbGFibGVGcmFnbWVudHMpIHsNCiAgICAgICAgICAgICAgICBBcmd1bWVudEJ1ZmZlci5BZGQoIi0tYWJvcnQtb24tdW5hdmFpbGFibGUtZnJhZ21lbnQiKTsNCiAgICAgICAgICAgIH0NCg==",
+      "new": "ICAgICAgICAgICAgaWYgKFNraXBVbmF2YWlsYWJsZUZyYWdtZW50cykgew0KICAgICAgICAgICAgICAgIEFyZ3VtZW50QnVmZmVyLkFkZCgiLS1za2lwLXVuYXZhaWxhYmxlLWZyYWdtZW50cyIpOw0KICAgICAgICAgICAgfQ0KICAgICAgICAgICAgZWxzZSBpZiAoRG93bmxvYWRzLll0ZGxUeXBlID09IChpbnQpR2l0SUQuWXREbHAgfHwgRG93bmxvYWRzLll0ZGxUeXBlID09IChpbnQpR2l0SUQuWXREbHBOaWdodGx5KSB7DQogICAgICAgICAgICAgICAgQXJndW1lbnRCdWZmZXIuQWRkKCItLWFib3J0LW9uLXVuYXZhaWxhYmxlLWZyYWdtZW50cyIpOw0KICAgICAgICAgICAgfQ0KICAgICAgICAgICAgZWxzZSB7DQogICAgICAgICAgICAgICAgQXJndW1lbnRCdWZmZXIuQWRkKCItLWFib3J0LW9uLXVuYXZhaWxhYmxlLWZyYWdtZW50Iik7DQogICAgICAgICAgICB9DQo=",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: honor extended unavailable fragment setting"
+}

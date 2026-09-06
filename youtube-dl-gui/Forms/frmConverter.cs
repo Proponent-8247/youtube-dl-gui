@@ -201,7 +201,7 @@ public partial class frmConverter : LocalizedProcessingForm {
                     }
 
                     if (CurrentConversion.VideoFastStart) {
-                        ArgumentsBuffer.Add("-faststart");
+                        ArgumentsBuffer.Add("-movflags +faststart");
                     }
                     break;
 

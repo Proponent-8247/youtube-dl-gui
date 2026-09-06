@@ -61,16 +61,8 @@ jobs:
       - name: Build updater
         run: msbuild youtube-dl-gui-updater\youtube-dl-gui-updater.csproj /m /p:Configuration=Debug /p:Platform=AnyCPU
 
-      - name: Check test project availability
-        shell: pwsh
-        run: |
-          if (Test-Path 'Tests\youtube-dl-gui-test\youtube-dl-gui-test.csproj') {
-            msbuild Tests\youtube-dl-gui-test\youtube-dl-gui-test.csproj /m /p:Configuration=Debug /p:Platform=AnyCPU
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-          else {
-            Write-Host 'The solution references Tests\youtube-dl-gui-test, but that project is not present in the repository.'
-          }
+      - name: Build solution
+        run: msbuild youtube-dl-gui.sln /m /p:Configuration=Debug "/p:Platform=Any CPU"
 
       - name: Commit verified audit patch
         if: steps.audit_patch.outputs.applied == 'true'

@@ -367,7 +367,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                 ArgumentsBuffer.Add($"--proxy {DownloadHelper.ProxyProtocols[Downloads.ProxyType]}{Downloads.ProxyIP}:{Downloads.ProxyPort}/");
             }
 
-            if (Downloads.SkipUnavailableFragments) {
+            if (!Downloads.SkipUnavailableFragments) {
                 ArgumentsBuffer.Add("--abort-on-unavailable-fragment");
             }
 

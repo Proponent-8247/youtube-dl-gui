@@ -639,11 +639,13 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
 
             if (Downloads.SaveThumbnail) {
                 ArgumentBuffer.Add("--write-thumbnail");
-                switch (SelectedType) {
-                    case DownloadType.Video when VideoFormat?.VideoThumbnailEmbedding == true || VideoEncoderIndex == 4:
-                    case DownloadType.Audio when AudioFormat?.AudioThumbnailEmbedding == true || AudioEncoderIndex == 1 || AudioEncoderIndex == 2: {
-                        ArgumentBuffer.Add("--embed-thumbnail");
-                    } break;
+                if (Downloads.EmbedThumbnails) {
+                    switch (SelectedType) {
+                        case DownloadType.Video when VideoFormat?.VideoThumbnailEmbedding == true || VideoEncoderIndex == 4:
+                        case DownloadType.Audio when AudioFormat?.AudioThumbnailEmbedding == true || AudioEncoderIndex == 1 || AudioEncoderIndex == 2: {
+                            ArgumentBuffer.Add("--embed-thumbnail");
+                        } break;
+                    }
                 }
             }
 

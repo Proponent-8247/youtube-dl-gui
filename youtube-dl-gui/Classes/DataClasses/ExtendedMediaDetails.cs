@@ -687,7 +687,13 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
                 ArgumentBuffer.Add("--retries " + Downloads.RetryAttempts);
             }
 
-            if (!SkipUnavailableFragments) {
+            if (SkipUnavailableFragments) {
+                ArgumentBuffer.Add("--skip-unavailable-fragments");
+            }
+            else if (Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly) {
+                ArgumentBuffer.Add("--abort-on-unavailable-fragments");
+            }
+            else {
                 ArgumentBuffer.Add("--abort-on-unavailable-fragment");
             }
 

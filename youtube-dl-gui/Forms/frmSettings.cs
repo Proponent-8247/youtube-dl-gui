@@ -839,7 +839,7 @@ public partial class frmSettings : LocalizedForm {
         }
     }
     private void txtSettingsDownloadsProxyPort_KeyPress(object sender, KeyPressEventArgs e) {
-        if (!char.IsDigit(e.KeyChar)) {
+        if (!char.IsDigit(e.KeyChar) && e.KeyChar != (char)8) {
             System.Media.SystemSounds.Beep.Play();
             e.Handled = true;
         }

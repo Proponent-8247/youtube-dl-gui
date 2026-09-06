@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/ExtendedMediaDetails.cs",
+      "old": "QXJndW1lbnRCdWZmZXIuQWRkKCItLXJlY29kZS12aWRlbyAiICsgRm9ybWF0cy5FeHRlbmRlZEF1ZGlvRm9ybWF0c1tBdWRpb0VuY29kZXJJbmRleCAtIDFdKTs=",
+      "new": "QXJndW1lbnRCdWZmZXIuQWRkKCItLWV4dHJhY3QtYXVkaW8gLS1hdWRpby1mb3JtYXQgIiArIEZvcm1hdHMuRXh0ZW5kZWRBdWRpb0Zvcm1hdHNbQXVkaW9FbmNvZGVySW5kZXggLSAxXSk7",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: use audio postprocessor for extended audio recode"
+}

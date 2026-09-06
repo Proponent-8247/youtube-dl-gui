@@ -874,11 +874,19 @@ public partial class frmSettings : LocalizedForm {
 
     #region Extensions
     private void LoadExtensions() {
-        if (!string.IsNullOrEmpty(General.extensionsName)) {
-            extensionsShort.AddRange(General.extensionsShort.Split('|'));
-            extensionsName.AddRange(General.extensionsName.Split('|'));
-            for (int i = 0; i < extensionsShort.Count; i++) {
-                listExtensions.Items.Add(extensionsName[i] + " (*." + extensionsShort[i] + ")");
+        if (!string.IsNullOrEmpty(General.extensionsName) && !string.IsNullOrEmpty(General.extensionsShort)) {
+            string[] ShortNames = General.extensionsShort.Split('|');
+            string[] FullNames = General.extensionsName.Split('|');
+            int ExtensionCount = Math.Min(ShortNames.Length, FullNames.Length);
+
+            for (int i = 0; i < ExtensionCount; i++) {
+                extensionsShort.Add(ShortNames[i]);
+                extensionsName.Add(FullNames[i]);
+                listExtensions.Items.Add(FullNames[i] + " (*." + ShortNames[i] + ")");
+            }
+
+            if (ShortNames.Length != FullNames.Length) {
+                Log.Write("Ignoring unpaired custom extension configuration entries.");
             }
         }
     }

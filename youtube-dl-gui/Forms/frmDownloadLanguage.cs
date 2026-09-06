@@ -54,7 +54,7 @@ public partial class frmDownloadLanguage : LocalizedForm {
         }
     }
 
-    private void DownloadSelectedLanguageFile() {
+    private bool DownloadSelectedLanguageFile() {
         var lang = EnumeratedLanguages[lvAvailableLanguages.SelectedIndices[0]];
 
         Log.Write($"Downloading language file {lang.name}.");
@@ -67,21 +67,23 @@ public partial class frmDownloadLanguage : LocalizedForm {
         if (Downloader.ShowDialog() == DialogResult.OK) {
             Log.Write($"Finished downloading language file {lang.name}");
             System.Media.SystemSounds.Asterisk.Play();
-            btnOk_Click(this, EventArgs.Empty);
+            return true;
         }
-        else {
-            Log.Write($"Could not download language file {lang.name}.");
-            System.Media.SystemSounds.Hand.Play();
-        }
+
+        Log.Write($"Could not download language file {lang.name}.");
+        System.Media.SystemSounds.Hand.Play();
 
         // The SHA on github doesn't match what I can calculate here.
         //if (Program.CalculateSha1Hash(Output).ToLower() != EnumeratedLanguages[listView1.SelectedIndices[0]].Sha.ToLower()) {
         //    Log.MessageBox(Language.dlgLanguageHashNoMatch, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         //}
+        return false;
     }
 
     private void btnDownloadSelected_Click(object sender, EventArgs e) {
-        DownloadSelectedLanguageFile();
+        if (DownloadSelectedLanguageFile()) {
+            SetSelectedLanguageResult();
+        }
     }
 
     private void btnCancel_Click(object sender, EventArgs e) {
@@ -89,17 +91,22 @@ public partial class frmDownloadLanguage : LocalizedForm {
     }
 
     private void btnOk_Click(object sender, EventArgs e) {
-        if (lvAvailableLanguages.SelectedIndices.Count > 0) {
-            DownloadSelectedLanguageFile();
-            FileName = EnumeratedLanguages[lvAvailableLanguages.SelectedIndices[0]].name!;
-            if (FileName.EndsWith(".ini")) {
-                FileName = FileName[..^4];
-            }
-            this.DialogResult = DialogResult.OK;
+        if (lvAvailableLanguages.SelectedIndices.Count > 0 && DownloadSelectedLanguageFile()) {
+            SetSelectedLanguageResult();
             return;
         }
-        FileName = null;
-        this.DialogResult = DialogResult.Cancel;
+        if (lvAvailableLanguages.SelectedIndices.Count < 1) {
+            FileName = null;
+            this.DialogResult = DialogResult.Cancel;
+        }
+    }
+
+    private void SetSelectedLanguageResult() {
+        FileName = EnumeratedLanguages[lvAvailableLanguages.SelectedIndices[0]].name!;
+        if (FileName.EndsWith(".ini")) {
+            FileName = FileName[..^4];
+        }
+        this.DialogResult = DialogResult.OK;
     }
 
     private void lvAvailableLanguages_SelectedIndexChanged(object sender, EventArgs e) {

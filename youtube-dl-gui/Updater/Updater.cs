@@ -347,7 +347,9 @@ internal static class Updater {
             throw new NullReferenceException("Github api is null empty or whitespace.");
         }
 
-        var AvailableLanguages = JSON.JsonDeserialize<GithubRepoContent[]>()
+        GithubRepoContent[] ParsedLanguages = JSON.JsonDeserialize<GithubRepoContent[]>()
+            ?? throw new ApiParsingException("Could not deserialize language metadata.", Url);
+        var AvailableLanguages = ParsedLanguages
             .Where(x => x.name != "English.ini")
             .ToArray();
 
@@ -403,8 +405,9 @@ internal static class Updater {
     /// Refreshes the release data within the application.
     /// </summary>
     private static async Task RefreshRelease() {
-        string? Json = await GetJSON((General.DownloadBetaVersions ? GithubLinks.GithubAllReleasesJson : GithubLinks.GithubLatestJson)
-            .Format("murrty", Language.ApplicationName));
+        string ReleaseUrl = (General.DownloadBetaVersions ? GithubLinks.GithubAllReleasesJson : GithubLinks.GithubLatestJson)
+            .Format("murrty", Language.ApplicationName);
+        string? Json = await GetJSON(ReleaseUrl);
 
         if (Json.IsNullEmptyWhitespace()) {
             throw new InvalidOperationException("JSON downloaded was empty");
@@ -413,11 +416,13 @@ internal static class Updater {
         GithubData CurrentCheck;
 
         if (General.DownloadBetaVersions) {
-            GithubData[] Releases = Json.JsonDeserialize<GithubData[]>();
+            GithubData[] Releases = Json.JsonDeserialize<GithubData[]>()
+                ?? throw new ApiParsingException("Could not deserialize release metadata.", ReleaseUrl);
             CurrentCheck = LastCheckedAllRelease = GithubData.GetNewestRelease(Releases);
         }
         else {
-            CurrentCheck = Json.JsonDeserialize<GithubData>();
+            CurrentCheck = Json.JsonDeserialize<GithubData>()
+                ?? throw new ApiParsingException("Could not deserialize release metadata.", ReleaseUrl);
             LastCheckedLatestRelease = CurrentCheck;
         }
 
@@ -440,7 +445,8 @@ internal static class Updater {
         string Json = await GetJSON(Url)
             .ConfigureAwait(true) ?? throw new ApiParsingException("The retrieved xml returned null.", Url);
 
-        GithubData CurrentRelease = Json.JsonDeserialize<GithubData>();
+        GithubData CurrentRelease = Json.JsonDeserialize<GithubData>()
+            ?? throw new ApiParsingException("Could not deserialize provider release metadata.", Url);
 
         if (LatestYoutubeDl is not null && LatestYoutubeDl.VersionTag == CurrentRelease.VersionTag) {
             return;

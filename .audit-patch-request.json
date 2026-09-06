@@ -1,0 +1,29 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Updater/Updater.cs",
+      "old": "ICAgIHB1YmxpYyBzdGF0aWMgR2l0aHViUmVwb0NvbnRlbnRbXSBHZXRBdmFpbGFibGVMYW5ndWFnZXMoKSB7DQogICAgICAgIExvZy5Xcml0ZSgiRW51bWVyYXRpbmcgbGFuZ3VhZ2VzIGF2YWlsYWJsZS4iKTsNCiAgICAgICAgY29uc3Qgc3RyaW5nIFVybCA9ICJodHRwczovL2FwaS5naXRodWIuY29tL3JlcG9zL211cnJ0eS95b3V0dWJlLWRsLWd1aS9jb250ZW50cy9MYW5ndWFnZXMiOw0KDQogICAgICAgIFRhc2s8c3RyaW5nPz4gSnNvblRhc2sgPSBHZXRKU09OKFVybCk7DQogICAgICAgIEpzb25UYXNrLldhaXQoKTsNCg0KICAgICAgICBzdHJpbmc/IEpTT04gPSBKc29uVGFzay5SZXN1bHQ7DQo=",
+      "new": "ICAgIHB1YmxpYyBzdGF0aWMgYXN5bmMgVGFzazxHaXRodWJSZXBvQ29udGVudFtdPiBHZXRBdmFpbGFibGVMYW5ndWFnZXMoKSB7DQogICAgICAgIExvZy5Xcml0ZSgiRW51bWVyYXRpbmcgbGFuZ3VhZ2VzIGF2YWlsYWJsZS4iKTsNCiAgICAgICAgY29uc3Qgc3RyaW5nIFVybCA9ICJodHRwczovL2FwaS5naXRodWIuY29tL3JlcG9zL211cnJ0eS95b3V0dWJlLWRsLWd1aS9jb250ZW50cy9MYW5ndWFnZXMiOw0KDQogICAgICAgIHN0cmluZz8gSlNPTiA9IGF3YWl0IEdldEpTT04oVXJsKTsNCg==",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmDownloadLanguage.cs",
+      "old": "ICAgIHB1YmxpYyBmcm1Eb3dubG9hZExhbmd1YWdlKCkgew0KICAgICAgICBJbml0aWFsaXplQ29tcG9uZW50KCk7DQoNCiAgICAgICAgdHJ5IHsNCiAgICAgICAgICAgIEVudW1lcmF0ZWRMYW5ndWFnZXMgPSBVcGRhdGVyLkdldEF2YWlsYWJsZUxhbmd1YWdlcygpDQo=",
+      "new": "ICAgIHB1YmxpYyBmcm1Eb3dubG9hZExhbmd1YWdlKEdpdGh1YlJlcG9Db250ZW50W10gQXZhaWxhYmxlTGFuZ3VhZ2VzKSB7DQogICAgICAgIEluaXRpYWxpemVDb21wb25lbnQoKTsNCg0KICAgICAgICB0cnkgew0KICAgICAgICAgICAgRW51bWVyYXRlZExhbmd1YWdlcyA9IEF2YWlsYWJsZUxhbmd1YWdlcw0K",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmLanguage.cs",
+      "old": "dXNpbmcgU3lzdGVtLklPOw0KdXNpbmcgU3lzdGVtLldpbmRvd3MuRm9ybXM7DQpwdWJsaWMgcGFydGlhbCBjbGFzcyBmcm1MYW5ndWFnZSA6IEZvcm0gew0K",
+      "new": "dXNpbmcgU3lzdGVtLklPOw0KdXNpbmcgU3lzdGVtLldpbmRvd3MuRm9ybXM7DQp1c2luZyBtdXJydHkudXBkYXRlcjsNCnB1YmxpYyBwYXJ0aWFsIGNsYXNzIGZybUxhbmd1YWdlIDogRm9ybSB7DQo=",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmLanguage.cs",
+      "old": "ICAgIHByaXZhdGUgdm9pZCBidG5MYW5ndWFnZURvd25sb2FkX0NsaWNrKG9iamVjdCBzZW5kZXIsIEV2ZW50QXJncyBlKSB7DQogICAgICAgIHVzaW5nIGZybURvd25sb2FkTGFuZ3VhZ2UgRG93bmxvYWRMYW5ndWFnZSA9IG5ldygpOw0KICAgICAgICBEaWFsb2dSZXN1bHQgcmVzdWx0ID0gRG93bmxvYWRMYW5ndWFnZS5TaG93RGlhbG9nKCk7DQo=",
+      "new": "ICAgIHByaXZhdGUgYXN5bmMgdm9pZCBidG5MYW5ndWFnZURvd25sb2FkX0NsaWNrKG9iamVjdCBzZW5kZXIsIEV2ZW50QXJncyBlKSB7DQogICAgICAgIEdpdGh1YlJlcG9Db250ZW50W10gQXZhaWxhYmxlTGFuZ3VhZ2VzOw0KICAgICAgICB0cnkgew0KICAgICAgICAgICAgQXZhaWxhYmxlTGFuZ3VhZ2VzID0gYXdhaXQgVXBkYXRlci5HZXRBdmFpbGFibGVMYW5ndWFnZXMoKTsNCiAgICAgICAgfQ0KICAgICAgICBjYXRjaCAoRXhjZXB0aW9uIGV4KSB7DQogICAgICAgICAgICBBdmFpbGFibGVMYW5ndWFnZXMgPSBbXTsNCiAgICAgICAgICAgIExvZy5SZXBvcnRFeGNlcHRpb24oZXgpOw0KICAgICAgICB9DQoNCiAgICAgICAgdXNpbmcgZnJtRG93bmxvYWRMYW5ndWFnZSBEb3dubG9hZExhbmd1YWdlID0gbmV3KEF2YWlsYWJsZUxhbmd1YWdlcyk7DQogICAgICAgIERpYWxvZ1Jlc3VsdCByZXN1bHQgPSBEb3dubG9hZExhbmd1YWdlLlNob3dEaWFsb2coKTsNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: await language enumeration without blocking UI"
+}

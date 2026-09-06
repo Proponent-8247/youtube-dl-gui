@@ -1,0 +1,11 @@
+{
+  "commit_message": "ci: validate full solution build during audit",
+  "replacements": [
+    {
+      "path": ".github/workflows/audit-build.yml",
+      "old": "ICAgICAgLSBuYW1lOiBDaGVjayB0ZXN0IHByb2plY3QgYXZhaWxhYmlsaXR5CiAgICAgICAgc2hlbGw6IHB3c2gKICAgICAgICBydW46IHwKICAgICAgICAgIGlmIChUZXN0LVBhdGggJ1Rlc3RzXFx5b3V0dWJlLWRsLWd1aS10ZXN0XFx5b3V0dWJlLWRsLWd1aS10ZXN0LmNzcHJvaicpIHsKICAgICAgICAgICAgbXNidWlsZCBUZXN0c1xceW91dHViZS1kbC1ndWktdGVzdFxceW91dHViZS1kbC1ndWktdGVzdC5jc3Byb2ogL20gL3A6Q29uZmlndXJhdGlvbj1EZWJ1ZyAvcDpQbGF0Zm9ybT1BbnlDUFUKICAgICAgICAgICAgaWYgKCRMQVNURVhJVENPREUgLW5lIDApIHsgZXhpdCAkTEFTVEVYSVRDT0RFIH0KICAgICAgICAgIH0KICAgICAgICAgIGVsc2UgewogICAgICAgICAgICBXcml0ZS1Ib3N0ICdUaGUgc29sdXRpb24gcmVmZXJlbmNlcyBUZXN0c1xceW91dHViZS1kbC1ndWktdGVzdCwgYnV0IHRoYXQgcHJvamVjdCBpcyBub3QgcHJlc2VudCBpbiB0aGUgcmVwb3NpdG9yeS4nCiAgICAgICAgICB9Cgo=",
+      "new": "ICAgICAgLSBuYW1lOiBCdWlsZCBzb2x1dGlvbgogICAgICAgIHJ1bjogbXNidWlsZCB5b3V0dWJlLWRsLWd1aS5zbG4gL20gL3A6Q29uZmlndXJhdGlvbj1EZWJ1ZyAiL3A6UGxhdGZvcm09QW55IENQVSIKCg==",
+      "count": 1
+    }
+  ]
+}

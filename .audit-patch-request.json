@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: allow backspace in proxy port field",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmSettings.cs",
+      "old": "ICAgIHByaXZhdGUgdm9pZCB0eHRTZXR0aW5nc0Rvd25sb2Fkc1Byb3h5UG9ydF9LZXlQcmVzcyhvYmplY3Qgc2VuZGVyLCBLZXlQcmVzc0V2ZW50QXJncyBlKSB7DQogICAgICAgIGlmICghY2hhci5Jc0RpZ2l0KGUuS2V5Q2hhcikpIHsNCiAgICAgICAgICAgIFN5c3RlbS5NZWRpYS5TeXN0ZW1Tb3VuZHMuQmVlcC5QbGF5KCk7DQogICAgICAgICAgICBlLkhhbmRsZWQgPSB0cnVlOw0KICAgICAgICB9DQogICAgfQ0K",
+      "new": "ICAgIHByaXZhdGUgdm9pZCB0eHRTZXR0aW5nc0Rvd25sb2Fkc1Byb3h5UG9ydF9LZXlQcmVzcyhvYmplY3Qgc2VuZGVyLCBLZXlQcmVzc0V2ZW50QXJncyBlKSB7DQogICAgICAgIGlmICghY2hhci5Jc0RpZ2l0KGUuS2V5Q2hhcikgJiYgZS5LZXlDaGFyICE9IChjaGFyKTgpIHsNCiAgICAgICAgICAgIFN5c3RlbS5NZWRpYS5TeXN0ZW1Tb3VuZHMuQmVlcC5QbGF5KCk7DQogICAgICAgICAgICBlLkhhbmRsZWQgPSB0cnVlOw0KICAgICAgICB9DQogICAgfQ0K",
+      "count": 1
+    }
+  ]
+}

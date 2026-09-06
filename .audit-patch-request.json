@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DownloadInfo.cs",
+      "old": "ICAgICAgICAgICAgICAgICAgICAgICAgQXJndW1lbnRzQnVmZmVyLkFkZCgkIi0tZXh0cmFjdC1hdWRpbyAtLWF1ZGlvLXF1YWxpdHkge0F1ZGlvVkJSUXVhbGl0eX0iKTsNCg==",
+      "new": "ICAgICAgICAgICAgICAgICAgICAgICAgQXJndW1lbnRzQnVmZmVyLkFkZCgkIi0tZXh0cmFjdC1hdWRpbyAtLWF1ZGlvLXF1YWxpdHkgeyhpbnQpQXVkaW9WQlJRdWFsaXR5fSIpOw0K",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: serialize quick VBR quality numerically"
+}

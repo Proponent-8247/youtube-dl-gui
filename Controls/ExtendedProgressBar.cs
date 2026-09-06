@@ -430,12 +430,17 @@ public sealed class ExtendedProgressBar : ProgressBar {
                 TaskbarInterface.AccessorPriorityList.Remove(this);
             }
         }
+        if (disposing) {
+            TextGraphics?.Dispose();
+            TextGraphics = null;
+        }
         base.Dispose(disposing);
     }
 
     /// <inheritdoc/>
     protected override void OnHandleCreated(EventArgs e) {
         base.OnHandleCreated(e);
+        TextGraphics?.Dispose();
         TextGraphics = CreateGraphics();
         TextSize = TextGraphics.MeasureString(Text, Font);
         if (DesignMode) {
@@ -506,6 +511,7 @@ public sealed class ExtendedProgressBar : ProgressBar {
     /// </summary>
     [DebuggerStepThrough]
     private void DrawText() {
+        TextGraphics?.Dispose();
         TextGraphics = CreateGraphics();
         if (_ShowTextDropShadow) {
             TextGraphics.DrawString(Text, Font, DropShadowBrush,

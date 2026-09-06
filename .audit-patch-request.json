@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmConverter.cs",
+      "old": "ICAgIHB1YmxpYyBmcm1Db252ZXJ0ZXIoQ29udmVydEluZm8gSW5mbykgew0KICAgICAgICBJbml0aWFsaXplQ29tcG9uZW50KCk7DQogICAgICAgIExvYWRMYW5ndWFnZSgpOw0KICAgICAgICB0aGlzLkN1cnJlbnRDb252ZXJzaW9uID0gSW5mbzsNCiAgICB9DQo=",
+      "new": "ICAgIHB1YmxpYyBmcm1Db252ZXJ0ZXIoQ29udmVydEluZm8gSW5mbykgew0KICAgICAgICBJbml0aWFsaXplQ29tcG9uZW50KCk7DQogICAgICAgIHRoaXMuQ3VycmVudENvbnZlcnNpb24gPSBJbmZvOw0KICAgICAgICBMb2FkTGFuZ3VhZ2UoKTsNCiAgICB9DQo=",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: initialize converter state before localization"
+}

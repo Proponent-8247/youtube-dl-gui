@@ -372,7 +372,13 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                 ArgumentsBuffer.Add($"--proxy {DownloadHelper.ProxyProtocols[Downloads.ProxyType]}{Downloads.ProxyIP}:{Downloads.ProxyPort}/");
             }
 
-            if (!Downloads.SkipUnavailableFragments) {
+            if (Downloads.SkipUnavailableFragments) {
+                ArgumentsBuffer.Add("--skip-unavailable-fragments");
+            }
+            else if (Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly) {
+                ArgumentsBuffer.Add("--abort-on-unavailable-fragments");
+            }
+            else {
                 ArgumentsBuffer.Add("--abort-on-unavailable-fragment");
             }
 

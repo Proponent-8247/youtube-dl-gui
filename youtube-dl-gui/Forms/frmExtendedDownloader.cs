@@ -1449,7 +1449,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
     private void mDownload_Click(object sender, EventArgs e) {
         switch (Status) {
-            case DownloadStatus.Downloading: {
+            case DownloadStatus.Downloading:
+            case DownloadStatus.MergingFiles:
+            case DownloadStatus.Converting:
+            case DownloadStatus.ExtractingAudio:
+            case DownloadStatus.FfmpegPostProcessing:
+            case DownloadStatus.EmbeddingSubtitles:
+            case DownloadStatus.EmbeddingMetadata: {
                 Status = DownloadStatus.Aborted;
             } break;
 
@@ -1460,7 +1466,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
     private void mDownloadWithAuthentication_Click(object sender, EventArgs e) {
         switch (Status) {
-            case DownloadStatus.Downloading: {
+            case DownloadStatus.Downloading:
+            case DownloadStatus.MergingFiles:
+            case DownloadStatus.Converting:
+            case DownloadStatus.ExtractingAudio:
+            case DownloadStatus.FfmpegPostProcessing:
+            case DownloadStatus.EmbeddingSubtitles:
+            case DownloadStatus.EmbeddingMetadata: {
                 Status = DownloadStatus.Aborted;
             } break;
 

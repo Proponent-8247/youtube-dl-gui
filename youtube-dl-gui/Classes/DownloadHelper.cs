@@ -120,7 +120,11 @@ public static class DownloadHelper {
         return Regex.IsMatch(key, "^[a-zA-Z0-9-_]{11}$");
     }
 
-    public static bool IsYoutubeLink(string url) => Regex.IsMatch(url, @"(((http|https):\/\/)?(.){0,5}\.(youtube\.com|youtu\.be)\/(watch\?v=)?)?[a-zA-Z0-9-_]{11}");
+    public static bool IsYoutubeLink(string url) =>
+        IsYoutubeKey(url) || Regex.IsMatch(
+            url,
+            @"^(?:(?:https?://)?(?:(?:www|m)\.)?youtube\.com/watch\?v=|(?:https?://)?(?:(?:www|m)\.)?youtu\.be/)[a-zA-Z0-9_-]{11}(?:[?&#].*)?$",
+            RegexOptions.IgnoreCase);
 
     public static string? GetYoutubeVideoKey(string URL) {
         if (URL.StartsWith("http://",  StringComparison.InvariantCultureIgnoreCase)) {

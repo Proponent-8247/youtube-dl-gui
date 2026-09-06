@@ -480,6 +480,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
             DownloadType.Custom;
 
         InfoRetrieved = true;
+        InfoParsed = true;
     }
     public override bool GenerateArguments() {
         ArgumentList ArgumentBuffer = new($"\"{URL}\"");

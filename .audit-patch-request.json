@@ -1,0 +1,7 @@
+{
+  "path": "youtube-dl-gui/Enums/VideoProfiles.cs",
+  "expected_count": 1,
+  "old_b64": "ICAgIGhpZ2g0NDIsCg==",
+  "new_b64": "ICAgIGhpZ2g0MjIsCg==",
+  "commit_message": "fix: correct high422 video profile name"
+}

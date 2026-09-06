@@ -183,7 +183,11 @@ internal partial class frmDownloader : LocalizedProcessingForm {
 
                 DownloadProcess = new Process() { StartInfo = StartInfo };
                 DownloadProcess.OutputDataReceived += (s, e) => {
-                    if (e.Data?.Length > 0) {
+                    if (e.Data is null || e.Data.Length == 0 || this.IsDisposed || !this.IsHandleCreated) {
+                        return;
+                    }
+
+                    try {
                         if (e.Data.Length < 8) {
                             rtbVerbose?.Invoke(() => rtbVerbose.AppendLine(e.Data));
                             return;
@@ -249,6 +253,9 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                                 rtbVerbose?.Invoke(() => rtbVerbose.AppendLine(e.Data));
                             } break;
                         }
+                    }
+                    catch (InvalidOperationException) {
+                        // The form can close while asynchronous stdout is being marshalled to the UI.
                     }
                 };
                 DownloadProcess.ErrorDataReceived += (s, e) => {

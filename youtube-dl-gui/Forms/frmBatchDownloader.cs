@@ -286,9 +286,11 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
 
     private void btnBatchDownloadStartStopExit_Click(object sender, EventArgs e) {
         if (InProgress) {
-            Downloader.Invoke((Action)delegate {
-                Downloader.RetryOrAbort();
-            });
+            if (Downloader is not null && !Downloader.IsDisposed && Downloader.IsHandleCreated) {
+                Downloader.Invoke((Action)delegate {
+                    Downloader.RetryOrAbort();
+                });
+            }
         }
         else if (DownloadUrls.Count > 0) {
             Log.Write($"Starting batch download with {DownloadUrls.Count} links to download.");

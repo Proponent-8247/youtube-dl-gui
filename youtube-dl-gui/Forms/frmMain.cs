@@ -538,7 +538,7 @@ public partial class frmMain : LocalizedForm {
         }
 
         DownloadInfo NewInfo = new(Clipboard.GetText()) {
-            Arguments = cbCustomArguments.Text,
+            CustomArguments = cbCustomArguments.Text,
             Type = DownloadType.Custom,
         };
         frmDownloader Downloader = new(NewInfo);
@@ -559,7 +559,7 @@ public partial class frmMain : LocalizedForm {
         }
 
         DownloadInfo NewInfo = new(Clipboard.GetText()) {
-            Arguments = System.IO.File.ReadAllLines(Environment.CurrentDirectory + "\\args.txt")[0],
+            CustomArguments = System.IO.File.ReadAllLines(Environment.CurrentDirectory + "\\args.txt")[0],
             Type = DownloadType.Custom,
         };
         frmDownloader Downloader = new(NewInfo);
@@ -576,7 +576,7 @@ public partial class frmMain : LocalizedForm {
         }
 
         DownloadInfo NewInfo = new(Clipboard.GetText()) {
-            Arguments = cbCustomArguments.Items[Saved.CustomArgumentsIndex + (rbCustom.Checked ? 0 : 1)] as string,
+            CustomArguments = cbCustomArguments.Items[Saved.CustomArgumentsIndex + (rbCustom.Checked ? 0 : 1)] as string,
             Type = DownloadType.Custom,
         };
         frmDownloader Downloader = new(NewInfo);

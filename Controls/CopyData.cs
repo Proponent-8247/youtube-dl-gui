@@ -62,7 +62,7 @@ internal static class CopyData {
     /// <returns>A pointer address to the structure data in unmanaged memory.</returns>
     public static nint NintAlloc<StructVal>(StructVal Structure) {
         nint PointerAddress = Marshal.AllocHGlobal(Marshal.SizeOf(Structure));
-        Marshal.StructureToPtr(Structure, PointerAddress, true);
+        Marshal.StructureToPtr(Structure, PointerAddress, false);
         return PointerAddress;
     }
 

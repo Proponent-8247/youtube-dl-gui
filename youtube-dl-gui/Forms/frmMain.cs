@@ -916,6 +916,7 @@ public partial class frmMain : LocalizedForm {
                         case DownloadType.Audio:
                             if (chkDownloadSound.Checked) {
                                 NewInfo.AudioVBRQuality = (AudioVBRQualityType)BatchQuality;
+                                NewInfo.UseVBR = true;
                             }
                             else {
                                 NewInfo.AudioCBRQuality = (AudioCBRQualityType)BatchQuality;

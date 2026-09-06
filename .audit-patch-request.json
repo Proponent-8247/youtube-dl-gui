@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmMiscTools.cs",
+      "old": "ImZmbXBlZyAtaSBcIiIgKyBvZmQuRmlsZU5hbWU=",
+      "new": "IlwiIiArIChWZXJpZmljYXRpb24uRkZtcGVnUGF0aCA/PyAiZmZtcGVnIikgKyAiXCIgLWkgXCIiICsgb2ZkLkZpbGVOYW1l",
+      "count": 3
+    }
+  ],
+  "commit_message": "fix: honor configured ffmpeg path in misc tools"
+}

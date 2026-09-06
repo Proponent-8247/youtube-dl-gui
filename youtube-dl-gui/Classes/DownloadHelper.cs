@@ -128,8 +128,8 @@ public static class DownloadHelper {
             URL = URL[8..];
         }
 
-        if (URL.StartsWith("www.", StringComparison.InvariantCultureIgnoreCase)) {
-            URL = URL[4..];
+        if (URL.StartsWith("www.", StringComparison.InvariantCultureIgnoreCase) || URL.StartsWith("m.", StringComparison.InvariantCultureIgnoreCase)) {
+            URL = URL.StartsWith("m.", StringComparison.InvariantCultureIgnoreCase) ? URL[2..] : URL[4..];
         }
 
         if (URL.StartsWith("youtube.com/watch?v=", StringComparison.InvariantCultureIgnoreCase)) {

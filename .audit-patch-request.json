@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmExtendedDownloader.cs",
+      "old": "aWYgKEF1dGguU2hvd0RpYWxvZygpICE9IERpYWxvZ1Jlc3VsdC5PSykgew0KICAgICAgICAgICAgICAgICAgICByZXR1cm47DQogICAgICAgICAgICAgICAgfQ==",
+      "new": "aWYgKEF1dGguU2hvd0RpYWxvZygpICE9IERpYWxvZ1Jlc3VsdC5PSykgew0KICAgICAgICAgICAgICAgICAgICBsdlF1ZXVlZE1lZGlhLkl0ZW1zLlJlbW92ZShOZXdJdGVtKTsNCiAgICAgICAgICAgICAgICAgICAgTmV3SXRlbS5UYWcgPSBudWxsOw0KICAgICAgICAgICAgICAgICAgICBOZXdNZWRpYS5EaXNwb3NlKCk7DQogICAgICAgICAgICAgICAgICAgIHNidG5Eb3dubG9hZC5FbmFibGVkID0gUHJvY2Vzc2luZ1RocmVhZD8uSXNBbGl2ZSAhPSB0cnVlICYmIGx2UXVldWVkTWVkaWEuSXRlbXMuQ291bnQgPiAwOw0KICAgICAgICAgICAgICAgICAgICByZXR1cm47DQogICAgICAgICAgICAgICAgfQ==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: roll back canceled authenticated queue item"
+}

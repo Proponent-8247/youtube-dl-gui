@@ -27,16 +27,10 @@ internal static class CustomArguments {
             HashSet<string> Arguments = [];
             string[] Args = Saved.DownloadCustomArguments.Trim('|', ' ').Split('|');
             Args.For((Arg) => {
-                if (!Arg.IsNullEmptyWhitespace())
-                    Arguments.Add(Arg);
+                if (!Arg.IsNullEmptyWhitespace() && Arguments.Add(Arg)) {
+                    YtdlArguments.Add(Arg);
+                }
             });
-
-            foreach (string Arg in Arguments) {
-                if (Arg.IsNullEmptyWhitespace())
-                    continue;
-
-                YtdlArguments.Add(Arg);
-            }
 
             int Index = Saved.CustomArgumentsIndex;
             if (Index > -1 && Index < YtdlArguments.Count)
@@ -47,16 +41,10 @@ internal static class CustomArguments {
             HashSet<string> Arguments = [];
             string[] Args = Saved.ConvertCustomArguments.Trim('|', ' ').Split('|');
             Args.For((Arg) => {
-                if (!Arg.IsNullEmptyWhitespace())
-                    Arguments.Add(Arg);
+                if (!Arg.IsNullEmptyWhitespace() && Arguments.Add(Arg)) {
+                    FfmpegArguments.Add(Arg);
+                }
             });
-
-            foreach (string Arg in Arguments) {
-                if (Arg.IsNullEmptyWhitespace())
-                    continue;
-
-                FfmpegArguments.Add(Arg);
-            }
 
             int Index = Saved.ConvertCustomArgumentsIndex;
             if (Index > -1 && Index < FfmpegArguments.Count)

@@ -137,7 +137,7 @@ public partial class frmMain : LocalizedForm {
 
         if (CustomArguments.YtdlArguments.Count > 0) {
             CustomArguments.YtdlArguments.For((Arg) => cbCustomArguments.Items.Add(Arg));
-            if (Saved.CustomArgumentsIndex < cbCustomArguments.Items.Count) {
+            if (Saved.CustomArgumentsIndex >= -1 && Saved.CustomArgumentsIndex < cbCustomArguments.Items.Count) {
                 cbCustomArguments.SelectedIndex = rbCustom.Checked ? Saved.CustomArgumentsIndex : Saved.CustomArgumentsIndex + 1;
             }
         }
@@ -690,7 +690,7 @@ public partial class frmMain : LocalizedForm {
         chkDownloadSound.Enabled = false;
         if (cbCustomArguments.Items.Count > 0 && (string)cbCustomArguments.Items[0] == Language.GenericDoNotInclude)
             cbCustomArguments.Items.RemoveAt(0);
-        if (Downloads.SaveFormatQuality)
+        if (Downloads.SaveFormatQuality && Saved.CustomArgumentsIndex >= -1 && Saved.CustomArgumentsIndex < cbCustomArguments.Items.Count)
             cbCustomArguments.SelectedIndex = Saved.CustomArgumentsIndex;
     }
     private void chkDownloadSound_CheckedChanged(object sender, EventArgs e) {

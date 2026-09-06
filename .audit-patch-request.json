@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmBatchConverter.cs",
+      "old": "c2ZkLkZpbGVOYW1lID0gU3lzdGVtLklPLlBhdGguR2V0RmlsZU5hbWVXaXRob3V0RXh0ZW5zaW9uKHR4dEJhdGNoQ29udmVydGVyT3V0cHV0RmlsZS5UZXh0KTs=",
+      "new": "c2ZkLkZpbGVOYW1lID0gU3lzdGVtLklPLlBhdGguR2V0RmlsZU5hbWVXaXRob3V0RXh0ZW5zaW9uKHR4dEJhdGNoQ29udmVydGVySW5wdXRGaWxlLlRleHQpOw==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: suggest batch output name from input file"
+}

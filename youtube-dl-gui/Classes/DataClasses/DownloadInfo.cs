@@ -431,7 +431,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                     Authentication.NetRC = false;
                 }
                 if (!Authentication.CookiesFile.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--cookies {Authentication.CookiesFile}");
+                    ArgumentsBuffer.Add($"--cookies \"{Authentication.CookiesFile}\"");
                     PreviewArguments.Add("--cookies ***");
                     Authentication.CookiesFile = null;
                 }

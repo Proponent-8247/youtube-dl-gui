@@ -743,7 +743,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
                 ProtectedArguments.Append("--netrc");
             }
             if (!Authentication.CookiesFile.IsNullEmptyWhitespace()) {
-                ArgumentBuffer.Add("--cookies " + Authentication.CookiesFile);
+                ArgumentBuffer.Add("--cookies \"" + Authentication.CookiesFile + "\"");
                 ProtectedArguments.Append("--cookies ***");
             }
             if (!Authentication.CookiesFromBrowser.IsNullEmptyWhitespace()) {

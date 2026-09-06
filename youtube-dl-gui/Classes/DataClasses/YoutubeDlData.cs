@@ -81,7 +81,7 @@ internal sealed class YoutubeDlData {
                 Arguments.Add("--netrc");
             }
             if (!Auth.CookiesFile.IsNullEmptyWhitespace()) {
-                Arguments.Add("--cookies " + Auth.CookiesFile);
+                Arguments.Add("--cookies \"" + Auth.CookiesFile + "\"");
             }
             if (!Auth.CookiesFromBrowser.IsNullEmptyWhitespace()) {
                 Arguments.Add("--cookies-from-browser " + Auth.CookiesFromBrowser);

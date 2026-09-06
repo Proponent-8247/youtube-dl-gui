@@ -6,12 +6,51 @@ on:
       - audit-fixes
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-2022
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply exact audit patch request
+        id: audit_patch
+        shell: pwsh
+        run: |
+          if (!(Test-Path '.audit-patch-request.json')) {
+            "applied=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+
+          @'
+          import base64
+          import json
+          from pathlib import Path
+
+          request_path = Path('.audit-patch-request.json')
+          request = json.loads(request_path.read_text(encoding='utf-8'))
+          for replacement in request['replacements']:
+              path = Path(replacement['path'])
+              data = path.read_bytes()
+              old = base64.b64decode(replacement['old'])
+              new = base64.b64decode(replacement['new'])
+              expected = replacement.get('count', 1)
+              actual = data.count(old)
+              if actual != expected:
+                  raise SystemExit(f"{path}: expected {expected} exact byte matches, found {actual}")
+              path.write_bytes(data.replace(old, new))
+          request_path.unlink()
+          Path('.audit-patch-message.txt').write_text(request['commit_message'], encoding='utf-8')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "applied=true" >> $env:GITHUB_OUTPUT
 
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -32,3 +71,15 @@ jobs:
           else {
             Write-Host 'The solution references Tests\youtube-dl-gui-test, but that project is not present in the repository.'
           }
+
+      - name: Commit verified audit patch
+        if: steps.audit_patch.outputs.applied == 'true'
+        shell: pwsh
+        run: |
+          $message = Get-Content '.audit-patch-message.txt' -Raw
+          Remove-Item '.audit-patch-message.txt'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m $message.Trim()
+          git push origin HEAD:audit-fixes

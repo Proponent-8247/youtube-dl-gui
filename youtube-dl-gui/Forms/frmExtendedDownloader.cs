@@ -15,6 +15,8 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     private Process? DownloadProcess { get; set; }
     private ExtendedMediaDetails? MediaDetails { get; set; }
     private List<ExtendedMediaDetails>? QueueList { get; }
+    private readonly object QueueSync = new();
+    private bool QueueResolverRunning;
     private DownloadStatus Status { get; set; } = DownloadStatus.None;
 
     private bool ClipboardScannerActive;    // Whether the clipboard scanner is active.
@@ -1508,13 +1510,40 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             }
         }
 
-        QueueList!.Add(NewMedia);
+        bool StartResolver;
+        lock (QueueSync) {
+            QueueList!.Add(NewMedia);
+            StartResolver = !QueueResolverRunning;
+            if (StartResolver) {
+                QueueResolverRunning = true;
+            }
+        }
 
-        if (ProcessingThread?.IsAlive != true) {
+        if (StartResolver) {
             ProcessingThread = new(() => {
                 Status = DownloadStatus.Preparing;
-                while (QueueList.Count > 0) {
-                    ExtendedMediaDetails CurrentMedia = QueueList[0];
+                while (true) {
+                    ExtendedMediaDetails? CurrentMedia = null;
+                    lock (QueueSync) {
+                        if (QueueList.Count > 0) {
+                            CurrentMedia = QueueList[0];
+                            QueueList.RemoveAt(0);
+                        }
+                    }
+
+                    if (CurrentMedia is null) {
+                        Status = DownloadStatus.None;
+                        sbtnDownload.Invoke(() => sbtnDownload.Enabled = true);
+                        lock (QueueSync) {
+                            if (QueueList.Count == 0) {
+                                QueueResolverRunning = false;
+                                break;
+                            }
+                        }
+                        Status = DownloadStatus.Preparing;
+                        continue;
+                    }
+
                     try {
                         CurrentMedia.GetMediaDetails();
                     }
@@ -1527,13 +1556,11 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                 }
                             });
                         }
-                        QueueList.RemoveAt(0);
                         continue;
                     }
 
                     // If the queued list does not have the finished queued item, skip it
                     if (!lvQueuedMedia.Items.Contains(CurrentMedia.QueueItem) || (CurrentMedia.QueueItem is null || CurrentMedia.MediaData is null)) {
-                        QueueList.RemoveAt(0);
                         continue;
                     }
 
@@ -1551,11 +1578,8 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
                         SelectedMediaChanged(CurrentMedia);
                     });
-                    QueueList.RemoveAt(0);
                     Thread.Sleep(100);
                 }
-                Status = DownloadStatus.None;
-                sbtnDownload.Invoke(() => sbtnDownload.Enabled = true);
             }) {
                 Name = "Batch download info queue resolver",
                 IsBackground = true

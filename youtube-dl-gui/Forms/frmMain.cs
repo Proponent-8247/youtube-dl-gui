@@ -871,6 +871,7 @@ public partial class frmMain : LocalizedForm {
             string videoArguments = string.Empty;
             DownloadType Type = DownloadType.None;
             int BatchQuality = 0;
+            int BatchFormat = 0;
             string schema = string.Empty;
             bool BatchSoundSetting = false;
             string BatchCustomArguments = string.Empty;
@@ -880,6 +881,7 @@ public partial class frmMain : LocalizedForm {
                 BatchCustomArguments = cbCustomArguments.Text;
                 if (!BatchSoundSetting) { videoArguments += "-nosound"; }
                 BatchQuality = cbQuality.SelectedIndex;
+                BatchFormat = cbFormat.SelectedIndex;
                 if (!string.IsNullOrWhiteSpace(cbSchema.Text)) {
                     schema = cbSchema.Text;
                     if (!Saved.FileNameSchemaHistory.Contains(cbSchema.Text)) {
@@ -915,6 +917,7 @@ public partial class frmMain : LocalizedForm {
                             }
                             NewInfo.Arguments = videoArguments;
                             NewInfo.VideoQuality = (VideoQualityType)BatchQuality;
+                            NewInfo.VideoFormat = (VideoFormatType)BatchFormat;
                             NewInfo.Type = DownloadType.Video;
                             break;
                         case DownloadType.Audio:
@@ -925,6 +928,7 @@ public partial class frmMain : LocalizedForm {
                             else {
                                 NewInfo.AudioCBRQuality = (AudioCBRQualityType)BatchQuality;
                             }
+                            NewInfo.AudioFormat = (AudioFormatType)BatchFormat;
                             NewInfo.Type = DownloadType.Audio;
                             break;
                         case DownloadType.Custom:

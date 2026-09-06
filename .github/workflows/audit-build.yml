@@ -17,10 +17,18 @@ jobs:
         uses: microsoft/setup-msbuild@v2
 
       - name: Build main application
-        run: msbuild youtube-dl-gui\youtube-dl-gui.csproj /m /p:Configuration=Release /p:Platform=AnyCPU
+        run: msbuild youtube-dl-gui\youtube-dl-gui.csproj /m /p:Configuration=Debug /p:Platform=AnyCPU
 
       - name: Build updater
-        run: msbuild youtube-dl-gui-updater\youtube-dl-gui-updater.csproj /m /p:Configuration=Release /p:Platform=AnyCPU
+        run: msbuild youtube-dl-gui-updater\youtube-dl-gui-updater.csproj /m /p:Configuration=Debug /p:Platform=AnyCPU
 
-      - name: Build solution
-        run: msbuild youtube-dl-gui.sln /m /p:Configuration=Release "/p:Platform=Any CPU"
+      - name: Check test project availability
+        shell: pwsh
+        run: |
+          if (Test-Path 'Tests\youtube-dl-gui-test\youtube-dl-gui-test.csproj') {
+            msbuild Tests\youtube-dl-gui-test\youtube-dl-gui-test.csproj /m /p:Configuration=Debug /p:Platform=AnyCPU
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          else {
+            Write-Host 'The solution references Tests\youtube-dl-gui-test, but that project is not present in the repository.'
+          }

@@ -307,7 +307,8 @@ public sealed class DownloadInfo {
             if (Downloads.SaveDescription) {
                 ArgumentsBuffer.Add("--write-description");
             }
-            if (Downloads.SaveAnnotations) {
+            if (Downloads.SaveAnnotations
+            && (Downloads.YtdlType == (int)GitID.YoutubeDl || Downloads.YtdlType == (int)GitID.YoutubeDlNightly)) {
                 ArgumentsBuffer.Add("--write-annotations");
             }
             if (Downloads.SaveThumbnail) {

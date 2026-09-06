@@ -311,6 +311,33 @@ internal static class Program {
                     }
                 }
 
+                if (Arg.Type == ArgumentType.DownloadArchived) {
+                    string ArchivedUrl = Arg.Data;
+                    if (DownloadHelper.IsYoutubeLink(ArchivedUrl)) {
+                        Log.Write("YouTube link given for archival download.");
+                        ArchivedUrl = DownloadHelper.GetYoutubeVideoKey(ArchivedUrl);
+                    }
+
+                    if (!DownloadHelper.IsYoutubeKey(ArchivedUrl)) {
+                        Log.Write("The YouTube key given for archival download is not a valid video key.");
+                        PassedCount--;
+                        continue;
+                    }
+
+                    if (Downloads.ExtendedDownloaderPreferExtendedForm) {
+                        new frmExtendedDownloader($"ytarchive:{ArchivedUrl}", true).Show();
+                    }
+                    else {
+                        DownloadInfo NewArchived = new($"https://archived.youtube.com/watch?v={ArchivedUrl}") {
+                            CustomArguments = $"ytarchive:{ArchivedUrl}",
+                            MostlyCustomArguments = true,
+                            Type = DownloadType.Custom
+                        };
+                        new frmDownloader(NewArchived).Show();
+                    }
+                    continue;
+                }
+
                 if (Downloads.ExtendedDownloaderPreferExtendedForm) {
                     if (Auth is null)
                         new frmExtendedDownloader(Arg.Data, false).Show();

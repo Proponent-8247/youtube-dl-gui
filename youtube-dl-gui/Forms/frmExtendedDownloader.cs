@@ -456,12 +456,12 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             });
         }
         catch (ThreadAbortException) { throw; }
-        catch (Exception) {
+        catch (Exception ex) {
             this.Invoke(() => {
                 btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = true;
                 lbExtendedDownloaderDownloadingThumbnail.Text = Language.lbExtendedDownloaderDownloadingThumbnailFailed;
             });
-            throw;
+            Log.Write($"Thumbnail processing failed for \"{MediaDetails.URL}\": {ex}");
         }
     }
     private void DownloadThumbnail() {

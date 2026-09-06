@@ -91,15 +91,17 @@ internal static class Verification {
     public static bool RefreshFFmpegLocation() {
         FFmpegPath = null;
         string? TempPath;
-        if (General.UseStaticFFmpeg && File.Exists(General.ffmpegPath)) {
-            TempPath = General.ffmpegPath;
+        bool StaticFFmpeg = General.UseStaticFFmpeg && File.Exists(General.ffmpegPath);
+        if (StaticFFmpeg) {
+            TempPath = Path.GetDirectoryName(General.ffmpegPath);
         }
         else if (!ProgramInExecutingDirectory("ffmpeg.exe", out TempPath) && !ProgramInSystemPath("ffmpeg.exe", out TempPath)) {
             return false;
         }
 
-        if (!TempPath.IsNullEmptyWhitespace() && Directory.Exists(TempPath) && File.Exists(TempPath + "\\ffmpeg.exe")) {
-            FFmpegPath = $"{TempPath}\\ffmpeg.exe";
+        string? ffmpeg = StaticFFmpeg ? General.ffmpegPath : $"{TempPath}\\ffmpeg.exe";
+        if (!TempPath.IsNullEmptyWhitespace() && Directory.Exists(TempPath) && File.Exists(ffmpeg)) {
+            FFmpegPath = ffmpeg;
             string ffprobe = $"{TempPath}\\ffprobe.exe";
             if (File.Exists(ffprobe)) {
                 FFprobePath = ffprobe;

@@ -90,6 +90,7 @@ internal static class Verification {
     }
     public static bool RefreshFFmpegLocation() {
         FFmpegPath = null;
+        FFprobePath = null;
         string? TempPath;
         bool StaticFFmpeg = General.UseStaticFFmpeg && File.Exists(General.ffmpegPath);
         if (StaticFFmpeg) {

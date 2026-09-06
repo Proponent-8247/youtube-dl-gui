@@ -268,7 +268,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
 
                     if (!Stream.avg_frame_rate.IsNullEmptyWhitespace()
                     && (Framerate = Stream.avg_frame_rate.Split('/')).Length >= 2
-                    && int.TryParse(Framerate[0], out int A) && int.TryParse(Framerate[1], out int B)) {
+                    && int.TryParse(Framerate[0], out int A) && int.TryParse(Framerate[1], out int B) && B != 0) {
                         if (Display.Length > 0) {
                             Display.Append(" / ");
                         }
@@ -276,7 +276,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
                     }
                     else if (!Stream.r_frame_rate.IsNullEmptyWhitespace()
                     && (Framerate = Stream.r_frame_rate.Split('/')).Length >= 2
-                    && int.TryParse(Framerate[0], out A) && int.TryParse(Framerate[1], out B)) {
+                    && int.TryParse(Framerate[0], out A) && int.TryParse(Framerate[1], out B) && B != 0) {
                         if (Display.Length > 0) {
                             Display.Append(" / ");
                         }

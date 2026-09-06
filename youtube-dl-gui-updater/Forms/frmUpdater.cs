@@ -49,7 +49,31 @@ internal partial class frmUpdater : Form {
     protected override void WndProc(ref Message m) {
         switch (m.Msg) {
             case CopyData.WM_COPYDATA: {
+                if (ApplicationData.MessageHandle == 0 || m.WParam != ApplicationData.MessageHandle || m.LParam == IntPtr.Zero) {
+                    m.Result = IntPtr.Zero;
+                    break;
+                }
+
+                CopyDataStruct DataStruct;
+                try {
+                    DataStruct = m.GetCopyDataStructure();
+                }
+                catch {
+                    m.Result = IntPtr.Zero;
+                    break;
+                }
+
+                if (DataStruct.lpData == IntPtr.Zero || DataStruct.cbData != System.Runtime.InteropServices.Marshal.SizeOf<UpdateData>()) {
+                    m.Result = IntPtr.Zero;
+                    break;
+                }
+
                 UpdateData = CopyData.GetParam<UpdateData>(m.LParam);
+                if (string.IsNullOrWhiteSpace(UpdateData.FileName) || string.IsNullOrWhiteSpace(UpdateData.UpdateHash)) {
+                    m.Result = IntPtr.Zero;
+                    break;
+                }
+
                 UpdateData.UpdateHash = UpdateData.UpdateHash.ToLowerInvariant();
                 if (!UpdateData.FileName.ToLowerInvariant().EndsWith(".exe"))
                     UpdateData.FileName += ".exe";

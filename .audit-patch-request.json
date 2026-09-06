@@ -1,0 +1,23 @@
+{
+  "commit_message": "build: remove stale missing test project from solution",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui.sln",
+      "old": "UHJvamVjdCgiezIxNTBFMzMzLThGREMtNDJBMy05NDc0LTFBMzk1NkQ0NkRFOH0iKSA9ICJUZXN0cyIsICJUZXN0cyIsICJ7Njc1OURENTItNDk5RC00REZGLTk3QkItMDIwMkJBQUUyMTMwfSIKRW5kUHJvamVjdApQcm9qZWN0KCJ7RkFFMDRFQzAtMzAxRi0xMUQzLUJGNEItMDBDMDRGNzlFRkJDfSIpID0gInlvdXR1YmUtZGwtZ3VpLXRlc3QiLCAiVGVzdHNceW91dHViZS1kbC1ndWktdGVzdFx5b3V0dWJlLWRsLWd1aS10ZXN0LmNzcHJvaiIsICJ7OTY0QzJGMjYtQTg3OC00NTkzLTg4RTMtNjU1QzVCNzBGNjE0fSIKRW5kUHJvamVjdAo=",
+      "new": "",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui.sln",
+      "old": "CQl7OTY0QzJGMjYtQTg3OC00NTkzLTg4RTMtNjU1QzVCNzBGNjE0fS5EZWJ1Z3xBbnkgQ1BVLkFjdGl2ZUNmZyA9IERlYnVnfEFueSBDUFUKCQl7OTY0QzJGMjYtQTg3OC00NTkzLTg4RTMtNjU1QzVCNzBGNjE0fS5EZWJ1Z3xBbnkgQ1BVLkJ1aWxkLjAgPSBEZWJ1Z3xBbnkgQ1BVCgkJezk2NEMyRjI2LUE4NzgtNDU5My04OEUzLTY1NUM1QjcwRjYxNH0uUmVsZWFzZXxBbnkgQ1BVLkFjdGl2ZUNmZyA9IFJlbGVhc2V8QW55IENQVQoJCXs5NjRDMkYyNi1BODc4LTQ1OTMtODhFMy02NTVDNUI3MEY2MTR9LlJlbGVhc2V8QW55IENQVS5CdWlsZC4wID0gUmVsZWFzZXxBbnkgQ1BVCg==",
+      "new": "",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui.sln",
+      "old": "CUdsb2JhbFNlY3Rpb24oTmVzdGVkUHJvamVjdHMpID0gcHJlU29sdXRpb24KCQl7OTY0QzJGMjYtQTg3OC00NTkzLTg4RTMtNjU1QzVCNzBGNjE0fSA9IHs2NzU5REQ1Mi00OTlELTRERkYtOTdCQi0wMjAyQkFBRTIxMzB9CglFbmRHbG9iYWxTZWN0aW9uCg==",
+      "new": "",
+      "count": 1
+    }
+  ]
+}

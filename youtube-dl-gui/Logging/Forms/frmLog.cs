@@ -153,6 +153,11 @@ internal partial class frmLog : Form, ILocalizedForm {
     /// <param name="Exception">The inner exception details.</param>
     [System.Diagnostics.DebuggerStepThrough]
     public void AddException(ExceptionInfo Exception) {
+        if (this.InvokeRequired) {
+            this.Invoke(() => AddException(Exception));
+            return;
+        }
+
         TabPage ExceptionPage = new($"{Exception.Exception.GetType().Name} @ {Exception.ExceptionTime:yyyy/MM/dd HH:mm:ss.fff}");
         TextBox ExceptionDetails = new() {
             Multiline = true,

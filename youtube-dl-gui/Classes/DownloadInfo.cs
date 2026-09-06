@@ -439,7 +439,7 @@ public sealed class DownloadInfo {
                     Authentication.NetRC = false;
                 }
                 if (!Authentication.CookiesFile.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--cookies {Authentication.CookiesFile}");
+                    ArgumentsBuffer.Add($"--cookies \"{Authentication.CookiesFile}\"");
                     PreviewArguments.Add("--cookies ***");
                     Authentication.CookiesFile = null;
                 }

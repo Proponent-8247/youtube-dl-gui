@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmBatchDownloader.cs",
+      "old": "ICAgICAgICAgICAgU3lzdGVtLklPLlN0cmVhbVJlYWRlciByZWFkZXIgPSBuZXcob2ZkLkZpbGVOYW1lKTsNCg==",
+      "new": "ICAgICAgICAgICAgdXNpbmcgU3lzdGVtLklPLlN0cmVhbVJlYWRlciByZWFkZXIgPSBuZXcob2ZkLkZpbGVOYW1lKTsNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: dispose batch import reader"
+}

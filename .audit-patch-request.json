@@ -1,0 +1,23 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmMain.cs",
+      "old": "ICAgICAgICAgICAgQXJndW1lbnRzID0gY2JDdXN0b21Bcmd1bWVudHMuVGV4dCwNCg==",
+      "new": "ICAgICAgICAgICAgQ3VzdG9tQXJndW1lbnRzID0gY2JDdXN0b21Bcmd1bWVudHMuVGV4dCwNCg==",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmMain.cs",
+      "old": "ICAgICAgICAgICAgQXJndW1lbnRzID0gU3lzdGVtLklPLkZpbGUuUmVhZEFsbExpbmVzKEVudmlyb25tZW50LkN1cnJlbnREaXJlY3RvcnkgKyAiXFxhcmdzLnR4dCIpWzBdLA0K",
+      "new": "ICAgICAgICAgICAgQ3VzdG9tQXJndW1lbnRzID0gU3lzdGVtLklPLkZpbGUuUmVhZEFsbExpbmVzKEVudmlyb25tZW50LkN1cnJlbnREaXJlY3RvcnkgKyAiXFxhcmdzLnR4dCIpWzBdLA0K",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmMain.cs",
+      "old": "ICAgICAgICAgICAgQXJndW1lbnRzID0gY2JDdXN0b21Bcmd1bWVudHMuSXRlbXNbU2F2ZWQuQ3VzdG9tQXJndW1lbnRzSW5kZXggKyAocmJDdXN0b20uQ2hlY2tlZCA/IDAgOiAxKV0gYXMgc3RyaW5nLA0K",
+      "new": "ICAgICAgICAgICAgQ3VzdG9tQXJndW1lbnRzID0gY2JDdXN0b21Bcmd1bWVudHMuSXRlbXNbU2F2ZWQuQ3VzdG9tQXJndW1lbnRzSW5kZXggKyAocmJDdXN0b20uQ2hlY2tlZCA/IDAgOiAxKV0gYXMgc3RyaW5nLA0K",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: pass custom arguments from tray downloads"
+}

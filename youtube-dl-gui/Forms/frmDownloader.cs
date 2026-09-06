@@ -129,6 +129,8 @@ internal partial class frmDownloader : LocalizedProcessingForm {
 
     private void BeginDownload() {
         Log.Write($"Beginning download for {CurrentDownload.DownloadURL}.");
+        DownloadProcess?.Dispose();
+        DownloadProcess = null;
         if (CurrentDownload.DownloadURL.IsNullEmptyWhitespace()) {
             rtbVerbose.AppendText("The URL is null or empty. Please enter a URL to download.");
             Log.Write("Cannot continue download.");
@@ -553,6 +555,8 @@ internal partial class frmDownloader : LocalizedProcessingForm {
             }
             Saved.QuickDownloaderLocation = this.Location;
             this.DialogResult = Finish;
+            DownloadProcess?.Dispose();
+            DownloadProcess = null;
             this.Dispose();
         }
     }

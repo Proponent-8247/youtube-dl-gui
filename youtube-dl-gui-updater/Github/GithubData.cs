@@ -110,7 +110,7 @@ public sealed class GithubData {
         IsNewerVersion = Version > Program.CurrentVersion;
         ExecutableHash = FindHash();
         ExecutableSize = 0;
-        if (Files.Length > 0) {
+        if (Files?.Length > 0) {
             for (int i = 0; i < Files.Length; i++) {
                 if (Files[i].Content == "application/x-msdownload") {
                     ExecutableSize = Files[i].Length;
@@ -119,7 +119,7 @@ public sealed class GithubData {
         }
     }
     public static GithubData GetNewestRelease(GithubData[] Releases) {
-        if (Releases.Length == 0)
+        if (Releases is null || Releases.Length == 0)
             throw new NullReferenceException("The found releases were empty.");
         GithubData CurrentCheck = Releases[0];
         Version NewestVersion = Version.Empty;

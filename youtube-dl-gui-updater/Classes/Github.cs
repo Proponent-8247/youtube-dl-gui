@@ -52,7 +52,8 @@ internal static class Github {
         GithubData GithubData;
 
         if (CheckForBetaUpdates) {
-            GithubData[] GithubDatas = await Data.JsonDeserializeAsync<GithubData[]>();
+            GithubData[] GithubDatas = await Data.JsonDeserializeAsync<GithubData[]>()
+                ?? throw new Exception("Could not deserialize github release data properly.");
             GithubData = GithubData.GetNewestRelease(GithubDatas);
         }
         else {

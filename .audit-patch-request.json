@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui-updater/Language.cs",
+      "old": "ICAgICAgICAgICAgICAgIE5hbWUgPSBJbnB1dC5TcGxpdCgnPScpWzBdLlRvTG93ZXIoKS5UcmltKCk7DQo=",
+      "new": "ICAgICAgICAgICAgICAgIE5hbWUgPSBJbnB1dC5TcGxpdCgnPScpWzBdLlRyaW0oKTsNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: preserve updater language keys while parsing"
+}

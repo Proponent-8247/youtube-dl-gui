@@ -177,6 +177,7 @@ internal static class Formats {
     /// Loads the custom formats into memory.
     /// </summary>
     public static void LoadCustomFormats() {
+        CustomFormats = null;
         if (General.extensionsName.Length > 0) {
             string[] Names = General.extensionsName.Split('|');
             string[] Extensions = General.extensionsShort.Split('|');

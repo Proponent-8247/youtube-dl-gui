@@ -1,0 +1,23 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui-updater/Classes/Github.cs",
+      "old": "ICAgICAgICAgICAgR2l0aHViRGF0YVtdIEdpdGh1YkRhdGFzID0gYXdhaXQgRGF0YS5Kc29uRGVzZXJpYWxpemVBc3luYzxHaXRodWJEYXRhW10+KCk7",
+      "new": "ICAgICAgICAgICAgR2l0aHViRGF0YVtdIEdpdGh1YkRhdGFzID0gYXdhaXQgRGF0YS5Kc29uRGVzZXJpYWxpemVBc3luYzxHaXRodWJEYXRhW10+KCkNCiAgICAgICAgICAgICAgICA/PyB0aHJvdyBuZXcgRXhjZXB0aW9uKCJDb3VsZCBub3QgZGVzZXJpYWxpemUgZ2l0aHViIHJlbGVhc2UgZGF0YSBwcm9wZXJseS4iKTs=",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui-updater/Github/GithubData.cs",
+      "old": "ICAgICAgICBpZiAoRmlsZXMuTGVuZ3RoID4gMCkgew==",
+      "new": "ICAgICAgICBpZiAoRmlsZXM/Lkxlbmd0aCA+IDApIHs=",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui-updater/Github/GithubData.cs",
+      "old": "ICAgICAgICBpZiAoUmVsZWFzZXMuTGVuZ3RoID09IDAp",
+      "new": "ICAgICAgICBpZiAoUmVsZWFzZXMgaXMgbnVsbCB8fCBSZWxlYXNlcy5MZW5ndGggPT0gMCk=",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: validate standalone updater release metadata"
+}

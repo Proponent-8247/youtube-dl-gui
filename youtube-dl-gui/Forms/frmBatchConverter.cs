@@ -145,9 +145,11 @@ public partial class frmBatchConverter : LocalizedProcessingForm {
 
     private void btnBatchConverterStartStopExit_Click(object sender, EventArgs e) {
         if (InProgress) {
-            Converter.Invoke((Action)delegate {
-                Converter.Abort();
-            });
+            if (Converter is not null && !Converter.IsDisposed && Converter.IsHandleCreated) {
+                Converter.Invoke((Action)delegate {
+                    Converter.Abort();
+                });
+            }
         }
         else if (lvBatchConvertQueue.Items.Count > 0) {
             Log.Write($"Starting batch conversion with {lvBatchConvertQueue.Items.Count} links to download.");
@@ -270,10 +272,12 @@ public partial class frmBatchConverter : LocalizedProcessingForm {
 
     private void frmBatchConverter_FormClosing(object sender, FormClosingEventArgs e) {
         if (InProgress) {
-            Converter.Invoke((Action)delegate {
-                Converter.Abort();
-            });
             e.Cancel = true;
+            if (Converter is not null && !Converter.IsDisposed && Converter.IsHandleCreated) {
+                Converter.Invoke((Action)delegate {
+                    Converter.Abort();
+                });
+            }
         }
         else {
             this.Dispose();

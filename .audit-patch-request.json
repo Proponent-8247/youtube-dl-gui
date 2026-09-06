@@ -1,0 +1,17 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmArchiveDownloader.cs",
+      "old": "ICAgICAgICAgICAgICAgIEFyZ3VtZW50cyA9ICQieXRhcmNoaXZlOntWaWRlb0tleX0iLA0K",
+      "new": "ICAgICAgICAgICAgICAgIEN1c3RvbUFyZ3VtZW50cyA9ICQieXRhcmNoaXZlOntWaWRlb0tleX0iLA0K",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Program.cs",
+      "old": "ICAgICAgICAgICAgICAgICAgICAgICAgQXJndW1lbnRzID0gJCJ5dGFyY2hpdmU6e1VSTH0iLA0K",
+      "new": "ICAgICAgICAgICAgICAgICAgICAgICAgQ3VzdG9tQXJndW1lbnRzID0gJCJ5dGFyY2hpdmU6e1VSTH0iLA0K",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: pass ytarchive source through custom arguments"
+}

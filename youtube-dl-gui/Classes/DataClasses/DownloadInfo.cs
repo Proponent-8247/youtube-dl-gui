@@ -419,22 +419,22 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
         if (!MostlyCustomArguments) {
             if (Authentication is not null) {
                 if (!Authentication.Username.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--username {Authentication.Username}");
+                    ArgumentsBuffer.Add($"--username {ArgumentList.EscapeArgument(Authentication.Username)}");
                     Authentication.Username = null;
                     PreviewArguments.Add("--username ***");
                 }
                 if (Authentication.Password?.Length > 0) {
-                    ArgumentsBuffer.Add($"--password {Authentication.GetPassword()}");
+                    ArgumentsBuffer.Add($"--password {ArgumentList.EscapeArgument(Authentication.GetPassword())}");
                     Array.Clear(Authentication.Password, 0, Authentication.Password.Length);
                     PreviewArguments.Add("--password ***");
                 }
                 if (!Authentication.TwoFactor.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--twofactor {Authentication.TwoFactor}");
+                    ArgumentsBuffer.Add($"--twofactor {ArgumentList.EscapeArgument(Authentication.TwoFactor)}");
                     Authentication.TwoFactor = null;
                     PreviewArguments.Add("--twofactor ***");
                 }
                 if (Authentication.MediaPassword?.Length > 0) {
-                    ArgumentsBuffer.Add($"--video-password {Authentication.GetMediaPassword()}");
+                    ArgumentsBuffer.Add($"--video-password {ArgumentList.EscapeArgument(Authentication.GetMediaPassword())}");
                     Array.Clear(Authentication.MediaPassword, 0, Authentication.MediaPassword.Length);
                     PreviewArguments.Add("--video-password ***");
                 }
@@ -444,12 +444,12 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                     Authentication.NetRC = false;
                 }
                 if (!Authentication.CookiesFile.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--cookies \"{Authentication.CookiesFile}\"");
+                    ArgumentsBuffer.Add($"--cookies {ArgumentList.EscapeArgument(Authentication.CookiesFile)}");
                     PreviewArguments.Add("--cookies ***");
                     Authentication.CookiesFile = null;
                 }
                 if (!Authentication.CookiesFromBrowser.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--cookies-from-browser {Authentication.CookiesFromBrowser}");
+                    ArgumentsBuffer.Add($"--cookies-from-browser {ArgumentList.EscapeArgument(Authentication.CookiesFromBrowser)}");
                     PreviewArguments.Add("--cookies-from-browser ***");
                     Authentication.CookiesFromBrowser = null;
                 }

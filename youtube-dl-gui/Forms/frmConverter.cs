@@ -282,10 +282,21 @@ public partial class frmConverter : LocalizedProcessingForm {
             }
             catch (ThreadAbortException) {
                 if (ConverterProcess is not null) {
-                    ConverterProcess.CancelErrorRead();
-                    ConverterProcess.CancelOutputRead();
-                    Program.KillProcessTree((uint)ConverterProcess.Id);
-                    ConverterProcess.Kill();
+                    try {
+                        if (!ConverterProcess.HasExited) {
+                            if (ConverterProcess.StartInfo.RedirectStandardError) {
+                                ConverterProcess.CancelErrorRead();
+                            }
+                            if (ConverterProcess.StartInfo.RedirectStandardOutput) {
+                                ConverterProcess.CancelOutputRead();
+                            }
+                            Program.KillProcessTree((uint)ConverterProcess.Id);
+                            ConverterProcess.Kill();
+                        }
+                    }
+                    catch (InvalidOperationException) {
+                        // The process may not have started or may have already exited.
+                    }
                 }
                 this.Invoke((Action)delegate {
                     rtbConsoleOutput.AppendLine("Conversion was aborted by the user.");

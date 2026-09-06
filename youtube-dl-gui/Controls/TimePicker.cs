@@ -144,7 +144,7 @@ public sealed class TimePicker : UserControl {
         }
     }
     public void SetValue(int Hour, int Minute, int Second, int Millisecond) {
-        this.Hours = Hour >= 24 && DateBasedTime ? 24 : Hours < 0 ? 0 : Hours;
+        this.Hours = Hour >= 24 && DateBasedTime ? 24 : Hour < 0 ? 0 : Hour;
         this.Minutes = Minute >= 59 ? 59 : Minute < 0 ? 0 : Minute;
         this.Seconds = Second >= 59 ? 59 : Second < 0 ? 0 : Second;
         this.Milliseconds = Millisecond >= 999 ? 999 : Millisecond < 0 ? 0 : Millisecond;

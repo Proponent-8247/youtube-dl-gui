@@ -11,11 +11,11 @@ internal static class TaskbarInterface {
         get => fAccessor;
         set {
             if (value is null) {
-                if (AccessorPriorityList.Count > 0) {
-                    while (AccessorPriorityList[0]?.IsDisposed != false) {
-                        AccessorPriorityList.RemoveAt(0);
-                    }
+                while (AccessorPriorityList.Count > 0 && AccessorPriorityList[0]?.IsDisposed != false) {
+                    AccessorPriorityList.RemoveAt(0);
+                }
 
+                if (AccessorPriorityList.Count > 0) {
                     fAccessor = AccessorPriorityList[0];
                     AccessorPriorityList.RemoveAt(0);
                     fAccessor.SetStateInTaskbar();

@@ -48,7 +48,7 @@ jobs:
           Path('.audit-patch-message.txt').write_text(request['commit_message'], encoding='utf-8')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git diff --check
+          git -c core.whitespace=cr-at-eol diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "applied=true" >> $env:GITHUB_OUTPUT
 

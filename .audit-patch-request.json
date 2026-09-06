@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: stop updater after metadata retrieval failure",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui-updater/Forms/frmUpdater.cs",
+      "old": "ICAgICAgICAvLyBDaGVjayBpZiB0aGUgbGF0ZXN0IHZlcnNpb24gbmVlZHMgdG8gYmUgZG93bmxvYWRlZC4NCiAgICAgICAgaWYgKERvd25sb2FkTGF0ZXN0KQ0KICAgICAgICAgICAgYXdhaXQgR2V0VmVyc2lvbkZyb21HaXRodWIoKTsNCg0KICAgICAgICAvLyBXYWl0IGZvciB0aGUgbWFpbiBhcHBsaWNhdGlvbiB0byBleGl0Lg0K",
+      "new": "ICAgICAgICAvLyBDaGVjayBpZiB0aGUgbGF0ZXN0IHZlcnNpb24gbmVlZHMgdG8gYmUgZG93bmxvYWRlZC4NCiAgICAgICAgaWYgKERvd25sb2FkTGF0ZXN0KSB7DQogICAgICAgICAgICBhd2FpdCBHZXRWZXJzaW9uRnJvbUdpdGh1YigpOw0KICAgICAgICAgICAgaWYgKHN0cmluZy5Jc051bGxPcldoaXRlU3BhY2UoVXBkYXRlRGF0YS5GaWxlTmFtZSkpIHsNCiAgICAgICAgICAgICAgICBQcm9ncmFtLkV4aXRDb2RlID0gMTsNCiAgICAgICAgICAgICAgICByZXR1cm47DQogICAgICAgICAgICB9DQogICAgICAgIH0NCg0KICAgICAgICAvLyBXYWl0IGZvciB0aGUgbWFpbiBhcHBsaWNhdGlvbiB0byBleGl0Lg0K",
+      "count": 1
+    }
+  ]
+}

@@ -1515,7 +1515,21 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 Status = DownloadStatus.Preparing;
                 while (QueueList.Count > 0) {
                     ExtendedMediaDetails CurrentMedia = QueueList[0];
-                    CurrentMedia.GetMediaDetails();
+                    try {
+                        CurrentMedia.GetMediaDetails();
+                    }
+                    catch (DownloadException ex) {
+                        Log.Write($"Unable to retrieve queued media details for \"{CurrentMedia.URL}\": {ex.Message}");
+                        if (!this.IsDisposed && this.IsHandleCreated) {
+                            this.Invoke(() => {
+                                if (CurrentMedia.QueueItem is not null && lvQueuedMedia.Items.Contains(CurrentMedia.QueueItem)) {
+                                    CurrentMedia.QueueItem.ImageIndex = StatusIcon.Errored;
+                                }
+                            });
+                        }
+                        QueueList.RemoveAt(0);
+                        continue;
+                    }
 
                     // If the queued list does not have the finished queued item, skip it
                     if (!lvQueuedMedia.Items.Contains(CurrentMedia.QueueItem) || (CurrentMedia.QueueItem is null || CurrentMedia.MediaData is null)) {

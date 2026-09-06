@@ -1708,7 +1708,7 @@ public static class Language {
         chkExtendedAutomaticallyDownloadThumbnail = InternalEnglish.chkExtendedAutomaticallyDownloadThumbnail;
         chkExtendedAutomaticallyDownloadThumbnailHint = InternalEnglish.chkExtendedAutomaticallyDownloadThumbnailHint;
         chkExtendedIncludeCustomArguments = InternalEnglish.chkExtendedIncludeCustomArguments;
-        chkExtendedIncludeCustomArgumentsHint = InternalEnglish.chkExtendedIncludeCustomArguments;
+        chkExtendedIncludeCustomArgumentsHint = InternalEnglish.chkExtendedIncludeCustomArgumentsHint;
         #endregion
         #endregion
 

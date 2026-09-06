@@ -124,6 +124,11 @@ internal static class Updater {
         }
     }
     private static void BeginUpdate() {
+        if (LastChecked?.ExecutableHash.IsNullEmptyWhitespace() != false) {
+            Log.MessageBox("The selected release does not include a valid executable SHA-256 hash. The update cannot continue.");
+            return;
+        }
+
         string UpdaterPath = Environment.CurrentDirectory + Path.DirectorySeparatorChar + "youtube-dl-gui-updater.exe";
 
         // Delete the file that already exists

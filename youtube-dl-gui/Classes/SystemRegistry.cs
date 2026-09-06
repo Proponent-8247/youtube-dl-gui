@@ -9,9 +9,9 @@ internal static class SystemRegistry {
     public static bool CheckRegistry() {
         RegistryKey ProtocolKey = Registry.ClassesRoot.OpenSubKey("ytdlgui", false);
 
+        string? Command = ProtocolKey?.OpenSubKey("shell\\open\\command")?.GetValue("")?.ToString();
         bool Available = ProtocolKey?.GetValue("URL Protocol") is not null &&
-            ProtocolKey.OpenSubKey("shell\\open\\command").GetValue("").ToString()
-                .Equals($"\"{Program.FullProgramPath}\" \"%1\"", StringComparison.InvariantCultureIgnoreCase);
+            Command?.Equals($"\"{Program.FullProgramPath}\" \"%1\"", StringComparison.InvariantCultureIgnoreCase) == true;
 
         if (ProtocolKey is not null) {
             ProtocolKey.Close();

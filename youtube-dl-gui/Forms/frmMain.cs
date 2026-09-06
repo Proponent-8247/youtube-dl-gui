@@ -998,7 +998,7 @@ public partial class frmMain : LocalizedForm {
 
         if (Extended) {
             string? Arguments = null;
-            if (Downloads.ExtendedDownloaderIncludeCustomArguments && ((rbVideo.Checked || rbAudio.Checked) && cbCustomArguments.SelectedIndex > 0)) {
+            if (rbCustom.Checked || (Downloads.ExtendedDownloaderIncludeCustomArguments && ((rbVideo.Checked || rbAudio.Checked) && cbCustomArguments.SelectedIndex > 0))) {
                 Arguments = cbCustomArguments.Text.IsNullEmptyWhitespace() ? string.Empty : cbCustomArguments.Text;
 
                 if (!cbCustomArguments.Items.Contains(cbCustomArguments.Text) && !cbCustomArguments.Text.IsNullEmptyWhitespace()) {

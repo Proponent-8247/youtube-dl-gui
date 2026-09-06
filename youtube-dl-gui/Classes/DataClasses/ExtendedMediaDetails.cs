@@ -568,7 +568,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
                     ArgumentBuffer.Add("--remux-video " + Formats.ExtendedVideoFormats[VideoRemuxIndex - 1]);
                 }
                 else if (VideoEncoderIndex > 0) {
-                    ArgumentBuffer.Add("--recode-video " + Formats.ExtendedVideoFormats[VideoRemuxIndex - 1]);
+                    ArgumentBuffer.Add("--recode-video " + Formats.ExtendedVideoFormats[VideoEncoderIndex - 1]);
                 }
             } break;
             case DownloadType.Audio when SelectedAudioItem?.Tag is YoutubeDlSubdata.Format af: {

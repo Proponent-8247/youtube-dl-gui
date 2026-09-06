@@ -562,7 +562,7 @@ internal static class Program {
             } break;
 
             case ArgumentType.DownloadArchived: {
-                if (!DownloadHelper.IsYoutubeLink(URL)) {
+                if (DownloadHelper.IsYoutubeLink(URL)) {
                     Log.Write("YouTube link given for archival download.");
                     URL = DownloadHelper.GetYoutubeVideoKey(URL);
                 }

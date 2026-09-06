@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Updater/Github/GithubData.cs",
+      "old": "cmV0dXJuIE1hdGNoZXNbMF0uVmFsdWU7",
+      "new": "cmV0dXJuIE1hdGNoZXNbMF0uVmFsdWUuVHJpbSgnYCcpOw==",
+      "count": 2
+    }
+  ],
+  "commit_message": "fix: normalize markdown-wrapped hashes in main updater parser"
+}

@@ -126,7 +126,6 @@ public partial class frmConverter : LocalizedProcessingForm {
                         }
                         rtbConsoleOutput.AppendLine("Additionally, the batch conversion has been cancelled.");
                         CurrentConversion.Status = ConversionStatus.Aborted;
-                        this.Close();
                         break;
                 }
                 break;

@@ -382,8 +382,14 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                 ArgumentsBuffer.Add("--abort-on-unavailable-fragment");
             }
 
-            if (!Downloads.AbortOnError) {
+            if (Downloads.AbortOnError) {
+                ArgumentsBuffer.Add("--abort-on-error");
+            }
+            else if (Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly) {
                 ArgumentsBuffer.Add("--no-abort-on-error");
+            }
+            else {
+                ArgumentsBuffer.Add("--ignore-errors");
             }
 
             if (Downloads.FragmentThreads > 1) {

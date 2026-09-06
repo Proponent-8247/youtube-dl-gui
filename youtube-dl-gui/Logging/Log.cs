@@ -400,7 +400,7 @@ internal static class Log {
             do {
                 try {
                     System.IO.File.WriteAllText(
-                        $"\\ex_{ReceivedException.ExceptionTime:yyyy-MM-dd_HH-mm-ss.fff}.log", ReceivedException.Exception.ToString());
+                        System.IO.Path.Combine(Environment.CurrentDirectory, $"ex_{ReceivedException.ExceptionTime:yyyy-MM-dd_HH-mm-ss.fff}.log"), ReceivedException.Exception.ToString());
                 }
                 catch (Exception SaveException) {
                     if (DisplayException(new(SaveException) { AllowRetry = true }, false) != DialogResult.Retry) {

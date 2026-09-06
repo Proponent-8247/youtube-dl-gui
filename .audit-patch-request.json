@@ -1,0 +1,17 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmDownloader.cs",
+      "old": "ICAgIHByaXZhdGUgdm9pZCBCZWdpbkRvd25sb2FkKCkgew0KICAgICAgICBMb2cuV3JpdGUoJCJCZWdpbm5pbmcgZG93bmxvYWQgZm9yIHtDdXJyZW50RG93bmxvYWQuRG93bmxvYWRVUkx9LiIpOw0K",
+      "new": "ICAgIHByaXZhdGUgdm9pZCBCZWdpbkRvd25sb2FkKCkgew0KICAgICAgICBMb2cuV3JpdGUoJCJCZWdpbm5pbmcgZG93bmxvYWQgZm9yIHtDdXJyZW50RG93bmxvYWQuRG93bmxvYWRVUkx9LiIpOw0KICAgICAgICBEb3dubG9hZFByb2Nlc3M/LkRpc3Bvc2UoKTsNCiAgICAgICAgRG93bmxvYWRQcm9jZXNzID0gbnVsbDsNCg==",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmDownloader.cs",
+      "old": "ICAgICAgICAgICAgU2F2ZWQuUXVpY2tEb3dubG9hZGVyTG9jYXRpb24gPSB0aGlzLkxvY2F0aW9uOw0KICAgICAgICAgICAgdGhpcy5EaWFsb2dSZXN1bHQgPSBGaW5pc2g7DQogICAgICAgICAgICB0aGlzLkRpc3Bvc2UoKTsNCg==",
+      "new": "ICAgICAgICAgICAgU2F2ZWQuUXVpY2tEb3dubG9hZGVyTG9jYXRpb24gPSB0aGlzLkxvY2F0aW9uOw0KICAgICAgICAgICAgdGhpcy5EaWFsb2dSZXN1bHQgPSBGaW5pc2g7DQogICAgICAgICAgICBEb3dubG9hZFByb2Nlc3M/LkRpc3Bvc2UoKTsNCiAgICAgICAgICAgIERvd25sb2FkUHJvY2VzcyA9IG51bGw7DQogICAgICAgICAgICB0aGlzLkRpc3Bvc2UoKTsNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: dispose completed downloader processes"
+}

@@ -35,7 +35,7 @@ internal static class Formats {
     /// All the known video formats used by ffmpeg, as a single filter.
     /// </summary>
     public static string AllKnownVideoFormats { get; } =
-        "*3gp;*3g2;*.avi;*.flv;*.mkv;*.ogv;*.mov;*.mpeg;*.mpg;*.m2v;*.mp4;*.nut;*.swf;*.webm;*.wmv";
+        "*.3gp;*.3g2;*.avi;*.flv;*.mkv;*.ogv;*.mov;*.mpeg;*.mpg;*.m2v;*.mp4;*.nut;*.swf;*.webm;*.wmv";
 
     /// <summary>
     /// All known audio formats used by ffmpeg, as a filter.

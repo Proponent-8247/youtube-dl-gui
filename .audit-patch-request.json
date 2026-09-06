@@ -3,7 +3,7 @@
     {
       "path": "Controls/Events/DownloadProgressChangedEventArgs.cs",
       "old": "KFRvdGFsQnl0ZXNUb1JlY2VpdmUgPiAwTCkgPyAoMTAwZiAqIEJ5dGVzUmVjZWl2ZWQgLyBUb3RhbEJ5dGVzVG9SZWNlaXZlKSA6IGZsb2F0Lk5hTg==",
-      "new": "VG90YWxCeXRlc1RvUmVjZWl2ZSA+IDBMID8gU3lzdGVtLk1hdGguTWluKDEwMGYsIDEwMGYgKiBieXRlc1JlY2VpdmVkIC8gVG90YWxCeXRlc1RvUmVjZWl2ZSkgOiAwZg==",
+      "new": "VG90YWxCeXRlc1RvUmVjZWl2ZSA+IDBMID8gU3lzdGVtLk1hdGguTWluKDEwMGYsIDEwMGYgKiBCeXRlc1JlY2VpdmVkIC8gVG90YWxCeXRlc1RvUmVjZWl2ZSkgOiAwZg==",
       "count": 2
     }
   ],

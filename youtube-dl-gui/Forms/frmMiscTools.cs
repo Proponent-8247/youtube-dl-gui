@@ -38,7 +38,7 @@ public partial class frmMiscTools : LocalizedForm {
                     //RedirectStandardInput = true,
                     //RedirectStandardOutput = true,
                     //CreateNoWindow = true,
-                    Arguments = string.Format("/c \"{0}\"", "ffmpeg -i \"" + ofd.FileName + "\" -c copy -an \"" + newFile + "\""),
+                    Arguments = string.Format("/c \"{0}\"", "\"" + (Verification.FFmpegPath ?? "ffmpeg") + "\" -i \"" + ofd.FileName + "\" -c copy -an \"" + newFile + "\""),
                 }
             };
             ffmpeg.Start();
@@ -65,7 +65,7 @@ public partial class frmMiscTools : LocalizedForm {
                         //RedirectStandardInput = true,
                         //RedirectStandardOutput = true,
                         //CreateNoWindow = true,
-                        Arguments = string.Format("/c \"{0}\"", "ffmpeg -i \"" + ofd.FileName + "\" \"" + newFile + "\""),
+                        Arguments = string.Format("/c \"{0}\"", "\"" + (Verification.FFmpegPath ?? "ffmpeg") + "\" -i \"" + ofd.FileName + "\" \"" + newFile + "\""),
                     }
                 };
                 ffmpeg.Start();
@@ -83,7 +83,7 @@ public partial class frmMiscTools : LocalizedForm {
                 StartInfo = new("cmd") {
                     UseShellExecute = false,
                     WorkingDirectory = WorkingDirectory,
-                    Arguments = string.Format("/c \"{0}\"", "ffmpeg -i \"" + ofd.FileName + "\" -vf scale=320:-1:flags=lanczos,fps=10 frames/outframes%03d.png"),
+                    Arguments = string.Format("/c \"{0}\"", "\"" + (Verification.FFmpegPath ?? "ffmpeg") + "\" -i \"" + ofd.FileName + "\" -vf scale=320:-1:flags=lanczos,fps=10 frames/outframes%03d.png"),
                 }
             };
             ffmpeg.Start();

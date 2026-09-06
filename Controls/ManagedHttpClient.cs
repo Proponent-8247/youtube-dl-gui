@@ -171,7 +171,7 @@ internal sealed class ManagedHttpClient : IDisposable {
                 _ => await WebDecompress.GetRaw(Destination),
             };
 
-            return (Response.Content.Headers.ContentType.CharSet ?? "utf-8").ToLowerInvariant() switch {
+            return (Response.Content.Headers.ContentType?.CharSet ?? "utf-8").ToLowerInvariant() switch {
                 "ascii" => Encoding.ASCII.GetString(Bytes),
                 "utf-7" => Encoding.UTF7.GetString(Bytes),
                 "utf-32" => Encoding.UTF32.GetString(Bytes),

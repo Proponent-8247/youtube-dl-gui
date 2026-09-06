@@ -1,0 +1,23 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmMain.cs",
+      "old": "ICAgICAgICAgICAgICAgICAgICAgICAgICAgIE5ld0luZm8uQXJndW1lbnRzID0gQmF0Y2hDdXN0b21Bcmd1bWVudHM7DQo=",
+      "new": "ICAgICAgICAgICAgICAgICAgICAgICAgICAgIE5ld0luZm8uQ3VzdG9tQXJndW1lbnRzID0gQmF0Y2hDdXN0b21Bcmd1bWVudHM7DQo=",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmMain.cs",
+      "old": "ICAgICAgICAgICAgICAgIE5ld0luZm8uQXJndW1lbnRzID0gY2JDdXN0b21Bcmd1bWVudHMuVGV4dDsNCg==",
+      "new": "ICAgICAgICAgICAgICAgIE5ld0luZm8uQ3VzdG9tQXJndW1lbnRzID0gY2JDdXN0b21Bcmd1bWVudHMuVGV4dDsNCg==",
+      "count": 2
+    },
+    {
+      "path": "youtube-dl-gui/Program.cs",
+      "old": "ICAgICAgICAgICAgICAgICAgICAgICAgQXJndW1lbnRzID0gQ3VzdG9tQXJndW1lbnRzLA0K",
+      "new": "ICAgICAgICAgICAgICAgICAgICAgICAgQ3VzdG9tQXJndW1lbnRzID0gQ3VzdG9tQXJndW1lbnRzLA0K",
+      "count": 6
+    }
+  ],
+  "commit_message": "fix: route quick custom arguments through input property"
+}

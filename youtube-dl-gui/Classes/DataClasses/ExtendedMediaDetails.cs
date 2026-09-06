@@ -552,7 +552,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
 
                 if (VideoDownloadAudio && SelectedAudioItem?.Tag is YoutubeDlSubdata.Format af) {
                     AudioFormat = af;
-                    Argument += VideoSeparateAudio ? "/best," : "+" + AudioFormat.Identifier + "/best";
+                    Argument += VideoSeparateAudio ? "/best," + AudioFormat.Identifier + "/best" : "+" + AudioFormat.Identifier + "/best";
                 }
                 else {
                     Argument += "/best";

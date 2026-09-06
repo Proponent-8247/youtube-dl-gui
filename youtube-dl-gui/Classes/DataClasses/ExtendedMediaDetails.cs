@@ -731,27 +731,27 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
         if (Authentication is not null) {
             if (!Authentication.Username.IsNullEmptyWhitespace()) {
                 ArgumentBuffer.Add("--username " + ArgumentList.EscapeArgument(Authentication.Username));
-                ProtectedArguments.Append("--username ***");
+                ProtectedArguments.Append(" --username ***");
             }
             if (Authentication.Password?.Length > 0) {
                 ArgumentBuffer.Add("--password " + ArgumentList.EscapeArgument(Authentication.GetPassword()));
-                ProtectedArguments.Append("--password ***");
+                ProtectedArguments.Append(" --password ***");
             }
             if (!Authentication.TwoFactor.IsNullEmptyWhitespace()) {
                 ArgumentBuffer.Add("--twofactor " + ArgumentList.EscapeArgument(Authentication.TwoFactor));
-                ProtectedArguments.Append("--twofactor ***");
+                ProtectedArguments.Append(" --twofactor ***");
             }
             if (Authentication.MediaPassword?.Length > 0) {
                 ArgumentBuffer.Add("--video-password " + ArgumentList.EscapeArgument(Authentication.GetMediaPassword()));
-                ProtectedArguments.Append("--video-password ***");
+                ProtectedArguments.Append(" --video-password ***");
             }
             if (Authentication.NetRC) {
                 ArgumentBuffer.Add("--netrc");
-                ProtectedArguments.Append("--netrc");
+                ProtectedArguments.Append(" --netrc");
             }
             if (!Authentication.CookiesFile.IsNullEmptyWhitespace()) {
                 ArgumentBuffer.Add("--cookies " + ArgumentList.EscapeArgument(Authentication.CookiesFile));
-                ProtectedArguments.Append("--cookies ***");
+                ProtectedArguments.Append(" --cookies ***");
             }
             if (!Authentication.CookiesFromBrowser.IsNullEmptyWhitespace()) {
                 ArgumentBuffer.Add("--cookies-from-browser " + ArgumentList.EscapeArgument(Authentication.CookiesFromBrowser));

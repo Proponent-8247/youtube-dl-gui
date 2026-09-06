@@ -49,7 +49,7 @@ public partial class frmArchiveDownloader : LocalizedForm {
         }
         else {
             DownloadInfo NewInfo = new($"https://archived.youtube.com/watch?v={VideoKey}") {
-                Arguments = $"ytarchive:{VideoKey}",
+                CustomArguments = $"ytarchive:{VideoKey}",
                 MostlyCustomArguments = true,
                 Type = DownloadType.Custom
             };

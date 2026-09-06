@@ -588,7 +588,7 @@ internal static class Program {
                 }
                 else {
                     DownloadInfo NewInfo = new($"https://archived.youtube.com/watch?v={URL}") {
-                        Arguments = $"ytarchive:{URL}",
+                        CustomArguments = $"ytarchive:{URL}",
                         MostlyCustomArguments = true,
                         Type = DownloadType.Custom
                     };

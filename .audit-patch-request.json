@@ -1,0 +1,17 @@
+{
+  "commit_message": "fix: defer static tool settings until save",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmSettings.cs",
+      "old": "ICAgIHByaXZhdGUgdm9pZCBjaGtTZXR0aW5nc0dlbmVyYWxVc2VTdGF0aWNZb3V0dWJlRGxfQ2hlY2tlZENoYW5nZWQob2JqZWN0IHNlbmRlciwgRXZlbnRBcmdzIGUpIHsNCiAgICAgICAgR2VuZXJhbC5Vc2VTdGF0aWNZdGRsID0gY2hrU2V0dGluZ3NHZW5lcmFsVXNlU3RhdGljWW91dHViZURsLkNoZWNrZWQ7DQogICAgfQ0K",
+      "new": "ICAgIHByaXZhdGUgdm9pZCBjaGtTZXR0aW5nc0dlbmVyYWxVc2VTdGF0aWNZb3V0dWJlRGxfQ2hlY2tlZENoYW5nZWQob2JqZWN0IHNlbmRlciwgRXZlbnRBcmdzIGUpIHsNCiAgICB9DQo=",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmSettings.cs",
+      "old": "ICAgIHByaXZhdGUgdm9pZCBjaGtTZXR0aW5nc0dlbmVyYWxVc2VTdGF0aWNGRm1wZWdfQ2hlY2tlZENoYW5nZWQob2JqZWN0IHNlbmRlciwgRXZlbnRBcmdzIGUpIHsNCiAgICAgICAgR2VuZXJhbC5Vc2VTdGF0aWNGRm1wZWcgPSBjaGtTZXR0aW5nc0dlbmVyYWxVc2VTdGF0aWNGRm1wZWcuQ2hlY2tlZDsNCiAgICB9DQo=",
+      "new": "ICAgIHByaXZhdGUgdm9pZCBjaGtTZXR0aW5nc0dlbmVyYWxVc2VTdGF0aWNGRm1wZWdfQ2hlY2tlZENoYW5nZWQob2JqZWN0IHNlbmRlciwgRXZlbnRBcmdzIGUpIHsNCiAgICB9DQo=",
+      "count": 1
+    }
+  ]
+}

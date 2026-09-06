@@ -86,7 +86,7 @@ public partial class frmBatchConverter : LocalizedProcessingForm {
         ]);
 
         if (!string.IsNullOrWhiteSpace(txtBatchConverterInputFile.Text)) {
-            sfd.FileName = System.IO.Path.GetFileNameWithoutExtension(txtBatchConverterOutputFile.Text);
+            sfd.FileName = System.IO.Path.GetFileNameWithoutExtension(txtBatchConverterInputFile.Text);
         }
 
         if (sfd.ShowDialog() == DialogResult.OK) {

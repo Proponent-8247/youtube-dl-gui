@@ -107,6 +107,7 @@ public readonly struct Version {
             this.Minor = vers.Minor;
             this.Revision = vers.Revision;
             this.Beta = vers.Beta;
+            return;
         }
         throw new ArgumentException($"Data {Data} is invalid.");
     }

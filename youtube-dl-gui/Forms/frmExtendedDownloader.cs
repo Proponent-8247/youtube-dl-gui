@@ -10,6 +10,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     public bool BatchDownload { get; }
     private bool SwitchingQueuedItem { get; set; }
     private bool FailedInfoRetrieval { get; set; }
+    private ArgumentType InitialArgumentType { get; } = ArgumentType.NoArguments;
 
     private Thread? ProcessingThread { get; set; }
     private Process? DownloadProcess { get; set; }
@@ -89,8 +90,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         txtCustomArguments.Text = CustomArguments.IsNullEmptyWhitespace() ? string.Empty : CustomArguments;
         pnBatchDownload.Enabled = pnBatchDownload.Visible = false;
     }
-    public frmExtendedDownloader(string URL, string? CustomArguments, bool Archived, AuthenticationDetails? Auth) : this(URL, CustomArguments, Archived) {
+    public frmExtendedDownloader(string URL, string? CustomArguments, bool Archived, AuthenticationDetails? Auth) : this(URL, CustomArguments, Archived, Auth, ArgumentType.NoArguments) { }
+    internal frmExtendedDownloader(string URL, string? CustomArguments, bool Archived, AuthenticationDetails? Auth, ArgumentType InitialArgumentType) : this(URL, CustomArguments, Archived) {
         MediaDetails!.Authentication = Auth;
+        this.InitialArgumentType = InitialArgumentType;
     }
 
     public override void LoadLanguage() {
@@ -389,6 +392,22 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 }
 
                 MediaDetails.GetMediaDetails();
+                DownloadType InitialDownloadType = InitialArgumentType switch {
+                    ArgumentType.DownloadVideo or ArgumentType.DownloadAuthenticateVideo or ArgumentType.DownloadVideoNoSound or ArgumentType.DownloadAuthenticateVideoNoSound => DownloadType.Video,
+                    ArgumentType.DownloadAudio or ArgumentType.DownloadAuthenticateAudio => DownloadType.Audio,
+                    ArgumentType.DownloadCustom or ArgumentType.DownloadAuthenticateCustom => DownloadType.Custom,
+                    _ => DownloadType.None,
+                };
+                if (InitialDownloadType != DownloadType.None && MediaDetails.SelectedType != InitialDownloadType) {
+                    if ((InitialDownloadType == DownloadType.Video && MediaDetails.VideoFormats.Count < 1)
+                    || (InitialDownloadType == DownloadType.Audio && MediaDetails.AudioFormats.Count < 1)) {
+                        throw new DownloadException(MediaDetails.URL, $"The requested {InitialDownloadType.ToString().ToLowerInvariant()} format is not available for this media.");
+                    }
+                    if (InitialArgumentType is ArgumentType.DownloadVideoNoSound or ArgumentType.DownloadAuthenticateVideoNoSound) {
+                        MediaDetails.VideoDownloadAudio = false;
+                    }
+                    MediaDetails.ChangeMediaType(InitialDownloadType);
+                }
                 this.Invoke(() => SelectedMediaChanged(MediaDetails));
             }
             catch (ThreadAbortException) { }

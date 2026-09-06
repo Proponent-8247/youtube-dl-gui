@@ -339,10 +339,7 @@ internal static class Program {
                 }
 
                 if (Downloads.ExtendedDownloaderPreferExtendedForm) {
-                    if (Auth is null)
-                        new frmExtendedDownloader(Arg.Data, false).Show();
-                    else
-                        new frmExtendedDownloader(Arg.Data, null, false, Auth).Show();
+                    new frmExtendedDownloader(Arg.Data, null, false, Auth, Arg.Type).Show();
                     continue;
                 }
 
@@ -427,7 +424,8 @@ internal static class Program {
                         URL: URL,
                         CustomArguments: CustomArguments,
                         Archived: false,
-                        Auth: Auth);
+                        Auth: Auth,
+                        InitialArgumentType: Type);
                 }
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {
@@ -460,7 +458,8 @@ internal static class Program {
                         URL: URL,
                         CustomArguments: CustomArguments,
                         Archived: false,
-                        Auth: Auth);
+                        Auth: Auth,
+                        InitialArgumentType: Type);
                 }
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {
@@ -498,7 +497,8 @@ internal static class Program {
                         URL: URL,
                         CustomArguments: CustomArguments,
                         Archived: false,
-                        Auth: Auth);
+                        Auth: Auth,
+                        InitialArgumentType: Type);
                 }
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {
@@ -563,7 +563,8 @@ internal static class Program {
                         URL: URL,
                         CustomArguments: CustomArguments,
                         Archived: false,
-                        Auth: Auth);
+                        Auth: Auth,
+                        InitialArgumentType: Type);
                 }
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {
@@ -596,7 +597,8 @@ internal static class Program {
                         URL: URL,
                         CustomArguments: CustomArguments,
                         Archived: false,
-                        Auth: Auth);
+                        Auth: Auth,
+                        InitialArgumentType: Type);
                 }
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {
@@ -634,7 +636,8 @@ internal static class Program {
                         URL: URL,
                         CustomArguments: CustomArguments,
                         Archived: false,
-                        Auth: Auth);
+                        Auth: Auth,
+                        InitialArgumentType: Type);
                 }
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {

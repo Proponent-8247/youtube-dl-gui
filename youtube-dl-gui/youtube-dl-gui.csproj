@@ -354,8 +354,26 @@
     <Content Include="Resources\ProgramIcon.ico" />
     <Content Include="Resources\AboutImage.png" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="..\youtube-dl-gui-updater\youtube-dl-gui-updater.csproj" Condition="'$(Configuration)' == 'Release'">
+      <Project>{EF3A6A93-AB14-4A2D-8474-2985C0D07253}</Project>
+      <Name>youtube-dl-gui-updater</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="$(IntermediateOutputPath)UpdaterHash.g.cs" />
+  </ItemGroup>
   <Import Project="..\Controls\Controls.projitems" Label="Shared" />
+  <Target Name="GenerateUpdaterHash" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_UpdaterHashInput Include="$(ProjectDir)Resources\youtube-dl-gui-updater.exe" />
+    </ItemGroup>
+    <GetFileHash Files="@(_UpdaterHashInput)" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_UpdaterHashOutput" />
+    </GetFileHash>
+    <WriteLinesToFile File="$(IntermediateOutputPath)UpdaterHash.g.cs" Overwrite="true" Encoding="UTF-8" Lines="namespace youtube_dl_gui { internal static class GeneratedUpdaterHash { internal const string Value = &quot;%(_UpdaterHashOutput.FileHash)&quot;%3B } }" />
+  </Target>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PreBuildEvent>if $(ConfigurationName) == Release "BuildDateWriter.exe" "$(ProjectDir)\Resources\BuildDate.txt"</PreBuildEvent>

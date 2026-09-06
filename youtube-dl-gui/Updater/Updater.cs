@@ -19,7 +19,7 @@ internal static class Updater {
     /// <summary>
     /// This is the known SHA-256 hash of the updater.
     /// </summary>
-    private const string KnownUpdaterHash = "53AF690186506C675B1907F5FE4A31D3C7B1CD10F4A62F57297DC4F944D3638B";
+    private const string KnownUpdaterHash = GeneratedUpdaterHash.Value;
 
     /// <summary>
     /// This is the direct ffmpeg download link.

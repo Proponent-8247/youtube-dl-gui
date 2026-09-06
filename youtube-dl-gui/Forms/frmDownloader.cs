@@ -185,11 +185,6 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                 DownloadProcess = new Process() { StartInfo = StartInfo };
                 DownloadProcess.OutputDataReceived += (s, e) => {
                     if (e.Data?.Length > 0) {
-                        if (e.Data.Length < 8) {
-                            rtbVerbose?.Invoke(() => rtbVerbose.AppendLine(e.Data));
-                            return;
-                        }
-
                         switch (e.Data[..8].ToLowerInvariant()) {
                             case "[downloa": case "[ffmpeg]":
                             case "[embedsu": case "[metadat": {
@@ -288,63 +283,57 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                     if (!Msg.IsNullEmptyWhitespace()) {
                         //Console.WriteLine(Msg);
                         string Line = Msg.ReplaceWhitespace();
-                        if (Line.Length >= 5) {
-                            switch (Line[..5].ToLowerInvariant()) {
-                                case "[down": {
-                                    string[] LineParts = Line.Split(' ');
-                                    if (LineParts.Length < 2 || LineParts[1].Length == 0) {
-                                        break;
-                                    }
+                        switch (Line[..5].ToLowerInvariant()) {
+                            case "[down": {
+                                string[] LineParts = Line.Split(' ');
+                                switch (LineParts[1][0]) {
+                                    case '1': case '2': case '3':
+                                    case '4': case '5': case '6':
+                                    case '7': case '8': case '9':
+                                    case '0': {
+                                        if (!LineParts[1].Contains('%') || !pbStatus.IsHandleCreated) {
+                                            break;
+                                        }
 
-                                    switch (LineParts[1][0]) {
-                                        case '1': case '2': case '3':
-                                        case '4': case '5': case '6':
-                                        case '7': case '8': case '9':
-                                        case '0': {
-                                            if (!LineParts[1].Contains('%') || !pbStatus.IsHandleCreated) {
-                                                break;
-                                            }
+                                        if (pbStatus.Style != ProgressBarStyle.Blocks) {
+                                            pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);
+                                        }
 
-                                            if (pbStatus.Style != ProgressBarStyle.Blocks) {
-                                                pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);
-                                            }
-
-                                            pbStatus.Invoke(() => {
-                                                pbStatus.Text =
-                                                    $"{DownloadHelper.GetTransferData(LineParts, ref Percentage, ref Eta) } ETA {Eta}";
-                                                pbStatus.Value = (int)Math.Floor(Percentage);
-                                            });
-                                        } break;
-                                    }
-                                } break;
-                                case "[ffmp": {
-                                    rtbVerbose.Invoke(() => rtbVerbose.AppendLine(Line));
-                                    pbStatus.Invoke(() => {
-                                        pbStatus.Style = ProgressBarStyle.Marquee;
-                                        pbStatus.Text = Language.pbDownloadProgressFfmpegPostProcessing;
-                                        pbStatus.Value = 100;
-                                    });
-                                    Msg = null;
-                                } break;
-                                case "[embe": {
-                                    rtbVerbose.Invoke(() => rtbVerbose.AppendLine(Line));
-                                    pbStatus.Invoke(() => {
-                                        pbStatus.Style = ProgressBarStyle.Marquee;
-                                        pbStatus.Text = Language.pbDownloadProgressEmbeddingSubtitles;
-                                        pbStatus.Value = 100;
-                                    });
-                                    Msg = null;
-                                } break;
-                                case "[meta": {
-                                    rtbVerbose.Invoke(() => rtbVerbose.AppendLine(Line));
-                                    pbStatus.Invoke(() => {
-                                        pbStatus.Style = ProgressBarStyle.Marquee;
-                                        pbStatus.Text = Language.pbDownloadProgressEmbeddingMetadata;
-                                        pbStatus.Value = 100;
-                                    });
-                                    Msg = null;
-                                } break;
-                            }
+                                        pbStatus.Invoke(() => {
+                                            pbStatus.Text =
+                                                $"{DownloadHelper.GetTransferData(LineParts, ref Percentage, ref Eta) } ETA {Eta}";
+                                            pbStatus.Value = (int)Math.Floor(Percentage);
+                                        });
+                                    } break;
+                                }
+                            } break;
+                            case "[ffmp": {
+                                rtbVerbose.Invoke(() => rtbVerbose.AppendLine(Line));
+                                pbStatus.Invoke(() => {
+                                    pbStatus.Style = ProgressBarStyle.Marquee;
+                                    pbStatus.Text = Language.pbDownloadProgressFfmpegPostProcessing;
+                                    pbStatus.Value = 100;
+                                });
+                                Msg = null;
+                            } break;
+                            case "[embe": {
+                                rtbVerbose.Invoke(() => rtbVerbose.AppendLine(Line));
+                                pbStatus.Invoke(() => {
+                                    pbStatus.Style = ProgressBarStyle.Marquee;
+                                    pbStatus.Text = Language.pbDownloadProgressEmbeddingSubtitles;
+                                    pbStatus.Value = 100;
+                                });
+                                Msg = null;
+                            } break;
+                            case "[meta": {
+                                rtbVerbose.Invoke(() => rtbVerbose.AppendLine(Line));
+                                pbStatus.Invoke(() => {
+                                    pbStatus.Style = ProgressBarStyle.Marquee;
+                                    pbStatus.Text = Language.pbDownloadProgressEmbeddingMetadata;
+                                    pbStatus.Value = 100;
+                                });
+                                Msg = null;
+                            } break;
                         }
                         Msg = null;
                     }

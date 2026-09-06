@@ -48,6 +48,7 @@ public partial class frmConverter : LocalizedProcessingForm {
                 break;
             default:
                 if (ConverterThread?.IsAlive == true) {
+                    CurrentConversion.Status = ConversionStatus.Aborted;
                     ConverterThread.Abort();
                     e.Cancel = true;
                 }
@@ -121,11 +122,11 @@ public partial class frmConverter : LocalizedProcessingForm {
                         btnConverterAbortBatchConversions.Visible = false;
                         break;
                     default:
+                        CurrentConversion.Status = ConversionStatus.Aborted;
                         if (ConverterThread?.IsAlive == true) {
                             ConverterThread.Abort();
                         }
                         rtbConsoleOutput.AppendLine("Additionally, the batch conversion has been cancelled.");
-                        CurrentConversion.Status = ConversionStatus.Aborted;
                         break;
                 }
                 break;
@@ -399,6 +400,7 @@ public partial class frmConverter : LocalizedProcessingForm {
                 break;
             default:
                 Log.Write("Aborting conversion finished.");
+                CurrentConversion.Status = ConversionStatus.Aborted;
                 if (ConverterThread?.IsAlive == true) {
                     ConverterThread.Abort();
                 }

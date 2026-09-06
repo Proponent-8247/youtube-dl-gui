@@ -1,0 +1,17 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmConverter.cs",
+      "old": "ICAgIHByaXZhdGUgdm9pZCBCZWdpbkNvbnZlcnNpb24oKSB7DQogICAgICAgIGlmICghQ3VycmVudENvbnZlcnNpb24uRnVsbEN1c3RvbUFyZ3VtZW50cyAmJiBDdXJyZW50Q29udmVyc2lvbi5JbnB1dEZpbGUuSXNOdWxsRW1wdHlXaGl0ZXNwYWNlKCkpIHsNCg==",
+      "new": "ICAgIHByaXZhdGUgdm9pZCBCZWdpbkNvbnZlcnNpb24oKSB7DQogICAgICAgIENvbnZlcnRlclByb2Nlc3M/LkRpc3Bvc2UoKTsNCiAgICAgICAgQ29udmVydGVyUHJvY2VzcyA9IG51bGw7DQogICAgICAgIGlmICghQ3VycmVudENvbnZlcnNpb24uRnVsbEN1c3RvbUFyZ3VtZW50cyAmJiBDdXJyZW50Q29udmVyc2lvbi5JbnB1dEZpbGUuSXNOdWxsRW1wdHlXaGl0ZXNwYWNlKCkpIHsNCg==",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmConverter.cs",
+      "old": "ICAgICAgICBpZiAoIWUuQ2FuY2VsKSB7DQogICAgICAgICAgICBDb252ZXJ0cy5DbG9zZUFmdGVyRmluaXNoID0gY2hrQ29udmVydGVyQ2xvc2VBZnRlckNvbnZlcnNpb24uQ2hlY2tlZDsNCg0KICAgICAgICAgICAgdGhpcy5EaWFsb2dSZXN1bHQgPSBGaW5pc2g7DQogICAgICAgICAgICB0aGlzLkRpc3Bvc2UoKTsNCiAgICAgICAgfQ0K",
+      "new": "ICAgICAgICBpZiAoIWUuQ2FuY2VsKSB7DQogICAgICAgICAgICBDb252ZXJ0cy5DbG9zZUFmdGVyRmluaXNoID0gY2hrQ29udmVydGVyQ2xvc2VBZnRlckNvbnZlcnNpb24uQ2hlY2tlZDsNCg0KICAgICAgICAgICAgdGhpcy5EaWFsb2dSZXN1bHQgPSBGaW5pc2g7DQogICAgICAgICAgICBDb252ZXJ0ZXJQcm9jZXNzPy5EaXNwb3NlKCk7DQogICAgICAgICAgICBDb252ZXJ0ZXJQcm9jZXNzID0gbnVsbDsNCiAgICAgICAgICAgIHRoaXMuRGlzcG9zZSgpOw0KICAgICAgICB9DQo=",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: dispose completed converter processes"
+}

@@ -294,8 +294,8 @@ internal static class Updater {
         bool CanRetry = true;
         do {
             try {
-                string FfmpegPath = Verification.FFmpegPath is null ?
-                    Environment.CurrentDirectory : Path.GetDirectoryName(Verification.FFmpegPath ?? Verification.GetExpectedFfmpegPath());
+                string FfmpegPath = Path.GetDirectoryName(Verification.FFmpegPath ?? Verification.GetExpectedFfmpegPath()) ??
+                    Environment.CurrentDirectory;
 
                 using ZipArchive archive = ZipFile.OpenRead(FfmpegZipPath);
                 ZipArchiveEntry[] Files = archive.Entries

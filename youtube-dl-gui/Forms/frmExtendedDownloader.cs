@@ -1017,6 +1017,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             SaveMediaOptions();
         }
 
+        lvVideoFormats.Items.Clear();
+        lvAudioFormats.Items.Clear();
+        lvUnknownFormats.Items.Clear();
+        lbExtendedDownloaderNoVideoFormatsAvailable.Visible = false;
+        lbExtendedDownloaderNoAudioFormatsAvailable.Visible = false;
+        lbExtendedDownloaderNoUnknownFormatsFound.Visible = false;
+
         this.MediaDetails = MediaDetails;
 
         if (MediaDetails is null) {

@@ -730,19 +730,19 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
         StringBuilder ProtectedArguments = new(ArgumentBuffer.ToString());
         if (Authentication is not null) {
             if (!Authentication.Username.IsNullEmptyWhitespace()) {
-                ArgumentBuffer.Add("--username " + Authentication.Username);
+                ArgumentBuffer.Add("--username " + ArgumentList.EscapeArgument(Authentication.Username));
                 ProtectedArguments.Append("--username ***");
             }
             if (Authentication.Password?.Length > 0) {
-                ArgumentBuffer.Add("--password " + Authentication.GetPassword());
+                ArgumentBuffer.Add("--password " + ArgumentList.EscapeArgument(Authentication.GetPassword()));
                 ProtectedArguments.Append("--password ***");
             }
             if (!Authentication.TwoFactor.IsNullEmptyWhitespace()) {
-                ArgumentBuffer.Add("--twofactor " + Authentication.TwoFactor);
+                ArgumentBuffer.Add("--twofactor " + ArgumentList.EscapeArgument(Authentication.TwoFactor));
                 ProtectedArguments.Append("--twofactor ***");
             }
             if (Authentication.MediaPassword?.Length > 0) {
-                ArgumentBuffer.Add("--video-password " + Authentication.GetMediaPassword());
+                ArgumentBuffer.Add("--video-password " + ArgumentList.EscapeArgument(Authentication.GetMediaPassword()));
                 ProtectedArguments.Append("--video-password ***");
             }
             if (Authentication.NetRC) {
@@ -750,11 +750,11 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
                 ProtectedArguments.Append("--netrc");
             }
             if (!Authentication.CookiesFile.IsNullEmptyWhitespace()) {
-                ArgumentBuffer.Add("--cookies \"" + Authentication.CookiesFile + "\"");
+                ArgumentBuffer.Add("--cookies " + ArgumentList.EscapeArgument(Authentication.CookiesFile));
                 ProtectedArguments.Append("--cookies ***");
             }
             if (!Authentication.CookiesFromBrowser.IsNullEmptyWhitespace()) {
-                ArgumentBuffer.Add("--cookies-from-browser \"" + Authentication.CookiesFromBrowser + "\"");
+                ArgumentBuffer.Add("--cookies-from-browser " + ArgumentList.EscapeArgument(Authentication.CookiesFromBrowser));
                 ProtectedArguments.Append(" --cookies-from-browser ***");
             }
         }

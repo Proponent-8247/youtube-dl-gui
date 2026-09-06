@@ -90,7 +90,7 @@ internal sealed class YoutubeDlData {
 
         Arguments.Add(ArgumentList.EscapeArgument(URL));
 
-        Process Enumeration = new() {
+        using Process Enumeration = new() {
             StartInfo = new(Verification.YoutubeDlPath) {
                 Arguments = $"--simulate --no-warnings --no-cache-dir {Arguments}",
                 CreateNoWindow = true,

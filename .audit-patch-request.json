@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: separate custom file dialog filter entries",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/Formats.cs",
+      "old": "ICAgICAgICAgICAgICAgICAgICBDdXN0b21Gb3JtYXRzICs9ICQie05hbWVzW2ldfSAoKi57RXh0ZW5zaW9uc1tpXX0pfCoue0V4dGVuc2lvbnNbaV19IjsNCg==",
+      "new": "ICAgICAgICAgICAgICAgICAgICBDdXN0b21Gb3JtYXRzICs9ICQieyhpID4gMCA/ICJ8IiA6IHN0cmluZy5FbXB0eSl9e05hbWVzW2ldfSAoKi57RXh0ZW5zaW9uc1tpXX0pfCoue0V4dGVuc2lvbnNbaV19IjsNCg==",
+      "count": 1
+    }
+  ]
+}

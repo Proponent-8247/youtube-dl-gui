@@ -1067,7 +1067,6 @@ public partial class frmMain : LocalizedForm {
                     NewInfo.AudioFormat = (AudioFormatType)cbFormat.SelectedIndex;
 
                     Saved.downloadType = (int)DownloadType.Audio;
-                    Saved.audioQuality = cbQuality.SelectedIndex;
                     Saved.AudioFormat = cbFormat.SelectedIndex;
                     Downloads.AudioDownloadAsVBR = chkDownloadSound.Checked;
                 }

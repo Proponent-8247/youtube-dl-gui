@@ -177,7 +177,8 @@ internal sealed class YoutubeDlData {
         }
 
         using MemoryStream Stream = new(thumbBytes);
-        return Image.FromStream(Stream);
+        using Image Thumbnail = Image.FromStream(Stream);
+        return new Bitmap(Thumbnail);
     }
 
     public string GetApproximateVideoSize(YoutubeDlSubdata.Format Video) {

@@ -338,7 +338,17 @@ internal static class Program {
     }
 
     internal static void ParseCopyData(ref Message m, string CustomArguments) {
+        if (m.LParam == IntPtr.Zero) {
+            m.Result = IntPtr.Zero;
+            return;
+        }
+
         CopyDataStruct cds = Marshal.PtrToStructure<CopyDataStruct>(m.LParam);
+        if (cds.cbData <= 0 || cds.lpData == IntPtr.Zero) {
+            m.Result = IntPtr.Zero;
+            return;
+        }
+
         byte[] bytes = new byte[cds.cbData];
         Marshal.Copy(cds.lpData, bytes, 0, cds.cbData);
         string URL = Encoding.Unicode.GetString(bytes);

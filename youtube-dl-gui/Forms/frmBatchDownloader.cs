@@ -150,14 +150,18 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
     private void sbBatchDownloadLoadArgs_Click(object sender, EventArgs e) {
         if (CustomArguments.YtdlArguments.Count > 0) {
             CustomArguments.YtdlArguments.For((Arg) => cbArguments.Items.Add(Arg));
-            cbArguments.SelectedIndex = Saved.CustomArgumentsIndex;
+            if (Saved.CustomArgumentsIndex >= -1 && Saved.CustomArgumentsIndex < cbArguments.Items.Count) {
+                cbArguments.SelectedIndex = Saved.CustomArgumentsIndex;
+            }
         }
     }
 
     private void mBatchDownloaderLoadArgsFromSettings_Click(object sender, EventArgs e) {
         if (CustomArguments.YtdlArguments.Count > 0) {
             CustomArguments.YtdlArguments.For((Arg) => cbArguments.Items.Add(Arg));
-            cbArguments.SelectedIndex = Saved.CustomArgumentsIndex;
+            if (Saved.CustomArgumentsIndex >= -1 && Saved.CustomArgumentsIndex < cbArguments.Items.Count) {
+                cbArguments.SelectedIndex = Saved.CustomArgumentsIndex;
+            }
         }
     }
 

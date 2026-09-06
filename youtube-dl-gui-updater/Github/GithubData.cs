@@ -90,11 +90,11 @@ public sealed class GithubData {
         if (!VersionDescription.IsNullEmptyWhitespace()) {
             MatchCollection Matches = Regex.Matches(VersionDescription, "(?<=exe sha([- ])256: )(`)?[0-9a-fA-F]{64}(`)?(?=)");
             if (Matches.Count > 0) {
-                return Matches[0].Value;
+                return Matches[0].Value.Trim('`');
             }
             Matches = Regex.Matches(VersionDescription, "(?<=exe sha256: )(`)?[0-9a-fA-F]{64}(`)?(?=)");
             if (Matches.Count > 0) {
-                return Matches[0].Value;
+                return Matches[0].Value.Trim('`');
             }
         }
         return null;

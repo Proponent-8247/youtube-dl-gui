@@ -608,7 +608,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
 
                 if (DisabledSubtitles.Count > 0) {
                     if (DisabledSubtitles.Count == SubtitleItems.Count) {
-                        Args.Add("-map -0:a");
+                        Args.Add("-map -0:s");
                     }
                     else {
                         DisabledSubtitles.For((Stream) => Args.Add($"-map -0:s:{Stream}"));
@@ -625,7 +625,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
 
                 if (DisabledAttachments.Count > 0) {
                     if (DisabledAttachments.Count == AttachmentItems.Count) {
-                        Args.Add("-map -0:a");
+                        Args.Add("-map -0:t");
                     }
                     else {
                         DisabledAttachments.For((Stream) => Args.Add($"-map -0:t:{Stream}"));
@@ -642,7 +642,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
 
                 if (DisabledData.Count > 0) {
                     if (DisabledData.Count == DataFileItems.Count) {
-                        Args.Add("-map -0:a");
+                        Args.Add("-map -0:d");
                     }
                     else {
                         DisabledData.For((Stream) => Args.Add($"-map -0:d:{Stream}"));

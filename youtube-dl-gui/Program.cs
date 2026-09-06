@@ -339,7 +339,7 @@ internal static class Program {
                 }
 
                 if (Downloads.ExtendedDownloaderPreferExtendedForm) {
-                    new frmExtendedDownloader(Arg.Data, null, false, Auth, Arg.Type).Show();
+                    new frmExtendedDownloader(Arg.Data, Arg.Type is ArgumentType.DownloadCustom or ArgumentType.DownloadAuthenticateCustom ? youtube_dl_gui.CustomArguments.LastUsedYtdlArgument : null, false, Auth, Arg.Type).Show();
                     continue;
                 }
 
@@ -374,6 +374,7 @@ internal static class Program {
                     case ArgumentType.DownloadAuthenticateCustom: {
                         DownloadInfo NewCustom = new(Arg.Data) {
                             Type = DownloadType.Custom,
+                            CustomArguments = youtube_dl_gui.CustomArguments.LastUsedYtdlArgument,
                             Authentication = Auth,
                         };
                         new frmDownloader(NewCustom).Show();
@@ -482,6 +483,7 @@ internal static class Program {
 
             case ArgumentType.DownloadCustom:
             case ArgumentType.DownloadAuthenticateCustom: {
+                CustomArguments = CustomArguments.IsNullEmptyWhitespace() ? youtube_dl_gui.CustomArguments.LastUsedYtdlArgument : CustomArguments;
                 AuthenticationDetails? Auth = null;
                 if (Type == ArgumentType.DownloadAuthenticateCustom) {
                     Auth = AuthenticationDetails.GetAuthentication();
@@ -621,6 +623,7 @@ internal static class Program {
 
             case ArgumentType.DownloadCustom:
             case ArgumentType.DownloadAuthenticateCustom: {
+                CustomArguments = CustomArguments.IsNullEmptyWhitespace() ? youtube_dl_gui.CustomArguments.LastUsedYtdlArgument : CustomArguments;
                 AuthenticationDetails? Auth = null;
                 if (Type == ArgumentType.DownloadAuthenticateCustom) {
                     Auth = AuthenticationDetails.GetAuthentication();

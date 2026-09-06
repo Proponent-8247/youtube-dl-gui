@@ -1029,6 +1029,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             }
 
             this.Invoke(() => {
+                mDownload.Enabled = mDownloadWithAuthentication.Enabled = true;
+                pbStatus.ShowInTaskbar = false;
+
                 if (Status == DownloadStatus.Downloading && BatchHadErrors) {
                     Status = DownloadStatus.ProgramError;
                 }

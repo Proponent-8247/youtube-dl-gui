@@ -493,7 +493,11 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         if (!Verification.YoutubeDlAvailable) {
             Verification.RefreshYoutubeDlLocation();
             if (!Verification.YoutubeDlAvailable) {
-                throw new NullReferenceException("Youtube-dl path is invalid and cannot be used.");
+                Status = DownloadStatus.ProgramError;
+                rtbVerbose.AppendLine("Youtube-dl could not be found.");
+                Log.Write("Youtube-dl could not be found.");
+                LoadLanguage();
+                return;
             }
         }
 
@@ -602,9 +606,37 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data.Trim()));
                 }
             };
-            DownloadProcess.Start();
-            DownloadProcess.BeginOutputReadLine();
-            DownloadProcess.BeginErrorReadLine();
+            try {
+                DownloadProcess.Start();
+                DownloadProcess.BeginOutputReadLine();
+                DownloadProcess.BeginErrorReadLine();
+            }
+            catch (Exception ex) {
+                Log.ReportException(ex);
+                Status = DownloadStatus.ProgramError;
+                try {
+                    if (!DownloadProcess.HasExited) {
+                        Program.KillProcessTree((uint)DownloadProcess.Id);
+                        DownloadProcess.Kill();
+                    }
+                }
+                catch (Exception cleanupEx) {
+                    Log.Write($"Failed to terminate the partially started download process: {cleanupEx.Message}");
+                }
+                DownloadProcess.Dispose();
+                DownloadProcess = null;
+                if (this.IsHandleCreated && !this.IsDisposed) {
+                    this.BeginInvoke(() => {
+                        pbStatus.Style = ProgressBarStyle.Continuous;
+                        pbStatus.ShowInTaskbar = false;
+                        pbStatus.ProgressState = murrty.controls.ProgressState.Error;
+                        mDownload.Enabled = mDownloadWithAuthentication.Enabled = true;
+                        tcVideoData.SelectedTab = tabExtendedDownloaderVerbose;
+                        LoadLanguage();
+                    });
+                }
+                return;
+            }
 
             float Percentage = 0;
             string ETA = "Unknown";
@@ -757,7 +789,11 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         if (!Verification.YoutubeDlAvailable) {
             Verification.RefreshYoutubeDlLocation();
             if (!Verification.YoutubeDlAvailable) {
-                throw new NullReferenceException("Youtube-dl path is invalid and cannot be used.");
+                Status = DownloadStatus.ProgramError;
+                rtbVerbose.AppendLine("Youtube-dl could not be found.");
+                Log.Write("Youtube-dl could not be found.");
+                LoadLanguage();
+                return;
             }
         }
 
@@ -863,9 +899,28 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                         rtbVerbose.Invoke(() => rtbVerbose.AppendLine($"Error: {e.Data.Trim()}"));
                     }
                 };
-                DownloadProcess.Start();
-                DownloadProcess.BeginOutputReadLine();
-                DownloadProcess.BeginErrorReadLine();
+                try {
+                    DownloadProcess.Start();
+                    DownloadProcess.BeginOutputReadLine();
+                    DownloadProcess.BeginErrorReadLine();
+                }
+                catch (Exception ex) {
+                    Log.ReportException(ex);
+                    try {
+                        if (!DownloadProcess.HasExited) {
+                            Program.KillProcessTree((uint)DownloadProcess.Id);
+                            DownloadProcess.Kill();
+                        }
+                    }
+                    catch (Exception cleanupEx) {
+                        Log.Write($"Failed to terminate the partially started download process: {cleanupEx.Message}");
+                    }
+                    DownloadProcess.Dispose();
+                    DownloadProcess = null;
+                    BatchHadErrors = true;
+                    lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Errored);
+                    continue;
+                }
 
                 args = null;
                 while (!DownloadProcess.HasExited) {

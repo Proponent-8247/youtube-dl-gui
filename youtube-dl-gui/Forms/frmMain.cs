@@ -570,13 +570,14 @@ public partial class frmMain : LocalizedForm {
             return;
         }
 
-        if (cbCustomArguments.Items.Count < (rbCustom.Checked ? 1 : 2)) {
+        int CustomArgumentIndex = Saved.CustomArgumentsIndex + (rbCustom.Checked ? 0 : 1);
+        if (CustomArgumentIndex < 0 || CustomArgumentIndex >= cbCustomArguments.Items.Count) {
             Log.MessageBox(Language.dlgMainArgsNoneSaved);
             return;
         }
 
         DownloadInfo NewInfo = new(Clipboard.GetText()) {
-            CustomArguments = cbCustomArguments.Items[Saved.CustomArgumentsIndex + (rbCustom.Checked ? 0 : 1)] as string,
+            CustomArguments = cbCustomArguments.Items[CustomArgumentIndex] as string,
             Type = DownloadType.Custom,
         };
         frmDownloader Downloader = new(NewInfo);

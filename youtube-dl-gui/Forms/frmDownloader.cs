@@ -52,7 +52,6 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                         }
                         rtbVerbose.AppendLine("Additionally, the batch download has been cancelled.");
                         CurrentDownload.Status = DownloadStatus.Aborted;
-                        this.Close();
                         break;
                 }
                 break;

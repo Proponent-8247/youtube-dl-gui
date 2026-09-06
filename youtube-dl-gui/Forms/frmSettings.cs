@@ -462,6 +462,7 @@ public partial class frmSettings : LocalizedForm {
         chkSettingsDownloadsAutomaticallyDeleteYoutubeDlWhenClosing.Checked = Downloads.deleteYtdlOnClose;
         chkExtendedPreferExtendedDialog.Checked = Downloads.ExtendedDownloaderPreferExtendedForm;
         chkExtendedAutomaticallyDownloadThumbnail.Checked = Downloads.ExtendedDownloaderAutoDownloadThumbnail;
+        chkExtendedIncludeCustomArguments.Checked = Downloads.ExtendedDownloaderIncludeCustomArguments;
 
         chkSettingsConverterDetectOutputFileType.Checked = Converts.detectFiletype;
         chkSettingsConverterClearOutputAfterConverting.Checked = Converts.clearOutput;
@@ -581,6 +582,7 @@ public partial class frmSettings : LocalizedForm {
         Downloads.deleteYtdlOnClose = chkSettingsDownloadsAutomaticallyDeleteYoutubeDlWhenClosing.Checked;
         Downloads.ExtendedDownloaderPreferExtendedForm = chkExtendedPreferExtendedDialog.Checked;
         Downloads.ExtendedDownloaderAutoDownloadThumbnail = chkExtendedAutomaticallyDownloadThumbnail.Checked;
+        Downloads.ExtendedDownloaderIncludeCustomArguments = chkExtendedIncludeCustomArguments.Checked;
 
         Converts.detectFiletype = chkSettingsConverterDetectOutputFileType.Checked;
         Converts.clearOutput = chkSettingsConverterClearOutputAfterConverting.Checked;

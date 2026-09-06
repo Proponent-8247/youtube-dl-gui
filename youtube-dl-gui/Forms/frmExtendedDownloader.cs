@@ -771,6 +771,11 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     MediaDetails = (ExtendedMediaDetails)lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].Tag);
                 }
 
+                if (!MediaDetails.InfoRetrieved) {
+                    lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Errored);
+                    continue;
+                }
+
                 lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Processing);
 
                 MediaDetails.BatchDownloadTime = BatchTime;

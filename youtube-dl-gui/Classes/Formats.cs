@@ -143,7 +143,8 @@ internal static class Formats {
         "64k",
         "32k",
         "16k",
-        "worst"
+        "8k",
+        "4k"
     ];
     public static string[] AudioFormatsArray { get; } = [
         "best",

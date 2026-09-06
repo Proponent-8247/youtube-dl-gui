@@ -930,9 +930,14 @@ public partial class frmSettings : LocalizedForm {
         }
     }
     private void btnSettingsExtensionsRemoveSelected_Click(object sender, EventArgs e) {
-        extensionsName.RemoveAt(listExtensions.SelectedIndex);
-        extensionsShort.RemoveAt(listExtensions.SelectedIndex);
-        listExtensions.Items.RemoveAt(listExtensions.SelectedIndex);
+        int index = listExtensions.SelectedIndex;
+        if (index < 0 || index >= extensionsName.Count || index >= extensionsShort.Count) {
+            return;
+        }
+
+        extensionsName.RemoveAt(index);
+        extensionsShort.RemoveAt(index);
+        listExtensions.Items.RemoveAt(index);
         listExtensions.SelectedIndex = -1;
         lbSettingsExtensionsFileName.Text = "FileName.ext";
     }

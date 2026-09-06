@@ -343,18 +343,12 @@ public sealed class DownloadInfo {
             }
 
             if (Downloads.LimitDownloads && Downloads.DownloadLimit > 0) {
-                ArgumentsBuffer.Add($"--limit-rate {Downloads.DownloadLimit}");
-                switch (Downloads.DownloadLimitType) {
-                    case 1: { // mb
-                        ArgumentsBuffer.Add("M");
-                    } break;
-                    case 2: { // gb
-                        ArgumentsBuffer.Add("G");
-                    } break;
-                    default: { // kb default
-                        ArgumentsBuffer.Add("K");
-                    } break;
-                }
+                string DownloadLimitSuffix = Downloads.DownloadLimitType switch {
+                    1 => "M",
+                    2 => "G",
+                    _ => "K"
+                };
+                ArgumentsBuffer.Add($"--limit-rate {Downloads.DownloadLimit}{DownloadLimitSuffix}");
             }
 
             if (Downloads.RetryAttempts != 10 && Downloads.RetryAttempts > 0) {

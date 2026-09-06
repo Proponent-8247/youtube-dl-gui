@@ -566,7 +566,7 @@ public partial class frmMain : LocalizedForm {
         Downloader.Show();
     }
     private void cmTrayDownloadCustomSettings_Click(object sender, EventArgs e) {
-        if (Clipboard.ContainsText() || Saved.CustomArgumentsIndex < 0) {
+        if (!Clipboard.ContainsText() || Saved.CustomArgumentsIndex < 0) {
             return;
         }
 

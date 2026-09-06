@@ -1,0 +1,11 @@
+{
+  "commit_message": "fix: honor playlist end index directly",
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/DownloadInfo.cs",
+      "old": "ICAgICAgICAgICAgICAgICAgICBpZiAoUGxheWxpc3RTZWxlY3Rpb25JbmRleEVuZCA+IDApIHsNCiAgICAgICAgICAgICAgICAgICAgICAgIEFyZ3VtZW50c0J1ZmZlci5BZGQoJCItLXBsYXlsaXN0LWVuZCB7UGxheWxpc3RTZWxlY3Rpb25JbmRleFN0YXJ0ICsgUGxheWxpc3RTZWxlY3Rpb25JbmRleEVuZH0iKTsNCiAgICAgICAgICAgICAgICAgICAgfQ0K",
+      "new": "ICAgICAgICAgICAgICAgICAgICBpZiAoUGxheWxpc3RTZWxlY3Rpb25JbmRleEVuZCA+IDApIHsNCiAgICAgICAgICAgICAgICAgICAgICAgIEFyZ3VtZW50c0J1ZmZlci5BZGQoJCItLXBsYXlsaXN0LWVuZCB7UGxheWxpc3RTZWxlY3Rpb25JbmRleEVuZH0iKTsNCiAgICAgICAgICAgICAgICAgICAgfQ0K",
+      "count": 1
+    }
+  ]
+}

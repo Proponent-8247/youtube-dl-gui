@@ -103,15 +103,11 @@ static class Program {
     internal static void SetTls() {
         try { //try TLS 1.3
             System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)12288
-                                                            | (System.Net.SecurityProtocolType)3072
-                                                            | (System.Net.SecurityProtocolType)768
-                                                            | System.Net.SecurityProtocolType.Tls;
+                                                            | (System.Net.SecurityProtocolType)3072;
         }
         catch (NotSupportedException) {
             try { //try TLS 1.2
-                System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)3072
-                                                                | (System.Net.SecurityProtocolType)768
-                                                                | System.Net.SecurityProtocolType.Tls;
+                System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)3072;
             }
             catch (NotSupportedException) {
                 try { //try TLS 1.1

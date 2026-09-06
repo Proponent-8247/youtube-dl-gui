@@ -276,6 +276,7 @@ internal partial class frmUpdater : Form {
                         pbDownloadProgress.ProgressState = ProgressState.Normal;
                     });
                     await GetUpdate(Url, FileName);
+                    await VerifyHash(Url, FileName);
                 } return;
 
                 case DialogResult.Ignore: {

@@ -761,10 +761,12 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             string ETA = "Unknown";
             ExtendedMediaDetails MediaDetails;
             string BatchTime = BatchHelper.CurrentTime;
+            bool BatchHadErrors = false;
 
             for (int i = 0; i < lvQueuedMedia.Items.Count; i++) {
                 if ((bool)lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].Tag is not ExtendedMediaDetails)) {
                     lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Errored);
+                    BatchHadErrors = true;
                     continue;
                 }
                 else {
@@ -773,6 +775,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
                 if (!MediaDetails.InfoRetrieved) {
                     lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Errored);
+                    BatchHadErrors = true;
                     continue;
                 }
 
@@ -781,6 +784,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 MediaDetails.BatchDownloadTime = BatchTime;
                 if (!MediaDetails.GenerateArguments()) {
                     lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Errored);
+                    BatchHadErrors = true;
                     continue;
                 }
                 args = MediaDetails.Arguments;
@@ -924,7 +928,11 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 DownloadProcess.WaitForExit();
 
                 if (Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
-                    lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = DownloadProcess.ExitCode == 0 ? StatusIcon.Finished : StatusIcon.Errored);
+                    bool ItemSucceeded = DownloadProcess.ExitCode == 0;
+                    if (!ItemSucceeded) {
+                        BatchHadErrors = true;
+                    }
+                    lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = ItemSucceeded ? StatusIcon.Finished : StatusIcon.Errored);
                 }
                 else {
                     lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Waiting);
@@ -939,6 +947,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             }
 
             this.Invoke(() => {
+                if (Status == DownloadStatus.Downloading && BatchHadErrors) {
+                    Status = DownloadStatus.ProgramError;
+                }
+
                 switch (Status) {
                     case DownloadStatus.Aborted: {
                         rtbVerbose.AppendLine("Aborted download");

@@ -23,7 +23,7 @@ public sealed class FfprobeData {
             }
         }
 
-        Process Enumeration = new() {
+        using Process Enumeration = new() {
             StartInfo = new() {
                 Arguments = $"-v quiet -print_format json -show_format -show_streams \"{MediaFile}\"",
                 FileName = Verification.FFprobePath,

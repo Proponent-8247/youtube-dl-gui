@@ -1498,6 +1498,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             else {
                 using frmAuthentication Auth = new();
                 if (Auth.ShowDialog() != DialogResult.OK) {
+                    lvQueuedMedia.Items.Remove(NewItem);
+                    NewItem.Tag = null;
+                    NewMedia.Dispose();
+                    sbtnDownload.Enabled = ProcessingThread?.IsAlive != true && lvQueuedMedia.Items.Count > 0;
                     return;
                 }
                 NewMedia.Authentication = Auth.Authentication;

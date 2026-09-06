@@ -87,7 +87,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         llbLink.Text = (Archived ? URL.Split(':')[1] : URL);
     }
     public frmExtendedDownloader(string URL, string? CustomArguments, bool Archived) : this(URL, Archived) {
-        txtCustomArguments.Text = CustomArguments.IsNullEmptyWhitespace() ? string.Empty : CustomArguments;
+        string InitialCustomArguments = CustomArguments.IsNullEmptyWhitespace() ? string.Empty : CustomArguments;
+        txtCustomArguments.Text = InitialCustomArguments;
+        MediaDetails!.CustomArguments = InitialCustomArguments;
         pnBatchDownload.Enabled = pnBatchDownload.Visible = false;
     }
     public frmExtendedDownloader(string URL, string? CustomArguments, bool Archived, AuthenticationDetails? Auth) : this(URL, CustomArguments, Archived, Auth, ArgumentType.NoArguments) { }

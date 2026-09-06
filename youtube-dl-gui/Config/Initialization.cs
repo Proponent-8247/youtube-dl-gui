@@ -7,7 +7,7 @@ internal static class Initialization {
         ffirstTime = IniProvider.Read(firstTime, true);
         fLanguageFile = IniProvider.Read(LanguageFile, string.Empty);
         fSkippedVersion = IniProvider.Read(SkippedVersion, Version.Empty);
-        fSkippedBetaVersion = IniProvider.Read(SkippedVersion, Version.Empty);
+        fSkippedBetaVersion = IniProvider.Read(SkippedBetaVersion, Version.Empty);
         ScreenshotMode = IniProvider.Read(ScreenshotMode, false);
         WritePercentageToConsole = IniProvider.Read(WritePercentageToConsole, false);
     }

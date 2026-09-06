@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "Controls/ManagedHttpClient.cs",
+      "old": "UmVzcG9uc2UuQ29udGVudC5IZWFkZXJzLkNvbnRlbnRUeXBlLkNoYXJTZXQgPz8gInV0Zi04Ig==",
+      "new": "UmVzcG9uc2UuQ29udGVudC5IZWFkZXJzLkNvbnRlbnRUeXBlPy5DaGFyU2V0ID8/ICJ1dGYtOCI=",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: tolerate missing HTTP content type"
+}

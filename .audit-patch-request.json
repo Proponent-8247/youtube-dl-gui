@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/ExtendedMediaDetails.cs",
+      "old": "ICAgICAgICAgICAgaWYgKERvd25sb2Fkcy5TYXZlQW5ub3RhdGlvbnMpIHsNCiAgICAgICAgICAgICAgICBBcmd1bWVudEJ1ZmZlci5BZGQoIi0td3JpdGUtYW5ub3RhdGlvbnMiKTsNCiAgICAgICAgICAgIH0NCg==",
+      "new": "ICAgICAgICAgICAgaWYgKERvd25sb2Fkcy5TYXZlQW5ub3RhdGlvbnMNCiAgICAgICAgICAgICYmIChEb3dubG9hZHMuWXRkbFR5cGUgPT0gKGludClHaXRJRC5Zb3V0dWJlRGwgfHwgRG93bmxvYWRzLll0ZGxUeXBlID09IChpbnQpR2l0SUQuWW91dHViZURsTmlnaHRseSkpIHsNCiAgICAgICAgICAgICAgICBBcmd1bWVudEJ1ZmZlci5BZGQoIi0td3JpdGUtYW5ub3RhdGlvbnMiKTsNCiAgICAgICAgICAgIH0NCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: skip annotations for yt-dlp in extended downloader"
+}

@@ -754,7 +754,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
                 ProtectedArguments.Append("--cookies ***");
             }
             if (!Authentication.CookiesFromBrowser.IsNullEmptyWhitespace()) {
-                ArgumentBuffer.Add("--cookies-from-browser " + Authentication.CookiesFromBrowser);
+                ArgumentBuffer.Add("--cookies-from-browser \"" + Authentication.CookiesFromBrowser + "\"");
                 ProtectedArguments.Append(" --cookies-from-browser ***");
             }
         }

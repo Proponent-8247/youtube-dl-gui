@@ -444,7 +444,7 @@ public sealed class DownloadInfo {
                     Authentication.CookiesFile = null;
                 }
                 if (!Authentication.CookiesFromBrowser.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--cookies-from-browser {Authentication.CookiesFromBrowser}");
+                    ArgumentsBuffer.Add($"--cookies-from-browser \"{Authentication.CookiesFromBrowser}\"");
                     PreviewArguments.Add("--cookies-from-browser ***");
                     Authentication.CookiesFromBrowser = null;
                 }

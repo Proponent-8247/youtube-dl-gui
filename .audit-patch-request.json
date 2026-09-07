@@ -1,0 +1,17 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmBatchDownloader.cs",
+      "old": "ICAgICAgICBidG5CYXRjaERvd25sb2FkU3RhcnRTdG9wRXhpdC5UZXh0ID0gTGFuZ3VhZ2UuR2VuZXJpY1N0YXJ0Ow0K",
+      "new": "ICAgICAgICBidG5CYXRjaERvd25sb2FkU3RhcnRTdG9wRXhpdC5UZXh0ID0gSW5Qcm9ncmVzcyA/IExhbmd1YWdlLkdlbmVyaWNTdG9wIDogTGFuZ3VhZ2UuR2VuZXJpY1N0YXJ0Ow0K",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmBatchConverter.cs",
+      "old": "ICAgICAgICBidG5CYXRjaENvbnZlcnRlclN0YXJ0U3RvcEV4aXQuVGV4dCA9IExhbmd1YWdlLkdlbmVyaWNTdGFydDsNCg==",
+      "new": "ICAgICAgICBidG5CYXRjaENvbnZlcnRlclN0YXJ0U3RvcEV4aXQuVGV4dCA9IEluUHJvZ3Jlc3MgPyBMYW5ndWFnZS5HZW5lcmljU3RvcCA6IExhbmd1YWdlLkdlbmVyaWNTdGFydDsNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: preserve active batch stop labels on localization"
+}

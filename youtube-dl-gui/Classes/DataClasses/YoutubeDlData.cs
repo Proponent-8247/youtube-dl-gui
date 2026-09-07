@@ -49,7 +49,7 @@ internal sealed class YoutubeDlData {
             Arguments.Add(GenerateCommand);
         }
 
-        if (Downloads.RetryAttempts != 10 && Downloads.RetryAttempts > 0) {
+        if (Downloads.RetryAttempts != 10 && Downloads.RetryAttempts >= 0) {
             Arguments.Add("--retries " + Downloads.RetryAttempts);
         }
 

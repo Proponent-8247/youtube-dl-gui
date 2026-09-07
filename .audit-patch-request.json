@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "Controls/BetterFolderBrowser.cs",
+      "old": "ICAgICAgICBwdWJsaWMgQmV0dGVyRm9sZGVyQnJvd3NlcihJQ29udGFpbmVyIGNvbnRhaW5lcikgew0KICAgICAgICAgICAgY29udGFpbmVyLkFkZCh0aGlzKTsNCiAgICAgICAgICAgIEluaXRpYWxpemVDb21wb25lbnQoKTsNCiAgICAgICAgICAgIFNldERlZmF1bHRzKCk7DQogICAgICAgIH0NCg==",
+      "new": "ICAgICAgICBwdWJsaWMgQmV0dGVyRm9sZGVyQnJvd3NlcihJQ29udGFpbmVyIGNvbnRhaW5lcikgOiB0aGlzKCkgew0KICAgICAgICAgICAgY29udGFpbmVyLkFkZCh0aGlzKTsNCiAgICAgICAgICAgIFNldERlZmF1bHRzKCk7DQogICAgICAgIH0NCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: initialize container folder browser dialog"
+}

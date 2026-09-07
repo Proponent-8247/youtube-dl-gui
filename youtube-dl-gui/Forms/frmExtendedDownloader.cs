@@ -460,25 +460,45 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         try {
             Image? Thumb = MediaDetails.DownloadThumbnail();
             if (Thumb is null) {
-                this.Invoke(() => {
-                    btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = true;
-                    lbExtendedDownloaderDownloadingThumbnail.Text = Language.lbExtendedDownloaderDownloadingThumbnailFailed;
-                });
+                if (!this.IsDisposed && this.IsHandleCreated) {
+                    try {
+                        this.Invoke(() => {
+                            btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = true;
+                            lbExtendedDownloaderDownloadingThumbnail.Text = Language.lbExtendedDownloaderDownloadingThumbnailFailed;
+                        });
+                    }
+                    catch (InvalidOperationException) { }
+                }
                 return;
             }
 
-            this.Invoke(() => {
-                pbThumbnail.Image = Thumb;
-                lbExtendedDownloaderDownloadingThumbnail.Visible = false;
-                btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = false;
-            });
+            bool ThumbnailAssigned = false;
+            if (!this.IsDisposed && this.IsHandleCreated) {
+                try {
+                    this.Invoke(() => {
+                        pbThumbnail.Image = Thumb;
+                        ThumbnailAssigned = true;
+                        lbExtendedDownloaderDownloadingThumbnail.Visible = false;
+                        btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = false;
+                    });
+                }
+                catch (InvalidOperationException) { }
+            }
+            if (!ThumbnailAssigned) {
+                Thumb.Dispose();
+            }
         }
         catch (ThreadAbortException) { throw; }
         catch (Exception ex) {
-            this.Invoke(() => {
-                btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = true;
-                lbExtendedDownloaderDownloadingThumbnail.Text = Language.lbExtendedDownloaderDownloadingThumbnailFailed;
-            });
+            if (!this.IsDisposed && this.IsHandleCreated) {
+                try {
+                    this.Invoke(() => {
+                        btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = true;
+                        lbExtendedDownloaderDownloadingThumbnail.Text = Language.lbExtendedDownloaderDownloadingThumbnailFailed;
+                    });
+                }
+                catch (InvalidOperationException) { }
+            }
             Log.Write($"Thumbnail processing failed for \"{MediaDetails.URL}\": {ex}");
         }
     }

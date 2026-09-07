@@ -415,13 +415,18 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             }
             catch (ThreadAbortException) { }
             catch (DownloadException dex) {
-                this.Invoke(() => {
-                    sbtnDownload.Enabled = true;
-                    sbtnDownload.Text = Language.GenericRetry;
-                    txtExtendedDownloaderMediaTitle.Text = "Failed to retrieve download info";
-                    rtbVerbose.AppendText(dex.Message);
-                });
                 FailedInfoRetrieval = true;
+                if (!this.IsDisposed && this.IsHandleCreated) {
+                    try {
+                        this.Invoke(() => {
+                            sbtnDownload.Enabled = true;
+                            sbtnDownload.Text = Language.GenericRetry;
+                            txtExtendedDownloaderMediaTitle.Text = "Failed to retrieve download info";
+                            rtbVerbose.AppendText(dex.Message);
+                        });
+                    }
+                    catch (InvalidOperationException) { }
+                }
             }
             catch (Exception ex) {
                 FailedInfoRetrieval = true;
@@ -1696,11 +1701,14 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     catch (DownloadException ex) {
                         Log.Write($"Unable to retrieve queued media details for \"{CurrentMedia.URL}\": {ex.Message}");
                         if (!this.IsDisposed && this.IsHandleCreated) {
-                            this.Invoke(() => {
-                                if (CurrentMedia.QueueItem is not null && lvQueuedMedia.Items.Contains(CurrentMedia.QueueItem)) {
-                                    CurrentMedia.QueueItem.ImageIndex = StatusIcon.Errored;
-                                }
-                            });
+                            try {
+                                this.Invoke(() => {
+                                    if (CurrentMedia.QueueItem is not null && lvQueuedMedia.Items.Contains(CurrentMedia.QueueItem)) {
+                                        CurrentMedia.QueueItem.ImageIndex = StatusIcon.Errored;
+                                    }
+                                });
+                            }
+                            catch (InvalidOperationException) { }
                         }
                         continue;
                     }

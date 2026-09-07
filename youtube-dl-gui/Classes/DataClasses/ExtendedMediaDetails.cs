@@ -691,7 +691,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
                     '/');
             }
 
-            if (Downloads.RetryAttempts != 10 && Downloads.RetryAttempts > 0) {
+            if (Downloads.RetryAttempts != 10 && Downloads.RetryAttempts >= 0) {
                 ArgumentBuffer.Add("--retries " + Downloads.RetryAttempts);
             }
 

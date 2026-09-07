@@ -357,7 +357,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                 });
             }
 
-            if (Downloads.RetryAttempts != 10 && Downloads.RetryAttempts > 0) {
+            if (Downloads.RetryAttempts != 10 && Downloads.RetryAttempts >= 0) {
                 ArgumentsBuffer.Add($"--retries {Downloads.RetryAttempts}");
             }
 

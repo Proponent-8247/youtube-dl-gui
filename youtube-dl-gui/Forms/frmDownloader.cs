@@ -12,8 +12,8 @@ internal partial class frmDownloader : LocalizedProcessingForm {
 
     public frmDownloader(DownloadInfo Info) {
         InitializeComponent();
-        LoadLanguage();
         CurrentDownload = Info;
+        LoadLanguage();
     }
 
     public void RetryOrAbort() {
@@ -78,8 +78,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
         this.Text = Language.frmDownloader + " ";
         btnDownloaderRetryAbortBatch.Text = Language.btnDownloaderAbortBatch;
         btnClearOutput.Text = Language.GenericClear;
-        btnDownloaderCancelExit.Text = Language.GenericSkip;
-        btnDownloaderCancelExit.Text = Language.GenericCancel;
+        btnDownloaderCancelExit.Text = CurrentDownload.BatchDownload ? Language.GenericSkip : Language.GenericCancel;
         chkDownloaderCloseAfterDownload.Text = Language.chkDownloaderCloseAfterDownload;
         chkDownloaderCloseAfterDownload.Checked = Downloads.CloseDownloaderAfterFinish;
 

@@ -161,7 +161,7 @@ public partial class frmMain : LocalizedForm {
             System.IO.File.Delete(Environment.CurrentDirectory + "\\youtube-dl-gui-updater.exe");
         }
         if (General.DeleteBackupOnStartup) {
-            System.IO.File.Delete(Environment.CurrentDirectory + "\\youtube-dl-gui.old.exe");
+            System.IO.File.Delete(Program.FullProgramPath + ".old");
         }
     }
 

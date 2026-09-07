@@ -198,7 +198,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
         ofd.Filter = "All files (*.*)|*.*";
         if (ofd.ShowDialog() == DialogResult.OK) {
             if (System.IO.File.Exists(ofd.FileName)) {
-                cbArguments.Text = System.IO.File.ReadAllText(ofd.FileName).Trim(' ').Replace('\n', ' ').Trim(' ');
+                cbArguments.Text = System.IO.File.ReadAllText(ofd.FileName).Trim(' ').Replace('\r', ' ').Replace('\n', ' ').Trim(' ');
             }
         }
     }

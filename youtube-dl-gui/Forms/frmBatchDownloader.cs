@@ -564,7 +564,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
                 Application.ApplicationExit += ApplicationExit;
                 chkBatchDownloadClipboardScanVerifyLinks.Enabled = true;
                 ClipboardScannerActive = true;
-                Log.Write("Clipboard scanning for batch download queueing stopped.");
+                Log.Write("Clipboard scanning for batch download queueing started.");
             }
             else {
                 chkBatchDownloadClipboardScanner.Checked = false;
@@ -576,7 +576,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
                     Application.ApplicationExit -= ApplicationExit;
                     chkBatchDownloadClipboardScanVerifyLinks.Enabled = false;
                     ClipboardScannerActive = false;
-                    Log.Write("Clipboard scanning for batch download queueing started.");
+                    Log.Write("Clipboard scanning for batch download queueing stopped.");
                 }
             }
         }

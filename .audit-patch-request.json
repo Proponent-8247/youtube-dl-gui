@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Logging/Forms/frmLog.cs",
+      "old": "ICAgICAgICBMYW5ndWFnZS5VbnJlZ2lzdGVyRm9ybSh0aGlzKTs=",
+      "new": "",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: keep hidden log viewer localized"
+}

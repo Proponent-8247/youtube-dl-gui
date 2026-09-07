@@ -715,16 +715,7 @@ internal static class Program {
             }
             catch (NotSupportedException) {
                 UpdaterEnabled = false;
-
-                try { //try TLS 1.1
-                    System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls11
-                                                                    |  System.Net.SecurityProtocolType.Tls;
-                    Log.Write("TLS 1.1 will be used, Github updating may be affected.");
-                }
-                catch (NotSupportedException) { //TLS 1.0
-                    System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls;
-                    Log.Write("TLS 1.0 will be used, Github updating may be affected.");
-                }
+                Log.Write("TLS 1.2+ is unavailable; Github updating is disabled.");
             }
         }
     }

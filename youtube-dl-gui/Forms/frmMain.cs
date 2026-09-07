@@ -158,10 +158,20 @@ public partial class frmMain : LocalizedForm {
         }
 
         if (General.DeleteUpdaterOnStartup) {
-            System.IO.File.Delete(Environment.CurrentDirectory + "\\youtube-dl-gui-updater.exe");
+            try {
+                System.IO.File.Delete(Environment.CurrentDirectory + "\\youtube-dl-gui-updater.exe");
+            }
+            catch (Exception ex) {
+                Log.Write($"Failed to delete the updater during startup cleanup: {ex.Message}");
+            }
         }
         if (General.DeleteBackupOnStartup) {
-            System.IO.File.Delete(Program.FullProgramPath + ".old");
+            try {
+                System.IO.File.Delete(Program.FullProgramPath + ".old");
+            }
+            catch (Exception ex) {
+                Log.Write($"Failed to delete the previous-version backup during startup cleanup: {ex.Message}");
+            }
         }
     }
 

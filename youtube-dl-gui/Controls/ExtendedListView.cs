@@ -46,7 +46,7 @@ internal class ExtendedListView : ListView {
         }
 
         for (int i = 0; i < Values.Length; i++) {
-            if (int.TryParse(Values[i], out int Width)) {
+            if (int.TryParse(Values[i], out int Width) && Width >= -2) {
                 this.Columns[i].Width = Width;
             }
         }

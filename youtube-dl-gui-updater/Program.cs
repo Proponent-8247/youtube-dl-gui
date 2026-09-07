@@ -46,8 +46,8 @@ static class Program {
                             BreakLoop = true;
                             break;
                         }
-                        if (int.TryParse(args[i], out int hwnd))
-                            Handle = hwnd;
+                        if (long.TryParse(args[i], out long hwnd))
+                            Handle = (nint)hwnd;
                     }
                     break;
                     case "-pid": {

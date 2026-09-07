@@ -183,18 +183,23 @@ internal partial class frmUpdater : Form {
             pbDownloadProgress.ProgressState = ProgressState.Error;
             pbDownloadProgress.Text = Language.pbDownloadProgressErrorProcessingDownload;
 
-            if (MovedNewVersion) {
-                File.Delete(UpdateData.FileName);
-                if (MovedOldVersion && File.Exists(BackupLocation)) {
+            try {
+                if (MovedNewVersion) {
+                    File.Delete(UpdateData.FileName);
+                    if (MovedOldVersion && File.Exists(BackupLocation)) {
+                        File.Move(BackupLocation, UpdateData.FileName);
+                    }
+                }
+                else if (MovedOldVersion && File.Exists(BackupLocation)) {
                     File.Move(BackupLocation, UpdateData.FileName);
                 }
+                else if (File.Exists(UpdateDestination)) {
+                    File.Delete(UpdateDestination);
+                    pbDownloadProgress.Text = Language.pbDownloadProgressErrorDownloading;
+                }
             }
-            else if (MovedOldVersion && File.Exists(BackupLocation)) {
-                File.Move(BackupLocation, UpdateData.FileName);
-            }
-            else if (File.Exists(UpdateDestination)) {
-                File.Delete(UpdateDestination);
-                pbDownloadProgress.Text = Language.pbDownloadProgressErrorDownloading;
+            catch (Exception rollbackEx) {
+                Log.ReportException(rollbackEx, "The update failed and the previous application version could not be restored.", this);
             }
         }
     }

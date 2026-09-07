@@ -34,7 +34,7 @@ internal partial class frmLog : Form, ILocalizedForm {
         e.Cancel = true;
         this.Hide();
         IsShown = false;
-        Language.UnregisterForm(this);
+
     }
 
     public void LoadLanguage() {

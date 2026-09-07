@@ -1748,7 +1748,8 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     }
 
                     // If the queued list does not have the finished queued item, skip it
-                    if (!lvQueuedMedia.Items.Contains(CurrentMedia.QueueItem) || (CurrentMedia.QueueItem is null || CurrentMedia.MediaData is null)) {
+                    if (CurrentMedia.QueueItem is null || CurrentMedia.MediaData is null
+                    || !(bool)lvQueuedMedia.Invoke(() => lvQueuedMedia.Items.Contains(CurrentMedia.QueueItem))) {
                         continue;
                     }
 

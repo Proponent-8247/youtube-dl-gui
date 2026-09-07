@@ -107,6 +107,9 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
             }
             if (Batch.SelectedAudioFormat >= -1 && Batch.SelectedAudioFormat < cbBatchFormat.Items.Count) cbBatchFormat.SelectedIndex = Batch.SelectedAudioFormat;
         }
+        else if (Batch.SelectedType == 2) {
+            cbArguments.Text = Batch.CustomArguments;
+        }
 
         if (Saved.BatchDownloaderLocation.Valid) {
             this.StartPosition = FormStartPosition.Manual;

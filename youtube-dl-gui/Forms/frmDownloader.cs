@@ -17,6 +17,18 @@ internal partial class frmDownloader : LocalizedProcessingForm {
     }
 
     public void RetryOrAbort() {
+        if (CurrentDownload.BatchDownload) {
+            switch (CurrentDownload.Status) {
+                case DownloadStatus.YtdlError:
+                case DownloadStatus.ProgramError:
+                case DownloadStatus.Aborted:
+                    AbortBatch = true;
+                    CurrentDownload.Status = DownloadStatus.Aborted;
+                    this.Close();
+                    return;
+            }
+        }
+
         switch (CurrentDownload.Status) {
             case DownloadStatus.YtdlError:
             case DownloadStatus.ProgramError:

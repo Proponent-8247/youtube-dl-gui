@@ -613,6 +613,9 @@ public partial class frmMain : LocalizedForm {
     #endregion
 
     #region downloader
+    private static int RestoreSavedIndex(ComboBox Control, int Index) =>
+        Index >= 0 && Index < Control.Items.Count ? Index : 0;
+
     private void rbVideo_CheckedChanged(object sender, EventArgs e) {
         if (!rbVideo.Checked)
             return;
@@ -632,8 +635,8 @@ public partial class frmMain : LocalizedForm {
         chkDownloadSound.Enabled = true;
         chkDownloadSound.Text = Language.GenericSound;
         if (Downloads.SaveFormatQuality) {
-            cbQuality.SelectedIndex = Saved.videoQuality;
-            cbFormat.SelectedIndex = Saved.VideoFormat;
+            cbQuality.SelectedIndex = RestoreSavedIndex(cbQuality, Saved.videoQuality);
+            cbFormat.SelectedIndex = RestoreSavedIndex(cbFormat, Saved.VideoFormat);
             chkDownloadSound.Checked = Downloads.VideoDownloadSound;
         }
         else {
@@ -668,8 +671,8 @@ public partial class frmMain : LocalizedForm {
         chkDownloadSound.Checked = Downloads.AudioDownloadAsVBR;
         chkDownloadSound.Text = "VBR";
         if (Downloads.SaveFormatQuality) {
-            cbQuality.SelectedIndex = Downloads.AudioDownloadAsVBR ? Saved.AudioVBRQuality : Saved.audioQuality;
-            cbFormat.SelectedIndex = Saved.AudioFormat;
+            cbQuality.SelectedIndex = RestoreSavedIndex(cbQuality, Downloads.AudioDownloadAsVBR ? Saved.AudioVBRQuality : Saved.audioQuality);
+            cbFormat.SelectedIndex = RestoreSavedIndex(cbFormat, Saved.AudioFormat);
         }
         else {
             cbQuality.SelectedIndex = 0;
@@ -701,12 +704,12 @@ public partial class frmMain : LocalizedForm {
             if (chkDownloadSound.Checked) {
                 cbQuality.SelectedIndex = -1;
                 cbQuality.Items.AddRange(Formats.VbrQualities);
-                cbQuality.SelectedIndex = Downloads.SaveFormatQuality ? Saved.AudioVBRQuality : 0;
+                cbQuality.SelectedIndex = Downloads.SaveFormatQuality ? RestoreSavedIndex(cbQuality, Saved.AudioVBRQuality) : 0;
             }
             else {
                 cbQuality.Items.AddRange(Formats.AudioQualityNamesArray);
                 cbQuality.Items[0] = Language.GenericInputBest;
-                cbQuality.SelectedIndex = Downloads.SaveFormatQuality ? Saved.audioQuality : 0;
+                cbQuality.SelectedIndex = Downloads.SaveFormatQuality ? RestoreSavedIndex(cbQuality, Saved.audioQuality) : 0;
             }
         }
     }

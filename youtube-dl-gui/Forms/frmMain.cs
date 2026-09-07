@@ -619,6 +619,7 @@ public partial class frmMain : LocalizedForm {
 
     private void cmTrayExit_Click(object sender, EventArgs e) {
         trayIcon.Visible = false;
+        this.Close();
         Environment.Exit(0);
     }
     #endregion

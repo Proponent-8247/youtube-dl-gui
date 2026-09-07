@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmBatchDownloader.cs",
+      "old": "ICAgICAgICAgICAgICAgIGNiQmF0Y2hRdWFsaXR5Lkl0ZW1zLkFkZFJhbmdlKG5ldyBzdHJpbmdbXSB7IFwiMFwiLCBcIjFcIiwgXCIyXCIsIFwiM1wiLCBcIjRcIiwgXCI1XCIsIFwiNlwiLCBcIjdcIiwgXCI4XCIsIFwiOVwiIH0pOw0K",
+      "new": "ICAgICAgICAgICAgICAgIGNiQmF0Y2hRdWFsaXR5Lkl0ZW1zLkFkZFJhbmdlKEZvcm1hdHMuVmJyUXVhbGl0aWVzKTsNCg==",
+      "count": 2
+    }
+  ],
+  "commit_message": "fix: expose VBR quality 10 in batch downloads"
+}

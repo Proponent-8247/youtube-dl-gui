@@ -33,12 +33,12 @@ public partial class frmMiscTools : LocalizedForm {
             }
 
             Process ffmpeg = new() {
-                StartInfo = new("cmd") {
+                StartInfo = new(Verification.FFmpegPath ?? "ffmpeg") {
                     UseShellExecute = false,
                     //RedirectStandardInput = true,
                     //RedirectStandardOutput = true,
                     //CreateNoWindow = true,
-                    Arguments = string.Format("/c \"{0}\"", "\"" + (Verification.FFmpegPath ?? "ffmpeg") + "\" -i \"" + ofd.FileName + "\" -c copy -an \"" + newFile + "\""),
+                    Arguments = "-i " + ArgumentList.EscapeArgument(ofd.FileName) + " -c copy -an " + ArgumentList.EscapeArgument(newFile),
                 }
             };
             ffmpeg.Start();
@@ -60,12 +60,12 @@ public partial class frmMiscTools : LocalizedForm {
                 string newFile = sfd.FileName;
 
                 Process ffmpeg = new() {
-                    StartInfo = new("cmd") {
+                    StartInfo = new(Verification.FFmpegPath ?? "ffmpeg") {
                         UseShellExecute = false,
                         //RedirectStandardInput = true,
                         //RedirectStandardOutput = true,
                         //CreateNoWindow = true,
-                        Arguments = string.Format("/c \"{0}\"", "\"" + (Verification.FFmpegPath ?? "ffmpeg") + "\" -i \"" + ofd.FileName + "\" \"" + newFile + "\""),
+                        Arguments = "-i " + ArgumentList.EscapeArgument(ofd.FileName) + " " + ArgumentList.EscapeArgument(newFile),
                     }
                 };
                 ffmpeg.Start();
@@ -82,10 +82,10 @@ public partial class frmMiscTools : LocalizedForm {
 
             try {
                 using Process ffmpeg = new() {
-                    StartInfo = new("cmd") {
+                    StartInfo = new(Verification.FFmpegPath ?? "ffmpeg") {
                         UseShellExecute = false,
                         WorkingDirectory = FrameDirectory,
-                        Arguments = string.Format("/c \"{0}\"", "\"" + (Verification.FFmpegPath ?? "ffmpeg") + "\" -i \"" + ofd.FileName + "\" -vf scale=320:-1:flags=lanczos,fps=10 outframes%03d.png"),
+                        Arguments = "-i " + ArgumentList.EscapeArgument(ofd.FileName) + " -vf scale=320:-1:flags=lanczos,fps=10 outframes%03d.png",
                     }
                 };
                 ffmpeg.Start();

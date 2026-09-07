@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Controls/ExtendedListView.cs",
+      "old": "ICAgICAgICAgICAgaWYgKGludC5UcnlQYXJzZShWYWx1ZXNbaV0sIG91dCBpbnQgV2lkdGgpKSB7DQo=",
+      "new": "ICAgICAgICAgICAgaWYgKGludC5UcnlQYXJzZShWYWx1ZXNbaV0sIG91dCBpbnQgV2lkdGgpICYmIFdpZHRoID49IC0yKSB7DQo=",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: guard stale saved column widths"
+}

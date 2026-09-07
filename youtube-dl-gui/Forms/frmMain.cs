@@ -581,14 +581,19 @@ public partial class frmMain : LocalizedForm {
             return;
         }
 
-        int CustomArgumentIndex = Saved.CustomArgumentsIndex + (rbCustom.Checked ? 0 : 1);
-        if (CustomArgumentIndex < 0 || CustomArgumentIndex >= cbCustomArguments.Items.Count) {
+        if (Saved.DownloadCustomArguments.IsNullEmptyWhitespace()) {
+            Log.MessageBox(Language.dlgMainArgsNoneSaved);
+            return;
+        }
+
+        string[] SettingsArguments = Saved.DownloadCustomArguments.Trim('|', ' ').Split('|');
+        if (Saved.CustomArgumentsIndex >= SettingsArguments.Length || SettingsArguments[Saved.CustomArgumentsIndex].IsNullEmptyWhitespace()) {
             Log.MessageBox(Language.dlgMainArgsNoneSaved);
             return;
         }
 
         DownloadInfo NewInfo = new(Clipboard.GetText()) {
-            CustomArguments = cbCustomArguments.Items[CustomArgumentIndex] as string,
+            CustomArguments = SettingsArguments[Saved.CustomArgumentsIndex],
             Type = DownloadType.Custom,
         };
         frmDownloader Downloader = new(NewInfo);

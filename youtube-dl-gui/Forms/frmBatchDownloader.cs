@@ -175,10 +175,11 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
     }
 
     private void mBatchDownloaderLoadArgsFromSettings_Click(object sender, EventArgs e) {
-        if (CustomArguments.YtdlArguments.Count > 0) {
-            CustomArguments.YtdlArguments.For((Arg) => cbArguments.Items.Add(Arg));
-            if (Saved.CustomArgumentsIndex >= -1 && Saved.CustomArgumentsIndex < cbArguments.Items.Count) {
-                cbArguments.SelectedIndex = Saved.CustomArgumentsIndex;
+        if (!Saved.DownloadCustomArguments.IsNullEmptyWhitespace()) {
+            string[] SettingsArguments = Saved.DownloadCustomArguments.Trim('|', ' ').Split('|');
+            cbArguments.Items.AddRange(SettingsArguments);
+            if (Saved.CustomArgumentsIndex > -1 && Saved.CustomArgumentsIndex < SettingsArguments.Length) {
+                cbArguments.Text = SettingsArguments[Saved.CustomArgumentsIndex];
             }
         }
     }

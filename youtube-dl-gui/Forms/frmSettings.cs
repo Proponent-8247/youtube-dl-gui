@@ -788,9 +788,14 @@ public partial class frmSettings : LocalizedForm {
                         WorkingDirectory = Environment.CurrentDirectory,
                     }
                 };
-                InstallerProcess.Start();
-                InstallerProcess.WaitForExit();
-                Result = InstallerProcess.ExitCode;
+                try {
+                    InstallerProcess.Start();
+                    InstallerProcess.WaitForExit();
+                    Result = InstallerProcess.ExitCode;
+                }
+                catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) {
+                    Result = 2;
+                }
             }
 
             switch (Result) {

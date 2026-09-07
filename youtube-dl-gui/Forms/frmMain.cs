@@ -1108,7 +1108,7 @@ public partial class frmMain : LocalizedForm {
                 if (!cbCustomArguments.Text.IsNullEmptyWhitespace()) {
                     NewInfo.CustomArguments = cbCustomArguments.Text;
                     if (!cbCustomArguments.Items.Contains(cbCustomArguments.Text)) {
-                        cbCustomArguments.Items.Add(cbCustomArguments.Text);
+                        cbCustomArguments.SelectedIndex = cbCustomArguments.Items.Add(cbCustomArguments.Text);
                         CustomArguments.AddYtdlArgument(cbCustomArguments.Text, true);
                     }
                 }

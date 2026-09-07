@@ -33,7 +33,7 @@ public partial class frmBatchConverter : LocalizedProcessingForm {
     public override void LoadLanguage() {
         btnBatchConverterAdd.Text = Language.GenericAdd;
         btnBatchConverterRemoveSelected.Text = Language.GenericRemoveSelected;
-        btnBatchConverterStartStopExit.Text = Language.GenericStart;
+        btnBatchConverterStartStopExit.Text = InProgress ? Language.GenericStop : Language.GenericStart;
         this.Text = Language.frmBatchConverter;
         lbBatchConverterInput.Text = Language.lbBatchConverterInput;
         txtBatchConverterInputFile.TextHint = Language.txtBatchConverterInputFile;

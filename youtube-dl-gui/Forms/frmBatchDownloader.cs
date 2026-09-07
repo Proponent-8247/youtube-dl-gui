@@ -64,7 +64,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
         mBatchDownloaderImportLinksFromFile.Text = Language.mBatchDownloaderImportLinksFromFile;
         mBatchDownloaderImportLinksFromClipboard.Text = Language.mBatchDownloaderImportLinksFromClipboard;
         btnBatchDownloadRemoveSelected.Text = Language.GenericRemoveSelected;
-        btnBatchDownloadStartStopExit.Text = Language.GenericStart;
+        btnBatchDownloadStartStopExit.Text = InProgress ? Language.GenericStop : Language.GenericStart;
         lvBatchDownloadQueue.Columns[1].Text = Language.lbBatchDownloadType;
         lvBatchDownloadQueue.Columns[2].Text = Language.lbBatchDownloadVideoSpecificArgument;
         if (cbBatchDownloadType.Items.Count < 3) {

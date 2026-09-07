@@ -153,14 +153,16 @@ internal static class Updater {
             return;
         }
 
-        Process Updater = new() {
+        using Process CurrentProcess = Process.GetCurrentProcess();
+        int ProcessId = CurrentProcess.Id;
+        using Process Updater = new() {
             StartInfo = new() {
-                Arguments = $"-pid {Process.GetCurrentProcess().Id} -hwnd {Program.GetMessagesHandle()}",
+                Arguments = $"-pid {ProcessId} -hwnd {Program.GetMessagesHandle()}",
                 FileName = UpdaterPath,
                 WorkingDirectory = Environment.CurrentDirectory
             }
         };
-        Log.Write($"Using the pid {Process.GetCurrentProcess().Id} with hwnd {Program.GetMessagesHandle()}");
+        Log.Write($"Using the pid {ProcessId} with hwnd {Program.GetMessagesHandle()}");
         Updater.Start();
     }
 
@@ -249,7 +251,7 @@ internal static class Updater {
 
             Log.Write("Using youtube-dls' internal updater to update the program.");
 
-            Process UpdateYoutubeDl = new() {
+            using Process UpdateYoutubeDl = new() {
                 StartInfo = new(Verification.YoutubeDlPath) {
                     Arguments = "-U",
                 }

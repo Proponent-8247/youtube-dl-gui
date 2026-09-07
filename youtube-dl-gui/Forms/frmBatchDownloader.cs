@@ -136,6 +136,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
             this.Opacity = 0;
             this.WindowState = FormWindowState.Normal;
         }
+        SaveCurrentSelection();
         Batch.ClipboardScannerVerifyLinks = chkBatchDownloadClipboardScanVerifyLinks.Checked;
         Saved.BatchDownloaderLocation = this.Location;
         this.Dispose();
@@ -416,6 +417,30 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
         sbBatchDownloadLoadArgs.Visible = Custom;
     }
 
+    private void SaveCurrentSelection() {
+        Batch.SelectedType = cbBatchDownloadType.SelectedIndex;
+        switch (cbBatchDownloadType.SelectedIndex) {
+            case 0:
+                Batch.SelectedVideoQuality = cbBatchQuality.SelectedIndex;
+                Batch.SelectedVideoFormat = cbBatchFormat.SelectedIndex;
+                Batch.DownloadVideoSound = chkBatchDownloaderSoundVBR.Checked;
+                break;
+            case 1:
+                Batch.DownloadAudioVBR = chkBatchDownloaderSoundVBR.Checked;
+                if (chkBatchDownloaderSoundVBR.Checked) {
+                    Batch.SelectedAudioQualityVBR = cbBatchQuality.SelectedIndex;
+                }
+                else {
+                    Batch.SelectedAudioQuality = cbBatchQuality.SelectedIndex;
+                }
+                Batch.SelectedAudioFormat = cbBatchFormat.SelectedIndex;
+                break;
+            case 2:
+                Batch.CustomArguments = cbArguments.Text;
+                break;
+        }
+    }
+
     private void AddItemToList(string URL) {
         if (!string.IsNullOrWhiteSpace(URL) && cbBatchDownloadType.SelectedIndex != -1) {
             for (int i = 0; i < lvBatchDownloadQueue.Items.Count; i++) {
@@ -465,6 +490,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
             DownloadFormat.Add(cbBatchFormat.SelectedIndex);
             DownloadSoundVBR.Add(chkBatchDownloaderSoundVBR.Checked);
             lvBatchDownloadQueue.Items.Add(lvi);
+            SaveCurrentSelection();
 
             btnBatchDownloadStartStopExit.Enabled = true;
         }

@@ -889,7 +889,7 @@ public partial class frmMain : LocalizedForm {
                 BatchFormat = cbFormat.SelectedIndex;
                 if (!string.IsNullOrWhiteSpace(cbSchema.Text)) {
                     schema = cbSchema.Text;
-                    if (!Saved.FileNameSchemaHistory.Contains(cbSchema.Text)) {
+                    if (!Saved.FileNameSchemaHistory.Split('|').Contains(cbSchema.Text)) {
                         cbSchema.Items.Add(cbSchema.Text);
                         if (Saved.FileNameSchemaHistory == null) {
                             Saved.FileNameSchemaHistory = cbSchema.Text;

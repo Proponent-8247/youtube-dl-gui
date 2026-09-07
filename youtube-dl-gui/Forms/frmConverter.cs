@@ -95,7 +95,7 @@ public partial class frmConverter : LocalizedProcessingForm {
             case ConversionStatus.FfmpegError:
             case ConversionStatus.ProgramError: {
                 this.Text = Language.frmConverterError;
-                btnConverterAbortBatchConversions.Text = Language.GenericRetry;
+                btnConverterAbortBatchConversions.Text = CurrentConversion.BatchConversion ? Language.btnConverterAbortBatchConversions : Language.GenericRetry;
                 btnConverterCancelExit.Text = Language.GenericExit;
             } break;
         }
@@ -106,6 +106,13 @@ public partial class frmConverter : LocalizedProcessingForm {
             case ConversionStatus.FfmpegError:
             case ConversionStatus.ProgramError:
             case ConversionStatus.Aborted:
+                if (CurrentConversion.BatchConversion) {
+                    AbortBatch = true;
+                    CurrentConversion.Status = ConversionStatus.Aborted;
+                    this.Close();
+                    break;
+                }
+
                 btnConverterAbortBatchConversions.Visible = false;
                 btnConverterAbortBatchConversions.Enabled = false;
                 this.Text = Language.frmConverter + " ";

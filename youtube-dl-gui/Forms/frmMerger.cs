@@ -208,25 +208,37 @@ public partial class frmMerger : LocalizedForm {
         if (e.Node.Parent is null) {
             if (tvSelectedSources.Nodes[1].Nodes.Count > 0) {
                 for (int i = 0; i < tvSelectedSources.Nodes[1].Nodes.Count; i++) {
-                    tvSelectedStreams.Nodes[0].Nodes.Add(((FfprobeNodeTag)tvSelectedSources.Nodes[1].Nodes[i].Tag).Stream.QueuedNode);
+                    TreeNode? QueuedNode = ((FfprobeNodeTag)tvSelectedSources.Nodes[1].Nodes[i].Tag).Stream.QueuedNode;
+                    if (QueuedNode is not null && !tvSelectedStreams.Nodes[0].Nodes.Contains(QueuedNode)) {
+                        tvSelectedStreams.Nodes[0].Nodes.Add(QueuedNode);
+                    }
                 }
             }
 
             if (tvSelectedSources.Nodes[2].Nodes.Count > 0) {
                 for (int i = 0; i < tvSelectedSources.Nodes[2].Nodes.Count; i++) {
-                    tvSelectedStreams.Nodes[1].Nodes.Add(((FfprobeNodeTag)tvSelectedSources.Nodes[2].Nodes[i].Tag).Stream.QueuedNode);
+                    TreeNode? QueuedNode = ((FfprobeNodeTag)tvSelectedSources.Nodes[2].Nodes[i].Tag).Stream.QueuedNode;
+                    if (QueuedNode is not null && !tvSelectedStreams.Nodes[1].Nodes.Contains(QueuedNode)) {
+                        tvSelectedStreams.Nodes[1].Nodes.Add(QueuedNode);
+                    }
                 }
             }
 
             if (tvSelectedSources.Nodes[3].Nodes.Count > 0) {
                 for (int i = 0; i < tvSelectedSources.Nodes[3].Nodes.Count; i++) {
-                    tvSelectedStreams.Nodes[2].Nodes.Add(((FfprobeNodeTag)tvSelectedSources.Nodes[3].Nodes[i].Tag).Stream.QueuedNode);
+                    TreeNode? QueuedNode = ((FfprobeNodeTag)tvSelectedSources.Nodes[3].Nodes[i].Tag).Stream.QueuedNode;
+                    if (QueuedNode is not null && !tvSelectedStreams.Nodes[2].Nodes.Contains(QueuedNode)) {
+                        tvSelectedStreams.Nodes[2].Nodes.Add(QueuedNode);
+                    }
                 }
             }
 
             if (tvSelectedSources.Nodes[4].Nodes.Count > 0) {
                 for (int i = 0; i < tvSelectedSources.Nodes[4].Nodes.Count; i++) {
-                    tvSelectedStreams.Nodes[3].Nodes.Add(((FfprobeNodeTag)tvSelectedSources.Nodes[4].Nodes[i].Tag).Stream.QueuedNode);
+                    TreeNode? QueuedNode = ((FfprobeNodeTag)tvSelectedSources.Nodes[4].Nodes[i].Tag).Stream.QueuedNode;
+                    if (QueuedNode is not null && !tvSelectedStreams.Nodes[3].Nodes.Contains(QueuedNode)) {
+                        tvSelectedStreams.Nodes[3].Nodes.Add(QueuedNode);
+                    }
                 }
             }
 

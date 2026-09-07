@@ -30,9 +30,9 @@ static class Program {
         Language.LoadInternalEnglish();
 #else
         var Value = new StringBuilder(65535);
-        NativeMethods.GetPrivateProfileString("youtube-dl-gui", "LanguageFile", "${empty}", Value, 65535, $"{Environment.CurrentDirectory}\\youtube-dl-gui.ini");
+        NativeMethods.GetPrivateProfileString("youtube-dl-gui", "LanguageFile", "${empty}", Value, 65535, Path.Combine(ApplicationPath, "youtube-dl-gui.ini"));
         string LanguageFile = Value.ToString() == "${empty}" ? null : Value.ToString();
-        Language.LoadLanguage(LanguageFile);
+        Language.LoadLanguage(string.IsNullOrWhiteSpace(LanguageFile) ? null : Path.Combine(ApplicationPath, "lang", LanguageFile));
 #endif
 
         nint Handle = 0;

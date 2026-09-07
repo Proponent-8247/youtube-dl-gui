@@ -138,6 +138,7 @@ public static class Language {
                 return true;
             }
             else {
+                LoadInternalEnglish();
                 if (!LanguageFile.EndsWith(".ini")) { LanguageFile += ".ini"; }
 
                 if (File.Exists(LanguageFile)) {

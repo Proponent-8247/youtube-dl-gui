@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui-updater/Language.cs",
+      "old": "ICAgICAgICAgICAgICAgIFZhbHVlID0gSW5wdXQuU3Vic3RyaW5nKElucHV0LkluZGV4T2YoJz0nKSArIDEpLlRyaW0oKTsNCg==",
+      "new": "ICAgICAgICAgICAgICAgIFZhbHVlID0gSW5wdXQuU3Vic3RyaW5nKElucHV0LkluZGV4T2YoJz0nKSArIDEpLlRyaW0oKS5SZXBsYWNlKCJcXG4iLCAiXG4iKS5SZXBsYWNlKCJcXHIiLCAiXHIiKTsNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: decode updater language line breaks"
+}

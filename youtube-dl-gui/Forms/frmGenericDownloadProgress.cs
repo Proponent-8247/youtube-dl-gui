@@ -105,12 +105,30 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
     }
 
     private void OnProgressChanged(object sender, DownloadProgressChangedEventArgs e) {
-        this.Invoke(() => {
-            pbProgress.Value = (int)Math.Floor(e.Percentage);
-            pbProgress.Text = $"{e.Percentage:N2}% ({e.BytesReceived.SizeToString()} / {e.TotalBytesToReceive.SizeToString()})";
-        });
+        if (this.IsDisposed || !this.IsHandleCreated) {
+            return;
+        }
+
+        try {
+            this.Invoke(() => {
+                pbProgress.Value = (int)Math.Floor(e.Percentage);
+                pbProgress.Text = $"{e.Percentage:N2}% ({e.BytesReceived.SizeToString()} / {e.TotalBytesToReceive.SizeToString()})";
+            });
+        }
+        catch (InvalidOperationException) {
+            // The form can close after the handle check while a timer callback is being marshalled.
+        }
     }
     private void OnDownloadFinished(object sender, DownloadFinishedEventArgs e) {
-        this.Invoke(() => pbProgress.Value = 100);
+        if (this.IsDisposed || !this.IsHandleCreated) {
+            return;
+        }
+
+        try {
+            this.Invoke(() => pbProgress.Value = 100);
+        }
+        catch (InvalidOperationException) {
+            // The form can close after the handle check while completion is being marshalled.
+        }
     }
 }

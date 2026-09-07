@@ -232,7 +232,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
             cbBatchQuality.SelectedIndex = -1;
             cbBatchQuality.Items.Clear();
             if (chkBatchDownloaderSoundVBR.Checked) {
-                cbBatchQuality.Items.AddRange(new string[] { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" });
+                cbBatchQuality.Items.AddRange(Formats.VbrQualities);
                 if (Batch.SelectedAudioQualityVBR >= -1 && Batch.SelectedAudioQualityVBR < cbBatchQuality.Items.Count) cbBatchQuality.SelectedIndex = Batch.SelectedAudioQualityVBR;
             }
             else {
@@ -266,7 +266,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
 
                 case 1: {
                     if (Batch.DownloadAudioVBR) {
-                        cbBatchQuality.Items.AddRange(new string[] { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" });
+                        cbBatchQuality.Items.AddRange(Formats.VbrQualities);
                         if (Batch.SelectedAudioQualityVBR >= -1 && Batch.SelectedAudioQualityVBR < cbBatchQuality.Items.Count) cbBatchQuality.SelectedIndex = Batch.SelectedAudioQualityVBR;
                     }
                     else {

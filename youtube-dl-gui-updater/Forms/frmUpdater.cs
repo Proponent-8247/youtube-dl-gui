@@ -318,13 +318,31 @@ internal partial class frmUpdater : Form {
     }
 
     private void DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e) {
-        this.Invoke(() => {
-            pbDownloadProgress.Value = (int)e.Percentage + 50;
-            pbDownloadProgress.Text = e.Percentage.ToString();
-        });
+        if (this.IsDisposed || !this.IsHandleCreated) {
+            return;
+        }
+
+        try {
+            this.Invoke(() => {
+                pbDownloadProgress.Value = (int)e.Percentage + 50;
+                pbDownloadProgress.Text = e.Percentage.ToString();
+            });
+        }
+        catch (InvalidOperationException) {
+            // The updater can close after the handle check while a timer callback is being marshalled.
+        }
     }
     private void DownloadCompleted(object sender, DownloadFinishedEventArgs e) {
-        pbDownloadProgress.Invoke(() => pbDownloadProgress.Text = "100%");
+        if (this.IsDisposed || !this.IsHandleCreated) {
+            return;
+        }
+
+        try {
+            pbDownloadProgress.Invoke(() => pbDownloadProgress.Text = "100%");
+        }
+        catch (InvalidOperationException) {
+            // The updater can close after the handle check while completion is being marshalled.
+        }
     }
     private void tmrForm_Tick(object sender, EventArgs e) {
         // This really is just for appearance.

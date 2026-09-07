@@ -56,7 +56,15 @@ internal static class Arguments {
             Arguments[0] = Arguments[0][ProtocolPrefix.Length..];
         }
 
-        var Matches = Regex.Matches(Uri.UnescapeDataString(Arguments[0]), @"\""(\""\""|[^\""])+\""|[^ ]+", RegexOptions.ExplicitCapture);
+        string FirstArgument;
+        try {
+            FirstArgument = Uri.UnescapeDataString(Arguments[0]);
+        }
+        catch (UriFormatException) {
+            FirstArgument = Arguments[0];
+        }
+
+        var Matches = Regex.Matches(FirstArgument, @"\""(\""\""|[^\""])+\""|[^ ]+", RegexOptions.ExplicitCapture);
         if (Matches.Count > 0) {
             Args.RemoveAt(0);
             for (int i = 0; i < Matches.Count; i++) {

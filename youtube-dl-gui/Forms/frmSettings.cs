@@ -736,7 +736,7 @@ public partial class frmSettings : LocalizedForm {
 
         using BetterFolderBrowserNS.BetterFolderBrowser fbd = new() {
             RootFolder = chkSettingsDownloadsDownloadPathUseRelativePath.Checked ?
-                Program.ProgramPath : (Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\\Downloads"),
+                Program.ProgramPath : NativeMethods.GetDownloadsFolderPath(),
             Title = Language.dlgFindDownloadFolder
         };
 

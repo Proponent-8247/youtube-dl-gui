@@ -2,19 +2,19 @@
   "replacements": [
     {
       "path": "youtube-dl-gui/Config/Interfacing/CustomArguments.cs",
-      "old": "ICAgICAgICBpZiAoIVNhdmVkLkRvd25sb2FkQ3VzdG9tQXJndW1lbnRzLklzTnVsbEVtcHR5V2hpdGVzcGFjZSgpKSB7Cg==",
-      "new": "ICAgICAgICBzdHJpbmdbXSBZdGRsQXJncyA9IEdlbmVyYWwuU2F2ZUN1c3RvbUFyZ3Mgc3dpdGNoIHsKICAgICAgICAgICAgMSB3aGVuIFN5c3RlbS5JTy5GaWxlLkV4aXN0cyhFbnZpcm9ubWVudC5DdXJyZW50RGlyZWN0b3J5ICsgIlxcYXJncy50eHQiKSA9PgogICAgICAgICAgICAgICAgU3lzdGVtLklPLkZpbGUuUmVhZEFsbExpbmVzKEVudmlyb25tZW50LkN1cnJlbnREaXJlY3RvcnkgKyAiXFxhcmdzLnR4dCIpLAogICAgICAgICAgICAyIHdoZW4gIVNhdmVkLkRvd25sb2FkQ3VzdG9tQXJndW1lbnRzLklzTnVsbEVtcHR5V2hpdGVzcGFjZSgpID0+CiAgICAgICAgICAgICAgICBTYXZlZC5Eb3dubG9hZEN1c3RvbUFyZ3VtZW50cy5UcmltKCd8JywgJyAnKS5TcGxpdCgnfCcpLAogICAgICAgICAgICBfID0+IFtdLAogICAgICAgIH07CiAgICAgICAgaWYgKFl0ZGxBcmdzLkxlbmd0aCA+IDApIHsK",
+      "old": "ICAgICAgICBpZiAoIVNhdmVkLkRvd25sb2FkQ3VzdG9tQXJndW1lbnRzLklzTnVsbEVtcHR5V2hpdGVzcGFjZSgpKSB7DQo=",
+      "new": "ICAgICAgICBzdHJpbmdbXSBZdGRsQXJncyA9IEdlbmVyYWwuU2F2ZUN1c3RvbUFyZ3Mgc3dpdGNoIHsNCiAgICAgICAgICAgIDEgd2hlbiBTeXN0ZW0uSU8uRmlsZS5FeGlzdHMoRW52aXJvbm1lbnQuQ3VycmVudERpcmVjdG9yeSArICJcXGFyZ3MudHh0IikgPT4NCiAgICAgICAgICAgICAgICBTeXN0ZW0uSU8uRmlsZS5SZWFkQWxsTGluZXMoRW52aXJvbm1lbnQuQ3VycmVudERpcmVjdG9yeSArICJcXGFyZ3MudHh0IiksDQogICAgICAgICAgICAyIHdoZW4gIVNhdmVkLkRvd25sb2FkQ3VzdG9tQXJndW1lbnRzLklzTnVsbEVtcHR5V2hpdGVzcGFjZSgpID0+DQogICAgICAgICAgICAgICAgU2F2ZWQuRG93bmxvYWRDdXN0b21Bcmd1bWVudHMuVHJpbSgnfCcsICcgJykuU3BsaXQoJ3wnKSwNCiAgICAgICAgICAgIF8gPT4gW10sDQogICAgICAgIH07DQogICAgICAgIGlmIChZdGRsQXJncy5MZW5ndGggPiAwKSB7DQo=",
       "count": 1
     },
     {
       "path": "youtube-dl-gui/Config/Interfacing/CustomArguments.cs",
-      "old": "ICAgICAgICAgICAgc3RyaW5nW10gQXJncyA9IFNhdmVkLkRvd25sb2FkQ3VzdG9tQXJndW1lbnRzLlRyaW0oJ3wnLCAnICcpLlNwbGl0KCd8Jyk7CiAgICAgICAgICAgIEFyZ3MuRm9yKChBcmcpID0+IHsK",
-      "new": "ICAgICAgICAgICAgWXRkbEFyZ3MuRm9yKChBcmcpID0+IHsK",
+      "old": "ICAgICAgICAgICAgc3RyaW5nW10gQXJncyA9IFNhdmVkLkRvd25sb2FkQ3VzdG9tQXJndW1lbnRzLlRyaW0oJ3wnLCAnICcpLlNwbGl0KCd8Jyk7DQogICAgICAgICAgICBBcmdzLkZvcigoQXJnKSA9PiB7DQo=",
+      "new": "ICAgICAgICAgICAgWXRkbEFyZ3MuRm9yKChBcmcpID0+IHsNCg==",
       "count": 1
     },
     {
       "path": "youtube-dl-gui/Config/Interfacing/CustomArguments.cs",
-      "old": "ICAgICAgICAgICAgU2F2ZWQuRG93bmxvYWRDdXN0b21Bcmd1bWVudHMgKz0gInwiICsgQXJnOwo=",
+      "old": "ICAgICAgICAgICAgU2F2ZWQuRG93bmxvYWRDdXN0b21Bcmd1bWVudHMgKz0gInwiICsgQXJnOw0K",
       "new": "",
       "count": 1
     },

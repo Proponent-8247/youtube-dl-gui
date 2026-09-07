@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Updater/Updater.cs",
+      "old": "ICAgICAgICAgICAgICAgIHN0cmluZyBGZm1wZWdPdXRwdXRQYXRoID0gUGF0aC5Db21iaW5lKEZmbXBlZ1BhdGgsICJmZm1wZWcuZXhlIik7Cg==",
+      "new": "ICAgICAgICAgICAgICAgIHN0cmluZyBGZm1wZWdPdXRwdXRQYXRoID0gVmVyaWZpY2F0aW9uLkZGbXBlZ1BhdGggPz8gVmVyaWZpY2F0aW9uLkdldEV4cGVjdGVkRmZtcGVnUGF0aCgpOwo=",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: update configured ffmpeg executable path"
+}

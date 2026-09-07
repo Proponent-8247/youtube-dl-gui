@@ -324,7 +324,7 @@ internal static class Log {
             CustomDescription = null,
             ExceptionTime = ExceptionTime,
             ExtraMessage = null,
-            FromLanguage = false,
+            FromLanguage = true,
             SkipDwmComposition = false,
             ExceptionType = ExceptionType.Caught
         };
@@ -350,7 +350,7 @@ internal static class Log {
             CustomDescription = null,
             ExceptionTime = ExceptionTime,
             ExtraMessage = null,
-            FromLanguage = false,
+            FromLanguage = true,
             SkipDwmComposition = false,
             ExceptionType = ExceptionType.Caught
         };

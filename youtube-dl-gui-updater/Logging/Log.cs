@@ -138,7 +138,7 @@ public static class Log {
             AllowAbort = false,
             CustomDescription = null,
             ExceptionTime = ExceptionTime,
-            FromLanguage = false,
+            FromLanguage = true,
             SkipDwmComposition = false,
             ExceptionType = ExceptionType.Caught,
             WindowOwner = null

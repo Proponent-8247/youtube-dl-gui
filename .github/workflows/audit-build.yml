@@ -34,7 +34,7 @@ jobs:
 
           request_path = Path('.audit-patch-request.json')
           request = json.loads(request_path.read_text(encoding='utf-8'))
-          for replacement in request['replacements']:
+          for index, replacement in enumerate(request['replacements']):
               path = Path(replacement['path'])
               data = path.read_bytes()
               old = base64.b64decode(replacement['old'])
@@ -42,7 +42,7 @@ jobs:
               expected = replacement.get('count', 1)
               actual = data.count(old)
               if actual != expected:
-                  raise SystemExit(f"{path}: expected {expected} exact byte matches, found {actual}")
+                  raise SystemExit(f"replacement {index} ({path}): expected {expected} exact byte matches, found {actual}")
               path.write_bytes(data.replace(old, new))
           request_path.unlink()
           Path('.audit-patch-message.txt').write_text(request['commit_message'], encoding='utf-8')

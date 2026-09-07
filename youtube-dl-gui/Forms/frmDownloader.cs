@@ -607,6 +607,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
         switch (CurrentDownload.Status) {
             case DownloadStatus.Finished:
             case DownloadStatus.YtdlError:
+            case DownloadStatus.ProgramError:
             case DownloadStatus.Aborted:
                 this.Close();
                 break;

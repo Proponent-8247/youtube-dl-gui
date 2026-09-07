@@ -330,6 +330,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             } break;
             default: {
                 if (ProcessingThread?.IsAlive == true) {
+                    if (Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
+                        e.Cancel = true;
+                        return;
+                    }
                     ProcessingThread.Abort();
                 }
 

@@ -23,10 +23,16 @@ internal static class CustomArguments {
     public static string LastUsedFfmpegArgument { get; set; } = string.Empty;
 
     static CustomArguments() {
-        if (!Saved.DownloadCustomArguments.IsNullEmptyWhitespace()) {
+        string[] YtdlArgs = General.SaveCustomArgs switch {
+            1 when System.IO.File.Exists(Environment.CurrentDirectory + "\\args.txt") =>
+                System.IO.File.ReadAllLines(Environment.CurrentDirectory + "\\args.txt"),
+            2 when !Saved.DownloadCustomArguments.IsNullEmptyWhitespace() =>
+                Saved.DownloadCustomArguments.Trim('|', ' ').Split('|'),
+            _ => [],
+        };
+        if (YtdlArgs.Length > 0) {
             HashSet<string> Arguments = [];
-            string[] Args = Saved.DownloadCustomArguments.Trim('|', ' ').Split('|');
-            Args.For((Arg) => {
+            YtdlArgs.For((Arg) => {
                 if (!Arg.IsNullEmptyWhitespace() && Arguments.Add(Arg)) {
                     YtdlArguments.Add(Arg);
                 }
@@ -64,7 +70,6 @@ internal static class CustomArguments {
     public static void AddYtdlArgument(string Arg, bool SetAsLastUsed) {
         if (!YtdlArguments.Contains(Arg)) {
             YtdlArguments.Add(Arg);
-            Saved.DownloadCustomArguments += "|" + Arg;
         }
 
         if (SetAsLastUsed)

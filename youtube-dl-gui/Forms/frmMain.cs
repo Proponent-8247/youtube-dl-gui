@@ -173,7 +173,17 @@ public partial class frmMain : LocalizedForm {
 
         chkUseSelection.Checked = false;
         Saved.MainFormSize = this.Size;
-        Saved.CustomArgumentsIndex = rbCustom.Checked ? cbCustomArguments.SelectedIndex : cbCustomArguments.SelectedIndex - 1;
+        int CustomArgumentsIndex = Math.Max(-1, rbCustom.Checked ? cbCustomArguments.SelectedIndex : cbCustomArguments.SelectedIndex - 1);
+        switch (General.SaveCustomArgs) {
+            case 1:
+                System.IO.File.WriteAllLines(Environment.CurrentDirectory + "\\args.txt", CustomArguments.YtdlArguments);
+                Saved.CustomArgumentsIndex = CustomArgumentsIndex;
+                break;
+            case 2:
+                Saved.DownloadCustomArguments = string.Join("|", CustomArguments.YtdlArguments);
+                Saved.CustomArgumentsIndex = CustomArgumentsIndex;
+                break;
+        }
 
         if (rbVideo.Checked) {
             Saved.downloadType = 0;

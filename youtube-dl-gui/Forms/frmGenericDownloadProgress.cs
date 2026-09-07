@@ -67,7 +67,7 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
                 //await Task.Delay(5000000, CancelToken.Token);
                 await DownloadClient.DownloadFileTaskAsync(new Uri(URL, UriKind.Absolute), TempFile, CancelToken.Token);
 
-                if (File.Exists(BackupFile))
+                if (File.Exists(BackupFile) && File.Exists(Output))
                     File.Delete(BackupFile);
 
                 if (File.Exists(Output))

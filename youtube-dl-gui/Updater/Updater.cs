@@ -321,7 +321,7 @@ internal static class Updater {
                 ZipArchiveEntry FfmpegEntry = Files.First(e => e.Name.Equals("ffmpeg.exe", StringComparison.OrdinalIgnoreCase));
                 ZipArchiveEntry FfprobeEntry = Files.First(e => e.Name.Equals("ffprobe.exe", StringComparison.OrdinalIgnoreCase));
 
-                string FfmpegOutputPath = Path.Combine(FfmpegPath, "ffmpeg.exe");
+                string FfmpegOutputPath = Verification.FFmpegPath ?? Verification.GetExpectedFfmpegPath();
                 string FfprobeOutputPath = Path.Combine(FfmpegPath, "ffprobe.exe");
                 string FfmpegTempPath = FfmpegOutputPath + ".update";
                 string FfprobeTempPath = FfprobeOutputPath + ".update";

@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmExtendedDownloader.Designer.cs",
+      "old": "ICAgICAgICAgICAgdGhpcy50cFN0YXJ0VGltZS5BbmNob3IgPSAoKFN5c3RlbS5XaW5kb3dzLkZvcm1zLkFuY2hvclN0eWxlcykoKFN5c3RlbS5XaW5kb3dzLkZvcm1zLkFuY2hvclN0eWxlcy5Cb3R0b20gfCBTeXN0ZW0uV2luZG93cy5Gb3Jtcy5BbmNob3JTdHlsZXMuTGVmdCkpKTsK",
+      "new": "ICAgICAgICAgICAgdGhpcy50cFN0YXJ0VGltZS5BbmNob3IgPSAoKFN5c3RlbS5XaW5kb3dzLkZvcm1zLkFuY2hvclN0eWxlcykoKFN5c3RlbS5XaW5kb3dzLkZvcm1zLkFuY2hvclN0eWxlcy5Cb3R0b20gfCBTeXN0ZW0uV2luZG93cy5Gb3Jtcy5BbmNob3JTdHlsZXMuTGVmdCkpKTsKICAgICAgICAgICAgdGhpcy50cFN0YXJ0VGltZS5EYXRlQmFzZWRUaW1lID0gZmFsc2U7Cg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: allow extended download starts beyond 24 hours"
+}

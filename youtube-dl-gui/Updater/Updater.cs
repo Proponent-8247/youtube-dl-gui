@@ -318,8 +318,102 @@ internal static class Updater {
                     return false;
                 }
 
-                for (int i = 0; i < Files.Length; i++)
-                    await Task.Run(() => Files[i].ExtractToFile($"{FfmpegPath}\\{Files[i].Name}", true));
+                ZipArchiveEntry FfmpegEntry = Files.First(e => e.Name.Equals("ffmpeg.exe", StringComparison.OrdinalIgnoreCase));
+                ZipArchiveEntry FfprobeEntry = Files.First(e => e.Name.Equals("ffprobe.exe", StringComparison.OrdinalIgnoreCase));
+
+                string FfmpegOutputPath = Path.Combine(FfmpegPath, "ffmpeg.exe");
+                string FfprobeOutputPath = Path.Combine(FfmpegPath, "ffprobe.exe");
+                string FfmpegTempPath = FfmpegOutputPath + ".update";
+                string FfprobeTempPath = FfprobeOutputPath + ".update";
+                string FfmpegBackupPath = FfmpegOutputPath + ".bck";
+                string FfprobeBackupPath = FfprobeOutputPath + ".bck";
+
+                try {
+                    if (!File.Exists(FfmpegOutputPath) && File.Exists(FfmpegBackupPath)) {
+                        File.Move(FfmpegBackupPath, FfmpegOutputPath);
+                    }
+                    else if (File.Exists(FfmpegBackupPath)) {
+                        File.Delete(FfmpegBackupPath);
+                    }
+
+                    if (!File.Exists(FfprobeOutputPath) && File.Exists(FfprobeBackupPath)) {
+                        File.Move(FfprobeBackupPath, FfprobeOutputPath);
+                    }
+                    else if (File.Exists(FfprobeBackupPath)) {
+                        File.Delete(FfprobeBackupPath);
+                    }
+
+                    if (File.Exists(FfmpegTempPath)) {
+                        File.Delete(FfmpegTempPath);
+                    }
+                    if (File.Exists(FfprobeTempPath)) {
+                        File.Delete(FfprobeTempPath);
+                    }
+
+                    await Task.Run(() => FfmpegEntry.ExtractToFile(FfmpegTempPath));
+                    await Task.Run(() => FfprobeEntry.ExtractToFile(FfprobeTempPath));
+
+                    bool FfmpegMovedOld = false;
+                    bool FfprobeMovedOld = false;
+                    bool FfmpegMovedNew = false;
+                    bool FfprobeMovedNew = false;
+
+                    try {
+                        if (File.Exists(FfmpegOutputPath)) {
+                            File.Move(FfmpegOutputPath, FfmpegBackupPath);
+                            FfmpegMovedOld = true;
+                        }
+                        File.Move(FfmpegTempPath, FfmpegOutputPath);
+                        FfmpegMovedNew = true;
+
+                        if (File.Exists(FfprobeOutputPath)) {
+                            File.Move(FfprobeOutputPath, FfprobeBackupPath);
+                            FfprobeMovedOld = true;
+                        }
+                        File.Move(FfprobeTempPath, FfprobeOutputPath);
+                        FfprobeMovedNew = true;
+                    }
+                    catch {
+                        try {
+                            if (FfprobeMovedNew && File.Exists(FfprobeOutputPath)) {
+                                File.Delete(FfprobeOutputPath);
+                            }
+                            if (FfprobeMovedOld && File.Exists(FfprobeBackupPath)) {
+                                File.Move(FfprobeBackupPath, FfprobeOutputPath);
+                            }
+                        }
+                        catch (Exception rollbackEx) {
+                            Log.Write($"Failed to roll back ffprobe after an update error: {rollbackEx.Message}");
+                        }
+
+                        try {
+                            if (FfmpegMovedNew && File.Exists(FfmpegOutputPath)) {
+                                File.Delete(FfmpegOutputPath);
+                            }
+                            if (FfmpegMovedOld && File.Exists(FfmpegBackupPath)) {
+                                File.Move(FfmpegBackupPath, FfmpegOutputPath);
+                            }
+                        }
+                        catch (Exception rollbackEx) {
+                            Log.Write($"Failed to roll back ffmpeg after an update error: {rollbackEx.Message}");
+                        }
+
+                        throw;
+                    }
+                }
+                finally {
+                    try {
+                        if (File.Exists(FfmpegTempPath)) {
+                            File.Delete(FfmpegTempPath);
+                        }
+                        if (File.Exists(FfprobeTempPath)) {
+                            File.Delete(FfprobeTempPath);
+                        }
+                    }
+                    catch (Exception cleanupEx) {
+                        Log.Write($"Failed to clean up temporary ffmpeg update files: {cleanupEx.Message}");
+                    }
+                }
 
                 CanRetry = false;
             }

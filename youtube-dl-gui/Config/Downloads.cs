@@ -3,11 +3,14 @@ namespace youtube_dl_gui;
 internal static class Downloads {
     private const string ConfigName = "Downloads";
 
+    internal static string DefaultDownloadPath =>
+        System.IO.Path.Combine(NativeMethods.GetDownloadsFolderPath(), "youtube-dl");
+
     static Downloads() {
         Log.Write("Loading Download config.");
 
         fdownloadPath =
-            IniProvider.Read(downloadPath, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\\Downloads\\youtube-dl", ConfigName);
+            IniProvider.Read(downloadPath, DefaultDownloadPath, ConfigName);
 
         fseparateDownloads =
             IniProvider.Read(separateDownloads, true, ConfigName);

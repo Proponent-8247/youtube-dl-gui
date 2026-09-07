@@ -186,8 +186,7 @@ internal static class Program {
             }
 
             Initialization.firstTime = false;
-            Downloads.downloadPath =
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\\Downloads\\youtube-dl";
+            Downloads.downloadPath = Downloads.DefaultDownloadPath;
 
             if (Log.MessageBox(Language.dlgFirstTimeDownloadFolder, MessageBoxButtons.YesNo) == DialogResult.Yes) {
                 using BetterFolderBrowserNS.BetterFolderBrowser fbd = new() {

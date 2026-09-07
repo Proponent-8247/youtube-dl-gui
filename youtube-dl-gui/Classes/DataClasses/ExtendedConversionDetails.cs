@@ -452,6 +452,16 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
                 }
             }
         }
+        else {
+            this.EnabledVideoStreams.For((Stream) => Args.Add($"-map 0:{Stream}"));
+            this.EnabledAudioStreams.For((Stream) => Args.Add($"-map 0:{Stream}"));
+
+            if (!this.ExtractSubstreams) {
+                this.EnabledSubtitles.For((Stream) => Args.Add($"-map 0:{Stream}"));
+                this.EnabledAttachments.For((Stream) => Args.Add($"-map 0:{Stream}"));
+                this.EnabledDataFiles.For((Stream) => Args.Add($"-map 0:{Stream}"));
+            }
+        }
         #endregion
 
         #region Video options

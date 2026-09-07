@@ -137,8 +137,9 @@ public partial class frmMain : LocalizedForm {
 
         if (CustomArguments.YtdlArguments.Count > 0) {
             CustomArguments.YtdlArguments.For((Arg) => cbCustomArguments.Items.Add(Arg));
-            if (Saved.CustomArgumentsIndex >= -1 && Saved.CustomArgumentsIndex < cbCustomArguments.Items.Count) {
-                cbCustomArguments.SelectedIndex = rbCustom.Checked ? Saved.CustomArgumentsIndex : Saved.CustomArgumentsIndex + 1;
+            int CustomArgumentIndex = rbCustom.Checked ? Saved.CustomArgumentsIndex : Saved.CustomArgumentsIndex + 1;
+            if (CustomArgumentIndex >= -1 && CustomArgumentIndex < cbCustomArguments.Items.Count) {
+                cbCustomArguments.SelectedIndex = CustomArgumentIndex;
             }
         }
 

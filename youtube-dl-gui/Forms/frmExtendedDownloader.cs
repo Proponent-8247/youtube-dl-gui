@@ -424,7 +424,19 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 FailedInfoRetrieval = true;
             }
             catch (Exception ex) {
-                this.Invoke(() => Log.ReportException(ex));
+                FailedInfoRetrieval = true;
+                if (!this.IsDisposed && this.IsHandleCreated) {
+                    try {
+                        this.Invoke(() => {
+                            Log.ReportException(ex);
+                            sbtnDownload.Enabled = true;
+                            sbtnDownload.Text = Language.GenericRetry;
+                            txtExtendedDownloaderMediaTitle.Text = "Failed to retrieve download info";
+                            rtbVerbose.AppendText(ex.Message);
+                        });
+                    }
+                    catch (InvalidOperationException) { }
+                }
             }
         }) {
             Name = $"InfoThread {MediaDetails.URL}",
@@ -1689,6 +1701,20 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                     CurrentMedia.QueueItem.ImageIndex = StatusIcon.Errored;
                                 }
                             });
+                        }
+                        continue;
+                    }
+                    catch (Exception ex) when (ex is not ThreadAbortException) {
+                        if (!this.IsDisposed && this.IsHandleCreated) {
+                            try {
+                                this.Invoke(() => {
+                                    Log.ReportException(ex);
+                                    if (CurrentMedia.QueueItem is not null && lvQueuedMedia.Items.Contains(CurrentMedia.QueueItem)) {
+                                        CurrentMedia.QueueItem.ImageIndex = StatusIcon.Errored;
+                                    }
+                                });
+                            }
+                            catch (InvalidOperationException) { }
                         }
                         continue;
                     }

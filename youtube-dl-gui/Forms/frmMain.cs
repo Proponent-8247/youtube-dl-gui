@@ -409,8 +409,9 @@ public partial class frmMain : LocalizedForm {
     }
 
     private void ToggleClipboardVerifyLinks() {
-        mClipboardAutoDownloadVerifyLinks.Checked ^= true;
-        cmTrayClipboardAutoDownloadVerifyLinks.Checked ^= true;
+        bool VerifyLinks = !mClipboardAutoDownloadVerifyLinks.Checked;
+        mClipboardAutoDownloadVerifyLinks.Checked = cmTrayClipboardAutoDownloadVerifyLinks.Checked = VerifyLinks;
+        General.ClipboardAutoDownloadVerifyLinks = VerifyLinks;
     }
 
     internal void RemoveTrayIcon() {

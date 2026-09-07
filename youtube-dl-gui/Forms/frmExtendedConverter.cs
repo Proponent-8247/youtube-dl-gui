@@ -292,7 +292,7 @@ public partial class frmExtendedConverter : LocalizedForm {
         SelectedConversion.GenerateArguments();
 
         //string Args = GetArgs(txtInput.Text, txtOutput.Text);
-        System.Diagnostics.Process.Start(Verification.FFmpegPath, SelectedConversion.Arguments);
+        using System.Diagnostics.Process? ConverterProcess = System.Diagnostics.Process.Start(Verification.FFmpegPath, SelectedConversion.Arguments);
     }
     private void chkVideoUseCRF_CheckedChanged(object sender, EventArgs e) {
         if (chkVideoUseCRF.Checked) {

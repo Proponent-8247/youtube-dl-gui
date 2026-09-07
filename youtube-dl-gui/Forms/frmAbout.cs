@@ -30,9 +30,18 @@ public partial class frmAbout : LocalizedForm {
     }
 
     private async void llbCheckForUpdates_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) {
+        if (!llbCheckForUpdates.Enabled) {
+            return;
+        }
+
+        llbCheckForUpdates.Enabled = false;
         try {
-            switch (await Updater.CheckForUpdate(chkForceCheckUpdate.Checked)) {
-                case null: return;
+            bool? UpdateAvailable = await Updater.CheckForUpdate(chkForceCheckUpdate.Checked);
+            if (UpdateAvailable is null || this.IsDisposed || !this.IsHandleCreated) {
+                return;
+            }
+
+            switch (UpdateAvailable) {
                 case false: {
                     Log.MessageBox((Program.CurrentVersion.IsBeta ? Language.dlgUpdateNoBetaUpdateAvailable : Language.dlgUpdateNoUpdateAvailable)
                         .Format(Program.CurrentVersion, Updater.LastChecked!.Version));
@@ -43,14 +52,23 @@ public partial class frmAbout : LocalizedForm {
             }
 
             Program.UpdateChecked = true;
-            if (!Program.IsUpdating && this.IsHandleCreated)
-                llbCheckForUpdates.Invoke(() => llbCheckForUpdates.LinkVisited = true);
+            if (!Program.IsUpdating) {
+                llbCheckForUpdates.LinkVisited = true;
+            }
         }
         catch (Exception ex) {
-            if (ex is ThreadAbortException or OperationCanceledException or TaskCanceledException)
+            if (ex is ThreadAbortException or OperationCanceledException or TaskCanceledException) {
                 return;
+            }
 
-            Log.ReportException(ex);
+            if (!this.IsDisposed && this.IsHandleCreated) {
+                Log.ReportException(ex);
+            }
+        }
+        finally {
+            if (!this.IsDisposed && this.IsHandleCreated) {
+                llbCheckForUpdates.Enabled = true;
+            }
         }
     }
 

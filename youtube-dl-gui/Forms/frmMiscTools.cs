@@ -32,7 +32,7 @@ public partial class frmMiscTools : LocalizedForm {
                 newFile = Path.Combine(Path.GetDirectoryName(ofd.FileName) ?? Environment.CurrentDirectory, "output" + Path.GetExtension(ofd.FileName)); // Rare case, file is a lorge name
             }
 
-            Process ffmpeg = new() {
+            using Process ffmpeg = new() {
                 StartInfo = new(Verification.FFmpegPath ?? "ffmpeg") {
                     UseShellExecute = false,
                     //RedirectStandardInput = true,
@@ -59,7 +59,7 @@ public partial class frmMiscTools : LocalizedForm {
             if (sfd.ShowDialog() == DialogResult.OK) {
                 string newFile = sfd.FileName;
 
-                Process ffmpeg = new() {
+                using Process ffmpeg = new() {
                     StartInfo = new(Verification.FFmpegPath ?? "ffmpeg") {
                         UseShellExecute = false,
                         //RedirectStandardInput = true,

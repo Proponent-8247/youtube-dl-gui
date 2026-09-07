@@ -307,7 +307,7 @@ public static class Language {
             default: {
                 Input = Input.Contains("//") ? Input.Substring(0, Input.IndexOf("//")) : Input;
                 Name = Input.Split('=')[0].Trim();
-                Value = Input.Substring(Input.IndexOf('=') + 1).Trim();
+                Value = Input.Substring(Input.IndexOf('=') + 1).Trim().Replace("\\n", "\n").Replace("\\r", "\r");
             } break;
         }
     }

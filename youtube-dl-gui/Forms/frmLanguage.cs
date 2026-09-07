@@ -52,22 +52,38 @@ public partial class frmLanguage : Form {
         LoadFiles();
     }
     private async void btnLanguageDownload_Click(object sender, EventArgs e) {
-        GithubRepoContent[] AvailableLanguages;
-        try {
-            AvailableLanguages = await Updater.GetAvailableLanguages();
-        }
-        catch (Exception ex) {
-            AvailableLanguages = [];
-            Log.ReportException(ex);
+        if (!btnLanguageDownload.Enabled) {
+            return;
         }
 
-        using frmDownloadLanguage DownloadLanguage = new(AvailableLanguages);
-        DialogResult result = DownloadLanguage.ShowDialog();
-        string CurrentFile = cbLanguages.GetItemText(cbLanguages.SelectedItem);
-        cbLanguages.SelectedIndex = -1;
-        LoadFiles();
-        if (result == DialogResult.OK) {
-            cbLanguages.SelectedIndex = cbLanguages.FindStringExact(DownloadLanguage.FileName ?? CurrentFile);
+        btnLanguageDownload.Enabled = false;
+        try {
+            GithubRepoContent[] AvailableLanguages;
+            try {
+                AvailableLanguages = await Updater.GetAvailableLanguages();
+            }
+            catch (Exception ex) {
+                AvailableLanguages = [];
+                Log.ReportException(ex);
+            }
+
+            if (this.IsDisposed || !this.IsHandleCreated) {
+                return;
+            }
+
+            using frmDownloadLanguage DownloadLanguage = new(AvailableLanguages);
+            DialogResult result = DownloadLanguage.ShowDialog();
+            string CurrentFile = cbLanguages.GetItemText(cbLanguages.SelectedItem);
+            cbLanguages.SelectedIndex = -1;
+            LoadFiles();
+            if (result == DialogResult.OK) {
+                cbLanguages.SelectedIndex = cbLanguages.FindStringExact(DownloadLanguage.FileName ?? CurrentFile);
+            }
+        }
+        finally {
+            if (!this.IsDisposed && this.IsHandleCreated) {
+                btnLanguageDownload.Enabled = true;
+            }
         }
     }
     private void btnLanguageSave_Click(object sender, EventArgs e) {

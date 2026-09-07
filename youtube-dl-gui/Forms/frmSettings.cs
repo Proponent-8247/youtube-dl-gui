@@ -363,6 +363,11 @@ public partial class frmSettings : LocalizedForm {
             numConvertAudioBitrate.Location.X - chkSettingsConverterAudioBitrate.Width - numConvertAudioBitrate.Margin.Left - chkSettingsConverterAudioBitrate.Margin.Left,
             chkSettingsConverterAudioBitrate.Location.Y);
     }
+    private static int RestoreSettingIndex(ComboBox Control, int Index, int Fallback) =>
+        Index >= -1 && Index < Control.Items.Count ? Index : Fallback;
+    private static decimal RestoreSettingValue(NumericUpDown Control, decimal Value) =>
+        Math.Max(Control.Minimum, Math.Min(Control.Maximum, Value));
+
     private void LoadSettings() {
         if (Verification.YoutubeDlAvailable) {
             txtSettingsGeneralYoutubeDlPath.Text = Verification.YoutubeDlPath;
@@ -447,16 +452,16 @@ public partial class frmSettings : LocalizedForm {
         chkSettingsDownloadsFixVReddIt.Checked = Downloads.fixReddit;
         chkSettingsDownloadsPreferFFmpeg.Checked = Downloads.PreferFFmpeg;
         chkSettingsDownloadsLimitDownload.Checked = Downloads.LimitDownloads;
-        numSettingsDownloadsLimitDownload.Value = Downloads.DownloadLimit;
-        cbSettingsDownloadsLimitDownload.SelectedIndex = Downloads.DownloadLimitType;
-        numSettingsDownloadsRetryAttempts.Value = Downloads.RetryAttempts;
+        numSettingsDownloadsLimitDownload.Value = RestoreSettingValue(numSettingsDownloadsLimitDownload, Downloads.DownloadLimit);
+        cbSettingsDownloadsLimitDownload.SelectedIndex = RestoreSettingIndex(cbSettingsDownloadsLimitDownload, Downloads.DownloadLimitType, 1);
+        numSettingsDownloadsRetryAttempts.Value = RestoreSettingValue(numSettingsDownloadsRetryAttempts, Downloads.RetryAttempts);
         chkSettingsDownloadsForceIpv4.Checked = Downloads.ForceIPv4;
         chkSettingsDownloadsForceIpv6.Checked = Downloads.ForceIPv6;
         chkSettingsDownloadsUseProxy.Checked = Downloads.UseProxy;
-        cbSettingsDownloadsProxyType.SelectedIndex = Downloads.ProxyType;
+        cbSettingsDownloadsProxyType.SelectedIndex = RestoreSettingIndex(cbSettingsDownloadsProxyType, Downloads.ProxyType, -1);
         txtSettingsDownloadsProxyIp.Text = Downloads.ProxyIP;
         txtSettingsDownloadsProxyPort.Text = Downloads.ProxyPort;
-        numSettingsDownloadsFragmentThreads.Value = Downloads.FragmentThreads;
+        numSettingsDownloadsFragmentThreads.Value = RestoreSettingValue(numSettingsDownloadsFragmentThreads, Downloads.FragmentThreads);
         chksettingsDownloadsUseYoutubeDlsUpdater.Checked = useYtdlUpdater_Last = Downloads.useYtdlUpdater;
         cbSettingsDownloadsUpdatingYtdlType.SelectedIndex = YtdlType_Last = Downloads.YtdlType;
         chkSettingsDownloadsAutomaticallyDeleteYoutubeDlWhenClosing.Checked = Downloads.deleteYtdlOnClose;
@@ -472,18 +477,18 @@ public partial class frmSettings : LocalizedForm {
         chkSettingsConverterHideFFmpegCompileInfo.Checked = Converts.hideFFmpegCompile;
 
         chkSettingsConverterVideoBitrate.Checked = Converts.videoUseBitrate;
-        numConvertVideoBitrate.Value = Converts.videoBitrate;
+        numConvertVideoBitrate.Value = RestoreSettingValue(numConvertVideoBitrate, Converts.videoBitrate);
         chkSettingsConverterVideoPreset.Checked = Converts.videoUsePreset;
-        cbConvertVideoPreset.SelectedIndex = Converts.videoPreset;
+        cbConvertVideoPreset.SelectedIndex = RestoreSettingIndex(cbConvertVideoPreset, Converts.videoPreset, 5);
         chkSettingsConverterVideoProfile.Checked = Converts.videoUseProfile;
-        cbConvertVideoProfile.SelectedIndex = Converts.videoProfile;
+        cbConvertVideoProfile.SelectedIndex = RestoreSettingIndex(cbConvertVideoProfile, Converts.videoProfile, 1);
         chkSettingsConverterVideoCRF.Checked = Converts.videoUseCRF;
-        numConvertVideoCRF.Value = Converts.videoCRF;
+        numConvertVideoCRF.Value = RestoreSettingValue(numConvertVideoCRF, Converts.videoCRF);
 
         chkSettingsConverterVideoFastStart.Checked = Converts.videoFastStart;
 
         chkSettingsConverterAudioBitrate.Checked = Converts.audioUseBitrate;
-        numConvertAudioBitrate.Value = Converts.audioBitrate;
+        numConvertAudioBitrate.Value = RestoreSettingValue(numConvertAudioBitrate, Converts.audioBitrate);
 
         txtSettingsConverterCustomArguments.Text = Saved.convertCustom;
 

@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/YoutubeDlData.cs",
+      "old": "ICAgICAgICBpZiAoRG93bmxvYWRzLlJldHJ5QXR0ZW1wdHMgIT0gMTAgJiYgRG93bmxvYWRzLlJldHJ5QXR0ZW1wdHMgPiAwKSB7CiAgICAgICAgICAgIEFyZ3VtZW50cy5BZGQoIi0tcmV0cmllcyAiICsgRG93bmxvYWRzLlJldHJ5QXR0ZW1wdHMpOwogICAgICAgIH0K",
+      "new": "ICAgICAgICBpZiAoRG93bmxvYWRzLlJldHJ5QXR0ZW1wdHMgIT0gMTAgJiYgRG93bmxvYWRzLlJldHJ5QXR0ZW1wdHMgPj0gMCkgewogICAgICAgICAgICBBcmd1bWVudHMuQWRkKCItLXJldHJpZXMgIiArIERvd25sb2Fkcy5SZXRyeUF0dGVtcHRzKTsKICAgICAgICB9Cg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: honor zero retries during metadata probes"
+}

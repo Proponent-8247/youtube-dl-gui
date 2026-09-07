@@ -780,7 +780,7 @@ public partial class frmSettings : LocalizedForm {
                 Result = SystemRegistry.SetRegistry();
             }
             else {
-                Process InstallerProcess = new() {
+                using Process InstallerProcess = new() {
                     StartInfo = new() {
                         Arguments = "installprotocol",
                         FileName = Program.FullProgramPath,

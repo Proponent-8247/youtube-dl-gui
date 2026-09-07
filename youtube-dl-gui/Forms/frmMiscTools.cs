@@ -76,27 +76,57 @@ public partial class frmMiscTools : LocalizedForm {
     private void btnMiscToolsVideoToGif_Click(object sender, EventArgs e) {
         using OpenFileDialog ofd = new();
         if (ofd.ShowDialog() == DialogResult.OK) {
-            string WorkingDirectory = Path.GetDirectoryName(ofd.FileName) ?? Environment.CurrentDirectory;
-            Directory.CreateDirectory(Path.Combine(WorkingDirectory, "frames"));
+            string OutputDirectory = Path.GetDirectoryName(ofd.FileName) ?? Environment.CurrentDirectory;
+            string FrameDirectory = Path.Combine(Path.GetTempPath(), "youtube-dl-gui", Path.GetRandomFileName());
+            Directory.CreateDirectory(FrameDirectory);
 
-            Process ffmpeg = new() {
-                StartInfo = new("cmd") {
-                    UseShellExecute = false,
-                    WorkingDirectory = WorkingDirectory,
-                    Arguments = string.Format("/c \"{0}\"", "\"" + (Verification.FFmpegPath ?? "ffmpeg") + "\" -i \"" + ofd.FileName + "\" -vf scale=320:-1:flags=lanczos,fps=10 frames/outframes%03d.png"),
+            try {
+                using Process ffmpeg = new() {
+                    StartInfo = new("cmd") {
+                        UseShellExecute = false,
+                        WorkingDirectory = FrameDirectory,
+                        Arguments = string.Format("/c \"{0}\"", "\"" + (Verification.FFmpegPath ?? "ffmpeg") + "\" -i \"" + ofd.FileName + "\" -vf scale=320:-1:flags=lanczos,fps=10 outframes%03d.png"),
+                    }
+                };
+                ffmpeg.Start();
+                ffmpeg.WaitForExit();
+                if (ffmpeg.ExitCode != 0) {
+                    Directory.Delete(FrameDirectory, true);
+                    return;
                 }
-            };
-            ffmpeg.Start();
-            ffmpeg.WaitForExit();
 
-            Process imageMagick = new() {
-                StartInfo = new("cmd") {
-                    UseShellExecute = false,
-                    WorkingDirectory = WorkingDirectory,
-                    Arguments = string.Format("/c \"{0}\"", "convert -loop 0 frames/outframes*.png \"" + Path.GetDirectoryName(ofd.FileName) + "\\" + Path.GetFileNameWithoutExtension(ofd.FileName) + ".gif\""),
+                Process imageMagick = new() {
+                    EnableRaisingEvents = true,
+                    StartInfo = new("cmd") {
+                        UseShellExecute = false,
+                        WorkingDirectory = FrameDirectory,
+                        Arguments = string.Format("/c \"{0}\"", "convert -loop 0 outframes*.png \"" + Path.Combine(OutputDirectory, Path.GetFileNameWithoutExtension(ofd.FileName) + ".gif") + "\""),
+                    }
+                };
+                imageMagick.Exited += (s, args) => {
+                    try {
+                        Directory.Delete(FrameDirectory, true);
+                    }
+                    catch {
+                        // Best-effort cleanup after ImageMagick releases the frame files.
+                    }
+                    imageMagick.Dispose();
+                };
+
+                try {
+                    imageMagick.Start();
                 }
-            };
-            imageMagick.Start();
+                catch {
+                    imageMagick.Dispose();
+                    throw;
+                }
+            }
+            catch {
+                if (Directory.Exists(FrameDirectory)) {
+                    Directory.Delete(FrameDirectory, true);
+                }
+                throw;
+            }
         }
     }
 }

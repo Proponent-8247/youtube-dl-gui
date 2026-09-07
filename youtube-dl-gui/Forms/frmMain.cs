@@ -1027,8 +1027,10 @@ public partial class frmMain : LocalizedForm {
             if (rbCustom.Checked || (Downloads.ExtendedDownloaderIncludeCustomArguments && ((rbVideo.Checked || rbAudio.Checked) && cbCustomArguments.SelectedIndex != 0))) {
                 Arguments = cbCustomArguments.Text.IsNullEmptyWhitespace() ? string.Empty : cbCustomArguments.Text;
 
-                if (!cbCustomArguments.Items.Contains(cbCustomArguments.Text) && !cbCustomArguments.Text.IsNullEmptyWhitespace()) {
-                    cbCustomArguments.SelectedIndex = cbCustomArguments.Items.Add(cbCustomArguments.Text);
+                if (!cbCustomArguments.Text.IsNullEmptyWhitespace()) {
+                    if (!cbCustomArguments.Items.Contains(cbCustomArguments.Text)) {
+                        cbCustomArguments.SelectedIndex = cbCustomArguments.Items.Add(cbCustomArguments.Text);
+                    }
                     CustomArguments.AddYtdlArgument(cbCustomArguments.Text, true);
                 }
             }
@@ -1112,8 +1114,10 @@ public partial class frmMain : LocalizedForm {
             else {
                 NewInfo.Type = DownloadType.Custom;
                 NewInfo.CustomArguments = cbCustomArguments.Text;
-                if (!cbCustomArguments.Text.IsNullEmptyWhitespace() && !cbCustomArguments.Items.Contains(cbCustomArguments.Text)) {
-                    cbCustomArguments.SelectedIndex = cbCustomArguments.Items.Add(cbCustomArguments.Text);
+                if (!cbCustomArguments.Text.IsNullEmptyWhitespace()) {
+                    if (!cbCustomArguments.Items.Contains(cbCustomArguments.Text)) {
+                        cbCustomArguments.SelectedIndex = cbCustomArguments.Items.Add(cbCustomArguments.Text);
+                    }
                     CustomArguments.AddYtdlArgument(cbCustomArguments.Text, true);
                 }
 
@@ -1125,8 +1129,8 @@ public partial class frmMain : LocalizedForm {
                     NewInfo.CustomArguments = cbCustomArguments.Text;
                     if (!cbCustomArguments.Items.Contains(cbCustomArguments.Text)) {
                         cbCustomArguments.SelectedIndex = cbCustomArguments.Items.Add(cbCustomArguments.Text);
-                        CustomArguments.AddYtdlArgument(cbCustomArguments.Text, true);
                     }
+                    CustomArguments.AddYtdlArgument(cbCustomArguments.Text, true);
                 }
             }
 

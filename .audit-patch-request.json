@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmSettings.cs",
+      "old": "ICAgICAgICAgICAgICAgIFByb2Nlc3MgSW5zdGFsbGVyUHJvY2VzcyA9IG5ldygpIHsNCg==",
+      "new": "ICAgICAgICAgICAgICAgIHVzaW5nIFByb2Nlc3MgSW5zdGFsbGVyUHJvY2VzcyA9IG5ldygpIHsNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: dispose protocol installer process wrapper"
+}

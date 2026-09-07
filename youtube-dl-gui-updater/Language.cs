@@ -273,7 +273,10 @@ public static class Language {
             }
         }
         catch (Exception ex) {
-            Log.ReportLanguageException(ex, true);
+            if (Log.ReportLanguageException(ex, true) == System.Windows.Forms.DialogResult.Retry) {
+                return LoadLanguage(LanguageFile);
+            }
+            LoadInternalEnglish();
             return false;
         }
     }

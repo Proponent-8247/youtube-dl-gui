@@ -67,9 +67,17 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
         btnBatchDownloadStartStopExit.Text = Language.GenericStart;
         lvBatchDownloadQueue.Columns[1].Text = Language.lbBatchDownloadType;
         lvBatchDownloadQueue.Columns[2].Text = Language.lbBatchDownloadVideoSpecificArgument;
-        cbBatchDownloadType.Items.Add(Language.GenericVideo);
-        cbBatchDownloadType.Items.Add(Language.GenericAudio);
-        cbBatchDownloadType.Items.Add(Language.GenericCustom);
+        if (cbBatchDownloadType.Items.Count < 3) {
+            cbBatchDownloadType.Items.Clear();
+            cbBatchDownloadType.Items.Add(Language.GenericVideo);
+            cbBatchDownloadType.Items.Add(Language.GenericAudio);
+            cbBatchDownloadType.Items.Add(Language.GenericCustom);
+        }
+        else {
+            cbBatchDownloadType.Items[0] = Language.GenericVideo;
+            cbBatchDownloadType.Items[1] = Language.GenericAudio;
+            cbBatchDownloadType.Items[2] = Language.GenericCustom;
+        }
         sbBatchDownloaderImportLinks.Text = Language.sbBatchDownloaderImportLinks;
         chkBatchDownloadClipboardScanner.Text = Language.chkBatchDownloadClipboardScanner;
         chkBatchDownloadClipboardScanVerifyLinks.Text = Language.GenericVerifyLinks;

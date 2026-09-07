@@ -49,7 +49,11 @@ public partial class frmLanguage : Form {
     }
 
     private void btnLanguageRefresh_Click(object sender, EventArgs e) {
+        string CurrentFile = cbLanguages.GetItemText(cbLanguages.SelectedItem);
         LoadFiles();
+        if (!CurrentFile.IsNullEmptyWhitespace()) {
+            cbLanguages.SelectedIndex = cbLanguages.FindStringExact(CurrentFile);
+        }
     }
     private async void btnLanguageDownload_Click(object sender, EventArgs e) {
         if (!btnLanguageDownload.Enabled) {

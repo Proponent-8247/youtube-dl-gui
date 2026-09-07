@@ -1,0 +1,17 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmMiscTools.cs",
+      "old": "ICAgICAgICAgICAgUHJvY2VzcyBmZm1wZWcgPSBuZXcoKSB7DQo=",
+      "new": "ICAgICAgICAgICAgdXNpbmcgUHJvY2VzcyBmZm1wZWcgPSBuZXcoKSB7DQo=",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmMiscTools.cs",
+      "old": "ICAgICAgICAgICAgICAgIFByb2Nlc3MgZmZtcGVnID0gbmV3KCkgew0K",
+      "new": "ICAgICAgICAgICAgICAgIHVzaW5nIFByb2Nlc3MgZmZtcGVnID0gbmV3KCkgew0K",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: dispose misc ffmpeg process wrappers"
+}

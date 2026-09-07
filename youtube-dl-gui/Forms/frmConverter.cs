@@ -260,13 +260,23 @@ public partial class frmConverter : LocalizedProcessingForm {
                     EnableRaisingEvents = true
                 };
                 ConverterProcess.OutputDataReceived += (s, e) => {
-                    if (e.Data?.Length > 0) {
-                        rtbConsoleOutput.BeginInvoke(() => rtbConsoleOutput.AppendLine(e.Data));
+                    if (e.Data?.Length > 0 && !this.IsDisposed && this.IsHandleCreated) {
+                        try {
+                            rtbConsoleOutput.BeginInvoke(() => rtbConsoleOutput.AppendLine(e.Data));
+                        }
+                        catch (InvalidOperationException) {
+                            // The form can close while asynchronous stdout is being marshalled to the UI.
+                        }
                     }
                 };
                 ConverterProcess.ErrorDataReceived += (s, e) => {
-                    if (e.Data?.Length > 0) {
-                        rtbConsoleOutput.BeginInvoke(() => rtbConsoleOutput.AppendLine($"Error: {e.Data}"));
+                    if (e.Data?.Length > 0 && !this.IsDisposed && this.IsHandleCreated) {
+                        try {
+                            rtbConsoleOutput.BeginInvoke(() => rtbConsoleOutput.AppendLine($"Error: {e.Data}"));
+                        }
+                        catch (InvalidOperationException) {
+                            // The form can close while asynchronous stderr is being marshalled to the UI.
+                        }
                     }
                 };
                 if (CurrentConversion.Status != ConversionStatus.Aborted) {
@@ -305,17 +315,30 @@ public partial class frmConverter : LocalizedProcessingForm {
                         // The process may not have started or may have already exited.
                     }
                 }
-                this.Invoke((Action)delegate {
-                    rtbConsoleOutput.AppendLine("Conversion was aborted by the user.");
-                });
+                if (!this.IsDisposed && this.IsHandleCreated) {
+                    try {
+                        this.Invoke((Action)delegate {
+                            rtbConsoleOutput.AppendLine("Conversion was aborted by the user.");
+                        });
+                    }
+                    catch (InvalidOperationException) {
+                        // The form can close while the abort message is being marshalled to the UI.
+                    }
+                }
             }
             catch (Exception ex) {
                 Log.ReportException(ex);
                 CurrentConversion.Status = ConversionStatus.ProgramError;
             }
             finally {
-                if ((this.IsHandleCreated && CurrentConversion.Status != ConversionStatus.Aborted) || CurrentConversion.BatchConversion) {
-                    this.BeginInvoke(() => ConversionFinished());
+                if (!this.IsDisposed && this.IsHandleCreated
+                && (CurrentConversion.Status != ConversionStatus.Aborted || CurrentConversion.BatchConversion)) {
+                    try {
+                        this.BeginInvoke(() => ConversionFinished());
+                    }
+                    catch (InvalidOperationException) {
+                        // The form can close between the handle check and BeginInvoke.
+                    }
                 }
             }
         });

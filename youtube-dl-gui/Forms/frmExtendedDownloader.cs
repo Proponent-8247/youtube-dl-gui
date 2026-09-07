@@ -28,6 +28,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         this.BatchDownload = BatchDownload;
 
         InitializeComponent();
+        tpStartTime.DateBasedTime = false;
         LoadLanguage();
 
         if (!Program.DebugMode) {

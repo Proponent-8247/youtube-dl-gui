@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmLanguage.cs",
+      "old": "ICAgIHByaXZhdGUgdm9pZCBidG5MYW5ndWFnZVJlZnJlc2hfQ2xpY2sob2JqZWN0IHNlbmRlciwgRXZlbnRBcmdzIGUpIHsNCiAgICAgICAgTG9hZEZpbGVzKCk7DQogICAgfQ0K",
+      "new": "ICAgIHByaXZhdGUgdm9pZCBidG5MYW5ndWFnZVJlZnJlc2hfQ2xpY2sob2JqZWN0IHNlbmRlciwgRXZlbnRBcmdzIGUpIHsNCiAgICAgICAgc3RyaW5nIEN1cnJlbnRGaWxlID0gY2JMYW5ndWFnZXMuR2V0SXRlbVRleHQoY2JMYW5ndWFnZXMuU2VsZWN0ZWRJdGVtKTsNCiAgICAgICAgTG9hZEZpbGVzKCk7DQogICAgICAgIGlmICghQ3VycmVudEZpbGUuSXNOdWxsRW1wdHlXaGl0ZXNwYWNlKCkpIHsNCiAgICAgICAgICAgIGNiTGFuZ3VhZ2VzLlNlbGVjdGVkSW5kZXggPSBjYkxhbmd1YWdlcy5GaW5kU3RyaW5nRXhhY3QoQ3VycmVudEZpbGUpOw0KICAgICAgICB9DQogICAgfQ0K",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: preserve language selection when refreshing"
+}

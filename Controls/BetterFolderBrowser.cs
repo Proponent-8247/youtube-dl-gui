@@ -53,9 +53,8 @@ namespace BetterFolderBrowserNS {
             };
         }
 
-        public BetterFolderBrowser(IContainer container) {
+        public BetterFolderBrowser(IContainer container) : this() {
             container.Add(this);
-            InitializeComponent();
             SetDefaults();
         }
 

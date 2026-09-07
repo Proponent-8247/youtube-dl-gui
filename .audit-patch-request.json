@@ -1,0 +1,17 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmDownloader.cs",
+      "old": "ICAgIHB1YmxpYyBmcm1Eb3dubG9hZGVyKERvd25sb2FkSW5mbyBJbmZvKSB7DQogICAgICAgIEluaXRpYWxpemVDb21wb25lbnQoKTsNCiAgICAgICAgTG9hZExhbmd1YWdlKCk7DQogICAgICAgIEN1cnJlbnREb3dubG9hZCA9IEluZm87DQogICAgfQ0K",
+      "new": "ICAgIHB1YmxpYyBmcm1Eb3dubG9hZGVyKERvd25sb2FkSW5mbyBJbmZvKSB7DQogICAgICAgIEluaXRpYWxpemVDb21wb25lbnQoKTsNCiAgICAgICAgQ3VycmVudERvd25sb2FkID0gSW5mbzsNCiAgICAgICAgTG9hZExhbmd1YWdlKCk7DQogICAgfQ0K",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Forms/frmDownloader.cs",
+      "old": "ICAgICAgICBidG5Eb3dubG9hZGVyQ2FuY2VsRXhpdC5UZXh0ID0gTGFuZ3VhZ2UuR2VuZXJpY1NraXA7DQogICAgICAgIGJ0bkRvd25sb2FkZXJDYW5jZWxFeGl0LlRleHQgPSBMYW5ndWFnZS5HZW5lcmljQ2FuY2VsOw0K",
+      "new": "ICAgICAgICBidG5Eb3dubG9hZGVyQ2FuY2VsRXhpdC5UZXh0ID0gQ3VycmVudERvd25sb2FkLkJhdGNoRG93bmxvYWQgPyBMYW5ndWFnZS5HZW5lcmljU2tpcCA6IExhbmd1YWdlLkdlbmVyaWNDYW5jZWw7DQo=",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: initialize downloader controls from download context"
+}

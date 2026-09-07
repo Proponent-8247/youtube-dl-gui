@@ -101,6 +101,8 @@ public sealed class TimePicker : UserControl {
             Minutes = value.Minutes;
             Seconds = value.Seconds;
             Milliseconds = value.Milliseconds;
+            UpdateHourSeparator();
+            UpdateDisplay();
         }
     }
 

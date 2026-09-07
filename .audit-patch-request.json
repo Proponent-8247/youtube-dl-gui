@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmSettings.cs",
+      "old": "ICAgICAgICAgICAgUm9vdEZvbGRlciA9IGNoa1NldHRpbmdzRG93bmxvYWRzRG93bmxvYWRQYXRoVXNlUmVsYXRpdmVQYXRoLkNoZWNrZWQgPw0KICAgICAgICAgICAgICAgIFByb2dyYW0uUHJvZ3JhbVBhdGggOiAoRW52aXJvbm1lbnQuR2V0Rm9sZGVyUGF0aChFbnZpcm9ubWVudC5TcGVjaWFsRm9sZGVyLlVzZXJQcm9maWxlKSArICJcXERvd25sb2FkcyIpLA0K",
+      "new": "ICAgICAgICAgICAgUm9vdEZvbGRlciA9IGNoa1NldHRpbmdzRG93bmxvYWRzRG93bmxvYWRQYXRoVXNlUmVsYXRpdmVQYXRoLkNoZWNrZWQgPw0KICAgICAgICAgICAgICAgIFByb2dyYW0uUHJvZ3JhbVBhdGggOiBOYXRpdmVNZXRob2RzLkdldERvd25sb2Fkc0ZvbGRlclBhdGgoKSwNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: use relocated Downloads folder in settings browser"
+}

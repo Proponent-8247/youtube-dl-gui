@@ -2,7 +2,7 @@
   "replacements": [
     {
       "path": "youtube-dl-gui/Forms/frmBatchDownloader.cs",
-      "old": "ICAgICAgICAgICAgICAgIGNiQmF0Y2hRdWFsaXR5Lkl0ZW1zLkFkZFJhbmdlKG5ldyBzdHJpbmdbXSB7IFwiMFwiLCBcIjFcIiwgXCIyXCIsIFwiM1wiLCBcIjRcIiwgXCI1XCIsIFwiNlwiLCBcIjdcIiwgXCI4XCIsIFwiOVwiIH0pOw0K",
+      "old": "ICAgICAgICAgICAgICAgIGNiQmF0Y2hRdWFsaXR5Lkl0ZW1zLkFkZFJhbmdlKG5ldyBzdHJpbmdbXSB7ICIwIiwgIjEiLCAiMiIsICIzIiwgIjQiLCAiNSIsICI2IiwgIjciLCAiOCIsICI5IiB9KTsNCg==",
       "new": "ICAgICAgICAgICAgICAgIGNiQmF0Y2hRdWFsaXR5Lkl0ZW1zLkFkZFJhbmdlKEZvcm1hdHMuVmJyUXVhbGl0aWVzKTsNCg==",
       "count": 2
     }

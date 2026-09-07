@@ -399,6 +399,7 @@ public partial class frmConverter : LocalizedProcessingForm {
         switch (CurrentConversion.Status) {
             case ConversionStatus.Finished:
             case ConversionStatus.FfmpegError:
+            case ConversionStatus.ProgramError:
             case ConversionStatus.Aborted:
                 this.Close();
                 break;

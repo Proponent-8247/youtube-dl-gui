@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Forms/frmMain.cs",
+      "old": "ICAgIHByaXZhdGUgdm9pZCBUb2dnbGVDbGlwYm9hcmRWZXJpZnlMaW5rcygpIHsNCiAgICAgICAgbUNsaXBib2FyZEF1dG9Eb3dubG9hZFZlcmlmeUxpbmtzLkNoZWNrZWQgXj0gdHJ1ZTsNCiAgICAgICAgY21UcmF5Q2xpcGJvYXJkQXV0b0Rvd25sb2FkVmVyaWZ5TGlua3MuQ2hlY2tlZCBePSB0cnVlOw0KICAgIH0NCg==",
+      "new": "ICAgIHByaXZhdGUgdm9pZCBUb2dnbGVDbGlwYm9hcmRWZXJpZnlMaW5rcygpIHsNCiAgICAgICAgYm9vbCBWZXJpZnlMaW5rcyA9ICFtQ2xpcGJvYXJkQXV0b0Rvd25sb2FkVmVyaWZ5TGlua3MuQ2hlY2tlZDsNCiAgICAgICAgbUNsaXBib2FyZEF1dG9Eb3dubG9hZFZlcmlmeUxpbmtzLkNoZWNrZWQgPSBjbVRyYXlDbGlwYm9hcmRBdXRvRG93bmxvYWRWZXJpZnlMaW5rcy5DaGVja2VkID0gVmVyaWZ5TGlua3M7DQogICAgICAgIEdlbmVyYWwuQ2xpcGJvYXJkQXV0b0Rvd25sb2FkVmVyaWZ5TGlua3MgPSBWZXJpZnlMaW5rczsNCiAgICB9DQo=",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: persist clipboard link verification preference"
+}

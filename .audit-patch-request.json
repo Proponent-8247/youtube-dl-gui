@@ -1,0 +1,17 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/DownloadInfo.cs",
+      "old": "ICAgICAgICAgICAgaWYgKERvd25sb2Fkcy5SZXRyeUF0dGVtcHRzICE9IDEwICYmIERvd25sb2Fkcy5SZXRyeUF0dGVtcHRzID4gMCkgew0K",
+      "new": "ICAgICAgICAgICAgaWYgKERvd25sb2Fkcy5SZXRyeUF0dGVtcHRzICE9IDEwICYmIERvd25sb2Fkcy5SZXRyeUF0dGVtcHRzID49IDApIHsNCg==",
+      "count": 1
+    },
+    {
+      "path": "youtube-dl-gui/Classes/DataClasses/ExtendedMediaDetails.cs",
+      "old": "ICAgICAgICAgICAgaWYgKERvd25sb2Fkcy5SZXRyeUF0dGVtcHRzICE9IDEwICYmIERvd25sb2Fkcy5SZXRyeUF0dGVtcHRzID4gMCkgew0K",
+      "new": "ICAgICAgICAgICAgaWYgKERvd25sb2Fkcy5SZXRyeUF0dGVtcHRzICE9IDEwICYmIERvd25sb2Fkcy5SZXRyeUF0dGVtcHRzID49IDApIHsNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: honor zero retry setting"
+}

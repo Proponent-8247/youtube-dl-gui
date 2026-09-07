@@ -861,7 +861,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             string BatchTime = BatchHelper.CurrentTime;
             bool BatchHadErrors = false;
 
-            for (int i = 0; i < lvQueuedMedia.Items.Count; i++) {
+            for (int i = 0; i < (int)lvQueuedMedia.Invoke(() => lvQueuedMedia.Items.Count); i++) {
                 if ((bool)lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].Tag is not ExtendedMediaDetails)) {
                     lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Errored);
                     BatchHadErrors = true;
@@ -1942,6 +1942,11 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         }
     }
     private void mQueueRemoveSelected_Click(object sender, EventArgs e) {
+        if (Status == DownloadStatus.Downloading
+        || ((Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) && ProcessingThread?.IsAlive == true)) {
+            return;
+        }
+
         if (lvQueuedMedia.SelectedItems.Count > 0) {
             lvQueuedMedia.Items.RemoveAt(lvQueuedMedia.SelectedItems[0].Index);
         }

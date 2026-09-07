@@ -1,0 +1,11 @@
+{
+  "replacements": [
+    {
+      "path": "youtube-dl-gui-updater/Program.cs",
+      "old": "ICAgICAgICAgICAgICAgICAgICAgICAgaWYgKGludC5UcnlQYXJzZShhcmdzW2ldLCBvdXQgaW50IGh3bmQpKQ0KICAgICAgICAgICAgICAgICAgICAgICAgICAgIEhhbmRsZSA9IGh3bmQ7DQo=",
+      "new": "ICAgICAgICAgICAgICAgICAgICAgICAgaWYgKGxvbmcuVHJ5UGFyc2UoYXJnc1tpXSwgb3V0IGxvbmcgaHduZCkpDQogICAgICAgICAgICAgICAgICAgICAgICAgICAgSGFuZGxlID0gKG5pbnQpaHduZDsNCg==",
+      "count": 1
+    }
+  ],
+  "commit_message": "fix: preserve pointer-width updater window handle"
+}

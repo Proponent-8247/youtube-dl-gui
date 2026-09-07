@@ -1,9 +1,9 @@
 {
   "replacements": [
     {
-      "path": "youtube-dl-gui/Forms/frmExtendedDownloader.Designer.cs",
-      "old": "ICAgICAgICAgICAgdGhpcy50cFN0YXJ0VGltZS5BbmNob3IgPSAoKFN5c3RlbS5XaW5kb3dzLkZvcm1zLkFuY2hvclN0eWxlcykoKFN5c3RlbS5XaW5kb3dzLkZvcm1zLkFuY2hvclN0eWxlcy5Cb3R0b20gfCBTeXN0ZW0uV2luZG93cy5Gb3Jtcy5BbmNob3JTdHlsZXMuTGVmdCkpKTsK",
-      "new": "ICAgICAgICAgICAgdGhpcy50cFN0YXJ0VGltZS5BbmNob3IgPSAoKFN5c3RlbS5XaW5kb3dzLkZvcm1zLkFuY2hvclN0eWxlcykoKFN5c3RlbS5XaW5kb3dzLkZvcm1zLkFuY2hvclN0eWxlcy5Cb3R0b20gfCBTeXN0ZW0uV2luZG93cy5Gb3Jtcy5BbmNob3JTdHlsZXMuTGVmdCkpKTsKICAgICAgICAgICAgdGhpcy50cFN0YXJ0VGltZS5EYXRlQmFzZWRUaW1lID0gZmFsc2U7Cg==",
+      "path": "youtube-dl-gui/Forms/frmExtendedDownloader.cs",
+      "old": "ICAgICAgICBJbml0aWFsaXplQ29tcG9uZW50KCk7DQogICAgICAgIExvYWRMYW5ndWFnZSgpOw0K",
+      "new": "ICAgICAgICBJbml0aWFsaXplQ29tcG9uZW50KCk7DQogICAgICAgIHRwU3RhcnRUaW1lLkRhdGVCYXNlZFRpbWUgPSBmYWxzZTsNCiAgICAgICAgTG9hZExhbmd1YWdlKCk7DQo=",
       "count": 1
     }
   ],

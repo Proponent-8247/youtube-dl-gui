@@ -106,18 +106,8 @@ static class Program {
                                                             | (System.Net.SecurityProtocolType)3072;
         }
         catch (NotSupportedException) {
-            try { //try TLS 1.2
-                System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)3072;
-            }
-            catch (NotSupportedException) {
-                try { //try TLS 1.1
-                    System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)768
-                                                                    | System.Net.SecurityProtocolType.Tls;
-                }
-                catch (NotSupportedException) { //TLS 1.0
-                    System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls;
-                }
-            }
+            // Updates require TLS 1.2 or newer. Do not fall back to obsolete protocols.
+            System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)3072;
         }
     }
 }

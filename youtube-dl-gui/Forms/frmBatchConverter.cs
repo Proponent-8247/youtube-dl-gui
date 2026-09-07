@@ -209,6 +209,9 @@ public partial class frmBatchConverter : LocalizedProcessingForm {
                         } break;
                     }
 
+                    Converter.Dispose();
+                    Converter = null;
+
                     if (AbortConversions)
                         break;
                 }

@@ -27,7 +27,10 @@ internal static partial class AuditRegression {
         Process child;
         try { child = Process.GetProcessById(pid); } catch (ArgumentException) { return null; }
         try {
-            if (!string.Equals(child.MainModule.FileName, Self, StringComparison.OrdinalIgnoreCase)) {
+            string executable = child.MainModule.FileName;
+            string helper = Path.Combine(Path.GetDirectoryName(Self), "ThumbnailFixture.exe");
+            if (!string.Equals(executable, Self, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(executable, helper, StringComparison.OrdinalIgnoreCase)) {
                 child.Dispose();
                 return null; // A recycled PID is not an owned fixture.
             }

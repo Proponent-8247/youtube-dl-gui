@@ -88,7 +88,7 @@ internal sealed class YoutubeDlData {
             }
         }
 
-        Arguments.Add(ArgumentList.EscapeArgument(URL));
+        Arguments.Add("-- " + ArgumentList.EscapeArgument(URL));
 
         using Process Enumeration = new() {
             StartInfo = new(Verification.YoutubeDlPath) {

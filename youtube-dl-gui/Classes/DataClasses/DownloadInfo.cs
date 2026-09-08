@@ -187,7 +187,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
         }
 
         if (!MostlyCustomArguments) {
-            ArgumentsBuffer.Add($"{ArgumentList.EscapeArgument(DownloadURL)} -o {OutputDirectory}");
+            ArgumentsBuffer.Add($"-o {OutputDirectory}");
         }
 
         Verbose("The output was generated and will be used");
@@ -449,6 +449,12 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
             }
         }
         #endregion
+
+        if (!MostlyCustomArguments) {
+            string SourceArgument = "-- " + ArgumentList.EscapeArgument(DownloadURL);
+            ArgumentsBuffer.Add(SourceArgument);
+            PreviewArguments.Add(SourceArgument);
+        }
 
         Verbose("Arguments have been generated");
         base.Arguments = ArgumentsBuffer.ToString();

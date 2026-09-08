@@ -483,7 +483,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
         InfoParsed = true;
     }
     public override bool GenerateArguments() {
-        ArgumentList ArgumentBuffer = new(ArgumentList.EscapeArgument(URL));
+        ArgumentList ArgumentBuffer = [];
 
         #region Outuput path
         StringBuilder OutputPath = new("-o \"");
@@ -773,6 +773,10 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
             }
         }
         #endregion
+
+        string SourceArgument = "-- " + ArgumentList.EscapeArgument(URL);
+        ArgumentBuffer.Add(SourceArgument);
+        ProtectedArguments.Append(' ').Append(SourceArgument);
 
         base.Arguments = ArgumentBuffer.ToString();
         this.ArgumentsCensored = ProtectedArguments.ToString();

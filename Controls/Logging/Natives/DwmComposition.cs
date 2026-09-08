@@ -50,7 +50,6 @@ internal static class DwmComposition {
                     //Remember to clean up
                     DwmNatives.SelectObject(Memdc, bitmapOld);
                     DwmNatives.DeleteObject(bitmap);
-                    DwmNatives.ReleaseDC(Memdc, -1);
                     DwmNatives.DeleteDC(Memdc);
                 }
             }
@@ -82,7 +81,6 @@ internal static class DwmComposition {
                     DwmNatives.SelectObject(Memdc, logfnotOld);
                     DwmNatives.DeleteObject(bitmap);
                     DwmNatives.DeleteObject(hFont);
-                    DwmNatives.ReleaseDC(Memdc, -1);
                     DwmNatives.DeleteDC(Memdc);
                 }
             }

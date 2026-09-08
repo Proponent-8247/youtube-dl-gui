@@ -135,6 +135,7 @@ internal sealed partial class frmException : Form {
             pnDWM.Visible = true;
         }
 
+        this.FormClosed += (s, e) => DwmInfo?.Dispose();
         this.Shown += (s, e) => System.Media.SystemSounds.Hand.Play();
     }
     

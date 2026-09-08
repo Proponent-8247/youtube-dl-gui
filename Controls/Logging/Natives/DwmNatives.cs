@@ -141,7 +141,7 @@ internal sealed class DwmNatives {
     [DllImport("gdi32.dll", ExactSpelling = true, SetLastError = true)]
     public static extern int SaveDC(nint hdc);
     [DllImport("user32.dll", ExactSpelling = true, SetLastError = true)]
-    public static extern int ReleaseDC(nint hdc, int state);
+    public static extern int ReleaseDC(nint hWnd, nint hDC);
     [DllImport("gdi32.dll", ExactSpelling = true, SetLastError = true)]
     public static extern nint CreateCompatibleDC(nint hDC);
     [DllImport("gdi32.dll", ExactSpelling = true)]

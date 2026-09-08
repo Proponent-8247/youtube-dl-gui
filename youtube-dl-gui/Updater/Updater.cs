@@ -462,12 +462,13 @@ internal static class Updater {
     /// <param name="Url">The URL to download the string from.</param>
     /// <returns>A string from the URL.</returns>
     private static async Task<string?> GetJSON(string Url) {
+        CancellationToken Token = UpdateToken.Token;
         string? Json = null;
         bool CanRetry;
         int Retries = 0;
         do {
             try {
-                Json = await Program.HttpClient.DownloadStringTaskAsync(new Uri(Url), CancellationToken.None);
+                Json = await Program.HttpClient.DownloadStringTaskAsync(new Uri(Url), Token);
                 CanRetry = false;
             }
             catch (Exception ex) {
@@ -481,7 +482,7 @@ internal static class Updater {
 
                 if (Retries != MaxRetries && (ex is not HttpException hex || (int)hex.StatusCode > 499)) {
                     Log.Write("An exception occurred, retrying...");
-                    await Task.Delay(RetryDelay);
+                    await Task.Delay(RetryDelay, Token);
                     Retries++;
                     CanRetry = true;
                     continue;

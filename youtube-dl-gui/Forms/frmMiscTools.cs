@@ -53,28 +53,10 @@ public partial class frmMiscTools : LocalizedForm {
 
     private static bool IsImageMagick(string ExecutablePath) {
         try {
-            using Process VersionCheck = new() {
-                StartInfo = new(ExecutablePath) {
-                    Arguments = "-version",
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                }
-            };
-
-            VersionCheck.Start();
-            if (!VersionCheck.WaitForExit(5_000)) {
-                try {
-                    VersionCheck.Kill();
-                }
-                catch {
-                    // Best-effort termination of an unresponsive candidate.
-                }
-                return false;
-            }
-
-            string VersionOutput = VersionCheck.StandardOutput.ReadToEnd() + VersionCheck.StandardError.ReadToEnd();
+            murrty.controls.OwnedProcess.Result VersionCheck = murrty.controls.OwnedProcess.Run(
+                new ProcessStartInfo(ExecutablePath) { Arguments = "-version" },
+                System.Threading.CancellationToken.None, 5_000, 65_536);
+            string VersionOutput = VersionCheck.StandardOutput + VersionCheck.StandardError;
             return VersionCheck.ExitCode == 0
                 && VersionOutput.IndexOf("ImageMagick", StringComparison.OrdinalIgnoreCase) >= 0;
         }

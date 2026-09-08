@@ -8,13 +8,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: audit-verification-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: windows-2022
     timeout-minutes: 20
     steps:
       - name: Check out exact revision
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -29,15 +33,22 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git rev-parse HEAD | Set-Content audit-evidence/commit.txt
           git log --format='%H %s' b734c05944eeffccfde3208cd1ea45ef2ae401f9..HEAD | Set-Content audit-evidence/history.txt
+          git rev-parse refs/remotes/origin/master | Set-Content audit-evidence/master-commit.txt
+          git archive --format=zip --output=audit-evidence/master-source.zip refs/remotes/origin/master
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git merge-base HEAD refs/remotes/origin/master | Set-Content audit-evidence/master-merge-base.txt
+          git diff --stat refs/remotes/origin/master HEAD | Set-Content audit-evidence/master-diff-stat.txt
+          git diff --name-status refs/remotes/origin/master HEAD | Set-Content audit-evidence/master-diff-files.txt
+          git diff refs/remotes/origin/master HEAD -- '*.cs' '*.csproj' '*.projitems' | Set-Content audit-evidence/master-source.diff
           Get-FileHash audit-evidence/source.zip -Algorithm SHA256 | Format-List | Out-File audit-evidence/source-sha256.txt
 
       - name: Retain source snapshot
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: audit-source-${{ github.sha }}
           path: audit-evidence/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
 
       - name: Reject unapplied patch requests
         shell: pwsh
@@ -47,7 +58,7 @@ jobs:
           }
 
       - name: Set up MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
 
       - name: Build Debug solution
         shell: pwsh
@@ -62,29 +73,34 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build Release application baseline
+        id: main
         shell: pwsh
         run: |
           msbuild youtube-dl-gui/youtube-dl-gui.csproj /m /p:Configuration=Release /p:Platform=AnyCPU /p:BuildProjectReferences=false /p:PreBuildEvent= /p:PostBuildEvent= /bl:audit-evidence/release-main.binlog
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Run available regression harness
+      - name: Run regression harness
         shell: pwsh
         run: |
-          if (Test-Path tests/Run-AuditRegression.ps1) {
-            & ./tests/Run-AuditRegression.ps1 -EvidenceDirectory "$PWD/audit-evidence"
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          } else {
-            'BASELINE ONLY: behavioral regression harness is not present at this revision.' | Tee-Object audit-evidence/test-coverage.txt
-          }
+          & ./tests/Run-AuditRegression.ps1 -EvidenceDirectory "$PWD/audit-evidence"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Exercise full Release build and packaging
+        if: always() && steps.main.outcome == 'success'
+        shell: pwsh
+        run: |
+          msbuild youtube-dl-gui.sln /m /p:Configuration=Release '/p:Platform=Any CPU' /bl:audit-evidence/release-full.binlog 2>&1 | Tee-Object audit-evidence/release-full.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Retain verification evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: audit-verification-${{ github.sha }}
           path: |
             audit-evidence/
             youtube-dl-gui/bin/Release/
             youtube-dl-gui-updater/bin/Release/
+            Release/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30

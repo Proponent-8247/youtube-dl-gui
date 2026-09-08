@@ -23,7 +23,7 @@ public static class DownloadHelper {
         new(RegexPrefix + @"((www|m)\.)?pornhub\.com\/view_video\.php(\?viewkey=|.*?&viewkey=)ph[a-zA-Z0-9]{1,}", RegexOptions.Compiled),
 
         // lang=regex Reddit
-        new(RegexPrefix + @"([a-zA-Z]{1,}\.)?reddit\.com\/r\/[a-zA-Z0-9-_]{1,}\/(comments\/)?[a-zA-Z0-9]{1,}|(i\.|v\.)?redd\.it\/[a-zA-Z0-9]{1,}", RegexOptions.Compiled),
+        new(RegexPrefix + @"([a-zA-Z]{1,}\.)?reddit\.com\/r\/[a-zA-Z0-9-_]{1,}\/(comments\/)?[a-zA-Z0-9]{1,}|(i\.|v\.)?redd\.it\/[a-zA-Z0-9]{1,}", RegexOptions.Compiled | RegexOptions.IgnoreCase),
 
         // lang=regex Twitter
         new(RegexPrefix + @"(t\.co\/[a-zA-Z0-9]{1,})|(((m|mobile)\.)?twitter\.com\/(i|[a-zA-Z0-9]{1,})\/status\/[0-9]{1,})", RegexOptions.Compiled),

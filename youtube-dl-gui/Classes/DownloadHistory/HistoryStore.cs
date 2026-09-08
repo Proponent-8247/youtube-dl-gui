@@ -283,7 +283,7 @@ namespace youtube_dl_gui.History {
             string name = Path.GetFileName(path);
             return name.EndsWith(".part", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".ytdl", StringComparison.OrdinalIgnoreCase)
                 || name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)
-                || Regex.IsMatch(name, @"(?i)\.(?:part(?:-Frag\d+)?|temp|frag\d+|f\d+)\.")
+                || Regex.IsMatch(name, @"(?i)\.(?:part(?:-Frag\d+)?|temp|frag\d+|f\d+)\.[^.]+$")
                 || Regex.IsMatch(name, @"(?i)\.part-Frag\d+$");
         }
         private static HashSet<string> ReadArchive(string path) {

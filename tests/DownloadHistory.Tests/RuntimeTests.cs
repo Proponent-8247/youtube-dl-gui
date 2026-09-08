@@ -5,6 +5,20 @@ using youtube_dl_gui.History;
 
 internal static partial class Program {
     private static void TestRuntime() {
+        Test("ordinary title components are not mistaken for intermediate media", () => {
+            using (var l = new Library()) {
+                foreach (string title in new[] { "A.temp.title", "A.f137.title", "A.part.title" }) {
+                    string stem = title + "-" + Id;
+                    l.Media(stem + ".mp4"); l.Info(stem, Id);
+                }
+                l.Media("Unfinished-" + SecondId + ".f137.mp4");
+                using (var s = l.Open()) {
+                    var report = s.Reconcile();
+                    Assert(report.EmbeddedIds == 3 && report.Incomplete.Count == 1, "Completed media silently skipped.");
+                    Assert(report.Entries.SetEquals(new[] { "youtube " + Id }), "Wrong completed identity set.");
+                }
+            }
+        });
         Test("archive options precede the audit branch URL separator", () => {
             using (var l = new Library()) {
                 string command = "-o " + HistoryCommandPolicy.Quote(Path.Combine(l.Root, l.Options.Template))

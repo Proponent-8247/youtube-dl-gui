@@ -3,7 +3,25 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 internal static class ThumbnailFixture {
+    [STAThread]
     private static int Main(string[] args) {
+        if (args.Length == 2 && args[0] == "--log-probe") {
+            var app = System.Reflection.Assembly.LoadFrom(args[1]);
+            var infoType = app.GetType("murrty.logging.ExceptionInfo", true);
+            var info = infoType.GetConstructor(new[] { typeof(Exception) }).Invoke(new object[] { new InvalidOperationException("audit-log-fixture") });
+            infoType.GetProperty("ExceptionTime").SetValue(info, new DateTime(2026, 1, 2, 3, 4, 5), null);
+            var log = app.GetType("murrty.logging.Log", true);
+            log.GetProperty("AllowWritingToFile").SetValue(null, true, null);
+            log.GetMethod("WriteToFile", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).Invoke(null, new[] { info });
+            Console.Write("written");
+            return 0;
+        }
+        if (args.Length == 2 && args[0] == "--url-probe") {
+            var app = System.Reflection.Assembly.LoadFrom(args[1]);
+            var method = app.GetType("youtube_dl_gui.DownloadHelper", true).GetMethod("SupportedDownloadLink");
+            Console.Write(method.Invoke(null, new object[] { new string('a', 100000) }));
+            return 0;
+        }
         string pid = Environment.GetEnvironmentVariable("YTDL_AUDIT_PID_FILE");
         if (args.Length != 0 && args[0] == "--tool-hold") {
             File.WriteAllText(pid + ".child", Process.GetCurrentProcess().Id.ToString());

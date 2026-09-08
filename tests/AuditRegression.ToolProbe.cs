@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 internal static partial class AuditRegression {
     static partial void RunToolProbeTests() {
+        RunInputBoundaryTests();
         foreach (string mode in new[] { "large", "orphan" }) {
             string capturedMode = mode;
             Test(mode == "large" ? "N009.ImageMagickProbeDrainsOutputBeforeWaiting" : "N009.ImageMagickProbeBoundsInheritedPipes", () => {

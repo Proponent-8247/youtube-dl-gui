@@ -9,6 +9,7 @@ public static class Language {
     #region Constants
     public const string ApplicationName = "youtube-dl-gui";
     internal static List<ILocalizedForm> OpenedForms = [];
+    private static readonly object OpenedFormsSync = new();
     #endregion
 
     #region GetSetRadio (AKA Properties)
@@ -4015,11 +4016,13 @@ public static class Language {
     /// </summary>
     /// <param name="Form"></param>
     internal static void RegisterForm(ILocalizedForm Form) {
-        if (OpenedForms.Contains(Form)) {
-            Log.Write($"Localized form {Form.GetFormName()} already in the list.");
-            return;
+        lock (OpenedFormsSync) {
+            if (OpenedForms.Contains(Form)) {
+                Log.Write($"Localized form {Form.GetFormName()} already in the list.");
+                return;
+            }
+            OpenedForms.Add(Form);
         }
-        OpenedForms.Add(Form);
         Log.Write($"Added new localized form {Form.GetFormName()}");
     }
 
@@ -4028,7 +4031,11 @@ public static class Language {
     /// </summary>
     /// <param name="Form"></param>
     internal static void UnregisterForm(ILocalizedForm Form) {
-        if (OpenedForms.Remove(Form)) {
+        bool Removed;
+        lock (OpenedFormsSync) {
+            Removed = OpenedForms.Remove(Form);
+        }
+        if (Removed) {
             Log.Write($"Form {Form.GetFormName()} was removed from the list.");
         }
         else {
@@ -4040,9 +4047,31 @@ public static class Language {
     /// Occurs when the localization has been changed.
     /// </summary>
     private static void LocalizationChanged() {
-        if (OpenedForms.Count < 1)
-            return;
-        OpenedForms.For((f) => f.LoadLanguage());
+        ILocalizedForm[] Forms;
+        lock (OpenedFormsSync) {
+            if (OpenedForms.Count < 1) {
+                return;
+            }
+            Forms = OpenedForms.ToArray();
+        }
+
+        foreach (ILocalizedForm Localized in Forms) {
+            if (Localized is not System.Windows.Forms.Form Form || Form.IsDisposed || !Form.IsHandleCreated) {
+                continue;
+            }
+
+            try {
+                if (Form.InvokeRequired) {
+                    Form.BeginInvoke(new Action(Localized.LoadLanguage));
+                }
+                else {
+                    Localized.LoadLanguage();
+                }
+            }
+            catch (InvalidOperationException) {
+                // The form can close between the snapshot and dispatch.
+            }
+        }
     }
     #endregion
 }

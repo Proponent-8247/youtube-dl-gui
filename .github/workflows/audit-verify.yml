@@ -1,0 +1,90 @@
+name: Audit verification
+
+on:
+  push:
+    branches: [audit-fixes]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Preserve audited source and history
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path audit-evidence | Out-Null
+          git archive --format=zip --output=audit-evidence/source.zip HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git rev-parse HEAD | Set-Content audit-evidence/commit.txt
+          git log --format='%H %s' b734c05944eeffccfde3208cd1ea45ef2ae401f9..HEAD | Set-Content audit-evidence/history.txt
+          Get-FileHash audit-evidence/source.zip -Algorithm SHA256 | Format-List | Out-File audit-evidence/source-sha256.txt
+
+      - name: Retain source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-source-${{ github.sha }}
+          path: audit-evidence/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Reject unapplied patch requests
+        shell: pwsh
+        run: |
+          if (Test-Path .audit-patch-request.json) {
+            throw 'This revision is a patch request, not the resulting source revision. Verify the committed source instead.'
+          }
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Debug solution
+        shell: pwsh
+        run: |
+          msbuild youtube-dl-gui.sln /m /p:Configuration=Debug '/p:Platform=Any CPU' /bl:audit-evidence/debug.binlog
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build Release updater
+        shell: pwsh
+        run: |
+          msbuild youtube-dl-gui-updater/youtube-dl-gui-updater.csproj /m /p:Configuration=Release /p:Platform=AnyCPU /bl:audit-evidence/release-updater.binlog
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build Release application baseline
+        shell: pwsh
+        run: |
+          msbuild youtube-dl-gui/youtube-dl-gui.csproj /m /p:Configuration=Release /p:Platform=AnyCPU /p:BuildProjectReferences=false /p:PreBuildEvent= /p:PostBuildEvent= /bl:audit-evidence/release-main.binlog
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run available regression harness
+        shell: pwsh
+        run: |
+          if (Test-Path tests/Run-AuditRegression.ps1) {
+            & ./tests/Run-AuditRegression.ps1 -EvidenceDirectory "$PWD/audit-evidence"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } else {
+            'BASELINE ONLY: behavioral regression harness is not present at this revision.' | Tee-Object audit-evidence/test-coverage.txt
+          }
+
+      - name: Retain verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-verification-${{ github.sha }}
+          path: |
+            audit-evidence/
+            youtube-dl-gui/bin/Release/
+            youtube-dl-gui-updater/bin/Release/
+          if-no-files-found: error
+          retention-days: 14

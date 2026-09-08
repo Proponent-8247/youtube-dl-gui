@@ -142,8 +142,8 @@ public partial class frmExtendedConverter : LocalizedForm {
             SelectedConversion.VideoCRF = 0;
             SelectedConversion.VideoBitrate = 0;
         }
-        SelectedConversion.VideoPreset = chkVideoSetPreset.Checked ? (VideoPresets)cbVideoPreset.SelectedIndex : VideoPresets.none;
-        SelectedConversion.VideoProfile = chkVideoSetProfile.Checked ? (VideoProfiles)cbVideoProfile.SelectedIndex : VideoProfiles.none;
+        SelectedConversion.VideoPreset = chkVideoSetPreset.Checked && cbVideoPreset.SelectedIndex >= 0 ? (VideoPresets)(cbVideoPreset.SelectedIndex + 1) : VideoPresets.none;
+        SelectedConversion.VideoProfile = chkVideoSetProfile.Checked && cbVideoProfile.SelectedIndex >= 0 ? (VideoProfiles)(cbVideoProfile.SelectedIndex + 1) : VideoProfiles.none;
         SelectedConversion.VideoFastStart = chkVideoFaststart.Checked;
 
         if (chkSetAudioQuality.Checked) {
@@ -174,12 +174,16 @@ public partial class frmExtendedConverter : LocalizedForm {
         chkVideoUseCRF.Checked = SelectedConversion.VideoUseCRF;
         cbVideoCRF.SelectedIndex = SelectedConversion.VideoCRF;
         chkVideoFaststart.Checked = SelectedConversion.VideoFastStart;
-        cbVideoPreset.SelectedIndex = (int)SelectedConversion.VideoPreset;
-        cbVideoProfile.SelectedIndex = (int)SelectedConversion.VideoProfile;
+        chkVideoSetPreset.Checked = SelectedConversion.VideoPreset != VideoPresets.none;
+        cbVideoPreset.SelectedIndex = (int)SelectedConversion.VideoPreset - 1;
+        chkVideoSetProfile.Checked = SelectedConversion.VideoProfile != VideoProfiles.none;
+        cbVideoProfile.SelectedIndex = (int)SelectedConversion.VideoProfile - 1;
 
         numAudioBitrate.Value = SelectedConversion.AudioBitrate;
         chkAudioUseVBR.Checked = SelectedConversion.AudioUseVBR;
         cbAudioVBR.SelectedIndex = SelectedConversion.AudioVBR;
+        chkAudioSampleRate.Checked = SelectedConversion.AudioSampleRate != AudioSampleRates.none;
+        cbAudioSampleRate.SelectedIndex = (int)SelectedConversion.AudioSampleRate;
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "<Pending>")]

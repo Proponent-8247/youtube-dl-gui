@@ -77,14 +77,59 @@ internal sealed class ManagedHttpClient : IDisposable {
         }
         return false;
     }
-    private static async Task<HttpException> GetException(HttpResponseMessage Response, Uri uri) {
-        using Stream ResponseStream = await Response.Content.ReadAsStreamAsync();
-        byte[] ResponseContent = Response.Content.Headers.ContentEncoding.FirstOrDefault()?.ToLowerInvariant() switch {
-            "gzip" => await WebDecompress.GetGZip(ResponseStream),
-            "deflate" => await WebDecompress.GetDeflate(ResponseStream),
-            _ => await WebDecompress.GetRaw(ResponseStream)
-        };
-        return new HttpException(Response.StatusCode, ResponseContent, uri);
+    private static async Task<HttpException> GetException(HttpResponseMessage Response, Uri uri, CancellationToken Token) {
+        byte[] Content = await ReadResponseBytes(Response, Token, 64 * 1024, Truncate: true).ConfigureAwait(false);
+        return new HttpException(Response.StatusCode, Content, uri);
+    }
+
+    // Metadata and diagnostics are bounded after decompression. Disposing the response
+    // on cancellation also interrupts Framework streams that ignore ReadAsync's token.
+    private static async Task<byte[]> ReadResponseBytes(HttpResponseMessage Response, CancellationToken Token,
+        int MaximumBytes, bool Truncate = false, Action<int>? ReportProgress = null) {
+        if (MaximumBytes <= 0) throw new ArgumentOutOfRangeException(nameof(MaximumBytes));
+        Token.ThrowIfCancellationRequested();
+        using CancellationTokenSource Deadline = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        Deadline.CancelAfter(DefaultTimeout);
+        using CancellationTokenRegistration Registration = Deadline.Token.Register(() => Response.Dispose());
+        try {
+            using Stream Content = await Response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+            using Stream Decoded = Response.Content.Headers.ContentEncoding.FirstOrDefault()?.ToLowerInvariant() switch {
+                "gzip" => new GZipStream(Content, CompressionMode.Decompress),
+                "deflate" => new DeflateStream(Content, CompressionMode.Decompress),
+                _ => Content,
+            };
+            using MemoryStream Bytes = new();
+            byte[] Buffer = new byte[8192];
+            while (true) {
+                Deadline.Token.ThrowIfCancellationRequested();
+                int Count = await Decoded.ReadAsync(Buffer, 0, Buffer.Length, Deadline.Token).ConfigureAwait(false);
+                if (Count == 0) break;
+                if (Count > MaximumBytes - Bytes.Length) {
+                    if (!Truncate) throw new InvalidDataException("The HTTP response exceeded the permitted decompressed size.");
+                    byte[] Notice = Encoding.UTF8.GetBytes("\n[response truncated]");
+                    int Limit = Math.Max(0, MaximumBytes - Notice.Length);
+                    if (Bytes.Length > Limit) Bytes.SetLength(Limit);
+                    else Bytes.Write(Buffer, 0, Math.Min(Count, Limit - (int)Bytes.Length));
+                    Bytes.Position = Bytes.Length;
+                    Bytes.Write(Notice, 0, Math.Min(Notice.Length, MaximumBytes - (int)Bytes.Length));
+                    return Bytes.ToArray();
+                }
+                Bytes.Write(Buffer, 0, Count);
+                ReportProgress?.Invoke(Count);
+            }
+            Deadline.Token.ThrowIfCancellationRequested();
+            return Bytes.ToArray();
+        }
+        catch (Exception ex) when (Deadline.IsCancellationRequested) {
+            Token.ThrowIfCancellationRequested();
+            throw new TimeoutException("The HTTP response body did not complete within the permitted time.", ex);
+        }
+    }
+
+    internal async Task<byte[]> DownloadBytesTaskAsync(Uri uri, CancellationToken Token, int MaximumBytes) {
+        using HttpResponseMessage Response = await DownloadClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, Token).ConfigureAwait(false);
+        if (!Response.IsSuccessStatusCode) throw await GetException(Response, uri, Token).ConfigureAwait(false);
+        return await ReadResponseBytes(Response, Token, MaximumBytes).ConfigureAwait(false);
     }
 
     private DownloadProgressChangedEventArgs GetProgressEventArgs() {
@@ -158,7 +203,7 @@ internal sealed class ManagedHttpClient : IDisposable {
             using HttpResponseMessage Response = await DownloadClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, Token);
 
             if (!Response.IsSuccessStatusCode)
-                throw await GetException(Response, uri);
+                throw await GetException(Response, uri, Token);
 
             string? ContentEncoding = Response.Content.Headers.ContentEncoding.FirstOrDefault()?.ToLowerInvariant();
             lock (ProgressSync) {
@@ -201,24 +246,20 @@ internal sealed class ManagedHttpClient : IDisposable {
             using HttpResponseMessage Response = await DownloadClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, Token);
 
             if (!Response.IsSuccessStatusCode)
-                throw await GetException(Response, uri);
+                throw await GetException(Response, uri, Token);
 
             lock (ProgressSync) {
-                CurrentTotalSize = Response.Content.Headers.ContentLength ?? 0;
+                CurrentTotalSize = Response.Content.Headers.ContentEncoding.Any() ? 0 : Response.Content.Headers.ContentLength ?? 0;
             }
 
-            using MemoryStream Destination = new();
-            using Stream ContentStream = await Response.Content.ReadAsStreamAsync();
-
-            await WriteStream(ContentStream, Destination, Token);
-            await Destination.FlushAsync();
+            ProgressReportTimer.Change(ProgressThrottle, ProgressThrottle);
+            byte[] Bytes = await ReadResponseBytes(Response, Token, 32 * 1024 * 1024, ReportProgress: Count => {
+                lock (ProgressSync) {
+                    CurrentProgress += Count;
+                    ByteEstimateBuffer += Count;
+                }
+            });
             FinishedCallback();
-
-            byte[] Bytes = Response.Content.Headers.ContentEncoding.FirstOrDefault()?.ToLowerInvariant() switch {
-                "gzip" => await WebDecompress.GetGZip(Destination),
-                "deflate" => await WebDecompress.GetDeflate(Destination),
-                _ => await WebDecompress.GetRaw(Destination),
-            };
 
             return (Response.Content.Headers.ContentType?.CharSet ?? "utf-8").ToLowerInvariant() switch {
                 "ascii" => Encoding.ASCII.GetString(Bytes),
@@ -243,10 +284,18 @@ internal sealed class ManagedHttpClient : IDisposable {
         }
 
         using CancellationTokenSource ReadTimeout = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        using CancellationTokenRegistration ReadCancellation = ReadTimeout.Token.Register(() => Source.Dispose());
         ProgressReportTimer.Change(ProgressThrottle, ProgressThrottle);
         while (true) {
             ReadTimeout.CancelAfter(DefaultTimeout);
-            bytesRead = await Source.ReadAsync(buffer, 0, buffer.Length, ReadTimeout.Token).ConfigureAwait(false);
+            try {
+                bytesRead = await Source.ReadAsync(buffer, 0, buffer.Length, ReadTimeout.Token).ConfigureAwait(false);
+                ReadTimeout.Token.ThrowIfCancellationRequested();
+            }
+            catch (Exception ex) when (ReadTimeout.IsCancellationRequested) {
+                Token.ThrowIfCancellationRequested();
+                throw new TimeoutException("The download response stopped providing data.", ex);
+            }
             ReadTimeout.CancelAfter(Timeout.Infinite);
             if (bytesRead <= 0) {
                 break;

@@ -6,27 +6,34 @@ using System.Runtime.InteropServices;
 /// </summary>
 internal static class TaskbarInterface {
     #region Properties
+    internal static readonly object SyncRoot = new();
     internal static readonly SynchronizedCollection<ExtendedProgressBar> AccessorPriorityList = new();
     internal static ExtendedProgressBar? Accessor {
-        get => fAccessor;
+        get {
+            lock (SyncRoot) {
+                return fAccessor;
+            }
+        }
         set {
-            if (value is null) {
-                while (AccessorPriorityList.Count > 0 && AccessorPriorityList[0]?.IsDisposed != false) {
-                    AccessorPriorityList.RemoveAt(0);
-                }
+            lock (SyncRoot) {
+                if (value is null) {
+                    while (AccessorPriorityList.Count > 0 && AccessorPriorityList[0]?.IsDisposed != false) {
+                        AccessorPriorityList.RemoveAt(0);
+                    }
 
-                if (AccessorPriorityList.Count > 0) {
-                    fAccessor = AccessorPriorityList[0];
-                    AccessorPriorityList.RemoveAt(0);
-                    fAccessor.SetStateInTaskbar();
-                    fAccessor.SetValueInTaskbar();
+                    if (AccessorPriorityList.Count > 0) {
+                        fAccessor = AccessorPriorityList[0];
+                        AccessorPriorityList.RemoveAt(0);
+                        fAccessor.SetStateInTaskbar();
+                        fAccessor.SetValueInTaskbar();
+                    }
+                    else {
+                        fAccessor = value;
+                    }
                 }
                 else {
-                    fAccessor = value;
+                    fAccessor ??= value;
                 }
-            }
-            else {
-                fAccessor ??= value;
             }
         }
     }

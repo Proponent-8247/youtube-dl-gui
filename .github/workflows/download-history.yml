@@ -29,13 +29,14 @@ jobs:
             exit 0
           }
           @'
-          import json, subprocess
+          import json, re, subprocess
           from pathlib import Path, PurePosixPath
           request_path = Path('.history-change.json')
           request = json.loads(request_path.read_text(encoding='utf-8'))
-          parent = subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip()
-          if parent != request['base']:
-              raise SystemExit('Patch does not match the exact parent revision')
+          base = request['base']
+          if not re.fullmatch('[0-9a-f]{40}', base):
+              raise SystemExit('Invalid pinned base revision')
+          subprocess.run(['git', 'merge-base', '--is-ancestor', base, 'HEAD'], check=True)
           allowed = ('youtube-dl-gui/', 'tests/DownloadHistory.Tests/', 'docs/download-history/')
           prepared = {}
           for item in request['replacements']:
@@ -45,12 +46,19 @@ jobs:
               target = Path(path)
               if any(p.is_symlink() for p in (target, *target.parents)):
                   raise SystemExit('Symlink patch rejected')
-              data = prepared.get(str(path), target.read_bytes())
+              if str(path) not in prepared:
+                  current = subprocess.check_output(['git', 'show', 'HEAD:' + str(path)])
+                  original = subprocess.check_output(['git', 'show', base + ':' + str(path)])
+                  if current != original:
+                      raise SystemExit(f'Target changed since the pinned base: {path}')
+                  prepared[str(path)] = original
+              data = prepared[str(path)]
               old = item['old'].encode('utf-8')
               new = item['new'].encode('utf-8')
               if not old or data.count(old) != item.get('count', 1):
                   raise SystemExit(f'Exact replacement mismatch: {path}')
               prepared[str(path)] = data.replace(old, new)
+          subprocess.run(['git', 'config', '--local', 'core.autocrlf', 'false'], check=True)
           for path, data in prepared.items():
               Path(path).write_bytes(data)
           request_path.unlink()

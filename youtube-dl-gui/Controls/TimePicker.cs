@@ -713,10 +713,11 @@ public struct Time : IEquatable<Time> {
         }
 
         if (Milliseconds > 0) {
-            if (buf.Length > 0) {
-                buf.Append(".");
+            if (buf.Length == 0) {
+                buf.Append('0');
             }
-            buf.Append(Milliseconds.ToString());
+            buf.Append('.');
+            buf.Append(Milliseconds.ToString("D3", System.Globalization.CultureInfo.InvariantCulture));
         }
 
         return buf.ToString();

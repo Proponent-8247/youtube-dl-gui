@@ -13,6 +13,10 @@ namespace youtube_dl_gui.History {
         public HistoryException(string message) : base(message) { }
     }
 
+    internal sealed class HistoryBusyException : IOException {
+        public HistoryBusyException(string message) : base(message) { }
+    }
+
     internal sealed class HistoryOptions {
         public string LibraryPath { get; set; }
         public string ArchivePath { get; set; }
@@ -91,6 +95,7 @@ namespace youtube_dl_gui.History {
     [DataContract]
     internal sealed class HistoryPending {
         [DataMember] public int Version = 1;
+        [DataMember] public string ArchivePath;
         [DataMember] public int ProcessId;
         [DataMember] public long ProcessStartTicks;
     }
@@ -174,6 +179,7 @@ namespace youtube_dl_gui.History {
         public string ArchivePath { get; private set; }
         private string StatePath { get { return ArchivePath + ".state.json"; } }
         private string PendingPath { get { return ArchivePath + ".pending.json"; } }
+        private string LibraryPendingPath { get { return Path.Combine(LibraryPath, ".ytdlg-history.pending.json"); } }
         private string MigrationPath { get { return ArchivePath + ".migration.json"; } }
 
         private HistoryStore(HistoryOptions options) {
@@ -200,7 +206,9 @@ namespace youtube_dl_gui.History {
                 foreach (string name in names.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n, StringComparer.OrdinalIgnoreCase)) {
                     RejectReparse(name, false);
                     try { store.locks.Add(new FileStream(name, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)); }
-                    catch (IOException ex) { throw new HistoryException("Download History cannot lock its library/archive. Another job may be running or storage may be unavailable. " + ex.Message); }
+                    catch (IOException ex) when ((ex.HResult & 0xffff) == 32 || (ex.HResult & 0xffff) == 33) {
+                        throw new HistoryBusyException("Another protected job is using this library or archive.");
+                    }
                 }
                 return store;
             }
@@ -253,7 +261,8 @@ namespace youtube_dl_gui.History {
             }
         }
         private bool IsServiceFile(string path) {
-            if (string.Equals(path, Path.Combine(LibraryPath, ".ytdlg-history.lock"), StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.Equals(path, Path.Combine(LibraryPath, ".ytdlg-history.lock"), StringComparison.OrdinalIgnoreCase)
+                || string.Equals(path, LibraryPendingPath, StringComparison.OrdinalIgnoreCase)) return true;
             if (new[] { ArchivePath, ArchivePath + ".bak", ArchivePath + ".lock", StatePath, PendingPath, MigrationPath }
                 .Any(p => string.Equals(path, p, StringComparison.OrdinalIgnoreCase))) return true;
             return new[] { ArchivePath + ".corrupt-", ArchivePath + ".reset-", ArchivePath + ".bak.reset-", StatePath + ".reset-",
@@ -330,8 +339,15 @@ namespace youtube_dl_gui.History {
             return checkpoint;
         }
         private void CheckPending() {
-            if (ownsPending || !Exists(PendingPath)) return;
-            HistoryPending pending = ReadJson<HistoryPending>(PendingPath, 8192);
+            if (ownsPending) return;
+            if (Exists(LibraryPendingPath)) CheckPendingFile(LibraryPendingPath);
+            if (Exists(PendingPath)) CheckPendingFile(PendingPath);
+        }
+        private void CheckPendingFile(string path) {
+            HistoryPending pending = ReadJson<HistoryPending>(path, 8192);
+            if (pending != null && !string.IsNullOrEmpty(pending.ArchivePath)
+                && !string.Equals(pending.ArchivePath, ArchivePath, StringComparison.OrdinalIgnoreCase))
+                throw new HistoryException("This library has an interrupted protected run using another archive. Recover that archive first: " + pending.ArchivePath);
             if (pending == null || pending.Version != 1 || pending.ProcessId == 0 || pending.ProcessId < -1) throw new HistoryException("An interrupted launch has no confirmed child-process identity. Verify that all downloaders have stopped before explicitly recovering the interrupted run.");
             if (pending.ProcessId == -1) return;
             try {
@@ -366,7 +382,7 @@ namespace youtube_dl_gui.History {
             var retryIds = new HashSet<string>(checkpoint.Files.Where(r => !r.Complete && r.Entry != null).Select(r => r.Entry), StringComparer.Ordinal);
             var known = authoritative.Select(HistoryIdentity.Parse).GroupBy(k => k.Id, StringComparer.Ordinal)
                 .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
-            bool interrupted = Exists(PendingPath);
+            bool interrupted = Exists(PendingPath) || Exists(LibraryPendingPath);
             var onDisk = new HashSet<string>(StringComparer.Ordinal);
             foreach (string path in EnumerateLibrary()) {
                 if (IsServiceFile(path)) continue;
@@ -498,28 +514,39 @@ namespace youtube_dl_gui.History {
         }
         public void BeginRun() {
             Reconcile();
-            AtomicWrite(PendingPath, Json(new HistoryPending()));
+            string pending = Json(new HistoryPending { ArchivePath = ArchivePath });
+            AtomicWrite(LibraryPendingPath, pending);
+            AtomicWrite(PendingPath, pending);
             ownsPending = true;
         }
         public void TrackProcess(System.Diagnostics.Process process) {
             if (!ownsPending) throw new InvalidOperationException("No protected run was prepared.");
-            if (process.HasExited) AtomicWrite(PendingPath, Json(new HistoryPending { ProcessId = -1 }));
-            else AtomicWrite(PendingPath, Json(new HistoryPending { ProcessId = process.Id, ProcessStartTicks = process.StartTime.ToUniversalTime().Ticks }));
+            var pending = new HistoryPending { ArchivePath = ArchivePath, ProcessId = -1 };
+            if (!process.HasExited) { pending.ProcessId = process.Id; pending.ProcessStartTicks = process.StartTime.ToUniversalTime().Ticks; }
+            AtomicWrite(PendingPath, Json(pending));
+            AtomicWrite(LibraryPendingPath, Json(pending));
         }
         // The caller must stop/reap the child before calling this or releasing the lease.
         public HistoryReport FinishRun() {
             if (!ownsPending) throw new InvalidOperationException("No protected run is owned.");
             HistoryReport report = Reconcile(true);
             File.Delete(PendingPath);
+            File.Delete(LibraryPendingPath);
             ownsPending = false;
             return report;
         }
         public void RecoverInterruptedLaunch() {
             CheckOpen();
             // Deliberate UI-confirmed action: the user must first stop every downloader.
-            if (Exists(PendingPath)) {
-                HistoryPending pending = ReadJson<HistoryPending>(PendingPath, 8192);
-                if (pending != null && pending.ProcessId > 0) CheckPending();
+            if (Exists(PendingPath) || Exists(LibraryPendingPath)) {
+                foreach (string path in new[] { PendingPath, LibraryPendingPath }) {
+                    if (!Exists(path)) continue;
+                    HistoryPending pending = ReadJson<HistoryPending>(path, 8192);
+                    if (pending == null || pending.Version != 1) throw new HistoryException("Invalid interrupted-run marker.");
+                    if (pending.ProcessId != 0) CheckPendingFile(path);
+                    else if (!string.IsNullOrEmpty(pending.ArchivePath) && !string.Equals(pending.ArchivePath, ArchivePath, StringComparison.OrdinalIgnoreCase))
+                        throw new HistoryException("Recover the interrupted run with its original archive: " + pending.ArchivePath);
+                }
                 ownsPending = true;
                 FinishRun();
             }
@@ -582,7 +609,7 @@ namespace youtube_dl_gui.History {
         public void Reset() {
             CheckOpen();
             CheckPending();
-            if (Exists(PendingPath) || Exists(MigrationPath)) throw new HistoryException("Recover the interrupted operation before resetting history.");
+            if (Exists(PendingPath) || Exists(LibraryPendingPath) || Exists(MigrationPath)) throw new HistoryException("Recover the interrupted operation before resetting history.");
             // Reset is separate from disable and retains the old files for deliberate recovery.
             string suffix = ".reset-" + DateTime.UtcNow.ToString("yyyyMMddTHHmmss") + "-" + Guid.NewGuid().ToString("N");
             foreach (string path in new[] { ArchivePath, ArchivePath + ".bak", StatePath }) if (Exists(path)) File.Move(path, path + suffix);

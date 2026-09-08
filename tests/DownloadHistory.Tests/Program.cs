@@ -237,6 +237,16 @@ internal static class Program {
                 using (var s = l.Open()) Assert(s.Reconcile().Entries.Count == 1, "ID-first template rejected.");
             }
         });
+        Test("changing archive paths cannot bypass an interrupted library run", () => {
+            using (var l = new Library()) {
+                using (var s = l.Open()) s.BeginRun();
+                l.Options.ArchivePath = Path.Combine(l.Root, "another-archive.txt");
+                using (var s = l.Open()) Throws(() => s.Reconcile(), "Library-wide interrupted marker was bypassed.");
+                l.Options.ArchivePath = null;
+                using (var s = l.Open()) s.RecoverInterruptedLaunch();
+                Assert(!File.Exists(Path.Combine(l.Root, ".ytdlg-history.pending.json")), "Library pending marker leaked.");
+            }
+        });
         Console.WriteLine("RESULT " + passed + " passed; " + failed + " failed");
         return failed == 0 ? 0 : 1;
     }

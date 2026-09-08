@@ -440,6 +440,15 @@ internal partial class frmDownloader : LocalizedProcessingForm {
             catch (Exception ex) {
                 Log.ReportException(ex);
                 CurrentDownload.Status = DownloadStatus.ProgramError;
+                try {
+                    if (DownloadProcess?.HasExited == false) {
+                        Program.KillProcessTree((uint)DownloadProcess.Id);
+                        DownloadProcess.Kill();
+                    }
+                }
+                catch (Exception cleanupEx) {
+                    Log.Write($"Failed to terminate download process after an error: {cleanupEx.Message}");
+                }
             }
             finally {
                 if (!this.IsDisposed && this.IsHandleCreated) {

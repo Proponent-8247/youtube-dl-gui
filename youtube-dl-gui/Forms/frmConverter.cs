@@ -15,6 +15,41 @@ public partial class frmConverter : LocalizedProcessingForm {
         this.CurrentConversion = Info;
         LoadLanguage();
     }
+
+    private void TerminateConverterProcess() {
+        Process? process = ConverterProcess;
+        if (process is null) {
+            return;
+        }
+
+        if (process.StartInfo.RedirectStandardError) {
+            try {
+                process.CancelErrorRead();
+            }
+            catch (Exception ex) {
+                Log.Write($"Failed to cancel converter stderr read: {ex.Message}");
+            }
+        }
+        if (process.StartInfo.RedirectStandardOutput) {
+            try {
+                process.CancelOutputRead();
+            }
+            catch (Exception ex) {
+                Log.Write($"Failed to cancel converter stdout read: {ex.Message}");
+            }
+        }
+
+        try {
+            if (!process.HasExited) {
+                Program.KillProcessTree((uint)process.Id);
+                process.Kill();
+            }
+        }
+        catch (Exception ex) {
+            Log.Write($"Failed to terminate converter process: {ex.Message}");
+        }
+    }
+
     private void frmConverter_Shown(object sender, EventArgs e) {
         BeginConversion();
     }
@@ -298,23 +333,7 @@ public partial class frmConverter : LocalizedProcessingForm {
                 }
             }
             catch (ThreadAbortException) {
-                if (ConverterProcess is not null) {
-                    try {
-                        if (!ConverterProcess.HasExited) {
-                            if (ConverterProcess.StartInfo.RedirectStandardError) {
-                                ConverterProcess.CancelErrorRead();
-                            }
-                            if (ConverterProcess.StartInfo.RedirectStandardOutput) {
-                                ConverterProcess.CancelOutputRead();
-                            }
-                            Program.KillProcessTree((uint)ConverterProcess.Id);
-                            ConverterProcess.Kill();
-                        }
-                    }
-                    catch (InvalidOperationException) {
-                        // The process may not have started or may have already exited.
-                    }
-                }
+                TerminateConverterProcess();
                 if (!this.IsDisposed && this.IsHandleCreated) {
                     try {
                         this.Invoke((Action)delegate {
@@ -329,6 +348,7 @@ public partial class frmConverter : LocalizedProcessingForm {
             catch (Exception ex) {
                 Log.ReportException(ex);
                 CurrentConversion.Status = ConversionStatus.ProgramError;
+                TerminateConverterProcess();
             }
             finally {
                 if (!this.IsDisposed && this.IsHandleCreated

@@ -5,6 +5,9 @@ on:
     paths: [.audit-repairs.json]
 permissions:
   contents: write
+concurrency:
+  group: audit-repair-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   repair:
     runs-on: windows-2022
@@ -15,7 +18,22 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
       - uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+      - name: Reject superseded or duplicate requests
+        id: head
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $evidence = Join-Path $env:RUNNER_TEMP 'audit-repair-evidence'
+          New-Item -ItemType Directory -Force $evidence | Out-Null
+          $remote = @(git ls-remote origin refs/heads/audit-fixes)
+          if ($LASTEXITCODE -ne 0 -or $remote.Count -ne 1) { throw 'Could not verify the current repair head.' }
+          $current = (($remote[0] -split '\s+')[0] -eq $env:GITHUB_SHA)
+          "current=$current" >> $env:GITHUB_OUTPUT
+          if (!$current) {
+            'Superseded request: the branch moved. This run made no source changes.' | Set-Content (Join-Path $evidence 'status.txt')
+          }
       - name: Build, test and commit each exact repair
+        if: steps.head.outputs.current == 'True'
         shell: pwsh
         run: ./tools/Run-AuditRepairBatch.ps1 -EvidenceDirectory '${{ runner.temp }}/audit-repair-evidence'
       - name: Retain all before-and-after evidence

@@ -13,6 +13,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     private ArgumentType InitialArgumentType { get; } = ArgumentType.NoArguments;
 
     private Thread? ProcessingThread { get; set; }
+    private Thread? QueueResolverThread { get; set; }
     private Process? DownloadProcess { get; set; }
     private ExtendedMediaDetails? MediaDetails { get; set; }
     private List<ExtendedMediaDetails>? QueueList { get; }
@@ -335,6 +336,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                         return;
                     }
                     ProcessingThread.Abort();
+                }
+                if (QueueResolverThread?.IsAlive == true) {
+                    QueueResolverThread.Abort();
                 }
 
                 if (ClipboardScannerActive) {
@@ -1570,7 +1574,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             } break;
 
             default: {
-                BeginDownload(false);
+                if (!QueueResolverRunning) {
+                    BeginDownload(false);
+                }
             } break;
         }
     }
@@ -1590,7 +1596,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             } break;
 
             default: {
-                BeginDownload(true);
+                if (!QueueResolverRunning) {
+                    BeginDownload(true);
+                }
             } break;
         }
     }
@@ -1622,7 +1630,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             System.Media.SystemSounds.Exclamation.Play();
             return;
         }
-        sbtnDownload.Enabled = false;
+        if (ProcessingThread?.IsAlive != true) {
+            sbtnDownload.Enabled = false;
+        }
 
         ListViewItem NewItem = new(Link) {
             ImageIndex = StatusIcon.Waiting,
@@ -1673,7 +1683,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     lvQueuedMedia.Items.Remove(NewItem);
                     NewItem.Tag = null;
                     NewMedia.Dispose();
-                    sbtnDownload.Enabled = ProcessingThread?.IsAlive != true && lvQueuedMedia.Items.Count > 0;
+                    if (ProcessingThread?.IsAlive != true) {
+                        sbtnDownload.Enabled = !QueueResolverRunning && lvQueuedMedia.Items.Count > 0;
+                    }
                     return;
                 }
                 NewMedia.Authentication = Auth.Authentication;
@@ -1690,8 +1702,11 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         }
 
         if (StartResolver) {
-            ProcessingThread = new(() => {
-                Status = DownloadStatus.Preparing;
+            QueueResolverThread = new(() => {
+                bool ResolverOwnsStatus = ProcessingThread?.IsAlive != true;
+                if (ResolverOwnsStatus) {
+                    Status = DownloadStatus.Preparing;
+                }
                 while (true) {
                     ExtendedMediaDetails? CurrentMedia = null;
                     lock (QueueSync) {
@@ -1707,8 +1722,12 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                             lock (QueueSync) {
                                 if (QueueList.Count == 0) {
                                     QueueResolverRunning = false;
-                                    Status = DownloadStatus.None;
-                                    sbtnDownload.Enabled = true;
+                                    if (ResolverOwnsStatus && Status == DownloadStatus.Preparing) {
+                                        Status = DownloadStatus.None;
+                                    }
+                                    if (ProcessingThread?.IsAlive != true) {
+                                        sbtnDownload.Enabled = lvQueuedMedia.Items.Count > 0;
+                                    }
                                     StopResolver = true;
                                 }
                             }
@@ -1716,7 +1735,6 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                         if (StopResolver) {
                             break;
                         }
-                        Status = DownloadStatus.Preparing;
                         continue;
                     }
 
@@ -1778,7 +1796,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 Name = "Batch download info queue resolver",
                 IsBackground = true
             };
-            ProcessingThread.Start();
+            QueueResolverThread.Start();
         }
     }
     private static bool TryGetClipboardText(out string Text) {

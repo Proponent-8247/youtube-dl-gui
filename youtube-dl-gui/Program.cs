@@ -298,29 +298,28 @@ internal static class Program {
     }
 
     internal static void KillProcessTree(uint ProcessId) {
-        using ManagementObjectSearcher searcher = new("SELECT * FROM Win32_Process WHERE ParentProcessId=" + ProcessId);
-        using ManagementObjectCollection collection = searcher.Get();
-        if (collection.Count > 0) {
-            foreach (var proc in collection) {
-                uint id = (uint)proc["ProcessID"];
-                if ((int)id != ProcessId) {
-                    try {
-                        KillProcessTree(id);
-                        using Process procInstance = Process.GetProcessById((int)id);
-                        if (!procInstance.HasExited)
-                            procInstance.Kill();
-                    }
-                    //catch (ArgumentException) {
-                    //    // Not running?
-                    //}
-                    //catch (System.ComponentModel.Win32Exception w32) {
-                    //    //w32.NativeErrorCode
-                    //}
-                    catch (Exception ex) {
-                        Log.ReportException(ex);
+        try {
+            using ManagementObjectSearcher searcher = new("SELECT * FROM Win32_Process WHERE ParentProcessId=" + ProcessId);
+            using ManagementObjectCollection collection = searcher.Get();
+            if (collection.Count > 0) {
+                foreach (var proc in collection) {
+                    uint id = (uint)proc["ProcessID"];
+                    if ((int)id != ProcessId) {
+                        try {
+                            KillProcessTree(id);
+                            using Process procInstance = Process.GetProcessById((int)id);
+                            if (!procInstance.HasExited)
+                                procInstance.Kill();
+                        }
+                        catch (Exception ex) {
+                            Log.ReportException(ex);
+                        }
                     }
                 }
             }
+        }
+        catch (Exception ex) {
+            Log.ReportException(ex);
         }
     }
 

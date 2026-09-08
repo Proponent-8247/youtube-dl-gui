@@ -2,11 +2,22 @@
 namespace youtube_dl_gui;
 using System;
 public class LocalizedProcessingForm : LocalizedForm {
-    public LocalizedProcessingForm() {
+    protected override void OnShown(EventArgs e) {
         Program.AddProcessingForm(this);
+        try {
+            base.OnShown(e);
+        }
+        catch {
+            Program.RemoveProcessingForm(this);
+            throw;
+        }
     }
     protected override void OnClosed(EventArgs e) {
-        base.OnClosed(e);
-        Program.RemoveProcessingForm(this);
+        try {
+            base.OnClosed(e);
+        }
+        finally {
+            Program.RemoveProcessingForm(this);
+        }
     }
 }

@@ -35,11 +35,16 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
     protected override void WndProc(ref Message m) {
         switch (m.Msg) {
             case NativeMethods.WM_CLIPBOARDUPDATE: {
-                if (Clipboard.ContainsText()) {
-                    ClipboardData = Clipboard.GetText();
-                    if (!chkBatchDownloadClipboardScanVerifyLinks.Checked || DownloadHelper.SupportedDownloadLink(ClipboardData)) {
-                        AddItemToList(ClipboardData);
+                try {
+                    if (Clipboard.ContainsText()) {
+                        ClipboardData = Clipboard.GetText();
+                        if (!chkBatchDownloadClipboardScanVerifyLinks.Checked || DownloadHelper.SupportedDownloadLink(ClipboardData)) {
+                            AddItemToList(ClipboardData);
+                        }
+                        ClipboardData = null;
                     }
+                }
+                catch (System.Runtime.InteropServices.ExternalException) {
                     ClipboardData = null;
                 }
             } break;

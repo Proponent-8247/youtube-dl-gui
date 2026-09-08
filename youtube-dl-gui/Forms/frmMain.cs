@@ -70,14 +70,19 @@ public partial class frmMain : LocalizedForm {
     protected override void WndProc(ref Message m) {
         switch (m.Msg) {
             case NativeMethods.WM_CLIPBOARDUPDATE: {
-                if (Clipboard.ContainsText()) {
-                    ClipboardData = Clipboard.GetText();
-                    if (mClipboardAutoDownloadVerifyLinks.Checked && !DownloadHelper.SupportedDownloadLink(ClipboardData)) {
-                        return;
+                try {
+                    if (Clipboard.ContainsText()) {
+                        ClipboardData = Clipboard.GetText();
+                        if (mClipboardAutoDownloadVerifyLinks.Checked && !DownloadHelper.SupportedDownloadLink(ClipboardData)) {
+                            return;
+                        }
+                        txtUrl.Text = ClipboardData;
+                        ClipboardData = null;
+                        DownloadDefaults(false);
                     }
-                    txtUrl.Text = ClipboardData;
+                }
+                catch (ExternalException) {
                     ClipboardData = null;
-                    DownloadDefaults(false);
                 }
                 m.Result = IntPtr.Zero;
             } break;

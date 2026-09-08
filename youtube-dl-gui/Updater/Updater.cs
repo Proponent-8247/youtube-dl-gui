@@ -67,9 +67,8 @@ internal static class Updater {
                 await RefreshRelease();
             }
 
-            return General.DownloadBetaVersions ?
-                LastCheckedAllRelease?.IsNewerVersion == true :
-                LastCheckedLatestRelease?.IsNewerVersion == true;
+            LastChecked = General.DownloadBetaVersions ? LastCheckedAllRelease : LastCheckedLatestRelease;
+            return LastChecked?.IsNewerVersion == true;
         }
         finally {
             Interlocked.Exchange(ref UpdateCheckerRunning, 0);
@@ -95,6 +94,7 @@ internal static class Updater {
             }
         }
 
+        LastChecked = General.DownloadBetaVersions ? LastCheckedAllRelease : LastCheckedLatestRelease;
         if (LastChecked is null) {
             return;
         }

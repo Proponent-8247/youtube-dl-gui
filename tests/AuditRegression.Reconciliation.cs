@@ -35,7 +35,7 @@ internal static partial class AuditRegression {
         using (HttpClient transport = new HttpClient(deferred)) {
             try {
                 Set(http, null, "DownloadClientStatic", transport);
-                client = New("murrty.controls.ManagedHttpClient");
+                client = Activator.CreateInstance(T("murrty.controls.ManagedHttpClient"), true);
                 Set(program, null, "HttpClient", client);
                 Set(general, null, "DownloadBetaVersions", beta);
                 foreach (string name in caches) Set(updater, null, name, null);
@@ -109,7 +109,7 @@ internal static partial class AuditRegression {
             Set(program, null, "QueueHandler", handler);
             try {
                 form.Show();
-                Require(running.Contains(form), "Shown processing form was not registered");
+                PumpUntil(() => running.Contains(form), 2000, "Shown processing form was not registered");
                 form.Dispose();
                 Require(!running.Contains(form), "Disposed processing form is still registered as active work");
             }
@@ -121,7 +121,7 @@ internal static partial class AuditRegression {
         }
     }
     private static void InitialNoAudioBinding(bool authenticate) {
-        object auth = authenticate ? New("youtube_dl_gui.AuthenticationDetails") : null;
+        object auth = authenticate ? Activator.CreateInstance(T("youtube_dl_gui.AuthenticationDetails"), true) : null;
         object kind = Enum.Parse(T("youtube_dl_gui.ArgumentType"), authenticate ? "DownloadAuthenticateVideoNoSound" : "DownloadVideoNoSound");
         using (Form form = (Form)New("youtube_dl_gui.frmExtendedDownloader", "https://example.invalid/fixture", "", false, auth, kind)) {
             object media = Get(form, "MediaDetails");
@@ -226,7 +226,7 @@ internal static partial class AuditRegression {
         Test("C5.FirstAuthenticatedBindingPreservesNoAudio", () => InitialNoAudioBinding(true));
         Test("C4.ChecksumRetryReleasesAndReverifiesFile", ChecksumRetryReleasesFile);
         Test("Authentication.PasswordsAndCloneAreIndependent", () => {
-            object auth = New("youtube_dl_gui.AuthenticationDetails");
+            object auth = Activator.CreateInstance(T("youtube_dl_gui.AuthenticationDetails"), true);
             string password = "audit two  spaces \u03bb";
             Call(auth.GetType(), auth, "SetPassword", password);
             Call(auth.GetType(), auth, "SetMediaPassword", "media-" + password);

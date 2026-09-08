@@ -11,7 +11,14 @@ using System.Xml.Linq;
 
 // Runs against the compiled application, not a transcription of its algorithms.
 // The child modes perform no network access and never touch a media library.
-internal static class AuditRegression {
+internal static partial class AuditRegression {
+    static partial void RunProcessTests();
+    static partial void RunHttpTests();
+    static partial void RunBoundaryTests();
+    static partial void RunUiTests();
+    static partial void RunConverterTests();
+    static partial void RunUpdaterTests();
+    static partial void RunPackagingTests();
     private static Assembly App;
     private static readonly BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
     private static readonly List<XElement> Results = new List<XElement>();
@@ -95,6 +102,15 @@ internal static class AuditRegression {
     }
     [STAThread]
     private static int Main(string[] args) {
+        if (args.Contains("--simulate") || args.Contains("-show_streams")) {
+            string mode = Environment.GetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE");
+            string pidPath = Environment.GetEnvironmentVariable("YTDL_AUDIT_PID_FILE");
+            if (string.IsNullOrEmpty(mode) || string.IsNullOrEmpty(pidPath)) return 2;
+            File.WriteAllText(pidPath, Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture));
+            if (mode == "hang") { Thread.Sleep(Timeout.Infinite); return 0; }
+            Console.Write("{}");
+            return 0;
+        }
         if (args.Length > 0 && args[0] == "--echo") {
             foreach (string value in args.Skip(1)) Console.WriteLine("=" + Convert.ToBase64String(Encoding.UTF8.GetBytes(value)));
             return 0;
@@ -102,6 +118,15 @@ internal static class AuditRegression {
         if (args.Length >= 2 && args[0] == "--fixture") {
             if (args.Length >= 3) File.WriteAllText(args[2], Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture));
             if (args[1] == "hang") { Thread.Sleep(Timeout.Infinite); return 0; }
+            if (args[1] == "tree") {
+                // Wait for the runner to attach ownership before creating a descendant.
+                Thread.Sleep(250);
+                using (Process child = Process.Start(new ProcessStartInfo(Self, "--fixture hang \"" + args[2] + ".child\"") { UseShellExecute = false, CreateNoWindow = true })) {
+                    Thread.Sleep(Timeout.Infinite);
+                }
+                return 0;
+            }
+            if (args[1] == "exit") { Console.Error.Write("fixture failure"); return 7; }
             if (args[1] == "large") { Console.Write(new string('x', 1048576)); return 0; }
             if (args[1] == "stdin") { Console.In.ReadToEnd(); Console.Write("EOF"); return 0; }
             return 2;
@@ -151,6 +176,13 @@ internal static class AuditRegression {
             Test("D034.LanguageInlineComment", () => Equal("value", LanguageValue("key = value // comment")));
             Test("D034.LanguageQuotedSlashes", () => Equal("\"literal // content\"", LanguageValue("key = \"literal // content\" // comment")));
             TestArguments();
+            RunProcessTests();
+            RunHttpTests();
+            RunBoundaryTests();
+            RunUiTests();
+            RunConverterTests();
+            RunUpdaterTests();
+            RunPackagingTests();
         }
         catch (Exception e) { Test("Harness.Initialization", () => { throw e; }); }
         finally {

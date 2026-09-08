@@ -42,7 +42,7 @@ jobs:
       - name: Reject unapplied patch requests
         shell: pwsh
         run: |
-          if (Test-Path .audit-patch-request.json) {
+          if ((Test-Path .audit-patch-request.json) -or (Test-Path .audit-repairs.json)) {
             throw 'This revision is a patch request, not the resulting source revision. Verify the committed source instead.'
           }
 

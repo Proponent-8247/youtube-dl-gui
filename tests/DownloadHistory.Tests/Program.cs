@@ -35,7 +35,10 @@ internal static partial class Program {
         public HistoryStore Open() { return HistoryStore.Open(Options); }
         public void Dispose() { Directory.Delete(Root, true); }
     }
+    [STAThread]
     public static int Main(string[] args) {
+        if (args.Length > 0 && args[0] == "--native-suite") return NativeSuite.RunSuite(args.Skip(1).ToArray());
+        if (args.Length > 0 && args[0] != "--child-wait" && Environment.GetEnvironmentVariable("YTDLG_TEST_PYTHON") != null) return NativeSuite.Proxy(args);
         if (args.Length == 1 && args[0] == "--child-wait") { System.Threading.Thread.Sleep(60000); return 0; }
         Test("identity preserves source-ID case and normalizes only the extractor", () => {
             Assert(HistoryIdentity.Parse("YouTube " + Id).Entry == "youtube " + Id, "Identity case changed.");

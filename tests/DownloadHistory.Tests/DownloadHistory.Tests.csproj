@@ -16,6 +16,8 @@
     <Reference Include="System.Core" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Xml" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
     <Compile Include="..\..\youtube-dl-gui\Classes\DownloadHistory\*.cs" />
     <Compile Include="*.cs" />
   </ItemGroup>

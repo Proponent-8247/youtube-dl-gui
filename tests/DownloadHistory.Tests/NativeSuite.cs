@@ -84,8 +84,14 @@ internal static class NativeSuite {
     public static int Proxy(string[] args) {
         string python = Environment.GetEnvironmentVariable("YTDLG_TEST_PYTHON");
         string script = Environment.GetEnvironmentVariable("YTDLG_TEST_SCRIPT");
-        using (var child = Process.Start(new ProcessStartInfo(python,
-            HistoryCommandPolicy.Quote(script) + " " + string.Join(" ", args.Select(HistoryCommandPolicy.Quote))) { UseShellExecute = false, CreateNoWindow = true })) {
+        using (var child = new Process()) {
+            child.StartInfo = new ProcessStartInfo(python,
+                HistoryCommandPolicy.Quote(script) + " " + string.Join(" ", args.Select(HistoryCommandPolicy.Quote))) {
+                UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true
+            };
+            child.OutputDataReceived += (sender, e) => { if (e.Data != null) Console.WriteLine(e.Data); };
+            child.ErrorDataReceived += (sender, e) => { if (e.Data != null) Console.Error.WriteLine(e.Data); };
+            child.Start(); child.BeginOutputReadLine(); child.BeginErrorReadLine();
             child.WaitForExit(); return child.ExitCode;
         }
     }

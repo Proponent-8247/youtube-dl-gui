@@ -577,6 +577,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         pbStatus.ProgressState = murrty.controls.ProgressState.Normal;
         pbStatus.Text = "Beginning download";
         ProcessingThread = new(() => {
+            try {
             Status = DownloadStatus.Downloading;
             string? Msg = null;
             object MsgSync = new();
@@ -835,6 +836,36 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     } break;
                 }
             });
+            }
+            catch (Exception ex) {
+                Log.ReportException(ex);
+                if (!CancellationRequested) {
+                    Status = DownloadStatus.ProgramError;
+                }
+                try {
+                    if (DownloadProcess?.HasExited == false) {
+                        Program.KillProcessTree((uint)DownloadProcess.Id);
+                        DownloadProcess.Kill();
+                    }
+                }
+                catch (Exception cleanupEx) {
+                    Log.Write($"Failed to terminate extended download process after an error: {cleanupEx.Message}");
+                }
+                if (this.IsHandleCreated && !this.IsDisposed) {
+                    this.BeginInvoke(() => {
+                        pbStatus.Style = ProgressBarStyle.Continuous;
+                        pbStatus.ShowInTaskbar = false;
+                        pbStatus.ProgressState = murrty.controls.ProgressState.Error;
+                        mDownload.Enabled = mDownloadWithAuthentication.Enabled = true;
+                        tcVideoData.SelectedTab = tabExtendedDownloaderVerbose;
+                        LoadLanguage();
+                    });
+                }
+            }
+            finally {
+                DownloadProcess?.Dispose();
+                DownloadProcess = null;
+            }
         }) {
             Name = $"Download {MediaDetails.URL}",
             IsBackground = true,
@@ -878,6 +909,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         Status = DownloadStatus.Downloading;
 
         ProcessingThread = new(() => {
+            try {
             string? args = null;
             string? Msg = null;
             object MsgSync = new();
@@ -1139,6 +1171,35 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     } break;
                 }
             });
+            }
+            catch (Exception ex) {
+                Log.ReportException(ex);
+                if (!CancellationRequested) {
+                    Status = DownloadStatus.ProgramError;
+                }
+                try {
+                    if (DownloadProcess?.HasExited == false) {
+                        Program.KillProcessTree((uint)DownloadProcess.Id);
+                        DownloadProcess.Kill();
+                    }
+                }
+                catch (Exception cleanupEx) {
+                    Log.Write($"Failed to terminate extended batch download process after an error: {cleanupEx.Message}");
+                }
+                if (this.IsHandleCreated && !this.IsDisposed) {
+                    this.BeginInvoke(() => {
+                        mDownload.Enabled = mDownloadWithAuthentication.Enabled = true;
+                        pbStatus.ShowInTaskbar = false;
+                        pbStatus.ProgressState = murrty.controls.ProgressState.Error;
+                        tcVideoData.SelectedTab = tabExtendedDownloaderVerbose;
+                        LoadLanguage();
+                    });
+                }
+            }
+            finally {
+                DownloadProcess?.Dispose();
+                DownloadProcess = null;
+            }
         }) {
             Name = "Batch download",
             IsBackground = true,

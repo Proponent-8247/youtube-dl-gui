@@ -2,82 +2,51 @@ name: Audit build
 
 on:
   push:
-    branches:
-      - audit-fixes
+    branches: [audit-fixes]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: audit-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: windows-2022
+    timeout-minutes: 20
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - name: Check out exact revision without write credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          fetch-depth: 0
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
-      - name: Apply exact audit patch request
-        id: audit_patch
+      - name: Reject retired patch requests
         shell: pwsh
         run: |
-          if (!(Test-Path '.audit-patch-request.json')) {
-            "applied=false" >> $env:GITHUB_OUTPUT
-            exit 0
+          if (Test-Path .audit-patch-request.json) {
+            throw 'The compilation-only patch writer has been retired. Use reviewed source commits or the regression-gated repair workflow.'
           }
 
-          @'
-          import base64
-          import json
-          from pathlib import Path
-
-          request_path = Path('.audit-patch-request.json')
-          request = json.loads(request_path.read_text(encoding='utf-8'))
-          for index, replacement in enumerate(request['replacements']):
-              path = Path(replacement['path'])
-              data = path.read_bytes()
-              old = base64.b64decode(replacement['old'])
-              new = base64.b64decode(replacement['new'])
-              expected = replacement.get('count', 1)
-              actual = data.count(old)
-              if actual != expected:
-                  raise SystemExit(f"replacement {index} ({path}): expected {expected} exact byte matches, found {actual}")
-              path.write_bytes(data.replace(old, new))
-          request_path.unlink()
-          Path('.audit-patch-message.txt').write_text(request['commit_message'], encoding='utf-8')
-          '@ | python -
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git -c core.whitespace=cr-at-eol diff --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          "applied=true" >> $env:GITHUB_OUTPUT
-
       - name: Set up MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
 
-      - name: Build main application
-        run: msbuild youtube-dl-gui\youtube-dl-gui.csproj /m /p:Configuration=Debug /p:Platform=AnyCPU
-
-      - name: Build updater
-        run: msbuild youtube-dl-gui-updater\youtube-dl-gui-updater.csproj /m /p:Configuration=Debug /p:Platform=AnyCPU
-
-      - name: Build solution
-        run: msbuild youtube-dl-gui.sln /m /p:Configuration=Debug "/p:Platform=Any CPU"
-
-      - name: Build release updater
-        run: msbuild youtube-dl-gui-updater\youtube-dl-gui-updater.csproj /m /p:Configuration=Release /p:Platform=AnyCPU
-
-      - name: Build release main application
-        run: msbuild youtube-dl-gui\youtube-dl-gui.csproj /m /p:Configuration=Release /p:Platform=AnyCPU /p:BuildProjectReferences=false /p:PreBuildEvent= /p:PostBuildEvent=
-
-      - name: Commit verified audit patch
-        if: steps.audit_patch.outputs.applied == 'true'
+      - name: Build Debug solution
         shell: pwsh
         run: |
-          $message = Get-Content '.audit-patch-message.txt' -Raw
-          Remove-Item '.audit-patch-message.txt'
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m $message.Trim()
-          git push origin HEAD:audit-fixes
+          msbuild youtube-dl-gui.sln /m /p:Configuration=Debug '/p:Platform=Any CPU'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build Release updater
+        shell: pwsh
+        run: |
+          msbuild youtube-dl-gui-updater/youtube-dl-gui-updater.csproj /m /p:Configuration=Release /p:Platform=AnyCPU
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build Release application
+        shell: pwsh
+        run: |
+          msbuild youtube-dl-gui/youtube-dl-gui.csproj /m /p:Configuration=Release /p:Platform=AnyCPU /p:BuildProjectReferences=false /p:PreBuildEvent= /p:PostBuildEvent=
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

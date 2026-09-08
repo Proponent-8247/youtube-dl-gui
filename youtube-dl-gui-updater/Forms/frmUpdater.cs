@@ -146,14 +146,13 @@ internal partial class frmUpdater : Form {
                 return;
             }
 
-            if (UpdateData.UpdateHash is not null) {
-                // Verify the file hash.
-                pbDownloadProgress.Text = "calculating new update hash...";
-                await VerifyHash(FileUrl, UpdateDestination);
+            if (string.IsNullOrWhiteSpace(UpdateData.UpdateHash)) {
+                throw new CryptographicException("The selected release does not include a valid executable SHA-256 hash.");
             }
-            else {
-                pbDownloadProgress.Invoke(() => pbDownloadProgress.Text = Language.pbDownloadProgressSkippingHashCalculating);
-            }
+
+            // Verify the file hash.
+            pbDownloadProgress.Text = "calculating new update hash...";
+            await VerifyHash(FileUrl, UpdateDestination);
 
             // Move the old file to the backup path.
             if (File.Exists(UpdateData.FileName)) {

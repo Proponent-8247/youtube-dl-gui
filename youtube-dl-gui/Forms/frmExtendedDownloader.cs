@@ -625,13 +625,16 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 StartInfo = new(Verification.YoutubeDlPath) {
                     Arguments = MediaDetails.Arguments,
                     CreateNoWindow = true,
+                    RedirectStandardInput = true,
                     RedirectStandardError = true,
                     RedirectStandardOutput = true,
                     UseShellExecute = false,
                     WindowStyle = ProcessWindowStyle.Hidden,
                 }
             };
-            DownloadProcess.OutputDataReceived += (s, e) => {
+            using murrty.controls.BoundedProcessOutput Output = new(DownloadProcess);
+            using murrty.controls.ProcessOwnership Ownership = new(DownloadProcess);
+            Output.OutputDataReceived += (s, e) => {
                 if (e.Data?.Length > 0) {
                     if (e.Data.Length < 8) {
                         rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data));
@@ -692,15 +695,16 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     }
                 }
             };
-            DownloadProcess.ErrorDataReceived += (s, e) => {
+            Output.ErrorDataReceived += (s, e) => {
                 if (e.Data?.Length > 0) {
                     rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data.Trim()));
                 }
             };
             try {
                 DownloadProcess.Start();
-                DownloadProcess.BeginOutputReadLine();
-                DownloadProcess.BeginErrorReadLine();
+                Ownership.Attach();
+                DownloadProcess.StandardInput.Close();
+                Output.Start();
             }
             catch (Exception ex) {
                 Log.ReportException(ex);
@@ -733,10 +737,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             string ETA = "Unknown";
 
             while (!DownloadProcess.HasExited) {
+                Output.ThrowIfFaulted();
                 if (CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
                     if (!DownloadProcess.HasExited) {
-                        Program.KillProcessTree((uint)DownloadProcess.Id);
-                        DownloadProcess.Kill();
+                        Ownership.Dispose();
                     }
                     break;
                 }
@@ -822,8 +826,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 Thread.Sleep(250);
             }
 
-            DownloadProcess.WaitForExit();
+            Output.Drain(5000);
             int ExitCode = DownloadProcess.ExitCode;
+            Ownership.Dispose();
+            Output.Dispose();
             DownloadProcess.Dispose();
             DownloadProcess = null;
 
@@ -987,13 +993,16 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     StartInfo = new(Verification.YoutubeDlPath) {
                         Arguments = args,
                         CreateNoWindow = true,
+                        RedirectStandardInput = true,
                         RedirectStandardError = true,
                         RedirectStandardOutput = true,
                         UseShellExecute = false,
                         WindowStyle = ProcessWindowStyle.Hidden,
                     }
                 };
-                DownloadProcess.OutputDataReceived += (s, e) => {
+                using murrty.controls.BoundedProcessOutput Output = new(DownloadProcess);
+                using murrty.controls.ProcessOwnership Ownership = new(DownloadProcess);
+                Output.OutputDataReceived += (s, e) => {
                     if (e.Data?.Length > 0) {
                         if (e.Data.Length < 8) {
                             rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data));
@@ -1029,15 +1038,16 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                         }
                     }
                 };
-                DownloadProcess.ErrorDataReceived += (s, e) => {
+                Output.ErrorDataReceived += (s, e) => {
                     if (e.Data?.Length > 0) {
                         rtbVerbose.Invoke(() => rtbVerbose.AppendLine($"Error: {e.Data.Trim()}"));
                     }
                 };
                 try {
                     DownloadProcess.Start();
-                    DownloadProcess.BeginOutputReadLine();
-                    DownloadProcess.BeginErrorReadLine();
+                    Ownership.Attach();
+                    DownloadProcess.StandardInput.Close();
+                    Output.Start();
                 }
                 catch (Exception ex) {
                     Log.ReportException(ex);
@@ -1059,10 +1069,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
                 args = null;
                 while (!DownloadProcess.HasExited) {
+                    Output.ThrowIfFaulted();
                     if (CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
                         if (!DownloadProcess.HasExited) {
-                            Program.KillProcessTree((uint)DownloadProcess.Id);
-                            DownloadProcess.Kill();
+                            Ownership.Dispose();
                         }
                         break;
                     }
@@ -1143,8 +1153,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     Thread.Sleep(250);
                 }
 
-                DownloadProcess.WaitForExit();
+                Output.Drain(5000);
                 int ExitCode = DownloadProcess.ExitCode;
+                Ownership.Dispose();
+                Output.Dispose();
                 DownloadProcess.Dispose();
                 DownloadProcess = null;
 

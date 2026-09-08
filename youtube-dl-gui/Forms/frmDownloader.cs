@@ -201,6 +201,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
             try {
                 ProcessStartInfo StartInfo = new(Verification.YoutubeDlPath) {
                     UseShellExecute = false,
+                    RedirectStandardInput = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     CreateNoWindow = true,
@@ -208,7 +209,9 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                 };
 
                 DownloadProcess = new Process() { StartInfo = StartInfo };
-                DownloadProcess.OutputDataReceived += (s, e) => {
+                using murrty.controls.BoundedProcessOutput Output = new(DownloadProcess);
+                using murrty.controls.ProcessOwnership Ownership = new(DownloadProcess);
+                Output.OutputDataReceived += (s, e) => {
                     if (e.Data is null || e.Data.Length == 0 || this.IsDisposed || !this.IsHandleCreated) {
                         return;
                     }
@@ -285,13 +288,13 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                         // The form can close while asynchronous stdout is being marshalled to the UI.
                     }
                 };
-                DownloadProcess.ErrorDataReceived += (s, e) => {
+                Output.ErrorDataReceived += (s, e) => {
                     if (e.Data is null || e.Data.Length == 0 || this.IsDisposed || !this.IsHandleCreated) {
                         return;
                     }
 
                     try {
-                        this.BeginInvoke(() => {
+                        this.Invoke(() => {
                             if (!this.IsDisposed && !rtbVerbose.IsDisposed) {
                                 rtbVerbose.AppendLine($"Error: {e.Data}");
                             }
@@ -312,17 +315,18 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                 });
 
                 DownloadProcess.Start();
-                DownloadProcess.BeginOutputReadLine();
-                DownloadProcess.BeginErrorReadLine();
+                Ownership.Attach();
+                DownloadProcess.StandardInput.Close();
+                Output.Start();
 
                 float Percentage = 0;
                 string Eta = "Unknown";
 
                 while (!DownloadProcess.HasExited) {
+                    Output.ThrowIfFaulted();
                     if (CurrentDownload.Status == DownloadStatus.Aborted || CurrentDownload.Status == DownloadStatus.AbortForClose) {
                         if (!DownloadProcess.HasExited) {
-                            Program.KillProcessTree((uint)DownloadProcess.Id);
-                            DownloadProcess.Kill();
+                            Ownership.Dispose();
                         }
                         return;
                     }
@@ -401,7 +405,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                     Thread.Sleep(250);
                 }
 
-                DownloadProcess.WaitForExit();
+                Output.Drain(5000);
 
                 CurrentDownload.Status = DownloadProcess.ExitCode switch {
                     0 => DownloadStatus.Finished,

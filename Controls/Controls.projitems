@@ -33,6 +33,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Logging\Natives\DwmNatives.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ManagedHttpClient.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)OwnedProcess.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)BoundedProcessOutput.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Natives\Consts.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Natives\NativeMethods.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Runtime\System\Index.cs" />

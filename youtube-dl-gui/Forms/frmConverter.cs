@@ -297,6 +297,7 @@ public partial class frmConverter : LocalizedProcessingForm {
                 ConverterProcess = new Process() {
                     StartInfo = new(Verification.FFmpegPath) {
                         UseShellExecute = false,
+                        RedirectStandardInput = true,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         CreateNoWindow = true,
@@ -304,20 +305,22 @@ public partial class frmConverter : LocalizedProcessingForm {
                     },
                     EnableRaisingEvents = true
                 };
-                ConverterProcess.OutputDataReceived += (s, e) => {
+                using murrty.controls.BoundedProcessOutput Output = new(ConverterProcess);
+                using murrty.controls.ProcessOwnership Ownership = new(ConverterProcess);
+                Output.OutputDataReceived += (s, e) => {
                     if (e.Data?.Length > 0 && !this.IsDisposed && this.IsHandleCreated) {
                         try {
-                            rtbConsoleOutput.BeginInvoke(() => rtbConsoleOutput.AppendLine(e.Data));
+                            rtbConsoleOutput.Invoke(() => rtbConsoleOutput.AppendLine(e.Data));
                         }
                         catch (InvalidOperationException) {
                             // The form can close while asynchronous stdout is being marshalled to the UI.
                         }
                     }
                 };
-                ConverterProcess.ErrorDataReceived += (s, e) => {
+                Output.ErrorDataReceived += (s, e) => {
                     if (e.Data?.Length > 0 && !this.IsDisposed && this.IsHandleCreated) {
                         try {
-                            rtbConsoleOutput.BeginInvoke(() => rtbConsoleOutput.AppendLine($"Error: {e.Data}"));
+                            rtbConsoleOutput.Invoke(() => rtbConsoleOutput.AppendLine($"Error: {e.Data}"));
                         }
                         catch (InvalidOperationException) {
                             // The form can close while asynchronous stderr is being marshalled to the UI.
@@ -330,9 +333,13 @@ public partial class frmConverter : LocalizedProcessingForm {
                     ArgumentsBuffer.Clear();
                     ArgumentsBuffer = null!;
 
-                    ConverterProcess.BeginOutputReadLine();
-                    ConverterProcess.BeginErrorReadLine();
-                    ConverterProcess.WaitForExit();
+                    Ownership.Attach();
+                    ConverterProcess.StandardInput.Close();
+                    Output.Start();
+                    while (!ConverterProcess.WaitForExit(100)) {
+                        Output.ThrowIfFaulted();
+                    }
+                    Output.Drain(5000);
 
                     if (ConverterProcess.ExitCode == 0) {
                         CurrentConversion.Status = ConversionStatus.Finished;

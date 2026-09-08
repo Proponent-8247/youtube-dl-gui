@@ -458,7 +458,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
 
         Verbose("Arguments have been generated");
         base.Arguments = ArgumentsBuffer.ToString();
-        ArgumentsCensored = PreviewArguments.ToString();
+        ArgumentsCensored = PreviewArguments.ToString() + DownloadHistoryRuntime.PreviewSuffix();
 
         ArgumentsBuffer.Clear();
         PreviewArguments.Clear();

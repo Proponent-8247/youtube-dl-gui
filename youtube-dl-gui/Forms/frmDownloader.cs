@@ -302,7 +302,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                     pbStatus.ShowInTaskbar = true;
                 });
 
-                DownloadProcess.Start();
+                StartProtectedDownload();
                 DownloadProcess.BeginOutputReadLine();
                 DownloadProcess.BeginErrorReadLine();
 
@@ -389,6 +389,10 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                 }
 
                 DownloadProcess.WaitForExit();
+                if (!CompleteProtectedDownload()) {
+                    CurrentDownload.Status = DownloadStatus.ProgramError;
+                    return;
+                }
 
                 CurrentDownload.Status = DownloadProcess.ExitCode switch {
                     0 => DownloadStatus.Finished,
@@ -424,7 +428,11 @@ internal partial class frmDownloader : LocalizedProcessingForm {
 
                 CurrentDownload.Status = DownloadStatus.Aborted;
             }
+            catch (OperationCanceledException) when (DownloadHistorySettings.Enabled) {
+                CurrentDownload.Status = DownloadStatus.Aborted;
+            }
             catch (Exception ex) {
+                if (DownloadHistorySettings.Enabled) HistoryMessage(ex.Message);
                 Log.ReportException(ex);
                 CurrentDownload.Status = DownloadStatus.ProgramError;
             }

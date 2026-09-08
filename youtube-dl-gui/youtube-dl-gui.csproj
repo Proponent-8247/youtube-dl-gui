@@ -56,6 +56,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Classes\DownloadHistory\*.cs" />
+    <Compile Include="Classes\DownloadHistoryRuntime.cs" />
+    <Compile Include="Config\DownloadHistorySettings.cs" />
+    <Compile Include="Forms\DownloadHistoryIntegration.cs" />
+    <Compile Include="Forms\frmDownloadHistory.cs" />
+    <Compile Include="Forms\frmSettings.DownloadHistory.cs" />
     <Compile Include="Classes\ArgumentList.cs" />
     <Compile Include="Classes\BatchHelper.cs" />
     <Compile Include="Classes\ConvertHelper.cs" />

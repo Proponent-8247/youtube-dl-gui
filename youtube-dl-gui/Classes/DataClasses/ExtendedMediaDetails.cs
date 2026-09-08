@@ -779,7 +779,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
         ProtectedArguments.Append(' ').Append(SourceArgument);
 
         base.Arguments = ArgumentBuffer.ToString();
-        this.ArgumentsCensored = ProtectedArguments.ToString();
+        this.ArgumentsCensored = ProtectedArguments.ToString() + DownloadHistoryRuntime.PreviewSuffix();
         return true;
     }
 

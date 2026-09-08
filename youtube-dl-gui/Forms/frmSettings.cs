@@ -23,6 +23,7 @@ public partial class frmSettings : LocalizedForm {
     public frmSettings() {
         LoadingForm = true;
         InitializeComponent();
+        InitializeDownloadHistoryPage();
 
         cbSettingsDownloadsUpdatingYtdlType.Items.Add($"{GithubLinks.ProviderRepos[0].User}/{GithubLinks.ProviderRepos[0].Repo} (default)");
         for (int i = 1; i < GithubLinks.ProviderRepos.Length; i++) {
@@ -629,6 +630,7 @@ public partial class frmSettings : LocalizedForm {
     }
 
     private void btnSettingsSave_Click(object sender, EventArgs e) {
+        if (!CanSaveDownloadHistorySettings()) return;
         SaveSettings();
         this.Dispose();
     }

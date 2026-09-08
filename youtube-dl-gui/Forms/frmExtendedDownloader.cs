@@ -653,13 +653,14 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 }
             };
             try {
-                DownloadProcess.Start();
+                StartProtectedDownload();
                 DownloadProcess.BeginOutputReadLine();
                 DownloadProcess.BeginErrorReadLine();
             }
             catch (Exception ex) {
+                if (DownloadHistorySettings.Enabled) HistoryMessage(ex.Message);
                 Log.ReportException(ex);
-                Status = DownloadStatus.ProgramError;
+                Status = ex is OperationCanceledException && DownloadHistorySettings.Enabled ? DownloadStatus.Aborted : DownloadStatus.ProgramError;
                 try {
                     if (!DownloadProcess.HasExited) {
                         Program.KillProcessTree((uint)DownloadProcess.Id);
@@ -774,12 +775,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             }
 
             DownloadProcess.WaitForExit();
+            bool HistoryHealthy = CompleteProtectedDownload();
             int ExitCode = DownloadProcess.ExitCode;
             DownloadProcess.Dispose();
             DownloadProcess = null;
 
             if (Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
-                Status = ExitCode == 0 ? DownloadStatus.Finished : DownloadStatus.YtdlError;
+                Status = !HistoryHealthy ? DownloadStatus.ProgramError : ExitCode == 0 ? DownloadStatus.Finished : DownloadStatus.YtdlError;
             }
 
             this.Invoke(() => {
@@ -946,11 +948,12 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     }
                 };
                 try {
-                    DownloadProcess.Start();
+                    StartProtectedDownload();
                     DownloadProcess.BeginOutputReadLine();
                     DownloadProcess.BeginErrorReadLine();
                 }
                 catch (Exception ex) {
+                    if (DownloadHistorySettings.Enabled) HistoryMessage(ex.Message);
                     Log.ReportException(ex);
                     try {
                         if (!DownloadProcess.HasExited) {
@@ -1051,12 +1054,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 }
 
                 DownloadProcess.WaitForExit();
+                bool HistoryHealthy = CompleteProtectedDownload();
                 int ExitCode = DownloadProcess.ExitCode;
                 DownloadProcess.Dispose();
                 DownloadProcess = null;
 
                 if (Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
-                    bool ItemSucceeded = ExitCode == 0;
+                    bool ItemSucceeded = HistoryHealthy && ExitCode == 0;
                     if (!ItemSucceeded) {
                         BatchHadErrors = true;
                     }

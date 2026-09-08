@@ -92,7 +92,7 @@ internal sealed class YoutubeDlData {
 
         using Process Enumeration = new() {
             StartInfo = new(Verification.YoutubeDlPath) {
-                Arguments = $"--simulate --no-warnings --no-cache-dir {Arguments}",
+                Arguments = DownloadHistoryRuntime.ProbePrefix + $"--simulate --no-warnings --no-cache-dir {Arguments}",
                 CreateNoWindow = true,
                 RedirectStandardError = true,
                 RedirectStandardInput = true,

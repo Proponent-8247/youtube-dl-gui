@@ -421,6 +421,13 @@ internal static class Program {
         return false;
     }
 
+    internal static bool IsValidDownloadCopyData(CopyDataStruct Data) {
+        long Kind = (long)Data.dwData;
+        return Data.lpData != IntPtr.Zero && Data.cbData > 0 && Data.cbData <= 1024 * 1024
+            && (Data.cbData & 1) == 0
+            && Kind >= (long)ArgumentType.DownloadVideo && Kind <= (long)ArgumentType.DownloadArchived;
+    }
+
     internal static void ParseCopyData(ref Message m, string CustomArguments) {
         if (m.LParam == IntPtr.Zero) {
             m.Result = IntPtr.Zero;
@@ -428,7 +435,7 @@ internal static class Program {
         }
 
         CopyDataStruct cds = Marshal.PtrToStructure<CopyDataStruct>(m.LParam);
-        if (cds.cbData <= 0 || cds.lpData == IntPtr.Zero) {
+        if (!IsValidDownloadCopyData(cds)) {
             m.Result = IntPtr.Zero;
             return;
         }

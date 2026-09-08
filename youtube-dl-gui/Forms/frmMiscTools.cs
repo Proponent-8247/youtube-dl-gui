@@ -150,12 +150,13 @@ public partial class frmMiscTools : LocalizedForm {
         }
     }
 
-    private void btnMiscToolsVideoToGif_Click(object sender, EventArgs e) {
+    private async void btnMiscToolsVideoToGif_Click(object sender, EventArgs e) {
         using OpenFileDialog ofd = new();
         if (ofd.ShowDialog() == DialogResult.OK) {
             string OutputDirectory = Path.GetDirectoryName(ofd.FileName) ?? Environment.CurrentDirectory;
             string FrameDirectory = Path.Combine(Path.GetTempPath(), "youtube-dl-gui", Path.GetRandomFileName());
             Directory.CreateDirectory(FrameDirectory);
+            btnMiscToolsVideoToGif.Enabled = false;
 
             try {
                 using Process ffmpeg = new() {
@@ -166,7 +167,7 @@ public partial class frmMiscTools : LocalizedForm {
                     }
                 };
                 ffmpeg.Start();
-                ffmpeg.WaitForExit();
+                await System.Threading.Tasks.Task.Run(() => ffmpeg.WaitForExit());
                 if (ffmpeg.ExitCode != 0) {
                     Directory.Delete(FrameDirectory, true);
                     return;
@@ -216,6 +217,11 @@ public partial class frmMiscTools : LocalizedForm {
                     Directory.Delete(FrameDirectory, true);
                 }
                 throw;
+            }
+            finally {
+                if (!this.IsDisposed && this.IsHandleCreated) {
+                    btnMiscToolsVideoToGif.Enabled = true;
+                }
             }
         }
     }

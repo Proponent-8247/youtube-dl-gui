@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using youtube_dl_gui.History;
 
-internal static class Program {
+internal static partial class Program {
     private const string Id = "9qFjkwAElDs";
     private const string SecondId = "ABCDEFGHIJK";
     private static int passed;
@@ -247,6 +247,7 @@ internal static class Program {
                 Assert(!File.Exists(Path.Combine(l.Root, ".ytdlg-history.pending.json")), "Library pending marker leaked.");
             }
         });
+        TestRuntime();
         Console.WriteLine("RESULT " + passed + " passed; " + failed + " failed");
         return failed == 0 ? 0 : 1;
     }

@@ -535,6 +535,13 @@ namespace youtube_dl_gui.History {
             ownsPending = false;
             return report;
         }
+        public void RequireManualRecovery() {
+            CheckOpen();
+            string pending = Json(new HistoryPending { ArchivePath = ArchivePath });
+            AtomicWrite(LibraryPendingPath, pending);
+            AtomicWrite(PendingPath, pending);
+            ownsPending = false;
+        }
         public void RecoverInterruptedLaunch() {
             CheckOpen();
             // Deliberate UI-confirmed action: the user must first stop every downloader.

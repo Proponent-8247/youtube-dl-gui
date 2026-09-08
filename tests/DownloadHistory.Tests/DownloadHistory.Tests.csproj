@@ -17,7 +17,7 @@
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Xml" />
     <Compile Include="..\..\youtube-dl-gui\Classes\DownloadHistory\*.cs" />
-    <Compile Include="Program.cs" />
+    <Compile Include="*.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

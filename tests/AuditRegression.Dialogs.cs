@@ -7,7 +7,7 @@ internal static partial class AuditRegression {
     private static Timer DialogMonitor;
     private static readonly List<string> UnexpectedDialogs = new List<string>();
     private static readonly HashSet<Form> PendingDialogs = new HashSet<Form>();
-    static partial void RunBoundaryTests() {
+    static partial void RunSecurityBoundaryTests() {
         // Language/log initialization has already installed the application's handler.
         // Capture its real UI error instead of allowing an unattended modal dialog to hang CI.
         DialogMonitor = new Timer { Interval = 100 };

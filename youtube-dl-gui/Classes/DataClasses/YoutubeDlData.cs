@@ -7,6 +7,8 @@ using System.Drawing;
 using System.IO;
 using System.Net;
 using System.Runtime.Serialization;
+using System.Threading;
+using murrty.controls;
 
 /// <summary>
 /// Class used for information relating to the video.
@@ -28,7 +30,14 @@ internal sealed class YoutubeDlData {
         return Generate(URL, "-J", Auth, out RetrievedData);
     }
 
-    private static YoutubeDlData? Generate(string URL, string? GenerateCommand, AuthenticationDetails? Auth, out string? RetrievedData) {
+    public static YoutubeDlData? GenerateData(string URL, AuthenticationDetails? Auth, CancellationToken Cancellation, out string? RetrievedData) {
+        return Generate(URL, "-j --no-playlist", Auth, out RetrievedData, Cancellation);
+    }
+    public static YoutubeDlData? GeneratePlaylist(string URL, AuthenticationDetails? Auth, CancellationToken Cancellation, out string? RetrievedData) {
+        return Generate(URL, "-J", Auth, out RetrievedData, Cancellation);
+    }
+
+    private static YoutubeDlData? Generate(string URL, string? GenerateCommand, AuthenticationDetails? Auth, out string? RetrievedData, CancellationToken Cancellation = default) {
         RetrievedData = null;
 
         if (URL.IsNullEmptyWhitespace()) {
@@ -90,67 +99,19 @@ internal sealed class YoutubeDlData {
 
         Arguments.Add("-- " + ArgumentList.EscapeArgument(URL));
 
-        using Process Enumeration = new() {
-            StartInfo = new(Verification.YoutubeDlPath) {
-                Arguments = $"--simulate --no-warnings --no-cache-dir {Arguments}",
-                CreateNoWindow = true,
-                RedirectStandardError = true,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                StandardErrorEncoding = Encoding.UTF8, //Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage),
-                StandardOutputEncoding = Encoding.UTF8, //Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage),
-                WindowStyle = ProcessWindowStyle.Hidden,
-            }
+        ProcessStartInfo StartInfo = new(Verification.YoutubeDlPath) {
+            Arguments = $"--simulate --no-warnings --no-cache-dir {Arguments}",
+            WindowStyle = ProcessWindowStyle.Hidden,
         };
-
         Arguments.Clear();
+        OwnedProcess.Result Result = OwnedProcess.Run(StartInfo, Cancellation);
+        StartInfo.Arguments = string.Empty;
 
-        StringBuilder Output = new(string.Empty);
-        StringBuilder Error = new(string.Empty);
-        Enumeration.OutputDataReceived += (s, e) => Output.Append(e.Data);
-        Enumeration.ErrorDataReceived += (s, e) => Error.Append(e.Data);
-        Enumeration.Start();
-        Enumeration.StandardInput.Close();
-        Enumeration.BeginOutputReadLine();
-        Enumeration.BeginErrorReadLine();
-        try {
-            if (!Enumeration.WaitForExit(300_000)) {
-                throw new TimeoutException($"Metadata retrieval timed out for \"{URL}\".");
-            }
-            // Ensure asynchronous output/error handlers have completed.
-            Enumeration.WaitForExit();
-        }
-        finally {
-            if (!Enumeration.HasExited) {
-                try {
-                    Program.KillProcessTree((uint)Enumeration.Id);
-                }
-                catch {
-                    try {
-                        Enumeration.Kill();
-                    }
-                    catch {
-                        // Best-effort owned-process cleanup.
-                    }
-                }
-                try {
-                    Enumeration.WaitForExit(5_000);
-                }
-                catch {
-                    // Best-effort wait after termination.
-                }
-            }
-        }
-
-        Enumeration.StartInfo.Arguments = null;
-
-        if (!Error.ToString().IsNullEmptyWhitespace()) {
+        if (!Result.StandardError.IsNullEmptyWhitespace()) {
             Log.Write($"Downloading info for \"{URL}\" output some errors.");
-            Log.Write(Error.ToString());
+            Log.Write(Result.StandardError);
         }
-
-        RetrievedData = Output.Length > 0 ? Output.ToString() : null;
+        RetrievedData = Result.StandardOutput.Length > 0 ? Result.StandardOutput : null;
 
         if (!RetrievedData.IsNullEmptyWhitespace()) {
             Log.Write($"Finished downloading info for \"{URL}\", deserializing the data.");

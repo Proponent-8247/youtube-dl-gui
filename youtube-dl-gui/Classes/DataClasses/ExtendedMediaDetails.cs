@@ -357,7 +357,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
             throw new DownloadException(URL, "The media you are trying to access was not entered in correctly.");
         }
 
-        MediaData = YoutubeDlData.GenerateData(URL, Authentication, out _);
+        MediaData = YoutubeDlData.GenerateData(URL, Authentication, RetrievalCancellation, out _);
         if (MediaData is null || MediaData.AvailableFormats?.Length is not > 0) {
             throw new DownloadException(URL, "The media you are trying to access may not be accessible at this time, or it may have been removed.");
         }

@@ -211,7 +211,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
             throw new ArgumentNullException(nameof(InputFilePath));
         }
 
-        ProbeData = FfprobeData.GenerateData(InputFilePath, out _);
+        ProbeData = FfprobeData.GenerateData(InputFilePath, RetrievalCancellation, out _);
         if (ProbeData is null || ProbeData.MediaStreams is null || ProbeData.MediaStreams.Length < 1) {
             throw new ArgumentException(nameof(InputFilePath));
         }

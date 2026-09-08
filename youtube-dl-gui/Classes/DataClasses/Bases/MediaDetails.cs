@@ -1,6 +1,7 @@
 ﻿#nullable enable
 namespace youtube_dl_gui;
 using System.Threading.Tasks;
+using System.Threading;
 /// <summary>
 ///     Delegate for when the media is parsed.
 /// </summary>
@@ -16,6 +17,7 @@ internal abstract class MediaDetails : MediaData {
     ///     Whether the media info was parsed already.
     /// </summary>
     protected bool InfoParsed { get; set; }
+    protected CancellationToken RetrievalCancellation { get; private set; }
 
     /// <summary>
     ///     Generates the base data for the instance of the derived class.
@@ -36,11 +38,14 @@ internal abstract class MediaDetails : MediaData {
     /// <summary>
     ///     Retrieves the media details.
     /// </summary>
-    public virtual void GetMediaDetails() {
+    public virtual void GetMediaDetails() => GetMediaDetails(CancellationToken.None);
+
+    public virtual void GetMediaDetails(CancellationToken Cancellation) {
         if (InfoParsed) {
             return;
         }
-
+        Cancellation.ThrowIfCancellationRequested();
+        RetrievalCancellation = Cancellation;
         Parse();
     }
 
@@ -55,7 +60,7 @@ internal abstract class MediaDetails : MediaData {
             return;
         }
 
-        Parse();
+        GetMediaDetails();
         AfterParse?.Invoke(this);
     }
 
@@ -70,7 +75,7 @@ internal abstract class MediaDetails : MediaData {
             return;
         }
 
-        await Task.Run(Parse);
+        await Task.Run(() => GetMediaDetails());
     }
 
     /// <summary>
@@ -87,7 +92,7 @@ internal abstract class MediaDetails : MediaData {
             return;
         }
 
-        await Task.Run(Parse);
+        await Task.Run(() => GetMediaDetails());
         AfterParse?.Invoke(this);
     }
 

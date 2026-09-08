@@ -5,9 +5,14 @@ using System.Windows.Forms;
 public partial class frmMerger : LocalizedForm {
     private List<FfprobeData> LoadedMediaFiles { get; } = [];
     private bool AddingFiles;
+    private readonly System.Threading.CancellationTokenSource ProbeCancellation = new();
 
     public frmMerger() {
         InitializeComponent();
+        Disposed += (s, e) => {
+            ProbeCancellation.Cancel();
+            ProbeCancellation.Dispose();
+        };
         LoadLanguage();
 
         tvSelectedSources.HandleCreated += (s, e) => murrty.controls.natives.NativeMethods.SetWindowTheme(tvSelectedSources.Handle, "Explorer", null);
@@ -69,7 +74,7 @@ public partial class frmMerger : LocalizedForm {
         string? ffdata = string.Empty;
         try {
             (FfprobeData? Data, string? Output) ProbeResult = await System.Threading.Tasks.Task.Run(() => {
-                FfprobeData? Data = FfprobeData.GenerateData(FilePath, out string? Output);
+                FfprobeData? Data = FfprobeData.GenerateData(FilePath, ProbeCancellation.Token, out string? Output);
                 return (Data, Output);
             });
             FfprobeData? NewData = ProbeResult.Data;
@@ -113,7 +118,7 @@ public partial class frmMerger : LocalizedForm {
         btnAddFiles.Enabled = false;
         try {
             int Failures = 0;
-            for (int i = 0; i < Files.Length; i++) {
+            for (int i = 0; i < Files.Length && !this.IsDisposed; i++) {
                 if (!await AddFileAsync(Files[i])) {
                     Failures++;
                 }

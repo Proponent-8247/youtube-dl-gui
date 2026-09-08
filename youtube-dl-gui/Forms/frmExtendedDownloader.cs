@@ -6,6 +6,7 @@ using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 public partial class frmExtendedDownloader : LocalizedProcessingForm {
+    private readonly CancellationTokenSource RetrievalCancellation = new();
     private bool Debug { get; }
     public bool BatchDownload { get; }
     private bool SwitchingQueuedItem { get; set; }
@@ -32,6 +33,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         this.BatchDownload = BatchDownload;
 
         InitializeComponent();
+        Disposed += (s, e) => {
+            RetrievalCancellation.Cancel();
+            RetrievalCancellation.Dispose();
+        };
         tpStartTime.DateBasedTime = false;
         LoadLanguage();
 
@@ -409,7 +414,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     throw new DownloadException(MediaDetails.URL, "The media you are trying to access was not entered in correctly.");
                 }
 
-                MediaDetails.GetMediaDetails();
+                MediaDetails.GetMediaDetails(RetrievalCancellation.Token);
                 DownloadType InitialDownloadType = InitialArgumentType switch {
                     ArgumentType.DownloadVideo or ArgumentType.DownloadAuthenticateVideo or ArgumentType.DownloadVideoNoSound or ArgumentType.DownloadAuthenticateVideoNoSound => DownloadType.Video,
                     ArgumentType.DownloadAudio or ArgumentType.DownloadAuthenticateAudio => DownloadType.Audio,
@@ -1838,7 +1843,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     }
 
                     try {
-                        CurrentMedia.GetMediaDetails();
+                        CurrentMedia.GetMediaDetails(RetrievalCancellation.Token);
                     }
                     catch (DownloadException ex) {
                         Log.Write($"Unable to retrieve queued media details for \"{CurrentMedia.URL}\": {ex.Message}");

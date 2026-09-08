@@ -429,6 +429,21 @@ public partial class frmMain : LocalizedForm {
         General.ClipboardAutoDownloadVerifyLinks = VerifyLinks;
     }
 
+    private static bool TryGetClipboardText(out string Text) {
+        Text = string.Empty;
+        try {
+            if (!Clipboard.ContainsText()) {
+                return false;
+            }
+
+            Text = Clipboard.GetText();
+            return true;
+        }
+        catch (ExternalException) {
+            return false;
+        }
+    }
+
     internal void RemoveTrayIcon() {
         if (trayIcon != null) {
             trayIcon.Visible = false;
@@ -529,11 +544,11 @@ public partial class frmMain : LocalizedForm {
     }
 
     private void cmTrayDownloadBestVideo_Click(object sender, EventArgs e) {
-        if (!Clipboard.ContainsText()) {
+        if (!TryGetClipboardText(out string ClipboardText)) {
             return;
         }
 
-        DownloadInfo NewInfo = new(Clipboard.GetText()) {
+        DownloadInfo NewInfo = new(ClipboardText) {
             VideoQuality = (VideoQualityType)Saved.videoQuality,
             Type = 0,
         };
@@ -541,11 +556,11 @@ public partial class frmMain : LocalizedForm {
         Downloader.Show();
     }
     private void cmTrayDownloadBestAudio_Click(object sender, EventArgs e) {
-        if (!Clipboard.ContainsText()) {
+        if (!TryGetClipboardText(out string ClipboardText)) {
             return;
         }
 
-        DownloadInfo NewInfo = new(Clipboard.GetText()) {
+        DownloadInfo NewInfo = new(ClipboardText) {
             AudioCBRQuality = AudioCBRQualityType.best,
             Type = DownloadType.Audio,
         };
@@ -554,7 +569,7 @@ public partial class frmMain : LocalizedForm {
     }
 
     private void cmTrayDownloadCustomTxtBox_Click(object sender, EventArgs e) {
-        if (!Clipboard.ContainsText()) {
+        if (!TryGetClipboardText(out string ClipboardText)) {
             return;
         }
 
@@ -564,7 +579,7 @@ public partial class frmMain : LocalizedForm {
             return;
         }
 
-        DownloadInfo NewInfo = new(Clipboard.GetText()) {
+        DownloadInfo NewInfo = new(ClipboardText) {
             CustomArguments = cbCustomArguments.Text,
             Type = DownloadType.Custom,
         };
@@ -572,7 +587,7 @@ public partial class frmMain : LocalizedForm {
         Downloader.Show();
     }
     private void cmTrayDownloadCustomTxt_Click(object sender, EventArgs e) {
-        if (!Clipboard.ContainsText()) {
+        if (!TryGetClipboardText(out string ClipboardText)) {
             return;
         }
 
@@ -585,7 +600,7 @@ public partial class frmMain : LocalizedForm {
             return;
         }
 
-        DownloadInfo NewInfo = new(Clipboard.GetText()) {
+        DownloadInfo NewInfo = new(ClipboardText) {
             CustomArguments = System.IO.File.ReadAllLines(Environment.CurrentDirectory + "\\args.txt")[0],
             Type = DownloadType.Custom,
         };
@@ -593,7 +608,7 @@ public partial class frmMain : LocalizedForm {
         Downloader.Show();
     }
     private void cmTrayDownloadCustomSettings_Click(object sender, EventArgs e) {
-        if (!Clipboard.ContainsText() || Saved.CustomArgumentsIndex < 0) {
+        if (Saved.CustomArgumentsIndex < 0 || !TryGetClipboardText(out string ClipboardText)) {
             return;
         }
 
@@ -608,7 +623,7 @@ public partial class frmMain : LocalizedForm {
             return;
         }
 
-        DownloadInfo NewInfo = new(Clipboard.GetText()) {
+        DownloadInfo NewInfo = new(ClipboardText) {
             CustomArguments = SettingsArguments[Saved.CustomArgumentsIndex],
             Type = DownloadType.Custom,
         };
@@ -833,9 +848,17 @@ public partial class frmMain : LocalizedForm {
     }
 
     private void txtUrl_MouseEnter(object sender, EventArgs e) {
-        if (General.HoverOverURLTextBoxToPaste && txtUrl.Text != Clipboard.GetText()) {
-            txtUrl.Text = Clipboard.GetText();
+        if (!General.HoverOverURLTextBoxToPaste) {
+            return;
         }
+
+        try {
+            string ClipboardText = Clipboard.GetText();
+            if (txtUrl.Text != ClipboardText) {
+                txtUrl.Text = ClipboardText;
+            }
+        }
+        catch (ExternalException) { }
     }
     private void txtUrl_KeyDown(object sender, KeyEventArgs e) {
         if (e.KeyCode == Keys.Return)
@@ -1164,7 +1187,10 @@ public partial class frmMain : LocalizedForm {
         }
 
         if (General.ClearClipboardOnDownload) {
-            Clipboard.Clear();
+            try {
+                Clipboard.Clear();
+            }
+            catch (ExternalException) { }
         }
     }
     #endregion

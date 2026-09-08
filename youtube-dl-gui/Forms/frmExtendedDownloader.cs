@@ -370,13 +370,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     protected override void WndProc(ref Message m) {
         switch (m.Msg) {
             case NativeMethods.WM_CLIPBOARDUPDATE: {
-                if (Clipboard.ContainsText()) {
-                    ClipboardData = Clipboard.GetText();
+                if (TryGetClipboardText(out string Text)) {
+                    ClipboardData = Text;
                     if (!mEnqueueClipboardScannerVerifyLinks.Checked || DownloadHelper.SupportedDownloadLink(ClipboardData)) {
                         QueueNewItem(ClipboardData, false, false, false, MediaDetails);
                     }
-                    ClipboardData = null;
                 }
+                ClipboardData = null;
             } break;
         }
         base.WndProc(ref m);
@@ -1419,8 +1419,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 Process.Start(MediaDetails.URL);
             } break;
             case MouseButtons.Right: {
-                Clipboard.SetText(MediaDetails.URL);
-                System.Media.SystemSounds.Asterisk.Play();
+                if (TrySetClipboardText(MediaDetails.URL)) {
+                    System.Media.SystemSounds.Asterisk.Play();
+                }
             } break;
         }
     }
@@ -1780,12 +1781,34 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             ProcessingThread.Start();
         }
     }
+    private static bool TryGetClipboardText(out string Text) {
+        Text = string.Empty;
+        try {
+            if (!Clipboard.ContainsText()) {
+                return false;
+            }
+
+            Text = Clipboard.GetText();
+            return true;
+        }
+        catch (System.Runtime.InteropServices.ExternalException) {
+            return false;
+        }
+    }
+    private static bool TrySetClipboardText(string Text) {
+        try {
+            Clipboard.SetText(Text);
+            return true;
+        }
+        catch (System.Runtime.InteropServices.ExternalException) {
+            return false;
+        }
+    }
     private string[] GetLinksFromClipboard() {
-        if (!Clipboard.ContainsText()) {
+        if (!TryGetClipboardText(out string ClipboardData)) {
             return [];
         }
-        string ClipboardData = Clipboard.GetText().Replace("\r\n", "\n");
-        return ClipboardData.Split('\n');
+        return ClipboardData.Replace("\r\n", "\n").Split('\n');
     }
     private string[] GetLinksFromFile() {
         using OpenFileDialog OFD = new() {
@@ -1938,7 +1961,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
     private void mQueueCopyLink_Click(object sender, EventArgs e) {
         if (MediaDetails is not null) {
-            Clipboard.SetText(MediaDetails.URL);
+            TrySetClipboardText(MediaDetails.URL);
         }
     }
     private void mQueueViewInBrowser_Click(object sender, EventArgs e) {

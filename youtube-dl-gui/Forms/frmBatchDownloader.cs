@@ -565,14 +565,19 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
     }
 
     private void mBatchDownloadImportLinksFromClipboard_Click(object sender, EventArgs e) {
-        if (Clipboard.ContainsText()) {
-            string[] Data = Clipboard.GetText().Replace("\r\n", "\n").Split('\n');
-            for (int i = 0; i < Data.Length; i++) {
-                AddItemToList(Data[i]);
+        try {
+            if (Clipboard.ContainsText()) {
+                string[] Data = Clipboard.GetText().Replace("\r\n", "\n").Split('\n');
+                for (int i = 0; i < Data.Length; i++) {
+                    AddItemToList(Data[i]);
+                }
+            }
+            else {
+                Log.MessageBox("The clipboard does not contain text that can be added.");
             }
         }
-        else {
-            Log.MessageBox("The clipboard does not contain text that can be added.");
+        catch (System.Runtime.InteropServices.ExternalException) {
+            System.Media.SystemSounds.Asterisk.Play();
         }
     }
 

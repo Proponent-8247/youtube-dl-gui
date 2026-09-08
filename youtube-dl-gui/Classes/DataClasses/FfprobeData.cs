@@ -43,9 +43,37 @@ public sealed class FfprobeData {
         Enumeration.OutputDataReceived += (s, e) => Output.Append(e.Data);
         Enumeration.ErrorDataReceived += (s, e) => Error.Append(e.Data);
         Enumeration.Start();
+        Enumeration.StandardInput.Close();
         Enumeration.BeginOutputReadLine();
         Enumeration.BeginErrorReadLine();
-        Enumeration.WaitForExit();
+        try {
+            if (!Enumeration.WaitForExit(300_000)) {
+                throw new TimeoutException($"Media probe timed out for \"{MediaFile}\".");
+            }
+            // Ensure asynchronous output/error handlers have completed.
+            Enumeration.WaitForExit();
+        }
+        finally {
+            if (!Enumeration.HasExited) {
+                try {
+                    Program.KillProcessTree((uint)Enumeration.Id);
+                }
+                catch {
+                    try {
+                        Enumeration.Kill();
+                    }
+                    catch {
+                        // Best-effort owned-process cleanup.
+                    }
+                }
+                try {
+                    Enumeration.WaitForExit(5_000);
+                }
+                catch {
+                    // Best-effort wait after termination.
+                }
+            }
+        }
 
         if (Error.Length > 0) {
             Log.Write(Error.ToString());

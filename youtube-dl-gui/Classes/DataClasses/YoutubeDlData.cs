@@ -111,9 +111,37 @@ internal sealed class YoutubeDlData {
         Enumeration.OutputDataReceived += (s, e) => Output.Append(e.Data);
         Enumeration.ErrorDataReceived += (s, e) => Error.Append(e.Data);
         Enumeration.Start();
+        Enumeration.StandardInput.Close();
         Enumeration.BeginOutputReadLine();
         Enumeration.BeginErrorReadLine();
-        Enumeration.WaitForExit();
+        try {
+            if (!Enumeration.WaitForExit(300_000)) {
+                throw new TimeoutException($"Metadata retrieval timed out for \"{URL}\".");
+            }
+            // Ensure asynchronous output/error handlers have completed.
+            Enumeration.WaitForExit();
+        }
+        finally {
+            if (!Enumeration.HasExited) {
+                try {
+                    Program.KillProcessTree((uint)Enumeration.Id);
+                }
+                catch {
+                    try {
+                        Enumeration.Kill();
+                    }
+                    catch {
+                        // Best-effort owned-process cleanup.
+                    }
+                }
+                try {
+                    Enumeration.WaitForExit(5_000);
+                }
+                catch {
+                    // Best-effort wait after termination.
+                }
+            }
+        }
 
         Enumeration.StartInfo.Arguments = null;
 

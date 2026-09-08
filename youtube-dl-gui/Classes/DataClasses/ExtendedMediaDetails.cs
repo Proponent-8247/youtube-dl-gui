@@ -483,7 +483,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
         InfoParsed = true;
     }
     public override bool GenerateArguments() {
-        ArgumentList ArgumentBuffer = new($"\"{URL}\"");
+        ArgumentList ArgumentBuffer = new(ArgumentList.EscapeArgument(URL));
 
         #region Outuput path
         StringBuilder OutputPath = new("-o \"");

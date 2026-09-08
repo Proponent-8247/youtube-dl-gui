@@ -187,7 +187,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
         }
 
         if (!MostlyCustomArguments) {
-            ArgumentsBuffer.Add($"{DownloadURL} -o {OutputDirectory}");
+            ArgumentsBuffer.Add($"{ArgumentList.EscapeArgument(DownloadURL)} -o {OutputDirectory}");
         }
 
         Verbose("The output was generated and will be used");

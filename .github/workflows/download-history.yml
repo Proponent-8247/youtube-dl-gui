@@ -3,6 +3,8 @@ name: Download history verification
 on:
   push:
     branches: [feature/download-history-20260908]
+  pull_request:
+    branches: [audit-fixes, master]
   workflow_dispatch:
 
 concurrency:
@@ -10,67 +12,25 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify:
-    if: github.ref == 'refs/heads/feature/download-history-20260908'
     runs-on: windows-2022
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Check out exact source revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          fetch-depth: 0
-      - name: Apply exact feature patch when requested
-        id: change
+          persist-credentials: false
+      - name: Reject unfinished development patch requests
         shell: pwsh
         run: |
-          if (!(Test-Path '.history-change.json')) {
-            'applied=false' >> $env:GITHUB_OUTPUT
-            exit 0
-          }
-          @'
-          import json, re, subprocess
-          from pathlib import Path, PurePosixPath
-          request_path = Path('.history-change.json')
-          request = json.loads(request_path.read_text(encoding='utf-8'))
-          base = request['base']
-          if not re.fullmatch('[0-9a-f]{40}', base):
-              raise SystemExit('Invalid pinned base revision')
-          subprocess.run(['git', 'merge-base', '--is-ancestor', base, 'HEAD'], check=True)
-          allowed = ('youtube-dl-gui/', 'tests/DownloadHistory.Tests/', 'docs/download-history/')
-          prepared = {}
-          for item in request['replacements']:
-              path = PurePosixPath(item['path'])
-              if path.is_absolute() or '..' in path.parts or '\\' in str(path) or not str(path).startswith(allowed):
-                  raise SystemExit('Unsafe patch path')
-              target = Path(path)
-              if any(p.is_symlink() for p in (target, *target.parents)):
-                  raise SystemExit('Symlink patch rejected')
-              if str(path) not in prepared:
-                  current = subprocess.check_output(['git', 'cat-file', 'blob', 'HEAD:' + str(path)])
-                  original = subprocess.check_output(['git', 'cat-file', 'blob', base + ':' + str(path)])
-                  if current != original:
-                      raise SystemExit(f'Target changed since the pinned base: {path}')
-                  prepared[str(path)] = original
-              data = prepared[str(path)]
-              old = item['old'].encode('utf-8')
-              new = item['new'].encode('utf-8')
-              if not old or data.count(old) != item.get('count', 1):
-                  raise SystemExit(f'Exact replacement mismatch: {path}; expected={item.get("count", 1)} actual={data.count(old)} old={old!r}')
-              prepared[str(path)] = data.replace(old, new)
-          subprocess.run(['git', 'config', '--local', 'core.autocrlf', 'false'], check=True)
-          for path, data in prepared.items():
-              Path(path).write_bytes(data)
-          request_path.unlink()
-          subprocess.run(['git', 'add', '--', '.history-change.json', *prepared], check=True)
-          Path('.history-commit-message').write_text(request['message'], encoding='utf-8')
-          '@ | python -
+          if (Test-Path '.history-change.json') { throw 'An unfinished development patch is not a deliverable source revision.' }
+          git -c core.whitespace=cr-at-eol diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git -c core.whitespace=cr-at-eol diff --cached --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          'applied=true' >> $env:GITHUB_OUTPUT
-      - uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
       - name: Build debug application
         run: msbuild youtube-dl-gui\youtube-dl-gui.csproj /m /p:Configuration=Debug /p:Platform=AnyCPU
       - name: Build debug updater
@@ -89,7 +49,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & tests\DownloadHistory.Tests\bin\Release\DownloadHistory.Tests.exe | Tee-Object -FilePath test-evidence\core-tests.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - uses: actions/setup-python@v5
+      - name: Set up Python for offline integration tests
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
       - name: Install pinned native downloader test dependency
@@ -100,28 +61,13 @@ jobs:
           $python = (Get-Command python).Source
           & tests\DownloadHistory.Tests\bin\Release\DownloadHistory.Tests.exe --native-suite youtube-dl-gui\bin\Release\youtube-dl-gui.exe $python tests\DownloadHistory.Tests\native_fixture.py test-evidence | Tee-Object -FilePath test-evidence\native-tests.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Commit tested feature patch
-        if: steps.change.outputs.applied == 'true'
-        shell: pwsh
-        run: |
-          $branch = 'feature/download-history-20260908'
-          $remote = git ls-remote --heads origin "refs/heads/$branch"
-          if ($LASTEXITCODE -ne 0 -or !$remote -or $remote.Split()[0] -ne $env:GITHUB_SHA) {
-            throw 'Feature branch changed or was removed; refusing to publish.'
-          }
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -F .history-commit-message
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Remove-Item .history-commit-message
-          git push origin "HEAD:refs/heads/$branch"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Export exact source snapshot
         if: always()
         shell: pwsh
         run: |
           git rev-parse HEAD | Out-File -Encoding ascii tested-revision.txt
           git -c core.autocrlf=false archive --format=zip --output=source-snapshot.zip HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Retain source and test evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

@@ -408,12 +408,19 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                     }
                 }
 
-                this.BeginInvoke(() => {
-                    if (this.IsHandleCreated) {
-                        rtbVerbose.AppendLine("Downloading was aborted by the user.");
-                        btnDownloaderCancelExit.Text = Language.GenericExit;
+                if (!this.IsDisposed && this.IsHandleCreated) {
+                    try {
+                        this.BeginInvoke(() => {
+                            if (!this.IsDisposed && !rtbVerbose.IsDisposed) {
+                                rtbVerbose.AppendLine("Downloading was aborted by the user.");
+                                btnDownloaderCancelExit.Text = Language.GenericExit;
+                            }
+                        });
                     }
-                });
+                    catch (InvalidOperationException) {
+                        // The form can close between the handle check and BeginInvoke.
+                    }
+                }
 
                 CurrentDownload.Status = DownloadStatus.Aborted;
             }
@@ -422,12 +429,19 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                 CurrentDownload.Status = DownloadStatus.ProgramError;
             }
             finally {
-                if (this.IsHandleCreated) {
-                    this.BeginInvoke(() => {
-                        pbStatus.Style = ProgressBarStyle.Continuous;
-                        pbStatus.ShowInTaskbar = false;
-                        DownloadFinished();
-                    });
+                if (!this.IsDisposed && this.IsHandleCreated) {
+                    try {
+                        this.BeginInvoke(() => {
+                            if (!this.IsDisposed && !pbStatus.IsDisposed) {
+                                pbStatus.Style = ProgressBarStyle.Continuous;
+                                pbStatus.ShowInTaskbar = false;
+                                DownloadFinished();
+                            }
+                        });
+                    }
+                    catch (InvalidOperationException) {
+                        // The form can close between the handle check and BeginInvoke.
+                    }
                 }
             }
         }) {

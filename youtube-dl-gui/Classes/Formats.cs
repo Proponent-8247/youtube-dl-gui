@@ -93,12 +93,10 @@ internal static class Formats {
     /// </summary>
     public static string[] ExtendedAudioFormats { get; } = [
         "aac",
-        "aiff",
         "alac",
         "flac",
         "mp3",
         "m4a",
-        "ogg",
         "opus",
         "vorbis",
         "wav"

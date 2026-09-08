@@ -7,6 +7,7 @@ internal static partial class AuditRegression {
     private static Timer DialogMonitor;
     private static readonly List<string> UnexpectedDialogs = new List<string>();
     private static readonly HashSet<Form> PendingDialogs = new HashSet<Form>();
+    static partial void RunToolProbeTests();
     static partial void RunIpcTests();
     static partial void RunUpdaterHandshakeTests();
     static partial void RunSecurityBoundaryTests() {
@@ -31,6 +32,7 @@ internal static partial class AuditRegression {
         };
         DialogMonitor.Start();
         RunIpcTests();
+        RunToolProbeTests();
     }
     private static IEnumerable<string> DiagnosticText(Control control) {
         if (control is TextBoxBase && !string.IsNullOrEmpty(control.Text)) yield return control.Text;

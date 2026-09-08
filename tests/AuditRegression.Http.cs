@@ -59,7 +59,7 @@ internal static partial class AuditRegression {
     }
     private static object HttpClient() {
         Call(T("murrty.controls.ManagedHttpClient"), null, "UpdateDownloadClient", "AuditRegression/1.0");
-        return New("murrty.controls.ManagedHttpClient");
+        return T("murrty.controls.ManagedHttpClient").GetConstructor(Type.EmptyTypes).Invoke(new object[0]);
     }
     private static void ObserveHttp(Task task) {
         if (task == null) return;

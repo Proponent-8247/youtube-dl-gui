@@ -187,6 +187,14 @@ internal partial class frmDownloader : LocalizedProcessingForm {
         Log.Write("Beginning download thread.");
         DownloadThread = new Thread(() => {
             string? Msg = null;
+            object MsgSync = new();
+            void ClearMessage(string CurrentMessage) {
+                lock (MsgSync) {
+                    if (ReferenceEquals(Msg, CurrentMessage)) {
+                        Msg = null;
+                    }
+                }
+            }
             string InterimMsg;
             int InterimIndex;
 
@@ -214,11 +222,12 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                         switch (e.Data[..8].ToLowerInvariant()) {
                             case "[downloa": case "[ffmpeg]":
                             case "[embedsu": case "[metadat": {
-                                Msg = e.Data;
+                                lock (MsgSync) {
+                                    Msg = e.Data;
+                                }
                             } break;
 
                             default: {
-                                Msg = null;
                                 InterimMsg = e.Data.ToLowerInvariant();
                                 if ((InterimIndex = InterimMsg.IndexOf(']')) > -1) {
                                     switch (InterimMsg[..(InterimIndex + 1)]) {
@@ -318,11 +327,15 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                         return;
                     }
 
-                    if (!Msg.IsNullEmptyWhitespace()) {
-                        //Console.WriteLine(Msg);
-                        string Line = Msg.ReplaceWhitespace();
+                    string? CurrentMsg;
+                    lock (MsgSync) {
+                        CurrentMsg = Msg;
+                    }
+                    if (!CurrentMsg.IsNullEmptyWhitespace()) {
+                        //Console.WriteLine(CurrentMsg);
+                        string Line = CurrentMsg.ReplaceWhitespace();
                         if (Line.Length < 5) {
-                            Msg = null;
+                            ClearMessage(CurrentMsg);
                             continue;
                         }
 
@@ -361,7 +374,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                                     pbStatus.Text = Language.pbDownloadProgressFfmpegPostProcessing;
                                     pbStatus.Value = 100;
                                 });
-                                Msg = null;
+                                ClearMessage(CurrentMsg);
                             } break;
                             case "[embe": {
                                 rtbVerbose.Invoke(() => rtbVerbose.AppendLine(Line));
@@ -370,7 +383,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                                     pbStatus.Text = Language.pbDownloadProgressEmbeddingSubtitles;
                                     pbStatus.Value = 100;
                                 });
-                                Msg = null;
+                                ClearMessage(CurrentMsg);
                             } break;
                             case "[meta": {
                                 rtbVerbose.Invoke(() => rtbVerbose.AppendLine(Line));
@@ -379,10 +392,10 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                                     pbStatus.Text = Language.pbDownloadProgressEmbeddingMetadata;
                                     pbStatus.Value = 100;
                                 });
-                                Msg = null;
+                                ClearMessage(CurrentMsg);
                             } break;
                         }
-                        Msg = null;
+                        ClearMessage(CurrentMsg);
                     }
 
                     Thread.Sleep(250);

@@ -15,17 +15,29 @@ internal static partial class AuditRegression {
     private static void AssertGone(string file) {
         Require(File.Exists(file), "The fixture did not record its process identity");
         int pid = int.Parse(File.ReadAllText(file));
-        Process child;
-        try { child = Process.GetProcessById(pid); } catch (ArgumentException) { return; }
+        Process child = OpenFixture(pid);
+        if (child == null) return;
         using (child) {
             bool exited = child.WaitForExit(5000);
             if (!exited) { try { child.Kill(); child.WaitForExit(5000); } catch (InvalidOperationException) { } }
             Require(exited, "Owned fixture process survived cleanup: " + pid);
         }
     }
+    private static Process OpenFixture(int pid) {
+        Process child;
+        try { child = Process.GetProcessById(pid); } catch (ArgumentException) { return null; }
+        try {
+            if (!string.Equals(child.MainModule.FileName, Self, StringComparison.OrdinalIgnoreCase)) {
+                child.Dispose();
+                return null; // A recycled PID is not an owned fixture.
+            }
+            return child;
+        }
+        catch { child.Dispose(); throw; }
+    }
     private static void KillFixture(string file) {
         if (!File.Exists(file)) return;
-        try { using (Process child = Process.GetProcessById(int.Parse(File.ReadAllText(file)))) { if (!child.HasExited) { child.Kill(); child.WaitForExit(5000); } } }
+        try { using (Process child = OpenFixture(int.Parse(File.ReadAllText(file)))) { if (child != null && !child.HasExited) { child.Kill(); child.WaitForExit(5000); } } }
         catch (ArgumentException) { } catch (InvalidOperationException) { }
     }
     private static void AbortProbe(bool ffprobe) {
@@ -63,6 +75,9 @@ internal static partial class AuditRegression {
         }
     }
     static partial void RunProcessTests() {
+        // This console harness has no WinForms message pump. Keep probe logging from
+        // synchronously dispatching to the hidden global log form on the test thread.
+        Call(T("murrty.logging.Log"), null, "DisableLogging");
         Test("D007.YoutubeProbeAbortStopsRoot", () => AbortProbe(false));
         Test("D007.FfprobeAbortStopsRoot", () => AbortProbe(true));
         Test("D007.OwnedRunnerClosesStdin", () => {

@@ -20,6 +20,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     private List<ExtendedMediaDetails>? QueueList { get; }
     private readonly object QueueSync = new();
     private bool QueueResolverRunning;
+    private volatile bool CancellationRequested;
     private DownloadStatus Status { get; set; } = DownloadStatus.None;
 
     private bool ClipboardScannerActive;    // Whether the clipboard scanner is active.
@@ -327,12 +328,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             case DownloadStatus.FfmpegPostProcessing:
             case DownloadStatus.EmbeddingSubtitles:
             case DownloadStatus.EmbeddingMetadata: {
+                CancellationRequested = true;
                 Status = DownloadStatus.Aborted;
                 e.Cancel = true;
             } break;
             default: {
                 if (ProcessingThread?.IsAlive == true) {
-                    if (Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
+                    if (CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
                         e.Cancel = true;
                         return;
                     }
@@ -526,6 +528,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
 
     private void BeginDownload(bool Auth) {
+        CancellationRequested = false;
         if (BatchDownload) {
             BeginBatchDownload();
             return;
@@ -698,7 +701,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             string ETA = "Unknown";
 
             while (!DownloadProcess.HasExited) {
-                if (Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
+                if (CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
                     if (!DownloadProcess.HasExited) {
                         Program.KillProcessTree((uint)DownloadProcess.Id);
                         DownloadProcess.Kill();
@@ -792,7 +795,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             DownloadProcess.Dispose();
             DownloadProcess = null;
 
-            if (Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
+            if (!CancellationRequested && Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
                 Status = ExitCode == 0 ? DownloadStatus.Finished : DownloadStatus.YtdlError;
             }
 
@@ -993,7 +996,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
                 args = null;
                 while (!DownloadProcess.HasExited) {
-                    if (Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
+                    if (CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
                         if (!DownloadProcess.HasExited) {
                             Program.KillProcessTree((uint)DownloadProcess.Id);
                             DownloadProcess.Kill();
@@ -1082,7 +1085,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 DownloadProcess.Dispose();
                 DownloadProcess = null;
 
-                if (Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
+                if (!CancellationRequested && Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
                     bool ItemSucceeded = ExitCode == 0;
                     if (!ItemSucceeded) {
                         BatchHadErrors = true;
@@ -1599,6 +1602,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             case DownloadStatus.FfmpegPostProcessing:
             case DownloadStatus.EmbeddingSubtitles:
             case DownloadStatus.EmbeddingMetadata: {
+                CancellationRequested = true;
                 Status = DownloadStatus.Aborted;
             } break;
 
@@ -1621,6 +1625,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             case DownloadStatus.FfmpegPostProcessing:
             case DownloadStatus.EmbeddingSubtitles:
             case DownloadStatus.EmbeddingMetadata: {
+                CancellationRequested = true;
                 Status = DownloadStatus.Aborted;
             } break;
 

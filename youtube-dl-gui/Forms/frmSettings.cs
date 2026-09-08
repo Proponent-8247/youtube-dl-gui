@@ -18,6 +18,7 @@ public partial class frmSettings : LocalizedForm {
 
     private bool useYtdlUpdater_Last;
     private int YtdlType_Last;
+    private bool SettingsSaved;
     #endregion
 
     public frmSettings() {
@@ -43,6 +44,9 @@ public partial class frmSettings : LocalizedForm {
         LoadingForm = false;
     }
     private void frmSettings_FormClosing(object sender, FormClosingEventArgs e) {
+        if (!SettingsSaved) {
+            RestoreImmediateSettings();
+        }
     }
 
     public override void LoadLanguage() {
@@ -628,13 +632,19 @@ public partial class frmSettings : LocalizedForm {
         }
     }
 
+    private void RestoreImmediateSettings() {
+        Downloads.useYtdlUpdater = useYtdlUpdater_Last;
+        Downloads.YtdlType = YtdlType_Last;
+        Verification.RefreshYoutubeDlLocation();
+    }
+
     private void btnSettingsSave_Click(object sender, EventArgs e) {
         SaveSettings();
+        SettingsSaved = true;
         this.Dispose();
     }
     private void btnSettingsCancel_Click(object sender, EventArgs e) {
-        Downloads.useYtdlUpdater = useYtdlUpdater_Last;
-        Downloads.YtdlType = YtdlType_Last;
+        RestoreImmediateSettings();
         this.Dispose();
     }
 

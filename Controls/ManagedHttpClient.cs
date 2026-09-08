@@ -17,6 +17,7 @@ internal sealed class ManagedHttpClient : IDisposable {
 
     private readonly Timer ProgressReportTimer;
     private readonly ProgressFinishedCallback FinishedCallback;
+    private readonly object ProgressSync = new();
     private static SynchronizationContext SyncThread;
 
     public event EventHandler<DownloadProgressChangedEventArgs>? ProgressChanged;
@@ -86,38 +87,70 @@ internal sealed class ManagedHttpClient : IDisposable {
         return new HttpException(Response.StatusCode, ResponseContent, uri);
     }
 
-    private void OnProgressThrottleTicked(object state) {
-        if (EstimateTime == EstimateReportTime) {
-            EstimateTime = 0;
-            ByteEstimate = ByteEstimateBuffer;
-            ByteEstimateBuffer = 0;
-        }
-        else {
-            EstimateTime++;
-        }
+    private DownloadProgressChangedEventArgs GetProgressEventArgs() {
+        lock (ProgressSync) {
+            if (EstimateTime == EstimateReportTime) {
+                EstimateTime = 0;
+                ByteEstimate = ByteEstimateBuffer;
+                ByteEstimateBuffer = 0;
+            }
+            else {
+                EstimateTime++;
+            }
 
-        if (ProgressChanged is not null) {
-            SyncThread.Post(_ => ProgressChanged.Invoke(this, new(CurrentProgress, CurrentTotalSize, ByteEstimate)), null);
+            return new(CurrentProgress, CurrentTotalSize, ByteEstimate);
         }
     }
-    private void OnProgressThrottleTicked_NoSyncContext(object state) {
-        if (EstimateTime == EstimateReportTime) {
+    private DownloadFinishedEventArgs GetFinishedEventArgs() {
+        lock (ProgressSync) {
+            return new(CurrentProgress);
+        }
+    }
+    private void ResetProgress() {
+        lock (ProgressSync) {
+            CurrentProgress = 0L;
+            CurrentTotalSize = 0L;
             EstimateTime = 0;
-            ByteEstimate = ByteEstimateBuffer;
+            ByteEstimate = 0;
             ByteEstimateBuffer = 0;
         }
-        else {
-            EstimateTime++;
+    }
+    private void OnProgressThrottleTicked(object state) {
+        EventHandler<DownloadProgressChangedEventArgs>? Handler = ProgressChanged;
+        if (Handler is null) {
+            return;
         }
-        ProgressChanged?.Invoke(this, new(CurrentProgress, CurrentTotalSize, ByteEstimate));
+
+        DownloadProgressChangedEventArgs EventArgs = GetProgressEventArgs();
+        SyncThread.Post(_ => Handler.Invoke(this, EventArgs), null);
+    }
+    private void OnProgressThrottleTicked_NoSyncContext(object state) {
+        EventHandler<DownloadProgressChangedEventArgs>? Handler = ProgressChanged;
+        if (Handler is null) {
+            return;
+        }
+
+        DownloadProgressChangedEventArgs EventArgs = GetProgressEventArgs();
+        Handler.Invoke(this, EventArgs);
     }
 
     private void OnProgressFinished() {
-        if (DownloadComplete is not null)
-            SyncThread.Post(_ => DownloadComplete.Invoke(this, new(CurrentProgress)), null);
+        EventHandler<DownloadFinishedEventArgs>? Handler = DownloadComplete;
+        if (Handler is null) {
+            return;
+        }
+
+        DownloadFinishedEventArgs EventArgs = GetFinishedEventArgs();
+        SyncThread.Post(_ => Handler.Invoke(this, EventArgs), null);
     }
     private void OnProgressFinished_NoSyncContext() {
-        DownloadComplete?.Invoke(this, new(CurrentProgress));
+        EventHandler<DownloadFinishedEventArgs>? Handler = DownloadComplete;
+        if (Handler is null) {
+            return;
+        }
+
+        DownloadFinishedEventArgs EventArgs = GetFinishedEventArgs();
+        Handler.Invoke(this, EventArgs);
     }
 
     public async Task DownloadFileTaskAsync(Uri uri, string destination, CancellationToken Token) {
@@ -128,9 +161,11 @@ internal sealed class ManagedHttpClient : IDisposable {
                 throw await GetException(Response, uri);
 
             string? ContentEncoding = Response.Content.Headers.ContentEncoding.FirstOrDefault()?.ToLowerInvariant();
-            CurrentTotalSize = ContentEncoding is "gzip" or "deflate"
-                ? 0
-                : Response.Content.Headers.ContentLength ?? 0;
+            lock (ProgressSync) {
+                CurrentTotalSize = ContentEncoding is "gzip" or "deflate"
+                    ? 0
+                    : Response.Content.Headers.ContentLength ?? 0;
+            }
 
             using FileStream Destination = new(
                 path: destination,
@@ -158,11 +193,7 @@ internal sealed class ManagedHttpClient : IDisposable {
         }
         finally {
             ProgressReportTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            CurrentProgress = 0L;
-            CurrentTotalSize = 0L;
-            EstimateTime = 0;
-            ByteEstimate = 0;
-            ByteEstimateBuffer = 0;
+            ResetProgress();
         }
     }
     public async Task<string> DownloadStringTaskAsync(Uri uri, CancellationToken Token) {
@@ -172,7 +203,9 @@ internal sealed class ManagedHttpClient : IDisposable {
             if (!Response.IsSuccessStatusCode)
                 throw await GetException(Response, uri);
 
-            CurrentTotalSize = Response.Content.Headers.ContentLength ?? 0;
+            lock (ProgressSync) {
+                CurrentTotalSize = Response.Content.Headers.ContentLength ?? 0;
+            }
 
             using MemoryStream Destination = new();
             using Stream ContentStream = await Response.Content.ReadAsStreamAsync();
@@ -198,24 +231,24 @@ internal sealed class ManagedHttpClient : IDisposable {
         }
         finally {
             ProgressReportTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            CurrentProgress = 0L;
-            CurrentTotalSize = 0L;
-            EstimateTime = 0;
-            ByteEstimate = 0;
-            ByteEstimateBuffer = 0;
+            ResetProgress();
         }
     }
 
     private async Task WriteStream(Stream Source, Stream Writer, CancellationToken Token) {
         byte[] buffer = new byte[DefaultBuffer];
         int bytesRead;
-        EstimateTime = 35;
+        lock (ProgressSync) {
+            EstimateTime = 35;
+        }
 
         ProgressReportTimer.Change(ProgressThrottle, ProgressThrottle);
         while ((bytesRead = await Source.ReadAsync(buffer, 0, buffer.Length, Token).ConfigureAwait(false)) > 0) {
             await Writer.WriteAsync(buffer, 0, bytesRead, Token).ConfigureAwait(false);
-            CurrentProgress += bytesRead;
-            ByteEstimateBuffer += bytesRead;
+            lock (ProgressSync) {
+                CurrentProgress += bytesRead;
+                ByteEstimateBuffer += bytesRead;
+            }
         }
         ProgressReportTimer.Change(Timeout.Infinite, Timeout.Infinite);
     }

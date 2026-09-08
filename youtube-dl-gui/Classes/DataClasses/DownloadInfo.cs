@@ -400,7 +400,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
             }
 
             if (!CustomArguments.IsNullEmptyWhitespace()) {
-                CustomArguments = CustomArguments.ReplaceWhitespace().Trim();
+                CustomArguments = CustomArguments.Trim();
                 if (!CustomArguments.IsNullEmptyWhitespace()) {
                     ArgumentsBuffer.Add(CustomArguments);
                 }

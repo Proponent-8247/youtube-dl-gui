@@ -26,7 +26,7 @@ internal static class Updater {
     /// </summary>
     private const string FfmpegDownloadLink = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
 
-    private static bool UpdateCheckerRunning;
+    private static int UpdateCheckerRunning;
     private static CancellationTokenSource UpdateToken = new();
 
     #region Properties
@@ -58,15 +58,13 @@ internal static class Updater {
             return null;
         }
 
-        try {
-            if (UpdateCheckerRunning) {
-                return null;
-            }
+        if (Interlocked.CompareExchange(ref UpdateCheckerRunning, 1, 0) != 0) {
+            return null;
+        }
 
+        try {
             if (ForceCheck || (General.DownloadBetaVersions ? LastCheckedAllRelease is null : LastCheckedLatestRelease is null)) {
-                UpdateCheckerRunning = true;
                 await RefreshRelease();
-                UpdateCheckerRunning = false;
             }
 
             return General.DownloadBetaVersions ?
@@ -74,7 +72,7 @@ internal static class Updater {
                 LastCheckedLatestRelease?.IsNewerVersion == true;
         }
         finally {
-            UpdateCheckerRunning = false;
+            Interlocked.Exchange(ref UpdateCheckerRunning, 0);
         }
     }
     public static bool IsSkipped() {

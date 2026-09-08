@@ -96,7 +96,7 @@ internal sealed class DwmNatives {
         public int fApplyOverlay;
         public int iGlowSize;
         public nint pfnDrawTextCallback;
-        public int lParam;
+        public nint lParam;
     };
 
     public struct RECT {

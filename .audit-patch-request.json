@@ -1,1 +1,0 @@
-{"commit_message":"fix: use pointer-sized DTTOPTS callback data","replacements":[{"path":"Controls\\Logging\\Natives\\DwmNatives.cs","old":"ICAgICAgICBwdWJsaWMgaW50IGxQYXJhbTs=","new":"ICAgICAgICBwdWJsaWMgbmludCBsUGFyYW07","count":1}]}

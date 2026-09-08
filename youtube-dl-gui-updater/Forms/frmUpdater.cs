@@ -284,17 +284,21 @@ internal partial class frmUpdater : Form {
         // zzz
     }
     private async Task VerifyHash(string Url, string FileName) {
-        // Simple logic to scan hash and compare it.
-        // Not absolutely perfect, but it works well enough.
-        pbDownloadProgress.Text = Language.pbDownloadProgressCalculatingHash;
-        using SHA256 CNG = SHA256.Create();
-        using FileStream UpdateFileStream = File.OpenRead(FileName);
+        while (true) {
+            pbDownloadProgress.Text = Language.pbDownloadProgressCalculatingHash;
 
-        byte[] Data = await Task.Run(() => CNG.ComputeHash(UpdateFileStream));
-        string ReceivedHash = BitConverter.ToString(Data).Replace("-", "").ToLowerInvariant();
-        string ExpectedHash = UpdateData.UpdateHash.ToLowerInvariant();
+            byte[] Data;
+            using (SHA256 CNG = SHA256.Create())
+            using (FileStream UpdateFileStream = File.OpenRead(FileName)) {
+                Data = await Task.Run(() => CNG.ComputeHash(UpdateFileStream));
+            }
 
-        if (ReceivedHash != ExpectedHash) {
+            string ReceivedHash = BitConverter.ToString(Data).Replace("-", "").ToLowerInvariant();
+            string ExpectedHash = UpdateData.UpdateHash.ToLowerInvariant();
+            if (ReceivedHash == ExpectedHash) {
+                return;
+            }
+
             pbDownloadProgress.Invoke(() => {
                 pbDownloadProgress.Text = Language.pbDownloadProgressHashNoMatch;
                 pbDownloadProgress.ProgressState = ProgressState.Paused;
@@ -302,9 +306,9 @@ internal partial class frmUpdater : Form {
 
             switch ((DialogResult)this.Invoke(() => MessageBox.Show(this, string.Format(Language.dlgUpdaterUpdatedVersionHashNoMatch, ExpectedHash, ReceivedHash), Language.ApplicationName, MessageBoxButtons.AbortRetryIgnore, MessageBoxIcon.Warning))) {
                 case DialogResult.Abort:
-                    throw new CryptographicException("The known hash of the file does not match the hash caluclated by the updater.");
+                    throw new CryptographicException("The known hash of the file does not match the hash calculated by the updater.");
 
-                case DialogResult.Retry: {
+                case DialogResult.Retry:
                     File.Delete(FileName);
                     this.Invoke(() => {
                         tmrForm.Start();
@@ -312,12 +316,11 @@ internal partial class frmUpdater : Form {
                         pbDownloadProgress.ProgressState = ProgressState.Normal;
                     });
                     await GetUpdate(Url, FileName);
-                    await VerifyHash(Url, FileName);
-                } return;
+                    continue;
 
-                case DialogResult.Ignore: {
+                case DialogResult.Ignore:
                     pbDownloadProgress.Invoke(() => pbDownloadProgress.ProgressState = ProgressState.Normal);
-                } break;
+                    return;
             }
         }
     }

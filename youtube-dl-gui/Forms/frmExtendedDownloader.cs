@@ -51,10 +51,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         this.BatchDownload = BatchDownload;
 
         InitializeComponent();
-        Disposed += (s, e) => {
+        void DisposeRetrieval(object? sender, EventArgs args) {
+            Disposed -= DisposeRetrieval;
+            CancellationRequested = true;
             RetrievalCancellation.Cancel();
             RetrievalCancellation.Dispose();
-        };
+        }
+        Disposed += DisposeRetrieval;
         tpStartTime.DateBasedTime = false;
         LoadLanguage();
 
@@ -344,6 +347,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         llbLink.MaximumSize = new(this.Width - 32, llbLink.Height);
     }
     private void frmExtendedDownloader_FormClosing(object sender, FormClosingEventArgs e) {
+        if (DeferCloseForWorkers(ProcessingThread, QueueResolverThread)) {
+            CancellationRequested = true;
+            RetrievalCancellation.Cancel();
+            Status = DownloadStatus.AbortForClose;
+            e.Cancel = true;
+            return;
+        }
         switch (Status) {
             case DownloadStatus.Downloading:
             case DownloadStatus.MergingFiles:
@@ -395,7 +405,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     MediaDetails?.Dispose();
                 }
 
-                this.Dispose();
+                // Form.Close owns disposal after FormClosing completes.
             } break;
         }
     }
@@ -452,6 +462,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 this.Invoke(() => SelectedMediaChanged(MediaDetails));
             }
             catch (ThreadAbortException) { }
+            catch (OperationCanceledException) when (RetrievalCancellation.IsCancellationRequested) { }
             catch (DownloadException dex) {
                 FailedInfoRetrieval = true;
                 if (!this.IsDisposed && this.IsHandleCreated) {
@@ -555,7 +566,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
 
     private void BeginDownload(bool Auth) {
-        if (this.IsDisposed || this.Disposing || ProcessingThread?.IsAlive == true || QueueResolverRunning) {
+        if (WorkerClosePending || this.IsDisposed || this.Disposing || ProcessingThread?.IsAlive == true || QueueResolverRunning) {
             return;
         }
         CancellationRequested = false;
@@ -911,7 +922,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         ProcessingThread.Start();
     }
     private void BeginBatchDownload() {
-        if (ProcessingThread?.IsAlive == true || QueueResolverRunning || lvQueuedMedia.Items.Count < 1) {
+        if (WorkerClosePending || ProcessingThread?.IsAlive == true || QueueResolverRunning || lvQueuedMedia.Items.Count < 1) {
             return;
         }
 
@@ -1763,6 +1774,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     ///     The <see cref="ExtendedMediaDetails"/> that will be copied, if required.
     /// </param>
     private void QueueNewItem(string Link, bool Authenticate, bool CopySelectedAuthentication, bool CopySelectedOptions, ExtendedMediaDetails? CopyFrom) {
+        if (WorkerClosePending) return;
         if (Link.IsNullEmptyWhitespace()) {
             txtQueueLink.Focus();
             System.Media.SystemSounds.Exclamation.Play();
@@ -1845,7 +1857,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 if (ResolverOwnsStatus) {
                     Status = DownloadStatus.Preparing;
                 }
-                while (true) {
+                while (!RetrievalCancellation.IsCancellationRequested) {
                     ExtendedMediaDetails? CurrentMedia = null;
                     lock (QueueSync) {
                         if (QueueList.Count > 0) {
@@ -1879,6 +1891,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     try {
                         CurrentMedia.GetMediaDetails(RetrievalCancellation.Token);
                     }
+                    catch (OperationCanceledException) when (RetrievalCancellation.IsCancellationRequested) { break; }
                     catch (DownloadException ex) {
                         Log.Write($"Unable to retrieve queued media details for \"{CurrentMedia.URL}\": {ex.Message}");
                         if (!this.IsDisposed && this.IsHandleCreated) {

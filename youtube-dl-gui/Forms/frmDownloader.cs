@@ -8,15 +8,23 @@ internal partial class frmDownloader : LocalizedProcessingForm {
 
     private Thread? DownloadThread;     // The thread of the process for youtube-dl.
     private Process? DownloadProcess;   // The process of youtube-dl which we'll redirect.
+    private volatile bool CancellationRequested;
     private bool AbortBatch;            // Determines if the rest of the batch downloads should be cancelled.
 
     public frmDownloader(DownloadInfo Info) {
         InitializeComponent();
         CurrentDownload = Info;
+        Disposed += (sender, args) => CancellationRequested = true;
         LoadLanguage();
     }
 
+    private void RequestCancellation() {
+        CancellationRequested = true;
+        CurrentDownload.Status = DownloadStatus.Aborted;
+    }
+
     public void RetryOrAbort() {
+        if (CancellationRequested && DownloadThread?.IsAlive == true) return;
         if (CurrentDownload.BatchDownload) {
             switch (CurrentDownload.Status) {
                 case DownloadStatus.YtdlError:
@@ -52,20 +60,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                         break;
                     default:
                         if (DownloadThread?.IsAlive == true) {
-                            try {
-                                if (DownloadProcess?.HasExited == false) {
-                                    if (DownloadProcess.StartInfo.RedirectStandardOutput) {
-                                        DownloadProcess.CancelOutputRead();
-                                    }
-                                    if (DownloadProcess.StartInfo.RedirectStandardError) {
-                                        DownloadProcess.CancelErrorRead();
-                                    }
-                                }
-                            }
-                            catch (InvalidOperationException) {
-                                // The process may not have started async reads yet.
-                            }
-                            DownloadThread.Abort();
+                            RequestCancellation();
                         }
                         rtbVerbose.AppendLine("Additionally, the batch download has been cancelled.");
                         CurrentDownload.Status = DownloadStatus.Aborted;
@@ -139,6 +134,8 @@ internal partial class frmDownloader : LocalizedProcessingForm {
     }
 
     private void BeginDownload() {
+        if (WorkerClosePending || DownloadThread?.IsAlive == true) return;
+        CancellationRequested = false;
         Log.Write($"Beginning download for {CurrentDownload.DownloadURL}.");
         DownloadProcess?.Dispose();
         DownloadProcess = null;
@@ -305,7 +302,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                     }
                 };
 
-                if (CurrentDownload.Status == DownloadStatus.Aborted) {
+                if (CancellationRequested || CurrentDownload.Status == DownloadStatus.Aborted) {
                     return;
                 }
 
@@ -324,7 +321,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
 
                 while (!DownloadProcess.HasExited) {
                     Output.ThrowIfFaulted();
-                    if (CurrentDownload.Status == DownloadStatus.Aborted || CurrentDownload.Status == DownloadStatus.AbortForClose) {
+                    if (CancellationRequested || CurrentDownload.Status == DownloadStatus.Aborted || CurrentDownload.Status == DownloadStatus.AbortForClose) {
                         if (!DownloadProcess.HasExited) {
                             Ownership.Dispose();
                         }
@@ -407,7 +404,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
 
                 Output.Drain(5000);
 
-                CurrentDownload.Status = DownloadProcess.ExitCode switch {
+                CurrentDownload.Status = CancellationRequested ? DownloadStatus.Aborted : DownloadProcess.ExitCode switch {
                     0 => DownloadStatus.Finished,
                     _ => CurrentDownload.Status == DownloadStatus.Aborted ? DownloadStatus.Aborted : DownloadStatus.YtdlError
                 };
@@ -443,7 +440,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
             }
             catch (Exception ex) {
                 Log.ReportException(ex);
-                CurrentDownload.Status = DownloadStatus.ProgramError;
+                CurrentDownload.Status = CancellationRequested ? DownloadStatus.Aborted : DownloadStatus.ProgramError;
                 try {
                     if (DownloadProcess?.HasExited == false) {
                         Program.KillProcessTree((uint)DownloadProcess.Id);
@@ -455,10 +452,11 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                 }
             }
             finally {
+                Thread CompletedWorker = Thread.CurrentThread;
                 if (!this.IsDisposed && this.IsHandleCreated) {
                     try {
                         this.BeginInvoke(() => {
-                            if (!this.IsDisposed && !pbStatus.IsDisposed) {
+                            if (ReferenceEquals(DownloadThread, CompletedWorker) && !this.IsDisposed && !pbStatus.IsDisposed) {
                                 pbStatus.Style = ProgressBarStyle.Continuous;
                                 pbStatus.ShowInTaskbar = false;
                                 DownloadFinished();
@@ -479,6 +477,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
         #endregion
     }
     private void DownloadFinished() {
+        if (CancellationRequested) CurrentDownload.Status = DownloadStatus.Aborted;
         tmrTitleActivity.Stop();
         this.Text = this.Text.Trim('.');
         btnDownloaderCancelExit.Text = Language.GenericExit;
@@ -572,6 +571,14 @@ internal partial class frmDownloader : LocalizedProcessingForm {
         BeginDownload();
     }
     private void frmExtendedMassDownloader_FormClosing(object sender, FormClosingEventArgs e) {
+        if (DeferCloseForWorkers(DownloadThread)) {
+            if (CurrentDownload.Status != DownloadStatus.Finished &&
+                CurrentDownload.Status != DownloadStatus.YtdlError && CurrentDownload.Status != DownloadStatus.ProgramError) {
+                RequestCancellation();
+            }
+            e.Cancel = true;
+            return;
+        }
         DialogResult Finish = DialogResult.None;
         switch (CurrentDownload.Status) {
             case DownloadStatus.Aborted:
@@ -595,7 +602,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
 
             default:
                 if (DownloadThread?.IsAlive == true) {
-                    DownloadThread.Abort();
+                    RequestCancellation();
                     e.Cancel = true;
                 }
                 break;
@@ -618,6 +625,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
         rtbVerbose.Clear();
     }
     private void btnDownloaderRetryAbortBatch_Click(object sender, EventArgs e) {
+        if (CancellationRequested && DownloadThread?.IsAlive == true) return;
         switch (CurrentDownload.Status) {
             case DownloadStatus.YtdlError:
             case DownloadStatus.ProgramError:
@@ -645,7 +653,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                         break;
                     default:
                         if (DownloadThread?.IsAlive == true) {
-                            DownloadThread.Abort();
+                            RequestCancellation();
                         }
                         rtbVerbose.AppendLine("Additionally, the batch download has been cancelled.");
                         this.Close();
@@ -665,7 +673,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
             default:
                 Log.Write("Aborting download.");
                 if (DownloadThread?.IsAlive == true) {
-                    DownloadThread.Abort();
+                    RequestCancellation();
                 }
                 break;
         }

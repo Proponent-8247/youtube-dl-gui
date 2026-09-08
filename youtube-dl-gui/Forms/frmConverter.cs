@@ -8,11 +8,13 @@ public partial class frmConverter : LocalizedProcessingForm {
 
     private Thread? ConverterThread;    // The thread of the process for youtube-dl.
     private Process? ConverterProcess;  // The process of youtube-dl which we'll redirect.
+    private volatile bool CancellationRequested;
     private bool AbortBatch;            // Determines if the rest of the batch downloads should be cancelled.
 
     public frmConverter(ConvertInfo Info) {
         InitializeComponent();
         this.CurrentConversion = Info;
+        Disposed += (sender, args) => CancellationRequested = true;
         LoadLanguage();
     }
 
@@ -54,6 +56,14 @@ public partial class frmConverter : LocalizedProcessingForm {
         BeginConversion();
     }
     private void frmConverter_FormClosing(object sender, FormClosingEventArgs e) {
+        if (DeferCloseForWorkers(ConverterThread)) {
+            if (CurrentConversion.Status != ConversionStatus.Finished &&
+                CurrentConversion.Status != ConversionStatus.FfmpegError && CurrentConversion.Status != ConversionStatus.ProgramError) {
+                RequestCancellation();
+            }
+            e.Cancel = true;
+            return;
+        }
         DialogResult Finish = DialogResult.None;
         switch (CurrentConversion.Status) {
             case ConversionStatus.Aborted:
@@ -84,7 +94,7 @@ public partial class frmConverter : LocalizedProcessingForm {
             default:
                 if (ConverterThread?.IsAlive == true) {
                     CurrentConversion.Status = ConversionStatus.Aborted;
-                    ConverterThread.Abort();
+                    RequestCancellation();
                     e.Cancel = true;
                 }
                 break;
@@ -136,7 +146,13 @@ public partial class frmConverter : LocalizedProcessingForm {
         }
     }
 
+    private void RequestCancellation() {
+        CancellationRequested = true;
+        CurrentConversion.Status = ConversionStatus.Aborted;
+    }
+
     public void Abort() {
+        if (CancellationRequested && ConverterThread?.IsAlive == true) return;
         switch (CurrentConversion.Status) {
             case ConversionStatus.FfmpegError:
             case ConversionStatus.ProgramError:
@@ -168,7 +184,7 @@ public partial class frmConverter : LocalizedProcessingForm {
                     default:
                         CurrentConversion.Status = ConversionStatus.Aborted;
                         if (ConverterThread?.IsAlive == true) {
-                            ConverterThread.Abort();
+                            RequestCancellation();
                         }
                         rtbConsoleOutput.AppendLine("Additionally, the batch conversion has been cancelled.");
                         break;
@@ -178,6 +194,8 @@ public partial class frmConverter : LocalizedProcessingForm {
     }
 
     private void BeginConversion() {
+        if (WorkerClosePending || ConverterThread?.IsAlive == true) return;
+        CancellationRequested = false;
         ConverterProcess?.Dispose();
         ConverterProcess = null;
         if (!CurrentConversion.FullCustomArguments && CurrentConversion.InputFile.IsNullEmptyWhitespace()) {
@@ -327,7 +345,7 @@ public partial class frmConverter : LocalizedProcessingForm {
                         }
                     }
                 };
-                if (CurrentConversion.Status != ConversionStatus.Aborted) {
+                if (!CancellationRequested && CurrentConversion.Status != ConversionStatus.Aborted) {
                     ConverterProcess.Start();
 
                     ArgumentsBuffer.Clear();
@@ -338,10 +356,17 @@ public partial class frmConverter : LocalizedProcessingForm {
                     Output.Start();
                     while (!ConverterProcess.WaitForExit(100)) {
                         Output.ThrowIfFaulted();
+                        if (CancellationRequested) {
+                            Ownership.Dispose();
+                            break;
+                        }
                     }
                     Output.Drain(5000);
 
-                    if (ConverterProcess.ExitCode == 0) {
+                    if (CancellationRequested) {
+                        CurrentConversion.Status = ConversionStatus.Aborted;
+                    }
+                    else if (ConverterProcess.ExitCode == 0) {
                         CurrentConversion.Status = ConversionStatus.Finished;
                     }
                     else if (CurrentConversion.Status != ConversionStatus.Aborted) {
@@ -364,14 +389,16 @@ public partial class frmConverter : LocalizedProcessingForm {
             }
             catch (Exception ex) {
                 Log.ReportException(ex);
-                CurrentConversion.Status = ConversionStatus.ProgramError;
+                CurrentConversion.Status = CancellationRequested ? ConversionStatus.Aborted : ConversionStatus.ProgramError;
                 TerminateConverterProcess();
             }
             finally {
-                if (!this.IsDisposed && this.IsHandleCreated
-                && (CurrentConversion.Status != ConversionStatus.Aborted || CurrentConversion.BatchConversion)) {
+                Thread CompletedWorker = Thread.CurrentThread;
+                if (!this.IsDisposed && this.IsHandleCreated) {
                     try {
-                        this.BeginInvoke(() => ConversionFinished());
+                        this.BeginInvoke(() => {
+                            if (ReferenceEquals(ConverterThread, CompletedWorker)) ConversionFinished();
+                        });
                     }
                     catch (InvalidOperationException) {
                         // The form can close between the handle check and BeginInvoke.
@@ -386,6 +413,7 @@ public partial class frmConverter : LocalizedProcessingForm {
     }
 
     private void ConversionFinished() {
+        if (CancellationRequested) CurrentConversion.Status = ConversionStatus.Aborted;
         tmrTitleActivity.Stop();
         this.Text = this.Text.Trim('.');
         btnConverterCancelExit.Text = Language.GenericExit;
@@ -474,7 +502,7 @@ public partial class frmConverter : LocalizedProcessingForm {
                 Log.Write("Aborting conversion finished.");
                 CurrentConversion.Status = ConversionStatus.Aborted;
                 if (ConverterThread?.IsAlive == true) {
-                    ConverterThread.Abort();
+                    RequestCancellation();
                 }
                 break;
         }

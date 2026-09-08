@@ -422,7 +422,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
 
     private void DownloadInfo() {
-        if (MediaDetails is null) {
+        if (MediaDetails is null || this.IsDisposed || ProcessingThread?.IsAlive == true) {
             return;
         }
 
@@ -555,6 +555,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
 
     private void BeginDownload(bool Auth) {
+        if (this.IsDisposed || this.Disposing || ProcessingThread?.IsAlive == true || QueueResolverRunning) {
+            return;
+        }
         CancellationRequested = false;
         if (BatchDownload) {
             BeginBatchDownload();
@@ -603,6 +606,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         pbStatus.Value = 0;
         pbStatus.ProgressState = murrty.controls.ProgressState.Normal;
         pbStatus.Text = "Beginning download";
+        Status = DownloadStatus.Downloading;
         ProcessingThread = new(() => {
             try {
             Status = DownloadStatus.Downloading;
@@ -901,7 +905,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         ProcessingThread.Start();
     }
     private void BeginBatchDownload() {
-        if (lvQueuedMedia.Items.Count < 1) {
+        if (ProcessingThread?.IsAlive == true || QueueResolverRunning || lvQueuedMedia.Items.Count < 1) {
             return;
         }
 
@@ -2110,8 +2114,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         }
     }
     private void mQueueRemoveSelected_Click(object sender, EventArgs e) {
-        if (Status == DownloadStatus.Downloading
-        || ((Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) && ProcessingThread?.IsAlive == true)) {
+        if (ProcessingThread?.IsAlive == true) {
             return;
         }
 

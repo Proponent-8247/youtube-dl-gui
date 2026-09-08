@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows.Forms;
 public partial class frmMerger : LocalizedForm {
     private List<FfprobeData> LoadedMediaFiles { get; } = [];
+    private bool AddingFiles;
 
     public frmMerger() {
         InitializeComponent();
@@ -18,9 +19,9 @@ public partial class frmMerger : LocalizedForm {
             e.Effect = File.Exists(Files[0]) ? DragDropEffects.Copy : DragDropEffects.None;
         }
     }
-    private void frmMerger_DragDrop(object sender, DragEventArgs e) {
+    private async void frmMerger_DragDrop(object sender, DragEventArgs e) {
         string[] Files = (string[])e.Data.GetData(DataFormats.FileDrop);
-        AddFiles(Files);
+        await AddFilesAsync(Files);
     }
 
     public override void LoadLanguage() {
@@ -64,12 +65,18 @@ public partial class frmMerger : LocalizedForm {
 
         return Files.Count > 0 ? $"{InputArgument}{MapArgument.ToString().Trim()}" : null;
     }
-    private bool AddFile(string FilePath) {
+    private async System.Threading.Tasks.Task<bool> AddFileAsync(string FilePath) {
         string? ffdata = string.Empty;
         try {
-            FfprobeData? NewData = FfprobeData.GenerateData(FilePath, out ffdata);
+            (FfprobeData? Data, string? Output) ProbeResult = await System.Threading.Tasks.Task.Run(() => {
+                FfprobeData? Data = FfprobeData.GenerateData(FilePath, out string? Output);
+                return (Data, Output);
+            });
+            FfprobeData? NewData = ProbeResult.Data;
+            ffdata = ProbeResult.Output;
 
-            if (NewData is null || NewData.MediaStreams is null || NewData.MediaStreams.Length < 1) {
+            if (this.IsDisposed || !this.IsHandleCreated
+            || NewData is null || NewData.MediaStreams is null || NewData.MediaStreams.Length < 1) {
                 return false;
             }
 
@@ -91,21 +98,39 @@ public partial class frmMerger : LocalizedForm {
             return true;
         }
         catch (Exception ex) {
-            Log.ReportException(ex, ffdata);
+            if (!this.IsDisposed) {
+                Log.ReportException(ex, ffdata);
+            }
         }
         return false;
     }
-    private void AddFiles(string[] Files) {
-        int Failures = 0;
-        for (int i = 0; i < Files.Length; i++) {
-            if (!AddFile(Files[i]))
-                Failures++;
+    private async System.Threading.Tasks.Task AddFilesAsync(string[] Files) {
+        if (AddingFiles) {
+            return;
         }
-        if (Failures > 0)
-            System.Media.SystemSounds.Exclamation.Play();
+
+        AddingFiles = true;
+        btnAddFiles.Enabled = false;
+        try {
+            int Failures = 0;
+            for (int i = 0; i < Files.Length; i++) {
+                if (!await AddFileAsync(Files[i])) {
+                    Failures++;
+                }
+            }
+            if (Failures > 0 && !this.IsDisposed) {
+                System.Media.SystemSounds.Exclamation.Play();
+            }
+        }
+        finally {
+            AddingFiles = false;
+            if (!this.IsDisposed && this.IsHandleCreated) {
+                btnAddFiles.Enabled = true;
+            }
+        }
     }
 
-    private void btnAddFiles_Click(object sender, EventArgs e) {
+    private async void btnAddFiles_Click(object sender, EventArgs e) {
         using OpenFileDialog ofd = new() {
             Title = "Select media sources to add to the merge",
             Multiselect = true
@@ -114,7 +139,7 @@ public partial class frmMerger : LocalizedForm {
         if (ofd.ShowDialog() != DialogResult.OK)
             return;
 
-        AddFiles(ofd.FileNames);
+        await AddFilesAsync(ofd.FileNames);
     }
     private void btnRemoveFiles_Click(object sender, EventArgs e) {
         if (lbFileSources.SelectedItems.Count > 0) {

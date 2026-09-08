@@ -16,8 +16,9 @@ jobs:
   verify:
     if: github.ref == 'refs/heads/feature/download-history-20260908'
     runs-on: windows-2022
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 0
       - name: Apply exact feature patch when requested
@@ -47,8 +48,8 @@ jobs:
               if any(p.is_symlink() for p in (target, *target.parents)):
                   raise SystemExit('Symlink patch rejected')
               if str(path) not in prepared:
-                  current = subprocess.check_output(['git', 'show', 'HEAD:' + str(path)])
-                  original = subprocess.check_output(['git', 'show', base + ':' + str(path)])
+                  current = subprocess.check_output(['git', 'cat-file', 'blob', 'HEAD:' + str(path)])
+                  original = subprocess.check_output(['git', 'cat-file', 'blob', base + ':' + str(path)])
                   if current != original:
                       raise SystemExit(f'Target changed since the pinned base: {path}')
                   prepared[str(path)] = original
@@ -56,7 +57,7 @@ jobs:
               old = item['old'].encode('utf-8')
               new = item['new'].encode('utf-8')
               if not old or data.count(old) != item.get('count', 1):
-                  raise SystemExit(f'Exact replacement mismatch: {path}')
+                  raise SystemExit(f'Exact replacement mismatch: {path}; expected={item.get("count", 1)} actual={data.count(old)} old={old!r}')
               prepared[str(path)] = data.replace(old, new)
           subprocess.run(['git', 'config', '--local', 'core.autocrlf', 'false'], check=True)
           for path, data in prepared.items():
@@ -69,7 +70,7 @@ jobs:
           git -c core.whitespace=cr-at-eol diff --cached --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           'applied=true' >> $env:GITHUB_OUTPUT
-      - uses: microsoft/setup-msbuild@v2
+      - uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
       - name: Build debug application
         run: msbuild youtube-dl-gui\youtube-dl-gui.csproj /m /p:Configuration=Debug /p:Platform=AnyCPU
       - name: Build debug updater
@@ -83,9 +84,21 @@ jobs:
       - name: Run download history regression tests
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Force test-evidence | Out-Null
           msbuild tests\DownloadHistory.Tests\DownloadHistory.Tests.csproj /m /p:Configuration=Release /p:Platform=AnyCPU
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & tests\DownloadHistory.Tests\bin\Release\DownloadHistory.Tests.exe
+          & tests\DownloadHistory.Tests\bin\Release\DownloadHistory.Tests.exe | Tee-Object -FilePath test-evidence\core-tests.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned native downloader test dependency
+        run: python -m pip install --disable-pip-version-check yt-dlp==2026.6.9
+      - name: Exercise built application with native yt-dlp and render Settings
+        shell: pwsh
+        run: |
+          $python = (Get-Command python).Source
+          & tests\DownloadHistory.Tests\bin\Release\DownloadHistory.Tests.exe --native-suite youtube-dl-gui\bin\Release\youtube-dl-gui.exe $python tests\DownloadHistory.Tests\native_fixture.py test-evidence | Tee-Object -FilePath test-evidence\native-tests.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Commit tested feature patch
         if: steps.change.outputs.applied == 'true'
@@ -108,18 +121,19 @@ jobs:
         shell: pwsh
         run: |
           git rev-parse HEAD | Out-File -Encoding ascii tested-revision.txt
-          git archive --format=zip --output=source-snapshot.zip HEAD
-      - name: Retain source snapshot
+          git -c core.autocrlf=false archive --format=zip --output=source-snapshot.zip HEAD
+      - name: Retain source and test evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: source-${{ github.sha }}
+          name: evidence-${{ github.sha }}
           path: |
             source-snapshot.zip
             tested-revision.txt
+            test-evidence/
           retention-days: 7
       - name: Retain verified release build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: download-history-${{ github.sha }}
           path: |

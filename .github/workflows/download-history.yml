@@ -1,0 +1,128 @@
+name: Download history verification
+
+on:
+  push:
+    branches: [feature/download-history-20260908]
+  workflow_dispatch:
+
+concurrency:
+  group: download-history-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/feature/download-history-20260908'
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply exact feature change when requested
+        id: change
+        shell: pwsh
+        run: |
+          if (!(Test-Path '.history-change.b64')) {
+            'applied=false' >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          @'
+          import base64, gzip, hashlib, json, subprocess
+          from pathlib import Path, PurePosixPath
+          request = json.loads(gzip.decompress(base64.b64decode(Path('.history-change.b64').read_text(), validate=True)))
+          parent = subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip()
+          if parent != request['base']:
+              raise SystemExit('Change does not match the exact parent revision')
+          allowed = ('youtube-dl-gui/', 'tests/DownloadHistory.Tests/', 'docs/download-history/')
+          paths = []
+          prepared = []
+          for item in request['files']:
+              path = PurePosixPath(item['path'])
+              if path.is_absolute() or '..' in path.parts or '\\' in str(path) or not str(path).startswith(allowed) or str(path) in paths:
+                  raise SystemExit('Unsafe or duplicate change path')
+              target = Path(path)
+              if any(p.is_symlink() for p in (target, *target.parents)):
+                  raise SystemExit('Symlink change rejected')
+              old = hashlib.sha256(target.read_bytes()).hexdigest() if target.exists() else None
+              if old != item['old_sha256']:
+                  raise SystemExit(f'Original content mismatch: {path}')
+              data = base64.b64decode(item['data'], validate=True)
+              if hashlib.sha256(data).hexdigest() != item['new_sha256']:
+                  raise SystemExit(f'New content mismatch: {path}')
+              paths.append(str(path))
+              prepared.append((target, data))
+          for target, data in prepared:
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_bytes(data)
+          Path('.history-change.b64').unlink()
+          subprocess.run(['git', 'add', '--', '.history-change.b64', *paths], check=True)
+          Path('.history-commit-message').write_text(request['message'], encoding='utf-8')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -c core.whitespace=cr-at-eol diff --cached --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          'applied=true' >> $env:GITHUB_OUTPUT
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build debug application
+        run: msbuild youtube-dl-gui\youtube-dl-gui.csproj /m /p:Configuration=Debug /p:Platform=AnyCPU
+      - name: Build debug updater
+        run: msbuild youtube-dl-gui-updater\youtube-dl-gui-updater.csproj /m /p:Configuration=Debug /p:Platform=AnyCPU
+      - name: Build debug solution
+        run: msbuild youtube-dl-gui.sln /m /p:Configuration=Debug "/p:Platform=Any CPU"
+      - name: Build release updater
+        run: msbuild youtube-dl-gui-updater\youtube-dl-gui-updater.csproj /m /p:Configuration=Release /p:Platform=AnyCPU
+      - name: Build release application
+        run: msbuild youtube-dl-gui\youtube-dl-gui.csproj /m /p:Configuration=Release /p:Platform=AnyCPU /p:BuildProjectReferences=false /p:PreBuildEvent= /p:PostBuildEvent=
+      - name: Run download history regression tests
+        shell: pwsh
+        run: |
+          if (Test-Path 'tests/DownloadHistory.Tests/DownloadHistory.Tests.csproj') {
+            msbuild tests\DownloadHistory.Tests\DownloadHistory.Tests.csproj /m /p:Configuration=Release /p:Platform=AnyCPU
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & tests\DownloadHistory.Tests\bin\Release\DownloadHistory.Tests.exe
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } else {
+            Write-Host 'Baseline: no regression suite exists yet.'
+          }
+      - name: Commit tested feature change
+        if: steps.change.outputs.applied == 'true'
+        shell: pwsh
+        run: |
+          $branch = 'feature/download-history-20260908'
+          $remote = git ls-remote --heads origin "refs/heads/$branch"
+          if ($LASTEXITCODE -ne 0 -or !$remote -or $remote.Split()[0] -ne $env:GITHUB_SHA) {
+            throw 'Feature branch changed or was removed; refusing to publish.'
+          }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -F .history-commit-message
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item .history-commit-message
+          git push origin "HEAD:refs/heads/$branch"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Export exact source snapshot
+        if: always()
+        shell: pwsh
+        run: |
+          git rev-parse HEAD | Out-File -Encoding ascii tested-revision.txt
+          git archive --format=zip --output=source-snapshot.zip HEAD
+      - name: Retain source snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-${{ github.sha }}
+          path: |
+            source-snapshot.zip
+            tested-revision.txt
+          retention-days: 7
+      - name: Retain verified release build
+        uses: actions/upload-artifact@v4
+        with:
+          name: download-history-${{ github.sha }}
+          path: |
+            youtube-dl-gui/bin/Release/
+            youtube-dl-gui-updater/bin/Release/
+            tested-revision.txt
+          retention-days: 7

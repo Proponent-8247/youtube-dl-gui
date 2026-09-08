@@ -19,6 +19,10 @@ internal static partial class AuditRegression {
         Environment.SetEnvironmentVariable("YTDL_AUDIT_PID_FILE", pidFile);
         Form form = null;
         Thread worker = null;
+        // Program.Main normally owns this handler. Closing a real processing form
+        // must exercise the same lifecycle rather than dereference an absent fixture.
+        Form handler = (Form)New("youtube_dl_gui.MessageHandler");
+        Set(T("youtube_dl_gui.Program"), null, "QueueHandler", handler);
         try {
             if (kind == "quick") {
                 object info = Download("https://example.invalid/fixture");
@@ -59,6 +63,8 @@ internal static partial class AuditRegression {
             if (worker != null) PumpUntil(() => !worker.IsAlive, 5000, "Transfer test left a worker running");
             Environment.SetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE", null);
             Environment.SetEnvironmentVariable("YTDL_AUDIT_PID_FILE", null);
+            handler.Dispose();
+            Set(T("youtube_dl_gui.Program"), null, "QueueHandler", null);
         }
     }
     static partial void RunConversionOptionTests();

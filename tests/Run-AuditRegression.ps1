@@ -16,7 +16,23 @@ $exe = Join-Path $EvidenceDirectory 'AuditRegression.exe'
 $sources = @(Get-ChildItem (Join-Path $PSScriptRoot 'AuditRegression*.cs') | ForEach-Object { $_.FullName })
 & $csc /nologo /langversion:5 /target:exe "/out:$exe" /reference:System.Core.dll /reference:System.Xml.Linq.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll @sources
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& $exe $ApplicationPath (Join-Path $EvidenceDirectory 'regression-results.xml') 2>&1 | Tee-Object -FilePath (Join-Path $EvidenceDirectory 'regression-console.txt')
-$code = $LASTEXITCODE
+$stdout = Join-Path $EvidenceDirectory 'regression-console.txt'
+$stderr = Join-Path $EvidenceDirectory 'regression-stderr.txt'
+$result = Join-Path $EvidenceDirectory 'regression-results.xml'
+$p = Start-Process -FilePath $exe -ArgumentList @("`"$ApplicationPath`"", "`"$result`"") -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+try {
+    # A modal dialog or broken UI callback must not consume the entire Actions job.
+    if (!$p.WaitForExit(240000)) {
+        & taskkill.exe /PID $p.Id /T /F | Out-Host
+        $p.WaitForExit(5000) | Out-Null
+        'Regression harness exceeded its four-minute deadline.' | Add-Content $stderr
+        $code = 124
+    } else {
+        $p.WaitForExit()
+        $code = $p.ExitCode
+    }
+} finally { $p.Dispose() }
+if (Test-Path $stdout) { Get-Content $stdout | Out-Host }
+if (Test-Path $stderr) { Get-Content $stderr | Out-Host }
 if ($code -ne 0) { Write-Host "Compiled-application regressions failed (exit $code)." }
 exit $code

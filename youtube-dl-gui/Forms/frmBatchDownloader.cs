@@ -430,6 +430,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
             }) {
                 Name = $"Batch download {BatchTime}"
             };
+            DownloadThread.SetApartmentState(ApartmentState.STA);
             DownloadThread.Start();
         }
     }

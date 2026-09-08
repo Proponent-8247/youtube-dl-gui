@@ -591,6 +591,9 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
 
                 if (AudioEncoderIndex > 0) {
                     ArgumentBuffer.Add("--extract-audio --audio-format " + Formats.ExtendedAudioFormats[AudioEncoderIndex - 1]);
+                    if (AudioVBR && VBRIndex >= 0 && VBRIndex < Formats.VbrQualities.Length) {
+                        ArgumentBuffer.Add("--audio-quality " + Formats.VbrQualities[VBRIndex]);
+                    }
                 }
             } break;
             case DownloadType.Unknown when SelectedUnknownItem?.Tag is YoutubeDlSubdata.Format uf: {

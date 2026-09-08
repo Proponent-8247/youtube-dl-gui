@@ -40,7 +40,7 @@ internal static class DwmComposition {
     public static void FillBlackRegion(DwmCompositionInfo Info) {
         nint Memdc = DwmNatives.CreateCompatibleDC(Info.destdc);
         if (DwmNatives.SaveDC(Memdc) != 0) {
-            nint bitmap = DwmNatives.CreateDIBSection(Memdc, ref Info.dib, DwmNatives.DIB_RGB_COLORS, 0, 0, 0);
+            nint bitmap = DwmNatives.CreateDIBSection(Memdc, ref Info.dib, DwmNatives.DIB_RGB_COLORS, out _, 0, 0);
             if (bitmap != 0) {
                 nint bitmapOld = DwmNatives.SelectObject(Memdc, bitmap);
                 try {
@@ -64,7 +64,7 @@ internal static class DwmComposition {
     public static void DrawTextOnGlass(DwmCompositionInfo DwmInfo, DwmCompositionTextInfo Info) {
         nint Memdc = DwmNatives.CreateCompatibleDC(DwmInfo.destdc); // Set up a memory DC where we'll draw the text.
         if (DwmNatives.SaveDC(Memdc) != 0) {
-            nint bitmap = DwmNatives.CreateDIBSection(Memdc, ref Info.BitmapInfo, DwmNatives.DIB_RGB_COLORS, 0, IntPtr.Zero, 0); // Create a 32-bit bmp for use in offscreen drawing when glass is on
+            nint bitmap = DwmNatives.CreateDIBSection(Memdc, ref Info.BitmapInfo, DwmNatives.DIB_RGB_COLORS, out _, IntPtr.Zero, 0); // Create a 32-bit bmp for use in offscreen drawing when glass is on
             if (bitmap != 0) {
                 nint bitmapOld = DwmNatives.SelectObject(Memdc, bitmap);
                 nint hFont = Info.Font.ToHfont();

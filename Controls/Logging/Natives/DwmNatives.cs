@@ -155,7 +155,7 @@ internal sealed class DwmNatives {
     [DllImport("UxTheme.dll", ExactSpelling = true, SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern int DrawThemeTextEx(nint hTheme, nint hdc, int iPartId, int iStateId, string text, int iCharCount, int dwFlags, ref RECT pRect, ref DTTOPTS pOptions);
     [DllImport("gdi32.dll", ExactSpelling = true, SetLastError = true)]
-    public static extern nint CreateDIBSection(nint hdc, ref BITMAPINFO pbmi, uint iUsage, int ppvBits, nint hSection, uint dwOffset);
+    public static extern nint CreateDIBSection(nint hdc, ref BITMAPINFO pbmi, uint iUsage, out nint ppvBits, nint hSection, uint dwOffset);
     [DllImport("user32.dll")]
     public static extern int SendMessage(nint hWnd, int Msg, int wParam, int lParam);
     [DllImport("user32.dll")]

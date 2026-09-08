@@ -242,8 +242,16 @@ internal sealed class ManagedHttpClient : IDisposable {
             EstimateTime = 35;
         }
 
+        using CancellationTokenSource ReadTimeout = CancellationTokenSource.CreateLinkedTokenSource(Token);
         ProgressReportTimer.Change(ProgressThrottle, ProgressThrottle);
-        while ((bytesRead = await Source.ReadAsync(buffer, 0, buffer.Length, Token).ConfigureAwait(false)) > 0) {
+        while (true) {
+            ReadTimeout.CancelAfter(DefaultTimeout);
+            bytesRead = await Source.ReadAsync(buffer, 0, buffer.Length, ReadTimeout.Token).ConfigureAwait(false);
+            ReadTimeout.CancelAfter(Timeout.Infinite);
+            if (bytesRead <= 0) {
+                break;
+            }
+
             await Writer.WriteAsync(buffer, 0, bytesRead, Token).ConfigureAwait(false);
             lock (ProgressSync) {
                 CurrentProgress += bytesRead;

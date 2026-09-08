@@ -14,8 +14,16 @@ public partial class frmArchiveDownloader : LocalizedForm {
         };
         this.FormClosing += (s, e) => Saved.ArchiveDownloaderLocation = this.Location;
         txtArchiveDownloaderHint.MouseEnter += (s, e) => {
-            if (General.HoverOverURLTextBoxToPaste)
+            if (!General.HoverOverURLTextBoxToPaste) {
+                return;
+            }
+
+            try {
                 txtArchiveDownloaderHint.Text = Clipboard.GetText();
+            }
+            catch (System.Runtime.InteropServices.ExternalException) {
+                // The clipboard can be temporarily locked by another process.
+            }
         };
     }
     public override void LoadLanguage() {

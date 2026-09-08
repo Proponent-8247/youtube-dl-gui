@@ -203,7 +203,8 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                     ArgumentsBuffer.Add(Formats.GetVideoQualityArgs(VideoQuality));
                 }
 
-                ArgumentsBuffer.Add(Formats.GetVideoRecodeInfo(VideoFormat));
+                bool SupportsRemux = Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly;
+                ArgumentsBuffer.Add(Formats.GetVideoRecodeInfo(VideoFormat, SupportsRemux));
             } break;
             case DownloadType.Audio: {
                 if (AudioCBRQuality == AudioCBRQualityType.best || AudioVBRQuality == AudioVBRQualityType.q0) {

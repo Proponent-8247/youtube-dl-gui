@@ -242,14 +242,14 @@ internal static class Formats {
             _ => "-f \"bestvideo\"",
         };
     }
-    public static string GetVideoRecodeInfo(VideoFormatType Format) {
+    public static string GetVideoRecodeInfo(VideoFormatType Format, bool SupportsRemux) {
         return Format switch {
             VideoFormatType.avi => "--recode-video avi",
             VideoFormatType.flv => "--recode-video flv",
-            VideoFormatType.mkv => "--merge-output-format mkv",
+            VideoFormatType.mkv => SupportsRemux ? "--remux-video mkv" : "--merge-output-format mkv",
             VideoFormatType.mp4 => "--recode-video mp4",
             VideoFormatType.ogg => "--recode-video ogg",
-            VideoFormatType.webm => "--merge-output-format webm",
+            VideoFormatType.webm => SupportsRemux ? "--remux-video webm" : "--merge-output-format webm",
             _ => string.Empty,
         };
     }

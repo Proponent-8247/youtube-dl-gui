@@ -741,7 +741,8 @@ public struct TimeOffset : IEquatable<TimeOffset> {
     }
 
     public TimeOffset(Time StartingTime, Time EndingTime) {
-        if (EndingTime >= StartingTime) {
+        // Equal endpoints are permitted; reversed intervals are not.
+        if (EndingTime < StartingTime) {
             throw new ArgumentOutOfRangeException(nameof(EndingTime));
         }
         this.StartingTime = StartingTime;
@@ -751,5 +752,11 @@ public struct TimeOffset : IEquatable<TimeOffset> {
     public readonly bool HasStartingTime => StartingTime != Time.Empty;
     public readonly bool HasEndingTime => EndingTime != Time.Empty;
 
-    public readonly bool Equals(TimeOffset other) => throw new NotImplementedException();
+    public readonly bool Equals(TimeOffset other) =>
+        StartingTime == other.StartingTime && EndingTime == other.EndingTime;
+    public override readonly bool Equals(object? obj) => obj is TimeOffset other && Equals(other);
+    public override readonly int GetHashCode() =>
+        unchecked((StartingTime.GetHashCode() * 397) ^ EndingTime.GetHashCode());
+    public static bool operator ==(TimeOffset a, TimeOffset b) => a.Equals(b);
+    public static bool operator !=(TimeOffset a, TimeOffset b) => !a.Equals(b);
 }

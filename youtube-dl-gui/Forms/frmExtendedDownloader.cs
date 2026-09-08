@@ -16,6 +16,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     private Thread? QueueResolverThread { get; set; }
     private Process? DownloadProcess { get; set; }
     private ExtendedMediaDetails? MediaDetails { get; set; }
+    private bool MediaOptionsLoaded { get; set; }
     private List<ExtendedMediaDetails>? QueueList { get; }
     private readonly object QueueSync = new();
     private bool QueueResolverRunning;
@@ -1161,9 +1162,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         tpEndTime.Value = MediaDetails.EndTime;
     }
     private void SelectedMediaChanged(ExtendedMediaDetails MediaDetails) {
-        if (this.MediaDetails is not null) {
+        if (this.MediaDetails is not null && MediaOptionsLoaded) {
             SaveMediaOptions();
         }
+        MediaOptionsLoaded = false;
 
         lvVideoFormats.Items.Clear();
         lvAudioFormats.Items.Clear();
@@ -1323,6 +1325,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             rbCustom.Enabled = true;
             cbSchema.Enabled = true;
             LoadMediaOptions();
+            MediaOptionsLoaded = true;
         }
     }
 

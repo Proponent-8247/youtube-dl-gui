@@ -1088,7 +1088,9 @@ public partial class frmMain : LocalizedForm {
                 InitialArgumentType);
         }
         else {
-            DownloadInfo NewInfo = new(URL);
+            DownloadInfo NewInfo = new(URL) {
+                Authentication = Auth,
+            };
             if (!rbCustom.Checked) {
                 if (chkUseSelection.Checked) {
                     if (rbVideoSelectionPlaylistIndex.Checked && (txtPlaylistStart.Text.Length > 0 || txtPlaylistEnd.Text.Length > 0)) {

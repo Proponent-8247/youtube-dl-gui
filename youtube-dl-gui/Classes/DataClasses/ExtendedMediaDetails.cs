@@ -474,10 +474,15 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
         ProgressMediaName =
             $"{(Initialization.ScreenshotMode ? "The videos' title will appear here" : MediaName)} - {Language.ApplicationName}";
 
+        DownloadType RequestedType = SelectedType;
         SelectedType = VideoFormats.Count > 0 ? DownloadType.Video :
             AudioFormats.Count > 0 ? DownloadType.Audio :
             UnknownFormats.Count > 0 ? DownloadType.Unknown :
             DownloadType.Custom;
+
+        if (RequestedType != DownloadType.None) {
+            ChangeMediaType(RequestedType);
+        }
 
         InfoRetrieved = true;
         InfoParsed = true;

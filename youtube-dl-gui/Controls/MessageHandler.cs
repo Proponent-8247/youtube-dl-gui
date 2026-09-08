@@ -97,10 +97,12 @@ public partial class MessageHandler : Form {
                     DataStruct.dwData = 1;
                     DataStruct.lpData = DataBuffer;
                     CopyDataBuffer = CopyData.NintAlloc(DataStruct);
-                    CopyData.SendMessage(m.WParam, CopyData.WM_COPYDATA, Handle, CopyDataBuffer);
+                    // SendMessage is synchronous: the updater can acknowledge inside this call.
                     CanUpdate = true;
+                    CopyData.SendMessage(m.WParam, CopyData.WM_COPYDATA, Handle, CopyDataBuffer);
                 }
                 finally {
+                    CanUpdate = false;
                     CopyData.NintFree(ref CopyDataBuffer);
                     CopyData.NintFree(ref DataBuffer);
                 }
@@ -110,6 +112,7 @@ public partial class MessageHandler : Form {
             // Only ran when WM_UPDATEDATAREQUEST has been called at least once.
             // Other cases, this is not a valid request.
             case CopyData.WM_UPDATERREADY when CanUpdate: {
+                CanUpdate = false;
                 Program.KillForUpdate();
             } break;
 

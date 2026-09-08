@@ -47,20 +47,20 @@ public static class DownloadHelper {
     public static bool IsReddit(string Url) => CompiledRegex[2].IsMatch(Url);
 
     public static string GetUrlBase(string Url, bool OverrideSubdomain = false) {
-        if (Url.StartsWith("https://")) {
-            if (Url.StartsWith("https://www."))
+        if (Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
+            if (Url.StartsWith("https://www.", StringComparison.OrdinalIgnoreCase))
                 Url = Url[12..];
             else
                 Url = Url[8..];
         }
-        else if (Url.StartsWith("http://")) {
-            if (Url.StartsWith("http://www."))
+        else if (Url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) {
+            if (Url.StartsWith("http://www.", StringComparison.OrdinalIgnoreCase))
                 Url = Url[11..];
             else
                 Url = Url[7..];
         }
         else {
-            if (Url.StartsWith("www."))
+            if (Url.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
                 Url = Url[4..];
         }
 

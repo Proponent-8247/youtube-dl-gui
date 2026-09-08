@@ -23,7 +23,25 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     private readonly object QueueSync = new();
     private bool QueueResolverRunning;
     private volatile bool CancellationRequested;
-    private DownloadStatus Status { get; set; } = DownloadStatus.None;
+    private readonly object StatusSync = new();
+    private DownloadStatus StatusValue = DownloadStatus.None;
+    private DownloadStatus Status {
+        get {
+            lock (StatusSync) {
+                return CancellationRequested && StatusValue != DownloadStatus.AbortForClose ?
+                    DownloadStatus.Aborted : StatusValue;
+            }
+        }
+        set {
+            lock (StatusSync) {
+                if (CancellationRequested) {
+                    if (StatusValue == DownloadStatus.AbortForClose) return;
+                    if (value != DownloadStatus.AbortForClose) value = DownloadStatus.Aborted;
+                }
+                StatusValue = value;
+            }
+        }
+    }
 
     private bool ClipboardScannerActive;    // Whether the clipboard scanner is active.
     private string? ClipboardData;          // Clipboard data buffer.

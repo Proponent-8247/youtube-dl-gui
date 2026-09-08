@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Management;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Security.Principal;
@@ -172,47 +173,9 @@ internal static class Program {
         HttpClient = new();
 
         if (Initialization.firstTime) {
-            Log.Write("Initiating first time setup.");
-            Language.LoadInternalEnglish();
-
-            // Select a language first
-            using frmLanguage LangPicker = new();
-            if (LangPicker.ShowDialog() != DialogResult.OK) {
+            if (!RunFirstTimeSetup()) {
                 return 1;
             }
-
-            if (Log.MessageBox(Language.dlgFirstTimeInitialMessage, MessageBoxButtons.YesNo) != DialogResult.Yes) {
-                return 1;
-            }
-
-            Initialization.firstTime = false;
-            Downloads.downloadPath = Downloads.DefaultDownloadPath;
-
-            if (Log.MessageBox(Language.dlgFirstTimeDownloadFolder, MessageBoxButtons.YesNo) == DialogResult.Yes) {
-                using BetterFolderBrowserNS.BetterFolderBrowser fbd = new() {
-                    RootFolder = Downloads.downloadPath,
-                    Title = Language.dlgFindDownloadFolder
-                };
-
-                if (fbd.ShowDialog() == DialogResult.OK) {
-                    Downloads.downloadPath = fbd.SelectedPath;
-                }
-            }
-
-            if (!Verification.YoutubeDlAvailable && Log.MessageBox(Language.dlgFirstTimeDownloadYoutubeDl, MessageBoxButtons.YesNo) == DialogResult.Yes) {
-                Task<bool> UpdateCheckTask = Updater.CheckForYoutubeDlUpdate();
-                UpdateCheckTask.Wait();
-
-                if (UpdateCheckTask.Result) {
-                    Updater.UpdateYoutubeDl(false, null);
-                }
-            }
-
-            if (!Verification.FfmpegAvailable && Log.MessageBox(Language.dlgFirstTimeDownloadFfmpeg, MessageBoxButtons.YesNo) == DialogResult.Yes) {
-                Updater.UpdateFfmpeg(null).Wait();
-            }
-
-            Log.Write("First time setup has concluded.");
         }
         else {
             Language.LoadLanguage($"{Environment.CurrentDirectory}\\lang\\{Initialization.LanguageFile}.ini");
@@ -260,6 +223,73 @@ internal static class Program {
         Instance?.ReleaseMutex();
 
         return ExitCode;
+    }
+
+    private static bool RunFirstTimeSetup() {
+        using ApplicationContext SetupContext = new();
+        bool SetupSucceeded = false;
+        ExceptionDispatchInfo? SetupException = null;
+
+        EventHandler? BeginSetup = null;
+        BeginSetup = async (_, _) => {
+            Application.Idle -= BeginSetup;
+            try {
+                SetupSucceeded = await FirstTimeSetup();
+            }
+            catch (Exception ex) {
+                SetupException = ExceptionDispatchInfo.Capture(ex);
+            }
+            finally {
+                SetupContext.ExitThread();
+            }
+        };
+
+        Application.Idle += BeginSetup;
+        Application.Run(SetupContext);
+        SetupException?.Throw();
+        return SetupSucceeded;
+    }
+
+    private static async Task<bool> FirstTimeSetup() {
+        Log.Write("Initiating first time setup.");
+        Language.LoadInternalEnglish();
+
+        // Select a language first
+        using frmLanguage LangPicker = new();
+        if (LangPicker.ShowDialog() != DialogResult.OK) {
+            return false;
+        }
+
+        if (Log.MessageBox(Language.dlgFirstTimeInitialMessage, MessageBoxButtons.YesNo) != DialogResult.Yes) {
+            return false;
+        }
+
+        Initialization.firstTime = false;
+        Downloads.downloadPath = Downloads.DefaultDownloadPath;
+
+        if (Log.MessageBox(Language.dlgFirstTimeDownloadFolder, MessageBoxButtons.YesNo) == DialogResult.Yes) {
+            using BetterFolderBrowserNS.BetterFolderBrowser fbd = new() {
+                RootFolder = Downloads.downloadPath,
+                Title = Language.dlgFindDownloadFolder
+            };
+
+            if (fbd.ShowDialog() == DialogResult.OK) {
+                Downloads.downloadPath = fbd.SelectedPath;
+            }
+        }
+
+        if (!Verification.YoutubeDlAvailable && Log.MessageBox(Language.dlgFirstTimeDownloadYoutubeDl, MessageBoxButtons.YesNo) == DialogResult.Yes) {
+            if (await Updater.CheckForYoutubeDlUpdate()) {
+                Updater.UpdateYoutubeDl(false, null);
+            }
+        }
+
+        if (!Verification.FfmpegAvailable && Log.MessageBox(Language.dlgFirstTimeDownloadFfmpeg, MessageBoxButtons.YesNo) == DialogResult.Yes) {
+            await Updater.UpdateFfmpeg(null);
+        }
+
+        Log.Write("First time setup has concluded.");
+        return true;
     }
 
     private static void AwaitActions() {

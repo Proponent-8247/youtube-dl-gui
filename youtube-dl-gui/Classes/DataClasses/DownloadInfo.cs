@@ -274,22 +274,19 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                     break;
             }
 
-            if (Downloads.PreferFFmpeg || (DownloadHelper.IsReddit(DownloadURL) && Downloads.fixReddit)) {
-                Verbose("Looking for ffmpeg");
-                bool AddArg = true;
-                if (!Verification.FfmpegAvailable) {
-                    Verbose("WARNING: ffmpeg could not be found; refreshing location");
-                    Verification.RefreshFFmpegLocation();
-                    if (!Verification.FfmpegAvailable) {
-                        Verbose("WARNING: Could not find ffmpeg, it will not be used, downloading may be affected");
-                        AddArg = false;
-                    }
-                }
+            if (!Verification.FfmpegAvailable) {
+                Verification.RefreshFFmpegLocation();
+            }
 
-                if (AddArg) {
+            if (Verification.FfmpegAvailable) {
+                ArgumentsBuffer.Add($"--ffmpeg-location \"{Verification.FFmpegPath}\"");
+                if (Downloads.PreferFFmpeg || (DownloadHelper.IsReddit(DownloadURL) && Downloads.fixReddit)) {
                     Verbose("ffmpeg will be used for HLS");
-                    ArgumentsBuffer.Add($"--ffmpeg-location \"{Verification.FFmpegPath}\" --hls-prefer-ffmpeg");
+                    ArgumentsBuffer.Add("--hls-prefer-ffmpeg");
                 }
+            }
+            else if (Downloads.PreferFFmpeg || (DownloadHelper.IsReddit(DownloadURL) && Downloads.fixReddit)) {
+                Verbose("WARNING: Could not find ffmpeg, it will not be used, downloading may be affected");
             }
 
             if (Downloads.SaveSubtitles) {

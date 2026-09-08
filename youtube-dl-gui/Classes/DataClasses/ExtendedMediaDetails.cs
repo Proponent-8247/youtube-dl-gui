@@ -611,13 +611,14 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
 
         #region Other settings (if not Custom)
         if (SelectedType != DownloadType.Custom) {
-            if (Downloads.PreferFFmpeg || (DownloadHelper.IsReddit(URL) && Downloads.fixReddit)) {
-                if (!Verification.FfmpegAvailable) {
-                    Verification.RefreshFFmpegLocation();
-                }
+            if (!Verification.FfmpegAvailable) {
+                Verification.RefreshFFmpegLocation();
+            }
 
-                if (Verification.FfmpegAvailable) {
-                    ArgumentBuffer.Add("--ffmpeg-location \"" + Verification.FFmpegPath + "\" --hls-prefer-ffmpeg");
+            if (Verification.FfmpegAvailable) {
+                ArgumentBuffer.Add("--ffmpeg-location \"" + Verification.FFmpegPath + "\"");
+                if (Downloads.PreferFFmpeg || (DownloadHelper.IsReddit(URL) && Downloads.fixReddit)) {
+                    ArgumentBuffer.Add("--hls-prefer-ffmpeg");
                 }
             }
 

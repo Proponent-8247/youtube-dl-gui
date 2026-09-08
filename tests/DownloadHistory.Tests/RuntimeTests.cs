@@ -5,6 +5,32 @@ using youtube_dl_gui.History;
 
 internal static partial class Program {
     private static void TestRuntime() {
+        Test("cancelled preflight does not create an archive", () => {
+            using (var l = new Library()) {
+                l.Options.Cancelled = () => true;
+                bool cancelled = false;
+                try { using (var s = l.Open()) s.Reconcile(); } catch (OperationCanceledException) { cancelled = true; }
+                Assert(cancelled && !File.Exists(l.Archive), "Cancelled preflight modified history.");
+            }
+        });
+        Test("changing custom archives cannot promote failed media to completed", () => {
+            using (var l = new Library()) using (var other = new Library()) {
+                using (var s = l.Open()) {
+                    s.BeginRun(); l.Media("Failed-" + Id + ".mp4"); l.Info("Failed-" + Id, Id); s.FinishRun();
+                }
+                other.Options.ArchivePath = l.Archive;
+                using (var s = other.Open()) s.Reconcile();
+                using (var s = l.Open()) Assert(s.Reconcile().Entries.Count == 0, "Shared archive lost failed-media evidence.");
+                l.Options.ArchivePath = Path.Combine(l.Root, "new-history.txt");
+                using (var s = l.Open()) Assert(s.Reconcile().Entries.Count == 0, "New archive trusted failed output.");
+            }
+        });
+        Test("archive evidence prefixes cannot hide completed media", () => {
+            using (var l = new Library()) {
+                l.Media("yt-dlp-archive.txt.reset-arbitrary.mp4");
+                using (var s = l.Open()) Assert(s.Inspect().Unresolved.Count == 1, "Prefix hid unknown media.");
+            }
+        });
         Test("Windows argument quoting round-trips protected paths and credentials", () => {
             foreach (string value in new[] { "", @"C:\Media library\", "a\"b", "a\\\\\"b", "--password", "a b" }) {
                 var tokens = HistoryCommandPolicy.Tokenize(HistoryCommandPolicy.Quote(value));

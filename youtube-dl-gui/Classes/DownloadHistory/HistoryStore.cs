@@ -18,6 +18,7 @@ namespace youtube_dl_gui.History {
     }
 
     internal sealed class HistoryOptions {
+        public Func<bool> Cancelled { get; set; }
         public string LibraryPath { get; set; }
         public string ArchivePath { get; set; }
         public string Template { get; set; }
@@ -170,7 +171,7 @@ namespace youtube_dl_gui.History {
             (".3gp .3g2 .aac .aiff .aif .alac .asf .avi .f4v .flac .flv .m2ts .m4a .m4v .mka .mkv "
             + ".mov .mp2 .mp3 .mp4 .mpeg .mpg .mts .oga .ogg .ogv .opus .ts .vob .wav .webm .wma .wmv").Split(' '), StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> SidecarExtensions = new HashSet<string>(
-            ".json .jpg .jpeg .png .webp .gif .bmp .srt .vtt .ass .ssa .lrc .ttml .srv1 .srv2 .srv3 .xml .description .txt .url .nfo .mhtml .lock".Split(' '), StringComparer.OrdinalIgnoreCase);
+            ".json .jpg .jpeg .png .webp .gif .bmp .srt .vtt .ass .ssa .lrc .ttml .srv1 .srv2 .srv3 .xml .description .txt .url .nfo .mhtml .lock .bak".Split(' '), StringComparer.OrdinalIgnoreCase);
         private readonly HistoryOptions options;
         private readonly List<FileStream> locks = new List<FileStream>();
         private bool disposed;
@@ -178,6 +179,7 @@ namespace youtube_dl_gui.History {
         public string LibraryPath { get; private set; }
         public string ArchivePath { get; private set; }
         private string StatePath { get { return ArchivePath + ".state.json"; } }
+        private string RetryPath { get { return Path.Combine(LibraryPath, ".ytdlg-history.retry.json"); } }
         private string PendingPath { get { return ArchivePath + ".pending.json"; } }
         private string LibraryPendingPath { get { return Path.Combine(LibraryPath, ".ytdlg-history.pending.json"); } }
         private string MigrationPath { get { return ArchivePath + ".migration.json"; } }
@@ -185,7 +187,7 @@ namespace youtube_dl_gui.History {
         private HistoryStore(HistoryOptions options) {
             this.options = new HistoryOptions { LibraryPath = options.LibraryPath, ArchivePath = options.ArchivePath,
                 Template = options.Template, UseInfoJson = options.UseInfoJson, KeepBackup = options.KeepBackup,
-                StopWhenMissing = options.StopWhenMissing, LegacyExtractor = options.LegacyExtractor };
+                StopWhenMissing = options.StopWhenMissing, LegacyExtractor = options.LegacyExtractor, Cancelled = options.Cancelled };
         }
         private string LibraryPrefix { get { return LibraryPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar; } }
         public static HistoryStore Open(HistoryOptions options) {
@@ -242,7 +244,11 @@ namespace youtube_dl_gui.History {
                 current = Path.GetDirectoryName(current);
             }
         }
+        private void CheckCancellation() {
+            if (options.Cancelled != null && options.Cancelled()) throw new OperationCanceledException("Download History scan cancelled.");
+        }
         private void CheckOpen() {
+            CheckCancellation();
             if (disposed) throw new ObjectDisposedException(nameof(HistoryStore));
             RequireDirectory(LibraryPath);
             RequireDirectory(Path.GetDirectoryName(ArchivePath));
@@ -252,7 +258,9 @@ namespace youtube_dl_gui.History {
             directories.Push(LibraryPath);
             while (directories.Count > 0) {
                 string directory = directories.Pop();
+                CheckCancellation();
                 foreach (string entry in Directory.EnumerateFileSystemEntries(directory)) {
+                    CheckCancellation();
                     FileAttributes attr = File.GetAttributes(entry);
                     if ((attr & FileAttributes.ReparsePoint) != 0) throw new HistoryException("The library contains a reparse point; no files were silently skipped: " + entry);
                     if ((attr & FileAttributes.Directory) != 0) directories.Push(entry);
@@ -262,12 +270,14 @@ namespace youtube_dl_gui.History {
         }
         private bool IsServiceFile(string path) {
             if (string.Equals(path, Path.Combine(LibraryPath, ".ytdlg-history.lock"), StringComparison.OrdinalIgnoreCase)
-                || string.Equals(path, LibraryPendingPath, StringComparison.OrdinalIgnoreCase)) return true;
+                || string.Equals(path, LibraryPendingPath, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(path, RetryPath, StringComparison.OrdinalIgnoreCase)) return true;
             if (new[] { ArchivePath, ArchivePath + ".bak", ArchivePath + ".lock", StatePath, PendingPath, MigrationPath }
                 .Any(p => string.Equals(path, p, StringComparison.OrdinalIgnoreCase))) return true;
-            return new[] { ArchivePath + ".corrupt-", ArchivePath + ".reset-", ArchivePath + ".bak.reset-", StatePath + ".reset-",
+            return new[] { RetryPath + ".tmp-", LibraryPendingPath + ".tmp-", ArchivePath + ".corrupt-", ArchivePath + ".reset-", ArchivePath + ".bak.reset-", StatePath + ".reset-",
                 ArchivePath + ".tmp-", StatePath + ".tmp-", PendingPath + ".tmp-", MigrationPath + ".tmp-", ArchivePath + ".bak.tmp-" }
-                .Any(prefix => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+                .Any(prefix => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                    && Regex.IsMatch(path.Substring(prefix.Length), @"\A(?:[0-9]{8}T[0-9]{6}-)?[0-9a-f]{32}\z"));
         }
         private static bool Temporary(string path) {
             string name = Path.GetFileName(path);
@@ -338,6 +348,35 @@ namespace youtube_dl_gui.History {
                 throw new HistoryException("Duplicate paths in Download History checkpoint.");
             return checkpoint;
         }
+        private HistoryCheckpoint LoadRetries() {
+            if (!Exists(RetryPath)) return new HistoryCheckpoint();
+            var state = ReadJson<HistoryCheckpoint>(RetryPath, 128 * 1024 * 1024);
+            if (state == null || state.Version != 1 || state.Entries == null || state.Files == null)
+                throw new HistoryException("Invalid library retry manifest. Restore it before rebuilding history.");
+            foreach (string entry in state.Entries) HistoryIdentity.Parse(entry);
+            foreach (HistoryRecord record in state.Files) {
+                if (record == null || record.Complete || string.IsNullOrWhiteSpace(record.Path)
+                    || Path.IsPathRooted(record.Path) || record.Path.Split('\\', '/').Any(s => s == ".."))
+                    throw new HistoryException("Invalid failed-file record in the library retry manifest.");
+                if (record.Entry != null) HistoryIdentity.Parse(record.Entry);
+            }
+            if (state.Files.GroupBy(r => r.Path, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1))
+                throw new HistoryException("Duplicate failed-file records in the library retry manifest.");
+            return state;
+        }
+        private void SaveRetries(HistoryReport report) {
+            var retries = LoadRetries();
+            var failures = new HashSet<string>(retries.Entries, StringComparer.Ordinal);
+            failures.UnionWith(report.Media.Where(r => !r.Complete && r.Entry != null).Select(r => r.Entry));
+            failures.ExceptWith(report.Entries);
+            var records = retries.Files.ToDictionary(r => r.Path, StringComparer.OrdinalIgnoreCase);
+            foreach (var record in report.Media) {
+                if (record.Complete) records.Remove(record.Path);
+                else records[record.Path] = record;
+            }
+            var kept = records.Values.Where(r => r.Entry == null || !report.Entries.Contains(r.Entry)).ToList();
+            AtomicWrite(RetryPath, Json(new HistoryCheckpoint { Entries = failures.ToList(), Files = kept }));
+        }
         private void CheckPending() {
             if (ownsPending) return;
             if (Exists(LibraryPendingPath)) CheckPendingFile(LibraryPendingPath);
@@ -379,7 +418,10 @@ namespace youtube_dl_gui.History {
             report.Entries.UnionWith(checkpoint.Entries.Select(e => HistoryIdentity.Parse(e).Entry));
             var authoritative = new HashSet<string>(report.Entries, StringComparer.Ordinal);
             var prior = checkpoint.Files.ToDictionary(r => r.Path, StringComparer.OrdinalIgnoreCase);
+            var retries = LoadRetries();
+            foreach (var record in retries.Files) prior[record.Path] = record;
             var retryIds = new HashSet<string>(checkpoint.Files.Where(r => !r.Complete && r.Entry != null).Select(r => r.Entry), StringComparer.Ordinal);
+            retryIds.UnionWith(retries.Entries);
             var known = authoritative.Select(HistoryIdentity.Parse).GroupBy(k => k.Id, StringComparer.Ordinal)
                 .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
             bool interrupted = Exists(PendingPath) || Exists(LibraryPendingPath);
@@ -498,6 +540,10 @@ namespace youtube_dl_gui.History {
             if (report.ArchiveMissing && Exists(StatePath) && report.Entries.Count == 0 && report.TotalMedia == 0 && !explicitRebuild) {
                 throw new HistoryException("Previously used history is missing and there is no recoverable evidence. Review and explicitly rebuild the empty library.");
             }
+            CheckCancellation();
+            // Failed-file evidence belongs to the physical library, even when a custom
+            // archive moves between roots. Save it before advancing the archive checkpoint.
+            SaveRetries(report);
             string text = string.Concat(report.Entries.OrderBy(e => e, StringComparer.Ordinal).Select(e => e + "\n"));
             if (report.ArchiveDamaged) File.Copy(ArchivePath, ArchivePath + ".corrupt-" + Guid.NewGuid().ToString("N"));
             if (options.KeepBackup && !report.ArchiveMissing && !report.ArchiveDamaged) {
@@ -514,6 +560,8 @@ namespace youtube_dl_gui.History {
         }
         public void BeginRun() {
             Reconcile();
+            // Once a child can exist, cancellation must not interrupt its durable postflight.
+            options.Cancelled = null;
             string pending = Json(new HistoryPending { ArchivePath = ArchivePath });
             AtomicWrite(LibraryPendingPath, pending);
             AtomicWrite(PendingPath, pending);

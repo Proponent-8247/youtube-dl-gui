@@ -18,6 +18,7 @@ namespace youtube_dl_gui.History {
 
         public static HistoryProcessGuard Start(Process process, HistoryOptions options, Func<bool> cancelled, Action<string> notify) {
             if (process == null || options == null) throw new ArgumentNullException();
+            options.Cancelled = cancelled;
             var guard = new HistoryProcessGuard();
             HistoryStore store = null;
             HistoryJob job = null;

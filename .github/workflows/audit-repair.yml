@@ -1,0 +1,28 @@
+name: Guarded audit repairs
+on:
+  push:
+    branches: [audit-fixes]
+    paths: [.audit-repairs.json]
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+      - name: Build, test and commit each exact repair
+        shell: pwsh
+        run: ./tools/Run-AuditRepairBatch.ps1 -EvidenceDirectory '${{ runner.temp }}/audit-repair-evidence'
+      - name: Retain all before-and-after evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: audit-repairs-${{ github.sha }}
+          path: ${{ runner.temp }}/audit-repair-evidence/
+          if-no-files-found: error
+          retention-days: 14

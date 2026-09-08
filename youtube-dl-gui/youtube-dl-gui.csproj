@@ -363,6 +363,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="$(IntermediateOutputPath)UpdaterHash.g.cs" />
+    <Compile Include="$(IntermediateOutputPath)BuildDate.g.cs" />
   </ItemGroup>
   <Import Project="..\Controls\Controls.projitems" Label="Shared" />
   <Target Name="GenerateUpdaterHash" BeforeTargets="CoreCompile">
@@ -375,14 +376,35 @@
     <WriteLinesToFile File="$(IntermediateOutputPath)UpdaterHash.g.cs" Overwrite="true" Encoding="UTF-8" Lines="namespace youtube_dl_gui { internal static class GeneratedUpdaterHash { internal const string Value = &quot;%(_UpdaterHashOutput.FileHash)&quot;%3B } }" />
   </Target>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PreBuildEvent>if $(ConfigurationName) == Release "BuildDateWriter.exe" "$(ProjectDir)\Resources\BuildDate.txt"</PreBuildEvent>
-  </PropertyGroup>
-  <PropertyGroup>
-    <PostBuildEvent>if $(ConfigurationName) == Release xcopy "$(SolutionDir)Languages\*.ini" "$(SolutionDir)Release\lang\*.ini" /y
-if $(ConfigurationName) == Release copy "$(TargetPath)" "$(SolutionDir)Release"
-if $(ConfigurationName) == Release (del "$(SolutionDir)Release\$(ProjectName).zip")
-if $(ConfigurationName) == Release (7z a -mm=Deflate -mfb=128 -r "$(SolutionDir)Release\$(ProjectName).zip" "$(SolutionDir)Release\*")
-if $(ConfigurationName) == Release "$(SolutionDir)HashCalcConsole.exe" "$(SolutionDir)Release\$(ProjectName).exe" "$(SolutionDir)Release\$(ProjectName).zip"</PostBuildEvent>
-  </PropertyGroup>
+  <!-- Keep generated metadata in obj; clean builds need no untracked helper executables. -->
+  <Target Name="GenerateBuildDate" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <_BuildDateValue>$([System.DateTime]::UtcNow.ToString('u').Substring(0, 10))</_BuildDateValue>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)BuildDate.g.cs" Overwrite="true" WriteOnlyWhenDifferent="true" Encoding="UTF-8" Lines="namespace youtube_dl_gui { internal static class GeneratedBuildDate { internal const string Value = &quot;$(_BuildDateValue)&quot;%3B } }" />
+  </Target>
+  <Target Name="PackageRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <_ReleaseRoot>$(MSBuildProjectDirectory)\..\Release</_ReleaseRoot>
+      <_ReleaseStage>$(IntermediateOutputPath)Package</_ReleaseStage>
+    </PropertyGroup>
+    <!-- Never zip the destination directory into itself or sweep unrelated files into a release. -->
+    <RemoveDir Directories="$(_ReleaseStage)" />
+    <MakeDir Directories="$(_ReleaseStage)\lang;$(_ReleaseRoot)\lang" />
+    <ItemGroup>
+      <_ReleaseLanguages Include="$(MSBuildProjectDirectory)\..\Languages\*.ini" />
+    </ItemGroup>
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(_ReleaseStage)" />
+    <Copy SourceFiles="@(_ReleaseLanguages)" DestinationFolder="$(_ReleaseStage)\lang" />
+    <ZipDirectory SourceDirectory="$(_ReleaseStage)" DestinationFile="$(_ReleaseRoot)\$(TargetName).zip" Overwrite="true" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(_ReleaseRoot)" />
+    <Copy SourceFiles="@(_ReleaseLanguages)" DestinationFolder="$(_ReleaseRoot)\lang" />
+    <GetFileHash Files="$(_ReleaseRoot)\$(TargetFileName)" Algorithm="SHA256">
+      <Output TaskParameter="Hash" PropertyName="_ReleaseExeHash" />
+    </GetFileHash>
+    <GetFileHash Files="$(_ReleaseRoot)\$(TargetName).zip" Algorithm="SHA256">
+      <Output TaskParameter="Hash" PropertyName="_ReleaseZipHash" />
+    </GetFileHash>
+    <WriteLinesToFile File="$(_ReleaseRoot)\Release-hashes.md" Overwrite="true" Encoding="UTF-8" Lines="exe sha256: $(_ReleaseExeHash);zip sha256: $(_ReleaseZipHash)" />
+  </Target>
 </Project>

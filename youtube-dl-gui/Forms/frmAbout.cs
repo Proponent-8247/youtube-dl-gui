@@ -24,7 +24,7 @@ public partial class frmAbout : LocalizedForm {
     }
 
     public override void LoadLanguage() {
-        lbAboutBody.Text = string.Format(Language.lbAboutBody + "\n\n\n" + FlavorText, "murrty", Properties.Resources.BuildDate);
+        lbAboutBody.Text = string.Format(Language.lbAboutBody + "\n\n\n" + FlavorText, "murrty", GeneratedBuildDate.Value);
         llbCheckForUpdates.Text = Language.llbCheckForUpdates;
         this.Text = $"{Language.frmAbout} youtube-dl-gui";
     }

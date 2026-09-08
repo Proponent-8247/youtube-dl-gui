@@ -5,6 +5,17 @@ using youtube_dl_gui.History;
 
 internal static partial class Program {
     private static void TestRuntime() {
+        Test("archive options precede the audit branch URL separator", () => {
+            using (var l = new Library()) {
+                string command = "-o " + HistoryCommandPolicy.Quote(Path.Combine(l.Root, l.Options.Template))
+                    + " -- https://example.com/media";
+                var tokens = HistoryCommandPolicy.Tokenize(HistoryCommandPolicy.Build(command, l.Root, l.Archive));
+                Assert(tokens.IndexOf("--download-archive") < tokens.IndexOf("--"), "Archive option became URL text.");
+                Assert(tokens[tokens.Count - 1] == "https://example.com/media", "Media URL changed.");
+                Throws(() => HistoryCommandPolicy.Build(command + " --download-archive other.txt", l.Root, l.Archive), "Option-looking URL accepted.");
+                Throws(() => HistoryCommandPolicy.Build(command + " --", l.Root, l.Archive), "Second delimiter accepted.");
+            }
+        });
         Test("cancelled preflight does not create an archive", () => {
             using (var l = new Library()) {
                 l.Options.Cancelled = () => true;

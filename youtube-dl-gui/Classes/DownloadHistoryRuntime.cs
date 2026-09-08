@@ -15,13 +15,13 @@ internal static class DownloadHistoryRuntime {
     private static string verifiedProvider;
 
     public static string ProbePrefix { get { return DownloadHistorySettings.Enabled ? "--ignore-config " : ""; } }
-    public static string PreviewSuffix() {
-        if (!DownloadHistorySettings.Enabled) return "";
+    public static string Preview(string arguments) {
+        if (!DownloadHistorySettings.Enabled) return arguments;
         try {
             var options = DownloadHistorySettings.Options(DownloadHistorySettings.Current, Downloads.fileNameSchema);
-            return HistoryCommandPolicy.Suffix(options.ArchivePath);
+            return HistoryCommandPolicy.Build(arguments, options.LibraryPath, options.ArchivePath);
         }
-        catch (Exception ex) when (ex is IOException || ex is ArgumentException || ex is NotSupportedException) { return ""; }
+        catch (Exception ex) when (ex is IOException || ex is ArgumentException || ex is NotSupportedException) { return arguments; }
     }
     public static void CheckProvider(string path) {
         if (Downloads.YtdlType != (int)GitID.YtDlp && Downloads.YtdlType != (int)GitID.YtDlpNightly)

@@ -46,9 +46,15 @@ namespace youtube_dl_gui.History {
             var tokens = Tokenize(arguments);
             int outputs = 0;
             int inputs = 0;
+            int optionEnd = -1;
             for (int i = 0; i < tokens.Count; i++) {
                 string token = tokens[i];
-                if (!token.StartsWith("-", StringComparison.Ordinal)) {
+                if (optionEnd < 0 && token == "--") {
+                    if (i == tokens.Count - 1) throw new HistoryException("The URL separator must be followed by media inputs.");
+                    optionEnd = i;
+                    continue;
+                }
+                if (optionEnd >= 0 || !token.StartsWith("-", StringComparison.Ordinal)) {
                     Uri uri;
                     if (Regex.IsMatch(token, @"\A[A-Za-z0-9_-]{11}\z")
                         || (Uri.TryCreate(token, UriKind.Absolute, out uri) &&
@@ -92,7 +98,11 @@ namespace youtube_dl_gui.History {
                 }
             }
             if (outputs != 1 || inputs == 0) throw new HistoryException("Protected downloads require a media input and exactly one output template.");
-            return arguments + Suffix(archivePath);
+            if (optionEnd < 0) return arguments + Suffix(archivePath);
+            // Preserve the audit branch's option terminator. Native flags are options,
+            // never positional URL text after --. Requote decoded Windows arguments.
+            return string.Join(" ", tokens.Take(optionEnd).Select(Quote)) + Suffix(archivePath)
+                + " -- " + string.Join(" ", tokens.Skip(optionEnd + 1).Select(Quote));
         }
         public static string Suffix(string archivePath) {
             // The opt-in UI discloses these integrity requirements. Keep them last so that

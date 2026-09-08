@@ -63,10 +63,10 @@ internal static class NativeSuite {
     }
     private static int Transfers { get { return File.Exists(requests) ? File.ReadAllLines(requests).Length : 0; } }
     private static string Url(string id) { return BaseUrl + "video/" + id; }
-    private static void Run(string urls, string template = null, string extra = "", bool fails = false) {
+    private static void Run(string urls, string template = null, string extra = "", bool fails = false, string generated = null) {
         using (var process = new Process()) {
             process.StartInfo = new ProcessStartInfo(typeof(NativeSuite).Assembly.Location,
-                urls + " -o " + HistoryCommandPolicy.Quote(Path.Combine(library, template ?? schema)) + " --retries 0 --no-warnings " + extra) {
+                generated ?? (urls + " -o " + HistoryCommandPolicy.Quote(Path.Combine(library, template ?? schema)) + " --retries 0 --no-warnings " + extra)) {
                 UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true
             };
             var output = new StringBuilder();
@@ -79,6 +79,33 @@ internal static class NativeSuite {
             bool healthy = (bool)Call(runtime, "Complete", process, new Action<string>(Console.WriteLine));
             Check(healthy, "Postflight failed: " + output);
             Check(fails ? process.ExitCode != 0 : process.ExitCode == 0, "Unexpected provider result: " + output);
+        }
+    }
+    private static string GeneratedArguments(bool extended, string id) {
+        Type downloads = app.GetType("youtube_dl_gui.Downloads", true);
+        downloads.GetProperty("separateDownloads").SetValue(null, false);
+        downloads.GetProperty("separateIntoWebsiteURL").SetValue(null, false);
+        app.GetType("youtube_dl_gui.Verification", true).GetProperty("YoutubeDlPath").SetValue(null, typeof(NativeSuite).Assembly.Location);
+        Type type = app.GetType(extended ? "youtube_dl_gui.ExtendedMediaDetails" : "youtube_dl_gui.DownloadInfo", true);
+        object model = Activator.CreateInstance(type, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, new object[] { Url(id) }, null);
+        using ((IDisposable)model) {
+            var kind = type.GetProperty(extended ? "SelectedType" : "Type");
+            kind.SetValue(model, Enum.Parse(kind.PropertyType, extended ? "Custom" : "Video"));
+            type.GetProperty("FileNameSchema").SetValue(model, schema);
+            if (extended) type.GetProperty("CustomArguments").SetValue(model, "-f best");
+            else {
+                foreach (string property in new[] { "VideoQuality", "VideoFormat" }) {
+                    var member = type.GetProperty(property);
+                    member.SetValue(model, Enum.Parse(member.PropertyType, "best"));
+                }
+            }
+            object[] parameters = extended ? null : new object[] { new Action<string>(Console.WriteLine) };
+            Check((bool)type.GetMethod("GenerateArguments").Invoke(model, parameters), "GUI argument generation failed.");
+            string preview = (string)type.GetProperty("ArgumentsCensored").GetValue(model);
+            var tokens = HistoryCommandPolicy.Tokenize(preview);
+            Check(tokens.Contains("--") && tokens.IndexOf("--download-archive") >= 0
+                && tokens.IndexOf("--download-archive") < tokens.IndexOf("--"), "GUI preview misplaced archive flags.");
+            return (string)type.GetProperty("Arguments").GetValue(model);
         }
     }
     public static int Proxy(string[] args) {
@@ -125,6 +152,14 @@ internal static class NativeSuite {
                 string mixed = BaseUrl + "playlist/one " + BaseUrl + "playlist/two " + Url(D) + " " + BaseUrl + "channel/videos";
                 Run(mixed); Run(mixed); Check(Transfers == 4, "Mixed inputs duplicated media or stopped early.");
                 Check(File.ReadAllLines(Archive).Count(x => !string.IsNullOrWhiteSpace(x)) == 4, "Wrong source identity count.");
+            });
+            Test("standard and Extended argument builders execute protected commands", () => {
+                Initialize("argument-builders"); Reconcile(); Save(true);
+                Run(Url(A), generated: GeneratedArguments(false, A));
+                Run(Url(B), generated: GeneratedArguments(true, B));
+                Run(Url(A), generated: GeneratedArguments(true, A));
+                Run(Url(B), generated: GeneratedArguments(false, B));
+                Check(Transfers == 2, "GUI-generated commands bypassed or broke archive deduplication.");
             });
             Test("lost ledger rebuilds from media metadata without redownloading", () => {
                 Initialize("lost-ledger"); Reconcile(); Save(true); Run(Url(A));

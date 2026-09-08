@@ -39,20 +39,32 @@ internal static class DwmComposition {
     /// <param name="Info">DWM info.</param>
     public static void FillBlackRegion(DwmCompositionInfo Info) {
         nint Memdc = DwmNatives.CreateCompatibleDC(Info.destdc);
-        if (DwmNatives.SaveDC(Memdc) != 0) {
-            nint bitmap = DwmNatives.CreateDIBSection(Memdc, ref Info.dib, DwmNatives.DIB_RGB_COLORS, out _, 0, 0);
-            if (bitmap != 0) {
-                nint bitmapOld = DwmNatives.SelectObject(Memdc, bitmap);
-                try {
-                    DwmNatives.BitBlt(Info.destdc, Info.Rect.left, Info.Rect.top, Info.Rect.right - Info.Rect.left, Info.Rect.bottom - Info.Rect.top, Memdc, 0, 0, DwmNatives.SRCCOPY);
-                }
-                finally {
-                    //Remember to clean up
-                    DwmNatives.SelectObject(Memdc, bitmapOld);
-                    DwmNatives.DeleteObject(bitmap);
-                    DwmNatives.DeleteDC(Memdc);
-                }
+        if (Memdc == 0) {
+            return;
+        }
+
+        try {
+            if (DwmNatives.SaveDC(Memdc) == 0) {
+                return;
             }
+
+            nint bitmap = DwmNatives.CreateDIBSection(Memdc, ref Info.dib, DwmNatives.DIB_RGB_COLORS, out _, 0, 0);
+            if (bitmap == 0) {
+                return;
+            }
+
+            nint bitmapOld = DwmNatives.SelectObject(Memdc, bitmap);
+            try {
+                DwmNatives.BitBlt(Info.destdc, Info.Rect.left, Info.Rect.top, Info.Rect.right - Info.Rect.left, Info.Rect.bottom - Info.Rect.top, Memdc, 0, 0, DwmNatives.SRCCOPY);
+            }
+            finally {
+                //Remember to clean up
+                DwmNatives.SelectObject(Memdc, bitmapOld);
+                DwmNatives.DeleteObject(bitmap);
+            }
+        }
+        finally {
+            DwmNatives.DeleteDC(Memdc);
         }
         //gph.ReleaseHdc();
     }
@@ -63,27 +75,36 @@ internal static class DwmComposition {
     /// <param name="Info">The <see cref="DwmCompositionInfo"/> object that contains information used to render the text.</param>
     public static void DrawTextOnGlass(DwmCompositionInfo DwmInfo, DwmCompositionTextInfo Info) {
         nint Memdc = DwmNatives.CreateCompatibleDC(DwmInfo.destdc); // Set up a memory DC where we'll draw the text.
-        if (DwmNatives.SaveDC(Memdc) != 0) {
-            nint bitmap = DwmNatives.CreateDIBSection(Memdc, ref Info.BitmapInfo, DwmNatives.DIB_RGB_COLORS, out _, IntPtr.Zero, 0); // Create a 32-bit bmp for use in offscreen drawing when glass is on
-            if (bitmap != 0) {
-                nint bitmapOld = DwmNatives.SelectObject(Memdc, bitmap);
-                nint hFont = Info.Font.ToHfont();
-                nint logfnotOld = DwmNatives.SelectObject(Memdc, hFont);
-                try {
-                    DwmNatives.DrawThemeTextEx(Info.renderer.Handle, Memdc, 0, 0, Info.Text, -1, Info.uFormat, ref Info.Rect2, ref Info.dttOpts);
-                    DwmNatives.BitBlt(DwmInfo.destdc, Info.Rect1.left, Info.Rect1.top, Info.Rect1.right - Info.Rect1.left, Info.Rect1.bottom - Info.Rect1.top, Memdc, 0, 0, DwmNatives.SRCCOPY);
-                }
-                catch {
-                    throw;
-                }
-                finally {
-                    DwmNatives.SelectObject(Memdc, bitmapOld);
-                    DwmNatives.SelectObject(Memdc, logfnotOld);
-                    DwmNatives.DeleteObject(bitmap);
-                    DwmNatives.DeleteObject(hFont);
-                    DwmNatives.DeleteDC(Memdc);
-                }
+        if (Memdc == 0) {
+            return;
+        }
+
+        try {
+            if (DwmNatives.SaveDC(Memdc) == 0) {
+                return;
             }
+
+            nint bitmap = DwmNatives.CreateDIBSection(Memdc, ref Info.BitmapInfo, DwmNatives.DIB_RGB_COLORS, out _, IntPtr.Zero, 0); // Create a 32-bit bmp for use in offscreen drawing when glass is on
+            if (bitmap == 0) {
+                return;
+            }
+
+            nint bitmapOld = DwmNatives.SelectObject(Memdc, bitmap);
+            nint hFont = Info.Font.ToHfont();
+            nint logfnotOld = DwmNatives.SelectObject(Memdc, hFont);
+            try {
+                DwmNatives.DrawThemeTextEx(Info.renderer.Handle, Memdc, 0, 0, Info.Text, -1, Info.uFormat, ref Info.Rect2, ref Info.dttOpts);
+                DwmNatives.BitBlt(DwmInfo.destdc, Info.Rect1.left, Info.Rect1.top, Info.Rect1.right - Info.Rect1.left, Info.Rect1.bottom - Info.Rect1.top, Memdc, 0, 0, DwmNatives.SRCCOPY);
+            }
+            finally {
+                DwmNatives.SelectObject(Memdc, bitmapOld);
+                DwmNatives.SelectObject(Memdc, logfnotOld);
+                DwmNatives.DeleteObject(bitmap);
+                DwmNatives.DeleteObject(hFont);
+            }
+        }
+        finally {
+            DwmNatives.DeleteDC(Memdc);
         }
     }
 }

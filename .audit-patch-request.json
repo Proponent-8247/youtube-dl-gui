@@ -1,0 +1,1 @@
+{"commit_message":"fix: preserve custom argument whitespace","replacements":[{"path":"youtube-dl-gui/Classes/DataClasses/DownloadInfo.cs","old":"Q3VzdG9tQXJndW1lbnRzID0gQ3VzdG9tQXJndW1lbnRzLlJlcGxhY2VXaGl0ZXNwYWNlKCkuVHJpbSgpOw==","new":"Q3VzdG9tQXJndW1lbnRzID0gQ3VzdG9tQXJndW1lbnRzLlRyaW0oKTs=","count":1}]}

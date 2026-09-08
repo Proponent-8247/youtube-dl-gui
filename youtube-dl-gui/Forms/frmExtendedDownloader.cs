@@ -13,6 +13,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     private ArgumentType InitialArgumentType { get; } = ArgumentType.NoArguments;
 
     private Thread? ProcessingThread { get; set; }
+    private Thread? ThumbnailThread { get; set; }
     private Thread? QueueResolverThread { get; set; }
     private Process? DownloadProcess { get; set; }
     private ExtendedMediaDetails? MediaDetails { get; set; }
@@ -340,6 +341,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     }
                     ProcessingThread.Abort();
                 }
+                if (ThumbnailThread?.IsAlive == true) {
+                    ThumbnailThread.Abort();
+                }
                 if (QueueResolverThread?.IsAlive == true) {
                     QueueResolverThread.Abort();
                 }
@@ -514,8 +518,8 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         }
     }
     private void DownloadThumbnail() {
-        if (ProcessingThread?.IsAlive != true && MediaDetails is not null) {
-            ProcessingThread = new(ProcessThumbnail) {
+        if (ThumbnailThread?.IsAlive != true && MediaDetails is not null) {
+            ThumbnailThread = new(ProcessThumbnail) {
                 Name = $"ThumbThread {MediaDetails.URL}",
                 IsBackground = true,
                 Priority = ThreadPriority.BelowNormal
@@ -523,7 +527,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             lbExtendedDownloaderDownloadingThumbnail.Visible = true;
             btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = false;
             lbExtendedDownloaderDownloadingThumbnail.Text = Language.lbExtendedDownloaderDownloadingThumbnail;
-            ProcessingThread.Start();
+            ThumbnailThread.Start();
         }
     }
 
@@ -1391,7 +1395,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
                     if (!MediaDetails.MediaData.ThumbnailLink.IsNullEmptyWhitespace()) {
                         if (Downloads.ExtendedDownloaderAutoDownloadThumbnail) {
-                            ProcessThumbnail();
+                            DownloadThumbnail();
                         }
                         else {
                             btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = true;

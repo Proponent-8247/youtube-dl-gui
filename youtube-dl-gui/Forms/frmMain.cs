@@ -935,11 +935,13 @@ public partial class frmMain : LocalizedForm {
             string schema = string.Empty;
             bool BatchSoundSetting = false;
             string BatchCustomArguments = string.Empty;
+            bool BatchUseCustomArguments = false;
             string BatchTime = BatchHelper.CurrentTime;
 
             this.Invoke((Action)delegate {
                 BatchSoundSetting = chkDownloadSound.Checked;
                 BatchCustomArguments = cbCustomArguments.Text;
+                BatchUseCustomArguments = cbCustomArguments.SelectedIndex != 0 && !BatchCustomArguments.IsNullEmptyWhitespace();
                 if (!BatchSoundSetting) { videoArguments += "-nosound"; }
                 BatchQuality = cbQuality.SelectedIndex;
                 BatchFormat = cbFormat.SelectedIndex;
@@ -977,6 +979,9 @@ public partial class frmMain : LocalizedForm {
                         BatchTime = BatchTime,
                         FileNameSchema = schema
                     };
+                    if (BatchUseCustomArguments && (Type == DownloadType.Video || Type == DownloadType.Audio)) {
+                        NewInfo.CustomArguments = BatchCustomArguments;
+                    }
                     switch (Type) {
                         case DownloadType.Video:
                             if (!BatchSoundSetting) {

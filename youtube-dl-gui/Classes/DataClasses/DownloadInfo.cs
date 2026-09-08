@@ -395,7 +395,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                 ArgumentsBuffer.Add("--concurrent-fragments " + Downloads.FragmentThreads);
             }
 
-            if (!BatchDownload) {
+            if (!BatchDownload && PlaylistSelection == PlaylistSelectionType.None) {
                 ArgumentsBuffer.Add("--no-playlist");
             }
 

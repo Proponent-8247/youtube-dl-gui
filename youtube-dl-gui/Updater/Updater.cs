@@ -239,10 +239,6 @@ internal static class Updater {
     /// <param name="Location">The location where the generic downloader should appear.</param>
     /// <returns><see langword="true"/> if the youtube-dl provider update has went through regardless of success; otherwise, <see langword="false"/>.</returns>
     public static bool UpdateYoutubeDl(bool Internal, System.Drawing.Point? Location = null) {
-        if (LatestYoutubeDl is null) {
-            return false;
-        }
-
         if (Internal) {
             if (!Verification.YoutubeDlAvailable) {
                 return false;
@@ -259,6 +255,10 @@ internal static class Updater {
             return true;
         }
         else {
+            if (LatestYoutubeDl is null) {
+                return false;
+            }
+
             if (Verification.YoutubeDlAvailable && !LatestYoutubeDl.IsNewerVersion) {
                 return false;
             }

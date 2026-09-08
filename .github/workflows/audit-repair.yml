@@ -7,7 +7,7 @@ permissions:
   contents: write
 concurrency:
   group: audit-repair-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   repair:
     runs-on: windows-2022

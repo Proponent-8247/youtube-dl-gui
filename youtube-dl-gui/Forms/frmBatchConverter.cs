@@ -7,6 +7,7 @@ public partial class frmBatchConverter : LocalizedProcessingForm {
     private readonly List<string> InputFiles = [];
     private readonly List<string> OutputFiles = [];
     private readonly List<string?> Arguments = [];
+    private readonly object ConversionQueueSync = new();
 
     [MemberNotNullWhen(true, nameof(ConversionThread), nameof(Converter))]
     private bool InProgress { get; set; }
@@ -101,20 +102,24 @@ public partial class frmBatchConverter : LocalizedProcessingForm {
     }
     private void AddItem() {
         if (!string.IsNullOrWhiteSpace(txtBatchConverterInputFile.Text) && !string.IsNullOrWhiteSpace(txtBatchConverterOutputFile.Text)) {
-            InputFiles.Add(txtBatchConverterInputFile.Text);
-            OutputFiles.Add(txtBatchConverterOutputFile.Text);
             ListViewItem NewQueue = new($" {txtBatchConverterInputFile.Text}");
             NewQueue.SubItems.Add(txtBatchConverterOutputFile.Text);
+            string? CustomArgument = null;
             if (string.IsNullOrWhiteSpace(txtBatchConverterCustomConversionArguments.Text)) {
-                Arguments.Add(null);
                 NewQueue.SubItems.Add("(default)");
             }
             else {
-                Arguments.Add(txtBatchConverterCustomConversionArguments.Text);
-                NewQueue.SubItems.Add(txtBatchConverterCustomConversionArguments.Text);
+                CustomArgument = txtBatchConverterCustomConversionArguments.Text;
+                NewQueue.SubItems.Add(CustomArgument);
             }
             NewQueue.ImageIndex = StatusIcon.Waiting;
-            lvBatchConvertQueue.Items.Add(NewQueue);
+
+            lock (ConversionQueueSync) {
+                InputFiles.Add(txtBatchConverterInputFile.Text);
+                OutputFiles.Add(txtBatchConverterOutputFile.Text);
+                Arguments.Add(CustomArgument);
+                lvBatchConvertQueue.Items.Add(NewQueue);
+            }
             btnBatchConverterStartStopExit.Enabled = true;
         }
     }
@@ -158,20 +163,33 @@ public partial class frmBatchConverter : LocalizedProcessingForm {
             btnBatchConverterStartStopExit.Text = Language.GenericStop;
             sbBatchConverter.Text = Language.sbBatchConverterConverting;
             ConversionThread = new(() => {
-                for (int i = 0; i < InputFiles.Count; i++) {
+                for (int i = 0; ; i++) {
+                    string InputFile;
+                    string OutputFile;
+                    string? CustomArgument;
+                    lock (ConversionQueueSync) {
+                        if (i >= InputFiles.Count) {
+                            break;
+                        }
+
+                        InputFile = InputFiles[i];
+                        OutputFile = OutputFiles[i];
+                        CustomArgument = Arguments[i];
+                    }
+
                     lvBatchConvertQueue.Invoke((Action)delegate {
                         lvBatchConvertQueue.Items[i].ImageIndex = StatusIcon.Processing;
                     });
-                    NewInfo = new(InputFiles[i], OutputFiles[i]) {
+                    NewInfo = new(InputFile, OutputFile) {
                         BatchConversion = true,
                     };
 
-                    if (Arguments[i].IsNullEmptyWhitespace()) {
+                    if (CustomArgument.IsNullEmptyWhitespace()) {
                         NewInfo.Type = ConversionType.FfmpegDefault;
                     }
                     else {
                         NewInfo.Type = ConversionType.Custom;
-                        NewInfo.CustomArguments = Arguments[i]!;
+                        NewInfo.CustomArguments = CustomArgument;
                     }
 
                     Converter = new(NewInfo);

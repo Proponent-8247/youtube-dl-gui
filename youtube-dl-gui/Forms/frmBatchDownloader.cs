@@ -12,6 +12,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
     private readonly List<int> DownloadQuality = [];    // List of the quality
     private readonly List<int> DownloadFormat = [];     // List of the formats
     private readonly List<bool> DownloadSoundVBR = [];  // List of if sound/vbr should be downloaded
+    private readonly object DownloadQueueSync = new();
 
     // Bool if the batch download is in progress
     [MemberNotNullWhen(true, nameof(DownloadThread), nameof(Downloader), nameof(NewInfo))]
@@ -323,33 +324,52 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
             btnBatchDownloadStartStopExit.Text = Language.GenericStop;
             string BatchTime = BatchHelper.CurrentTime;
             DownloadThread = new(() => {
-                for (int i = 0; i < DownloadUrls.Count; i++) {
-                    NewInfo = new DownloadInfo(DownloadUrls[i]) {
+                for (int i = 0; ; i++) {
+                    string DownloadUrl;
+                    int DownloadTypeValue;
+                    string DownloadArgument;
+                    int DownloadQualityValue;
+                    int DownloadFormatValue;
+                    bool DownloadSoundVbrValue;
+                    lock (DownloadQueueSync) {
+                        if (i >= DownloadUrls.Count) {
+                            break;
+                        }
+
+                        DownloadUrl = DownloadUrls[i];
+                        DownloadTypeValue = DownloadTypes[i];
+                        DownloadArgument = DownloadArgs[i];
+                        DownloadQualityValue = DownloadQuality[i];
+                        DownloadFormatValue = DownloadFormat[i];
+                        DownloadSoundVbrValue = DownloadSoundVBR[i];
+                    }
+
+                    NewInfo = new DownloadInfo(DownloadUrl) {
                         BatchDownload = true,
                         BatchTime = BatchTime,
                     };
-                    switch (DownloadTypes[i]) {
+                    switch (DownloadTypeValue) {
                         case 0:
                             NewInfo.Type = DownloadType.Video;
-                            NewInfo.VideoQuality = (VideoQualityType)DownloadQuality[i];
-                            NewInfo.VideoFormat = (VideoFormatType)DownloadFormat[i];
-                            NewInfo.SkipAudioForVideos = !DownloadSoundVBR[i];
+                            NewInfo.VideoQuality = (VideoQualityType)DownloadQualityValue;
+                            NewInfo.VideoFormat = (VideoFormatType)DownloadFormatValue;
+                            NewInfo.SkipAudioForVideos = !DownloadSoundVbrValue;
                             break;
                         case 1:
                             NewInfo.Type = DownloadType.Audio;
-                            if (DownloadSoundVBR[i]) {
+                            if (DownloadSoundVbrValue) {
                                 NewInfo.UseVBR = true;
-                                NewInfo.AudioVBRQuality = (AudioVBRQualityType)DownloadQuality[i];
+                                NewInfo.AudioVBRQuality = (AudioVBRQualityType)DownloadQualityValue;
                             }
                             else {
                                 NewInfo.UseVBR = false;
-                                NewInfo.AudioCBRQuality = (AudioCBRQualityType)DownloadQuality[i];
+                                NewInfo.AudioCBRQuality = (AudioCBRQualityType)DownloadQualityValue;
                             }
-                            NewInfo.AudioFormat = (AudioFormatType)DownloadFormat[i];
+                            NewInfo.AudioFormat = (AudioFormatType)DownloadFormatValue;
                             break;
                         case 2:
                             NewInfo.Type = DownloadType.Custom;
-                            NewInfo.CustomArguments = DownloadArgs[i];
+                            NewInfo.CustomArguments = DownloadArgument;
                             break;
                         default:
                             continue;
@@ -459,41 +479,43 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
             };
 
             lvi.SubItems[0].Text = $" {URL}";
-            switch (cbBatchDownloadType.SelectedIndex) {
-                case -1:
-                    System.Media.SystemSounds.Asterisk.Play();
-                    return;
-                case 0:
-                    lvi.SubItems.Add("Video");
-                    DownloadTypes.Add(0);
-                    break;
-                case 1:
-                    lvi.SubItems.Add("Audio");
-                    DownloadTypes.Add(1);
-                    break;
-                case 2:
-                    lvi.SubItems.Add("Custom");
-                    DownloadTypes.Add(2);
-                    break;
-            }
-            if (cbBatchDownloadType.SelectedIndex != 2) {
-                if (cbBatchDownloadType.SelectedIndex == 0) {
-                    lvi.SubItems.Add($"Q: {cbBatchQuality.GetItemText(cbBatchQuality.SelectedItem)}, F: {cbBatchFormat.GetItemText(cbBatchFormat.SelectedItem)}, {(chkBatchDownloaderSoundVBR.Checked ? "sound" : "no sound")}");
+            lock (DownloadQueueSync) {
+                switch (cbBatchDownloadType.SelectedIndex) {
+                    case -1:
+                        System.Media.SystemSounds.Asterisk.Play();
+                        return;
+                    case 0:
+                        lvi.SubItems.Add("Video");
+                        DownloadTypes.Add(0);
+                        break;
+                    case 1:
+                        lvi.SubItems.Add("Audio");
+                        DownloadTypes.Add(1);
+                        break;
+                    case 2:
+                        lvi.SubItems.Add("Custom");
+                        DownloadTypes.Add(2);
+                        break;
                 }
-                else if (cbBatchDownloadType.SelectedIndex == 1) {
-                    lvi.SubItems.Add($"Q: {cbBatchQuality.GetItemText(cbBatchQuality.SelectedItem)}, F: {cbBatchFormat.GetItemText(cbBatchFormat.SelectedItem)}, {(chkBatchDownloaderSoundVBR.Checked ? "vbr" : "no vbr")}");
+                if (cbBatchDownloadType.SelectedIndex != 2) {
+                    if (cbBatchDownloadType.SelectedIndex == 0) {
+                        lvi.SubItems.Add($"Q: {cbBatchQuality.GetItemText(cbBatchQuality.SelectedItem)}, F: {cbBatchFormat.GetItemText(cbBatchFormat.SelectedItem)}, {(chkBatchDownloaderSoundVBR.Checked ? "sound" : "no sound")}");
+                    }
+                    else if (cbBatchDownloadType.SelectedIndex == 1) {
+                        lvi.SubItems.Add($"Q: {cbBatchQuality.GetItemText(cbBatchQuality.SelectedItem)}, F: {cbBatchFormat.GetItemText(cbBatchFormat.SelectedItem)}, {(chkBatchDownloaderSoundVBR.Checked ? "vbr" : "no vbr")}");
+                    }
                 }
+                else {
+                    lvi.SubItems.Add(cbArguments.Text);
+                }
+                lvi.ImageIndex = (int)StatusIcon.Waiting;
+                DownloadArgs.Add(cbArguments.Text);
+                DownloadUrls.Add(URL);
+                DownloadQuality.Add(cbBatchQuality.SelectedIndex);
+                DownloadFormat.Add(cbBatchFormat.SelectedIndex);
+                DownloadSoundVBR.Add(chkBatchDownloaderSoundVBR.Checked);
+                lvBatchDownloadQueue.Items.Add(lvi);
             }
-            else {
-                lvi.SubItems.Add(cbArguments.Text);
-            }
-            lvi.ImageIndex = (int)StatusIcon.Waiting;
-            DownloadArgs.Add(cbArguments.Text);
-            DownloadUrls.Add(URL);
-            DownloadQuality.Add(cbBatchQuality.SelectedIndex);
-            DownloadFormat.Add(cbBatchFormat.SelectedIndex);
-            DownloadSoundVBR.Add(chkBatchDownloaderSoundVBR.Checked);
-            lvBatchDownloadQueue.Items.Add(lvi);
             SaveCurrentSelection();
 
             btnBatchDownloadStartStopExit.Enabled = true;

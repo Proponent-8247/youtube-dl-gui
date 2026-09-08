@@ -192,6 +192,16 @@ public partial class frmConverter : LocalizedProcessingForm {
             Log.Write("Conversion cannot conintue.");
             return;
         }
+        if (!CurrentConversion.FullCustomArguments
+        && string.Equals(
+            System.IO.Path.GetFullPath(CurrentConversion.InputFile),
+            System.IO.Path.GetFullPath(CurrentConversion.OutputFile!),
+            StringComparison.OrdinalIgnoreCase)) {
+            rtbConsoleOutput.AppendText("The output file cannot be the same as the input file.");
+            CurrentConversion.Status = ConversionStatus.ProgramError;
+            Log.Write("Conversion cannot overwrite its input file.");
+            return;
+        }
 
         Log.Write($"Starting conversion for \"{CurrentConversion.InputFile}\" -> \"{CurrentConversion.OutputFile}\".");
         if (CurrentConversion.FullCustomArguments && CurrentConversion.CustomArguments.IsNullEmptyWhitespace()) {
@@ -209,7 +219,7 @@ public partial class frmConverter : LocalizedProcessingForm {
         CurrentConversion.Status = ConversionStatus.Preparing;
 
         ArgumentList ArgumentsBuffer = new(CurrentConversion.FullCustomArguments ?
-            CurrentConversion.CustomArguments : "-i \"" + CurrentConversion.InputFile + "\"");
+            CurrentConversion.CustomArguments : "-y -i \"" + CurrentConversion.InputFile + "\"");
 
         #region ffmpeg path
         if (!Verification.FfmpegAvailable) {

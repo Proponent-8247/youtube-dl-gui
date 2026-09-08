@@ -146,7 +146,16 @@ public partial class frmMerger : LocalizedForm {
         using SaveFileDialog sfd = new();
         sfd.Title = "Select a place to save the merged file to";
         if (sfd.ShowDialog() == DialogResult.OK) {
-            ConvertInfo MergerInfo = new(Argument + $" \"{sfd.FileName}\"");
+            string OutputPath = Path.GetFullPath(sfd.FileName);
+            if (LoadedMediaFiles.Any(Media =>
+                Media.Format?.filename is string InputPath
+                && !InputPath.IsNullEmptyWhitespace()
+                && string.Equals(Path.GetFullPath(InputPath), OutputPath, StringComparison.OrdinalIgnoreCase))) {
+                Log.MessageBox("The merge output cannot overwrite one of its input files.");
+                return;
+            }
+
+            ConvertInfo MergerInfo = new("-y " + Argument + $" \"{sfd.FileName}\"");
             frmConverter Merger = new(MergerInfo);
             Merger.Show();
         }

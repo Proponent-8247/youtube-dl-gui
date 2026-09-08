@@ -190,9 +190,11 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
     /// </summary>
     /// <param name="ForceRedownload">Whether to redownload the thumbnail regardless of if it already exists in memory.</param>
     /// <returns>An <see cref="Image"/> of the thumbnail.</returns>
-    public Image? DownloadThumbnail(bool ForceRedownload) {
+    public Image? DownloadThumbnail(bool ForceRedownload) => DownloadThumbnail(ForceRedownload, System.Threading.CancellationToken.None);
+    public Image? DownloadThumbnail(bool ForceRedownload, System.Threading.CancellationToken Cancellation) {
+        Cancellation.ThrowIfCancellationRequested();
         if (MediaData is not null && (Thumbnail is null || ForceRedownload)) {
-            Thumbnail = MediaData.GetThumbnail();
+            Thumbnail = MediaData.GetThumbnail(Cancellation);
         }
 
         return Thumbnail;

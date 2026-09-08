@@ -347,7 +347,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         llbLink.MaximumSize = new(this.Width - 32, llbLink.Height);
     }
     private void frmExtendedDownloader_FormClosing(object sender, FormClosingEventArgs e) {
-        if (DeferCloseForWorkers(ProcessingThread, QueueResolverThread)) {
+        if (DeferCloseForWorkers(ProcessingThread, QueueResolverThread, ThumbnailThread)) {
             CancellationRequested = true;
             RetrievalCancellation.Cancel();
             Status = DownloadStatus.AbortForClose;
@@ -374,9 +374,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     }
                     ProcessingThread.Abort();
                 }
-                if (ThumbnailThread?.IsAlive == true) {
-                    ThumbnailThread.Abort();
-                }
+
                 if (QueueResolverThread?.IsAlive == true) {
                     QueueResolverThread.Abort();
                 }
@@ -501,13 +499,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         rtbVerbose.AppendLine(Verification.GetYoutubeDlProvider(false) + " as the download provider.");
         ProcessingThread.Start();
     }
-    private void ProcessThumbnail() {
-        if (MediaDetails is null) {
-            return;
-        }
+    private void ProcessThumbnail(ExtendedMediaDetails Media, CancellationToken Cancellation) {
 
         try {
-            Image? Thumb = MediaDetails.DownloadThumbnail();
+            Image? Thumb = Media.DownloadThumbnail(false, Cancellation);
             if (Thumb is null) {
                 if (!this.IsDisposed && this.IsHandleCreated) {
                     try {
@@ -521,22 +516,21 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 return;
             }
 
-            bool ThumbnailAssigned = false;
             if (!this.IsDisposed && this.IsHandleCreated) {
                 try {
                     this.Invoke(() => {
+                        if (WorkerClosePending || !ReferenceEquals(MediaDetails, Media)) return;
                         pbThumbnail.Image = Thumb;
-                        ThumbnailAssigned = true;
                         lbExtendedDownloaderDownloadingThumbnail.Visible = false;
                         btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = false;
                     });
                 }
                 catch (InvalidOperationException) { }
             }
-            if (!ThumbnailAssigned) {
-                Thumb.Dispose();
-            }
+            // The media model owns the cached image, including when it is not displayed.
+            // Form closure waits for this worker before disposing that model.
         }
+        catch (OperationCanceledException) when (Cancellation.IsCancellationRequested) { }
         catch (ThreadAbortException) { throw; }
         catch (Exception ex) {
             if (!this.IsDisposed && this.IsHandleCreated) {
@@ -548,12 +542,14 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 }
                 catch (InvalidOperationException) { }
             }
-            Log.Write($"Thumbnail processing failed for \"{MediaDetails.URL}\": {ex}");
+            Log.Write($"Thumbnail processing failed for \"{Media.URL}\": {ex}");
         }
     }
     private void DownloadThumbnail() {
-        if (ThumbnailThread?.IsAlive != true && MediaDetails is not null) {
-            ThumbnailThread = new(ProcessThumbnail) {
+        if (!WorkerClosePending && ThumbnailThread?.IsAlive != true && MediaDetails is not null) {
+            ExtendedMediaDetails Media = MediaDetails;
+            CancellationToken Cancellation = RetrievalCancellation.Token;
+            ThumbnailThread = new(() => ProcessThumbnail(Media, Cancellation)) {
                 Name = $"ThumbThread {MediaDetails.URL}",
                 IsBackground = true,
                 Priority = ThreadPriority.BelowNormal

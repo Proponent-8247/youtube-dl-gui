@@ -126,61 +126,65 @@ internal sealed class YoutubeDlData {
         return null;
     }
 
-    public Image? GetThumbnail() {
+    public Image? GetThumbnail() => GetThumbnail(CancellationToken.None);
+
+    public Image? GetThumbnail(CancellationToken Cancellation) {
+        Cancellation.ThrowIfCancellationRequested();
         if (this.ThumbnailLink.IsNullEmptyWhitespace()) {
             Log.Write("Cannot download thumbnail, thumb url is null/empty/whitespace.");
             return null;
         }
 
+        const int MaximumThumbnailBytes = 16 * 1024 * 1024;
+        Uri ThumbnailUri = new(this.ThumbnailLink);
         Log.Write($"Downloading the thumbnail for \"{URL}\".");
-
-        using WebClient wc = new();
-        byte[] thumbBytes = wc.DownloadData(this.ThumbnailLink);
-
-        if (this.ThumbnailLink.Split('?')[0].EndsWith(".webp")) {
-            Log.Write("The thumbnail is a .webp file and must be converted to be viewable.");
+        using ManagedHttpClient Client = new();
+        byte[] ThumbBytes = Client.DownloadBytesTaskAsync(ThumbnailUri, Cancellation, MaximumThumbnailBytes).GetAwaiter().GetResult();
+        bool Webp = ThumbnailUri.AbsolutePath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
+            || (ThumbBytes.Length >= 12 && Encoding.ASCII.GetString(ThumbBytes, 0, 4) == "RIFF"
+                && Encoding.ASCII.GetString(ThumbBytes, 8, 4) == "WEBP");
+        if (Webp) {
             if (!Verification.FfmpegAvailable) {
                 Verification.RefreshFFmpegLocation();
-                if (!Verification.FfmpegAvailable) {
-                    return null;
-                }
+                if (!Verification.FfmpegAvailable) return null;
             }
 
-            string ThumbPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + $"\\temp\\{DateTime.Now:yyyyMMddhmmssfffffff}s";
-            string WebpPath = ThumbPath + ".webp";
-            string JpgPath = ThumbPath + ".jpg";
-            File.WriteAllBytes(WebpPath, thumbBytes);
-
+            string DirectoryPath = Path.Combine(Path.GetTempPath(), "youtube-dl-gui-thumb-" + Guid.NewGuid().ToString("N"));
+            string WebpPath = Path.Combine(DirectoryPath, "thumbnail.webp");
+            string JpgPath = Path.Combine(DirectoryPath, "thumbnail.jpg");
+            Directory.CreateDirectory(DirectoryPath);
             try {
-                //-vf \"scale=1920:-1\"
-                using Process ffmpegConvert = new() {
-                    StartInfo = new(Verification.FFmpegPath) {
-                        Arguments = $"-nostats -hide_banner -i \"{WebpPath}\" \"{JpgPath}\"",
-                        CreateNoWindow = true,
-                        UseShellExecute = false,
-                        WindowStyle = ProcessWindowStyle.Hidden,
-                    }
-                };
-                ffmpegConvert.Start();
-                ffmpegConvert.WaitForExit();
-
-                if (!File.Exists(JpgPath))
-                    return null;
-
-                thumbBytes = File.ReadAllBytes(JpgPath);
+                Cancellation.ThrowIfCancellationRequested();
+                File.WriteAllBytes(WebpPath, ThumbBytes);
+                OwnedProcess.Result Result = OwnedProcess.Run(new ProcessStartInfo(Verification.FFmpegPath) {
+                    Arguments = "-nostdin -nostats -hide_banner -i " + ArgumentList.EscapeArgument(WebpPath)
+                        + " -frames:v 1 " + ArgumentList.EscapeArgument(JpgPath),
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                }, Cancellation, 60_000, 1024 * 1024);
+                if (Result.ExitCode != 0 || !File.Exists(JpgPath)) return null;
+                if (new FileInfo(JpgPath).Length > MaximumThumbnailBytes) {
+                    throw new InvalidDataException("The converted thumbnail exceeds the permitted size.");
+                }
+                ThumbBytes = File.ReadAllBytes(JpgPath);
             }
             finally {
-                if (File.Exists(WebpPath)) {
-                    File.Delete(WebpPath);
+                try {
+                    if (File.Exists(WebpPath)) File.Delete(WebpPath);
+                    if (File.Exists(JpgPath)) File.Delete(JpgPath);
+                    Directory.Delete(DirectoryPath);
                 }
-                if (File.Exists(JpgPath)) {
-                    File.Delete(JpgPath);
-                }
+                catch (IOException ex) { Log.Write($"Could not remove temporary thumbnail files: {ex.Message}"); }
+                catch (UnauthorizedAccessException ex) { Log.Write($"Could not remove temporary thumbnail files: {ex.Message}"); }
             }
         }
 
-        using MemoryStream Stream = new(thumbBytes);
+        Cancellation.ThrowIfCancellationRequested();
+        using MemoryStream Stream = new(ThumbBytes);
         using Image Thumbnail = Image.FromStream(Stream);
+        if ((long)Thumbnail.Width * Thumbnail.Height > 16 * 1024 * 1024) {
+            throw new InvalidDataException("The thumbnail dimensions exceed the permitted preview size.");
+        }
+        Cancellation.ThrowIfCancellationRequested();
         return new Bitmap(Thumbnail);
     }
 

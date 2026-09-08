@@ -47,6 +47,7 @@ internal static class Updater {
     /// Represents the latest youtube-dl provider release.
     /// </summary>
     public static GithubData? LatestYoutubeDl { get; private set; }
+    private static int LatestYoutubeDlType = -1;
     #endregion
 
     #region Major methods
@@ -169,8 +170,8 @@ internal static class Updater {
     /// </summary>
     /// <param name="ForceCheck"></param>
     public static async Task<bool> CheckForYoutubeDlUpdate(bool ForceCheck = false) {
-        if (LatestYoutubeDl is null || LatestYoutubeDl.VersionTag is null || ForceCheck) {
-            int TypeIndex = Verification.GetYoutubeDlType();
+        int TypeIndex = Verification.GetYoutubeDlType();
+        if (LatestYoutubeDl is null || LatestYoutubeDl.VersionTag is null || LatestYoutubeDlType != TypeIndex || ForceCheck) {
             bool CanRetry;
 
             do {
@@ -545,11 +546,12 @@ internal static class Updater {
         GithubData CurrentRelease = Json.JsonDeserialize<GithubData>()
             ?? throw new ApiParsingException("Could not deserialize provider release metadata.", Url);
 
-        if (LatestYoutubeDl is not null && LatestYoutubeDl.VersionTag == CurrentRelease.VersionTag) {
+        if (LatestYoutubeDlType == GitID && LatestYoutubeDl is not null && LatestYoutubeDl.VersionTag == CurrentRelease.VersionTag) {
             return;
         }
 
         LatestYoutubeDl = CurrentRelease;
+        LatestYoutubeDlType = GitID;
     }
     #endregion
 }

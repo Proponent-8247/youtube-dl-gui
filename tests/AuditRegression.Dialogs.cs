@@ -7,6 +7,8 @@ internal static partial class AuditRegression {
     private static Timer DialogMonitor;
     private static readonly List<string> UnexpectedDialogs = new List<string>();
     private static readonly HashSet<Form> PendingDialogs = new HashSet<Form>();
+    static partial void RunIpcTests();
+    static partial void RunUpdaterHandshakeTests();
     static partial void RunSecurityBoundaryTests() {
         // Language/log initialization has already installed the application's handler.
         // Capture its real UI error instead of allowing an unattended modal dialog to hang CI.
@@ -28,6 +30,7 @@ internal static partial class AuditRegression {
             }
         };
         DialogMonitor.Start();
+        RunIpcTests();
     }
     private static IEnumerable<string> DiagnosticText(Control control) {
         if (control is TextBoxBase && !string.IsNullOrEmpty(control.Text)) yield return control.Text;
@@ -35,6 +38,7 @@ internal static partial class AuditRegression {
             foreach (string text in DiagnosticText(child)) yield return text;
     }
     static partial void RunUpdaterTests() {
+        RunUpdaterHandshakeTests();
         Test("Harness.NoUnexpectedApplicationDialogs", () => {
             lock (UnexpectedDialogs) Require(UnexpectedDialogs.Count == 0, string.Join("\n", UnexpectedDialogs));
         });

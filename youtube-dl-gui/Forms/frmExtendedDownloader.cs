@@ -576,6 +576,14 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         ProcessingThread = new(() => {
             Status = DownloadStatus.Downloading;
             string? Msg = null;
+            object MsgSync = new();
+            void ClearMessage(string CurrentMessage) {
+                lock (MsgSync) {
+                    if (ReferenceEquals(Msg, CurrentMessage)) {
+                        Msg = null;
+                    }
+                }
+            }
             int MsgIndex = -1;
 
             DownloadProcess = new() {
@@ -598,13 +606,15 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     switch (e.Data[..8].ToLowerInvariant()) {
                         case "[downloa": case "[ffmpeg]":
                         case "[embedsu": case "[metadat": {
-                            Msg = e.Data;
+                            lock (MsgSync) {
+                                Msg = e.Data;
+                            }
                         } break;
 
                         default: {
-                            Msg = e.Data.ToLowerInvariant();
-                            if ((MsgIndex = Msg.IndexOf(']')) > -1) {
-                                switch (Msg[..(MsgIndex + 1)]) {
+                            string OutputMessage = e.Data.ToLowerInvariant();
+                            if ((MsgIndex = OutputMessage.IndexOf(']')) > -1) {
+                                switch (OutputMessage[..(MsgIndex + 1)]) {
                                     case "[merger]": {
                                         Status = DownloadStatus.MergingFiles;
                                         pbStatus.Invoke(() => {
@@ -642,7 +652,6 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                     pbStatus.Invoke(() => pbStatus.Value = 0);
                                 }
                             }
-                            Msg = null;
                             rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data));
                         } break;
                     }
@@ -697,10 +706,14 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     break;
                 }
 
-                if (Msg is not null) {
-                    string Line = Msg.ReplaceWhitespace();
+                string? CurrentMsg;
+                lock (MsgSync) {
+                    CurrentMsg = Msg;
+                }
+                if (CurrentMsg is not null) {
+                    string Line = CurrentMsg.ReplaceWhitespace();
                     if (Line.Length < 5) {
-                        Msg = null;
+                        ClearMessage(CurrentMsg);
                         continue;
                     }
 
@@ -746,7 +759,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                 pbStatus.Text = Language.pbDownloadProgressFfmpegPostProcessing;
                                 pbStatus.Value = 100;
                             });
-                            Msg = null;
+                            ClearMessage(CurrentMsg);
                         } break;
                         case "[embe": {
                             Status = DownloadStatus.EmbeddingSubtitles;
@@ -756,7 +769,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                 pbStatus.Text = Language.pbDownloadProgressEmbeddingSubtitles;
                                 pbStatus.Value = 100;
                             });
-                            Msg = null;
+                            ClearMessage(CurrentMsg);
                         } break;
                         case "[meta": {
                             Status = DownloadStatus.EmbeddingMetadata;
@@ -766,7 +779,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                 pbStatus.Text = Language.pbDownloadProgressEmbeddingMetadata;
                                 pbStatus.Value = 100;
                             });
-                            Msg = null;
+                            ClearMessage(CurrentMsg);
                         } break;
                     }
                 }
@@ -864,6 +877,14 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         ProcessingThread = new(() => {
             string? args = null;
             string? Msg = null;
+            object MsgSync = new();
+            void ClearMessage(string CurrentMessage) {
+                lock (MsgSync) {
+                    if (ReferenceEquals(Msg, CurrentMessage)) {
+                        Msg = null;
+                    }
+                }
+            }
             float Percentage = 0;
             string ETA = "Unknown";
             ExtendedMediaDetails MediaDetails;
@@ -916,26 +937,27 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                         switch (e.Data[..8].ToLower()) {
                             case "[downloa": case "[ffmpeg]":
                             case "[embedsu": case "[metadat": {
-                                Msg = e.Data;
+                                lock (MsgSync) {
+                                    Msg = e.Data;
+                                }
                             } break;
 
                             default: {
-                                Msg = e.Data.ToLower();
-                                if (Msg.StartsWith("[merger]")) {
+                                string OutputMessage = e.Data.ToLower();
+                                if (OutputMessage.StartsWith("[merger]")) {
                                     pbStatus.Invoke(() => {
                                         pbStatus.Style = ProgressBarStyle.Marquee;
                                         pbStatus.Value = pbStatus.Maximum;
                                         pbStatus.Text = Language.pbDownloadProgressMergingFormats;
                                     });
                                 }
-                                else if (Msg.StartsWith("[videoconvertor]")) { // Converter?
+                                else if (OutputMessage.StartsWith("[videoconvertor]")) { // Converter?
                                     pbStatus.Invoke(() => {
                                         pbStatus.Style = ProgressBarStyle.Marquee;
                                         pbStatus.Value = pbStatus.Maximum;
                                         pbStatus.Text = Language.pbDownloadProgressConverting;
                                     });
                                 }
-                                Msg = null;
                                 rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data));
                             } break;
                         }
@@ -979,10 +1001,14 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                         break;
                     }
 
-                    if (Msg is not null) {
-                        string Line = Msg.ReplaceWhitespace();
+                    string? CurrentMsg;
+                    lock (MsgSync) {
+                        CurrentMsg = Msg;
+                    }
+                    if (CurrentMsg is not null) {
+                        string Line = CurrentMsg.ReplaceWhitespace();
                         if (Line.Length < 5) {
-                            Msg = null;
+                            ClearMessage(CurrentMsg);
                             continue;
                         }
 
@@ -1025,7 +1051,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                     pbStatus.Text = Language.pbDownloadProgressFfmpegPostProcessing;
                                     pbStatus.Value = 100;
                                 });
-                                Msg = null;
+                                ClearMessage(CurrentMsg);
                             } break;
                             case "[embe": {
                                 rtbVerbose.Invoke(() => rtbVerbose.AppendLine(Line));
@@ -1034,7 +1060,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                     pbStatus.Text = Language.pbDownloadProgressEmbeddingSubtitles;
                                     pbStatus.Value = 100;
                                 });
-                                Msg = null;
+                                ClearMessage(CurrentMsg);
                             } break;
                             case "[meta": {
                                 rtbVerbose.Invoke(() => rtbVerbose.AppendLine(Line));
@@ -1043,7 +1069,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                     pbStatus.Text = Language.pbDownloadProgressEmbeddingMetadata;
                                     pbStatus.Value = 100;
                                 });
-                                Msg = null;
+                                ClearMessage(CurrentMsg);
                             } break;
                         }
                     }

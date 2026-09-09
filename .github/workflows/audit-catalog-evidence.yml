@@ -1,0 +1,58 @@
+name: Audit catalog evidence
+
+on:
+  push:
+    branches: [audit-fixes]
+    paths: ['.github/workflows/audit-catalog-evidence.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export full audit ancestry without changing source
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import datetime, hashlib, json, pathlib, subprocess
+          def git(*args):
+              return subprocess.check_output(['git', *args]).decode('utf-8', 'replace')
+          out = pathlib.Path('catalog-evidence')
+          out.mkdir()
+          master = git('rev-parse', 'refs/remotes/origin/master').strip()
+          head = git('rev-parse', 'HEAD').strip()
+          base = git('merge-base', master, head).strip()
+          shas = git('rev-list', '--reverse', base + '..' + head).splitlines()
+          commits = []
+          for sha in shas:
+              subject = git('show', '-s', '--format=%s', sha).strip()
+              paths = git('diff-tree', '--root', '--no-commit-id', '--name-only', '-r', sha).splitlines()
+              entry = {'sha': sha, 'subject': subject, 'parents': git('show', '-s', '--format=%P', sha).strip().split(), 'paths': paths}
+              commits.append(entry)
+              if any(p.endswith(('.cs', '.csproj', '.projitems')) for p in paths):
+                  patch = git('show', '--format=fuller', '--no-ext-diff', sha, '--', '*.cs', '*.csproj', '*.projitems')
+                  (out / (sha + '.patch')).write_text(patch, encoding='utf-8')
+          (out / 'history.json').write_text(json.dumps({'head': head, 'master': master, 'merge_base': base, 'exported_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'commits': commits}, indent=2), encoding='utf-8')
+          (out / 'history.txt').write_text('\n'.join(c['sha'] + ' ' + c['subject'] for c in commits) + '\n', encoding='utf-8')
+          (out / 'master-to-head.diff').write_text(git('diff', '--no-ext-diff', master, head, '--', '*.cs', '*.csproj', '*.projitems'), encoding='utf-8')
+          hashes = ['%s  %s' % (hashlib.sha256(p.read_bytes()).hexdigest(), p.name) for p in sorted(out.iterdir()) if p.is_file()]
+          (out / 'SHA256SUMS.txt').write_text('\n'.join(hashes) + '\n', encoding='ascii')
+          print('Exported', len(commits), 'audit-branch commits from merge base', base)
+          PY
+          git diff --exit-code
+      - name: Retain full catalog evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: audit-catalog-${{ github.sha }}
+          path: catalog-evidence/
+          retention-days: 30
+          if-no-files-found: error

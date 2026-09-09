@@ -63,12 +63,13 @@ internal static class Updater {
             return null;
         }
 
+        bool IncludePreReleases = General.DownloadBetaVersions;
         try {
-            if (ForceCheck || (General.DownloadBetaVersions ? LastCheckedAllRelease is null : LastCheckedLatestRelease is null)) {
-                await RefreshRelease();
+            if (ForceCheck || (IncludePreReleases ? LastCheckedAllRelease is null : LastCheckedLatestRelease is null)) {
+                await RefreshRelease(IncludePreReleases);
             }
 
-            LastChecked = General.DownloadBetaVersions ? LastCheckedAllRelease : LastCheckedLatestRelease;
+            LastChecked = IncludePreReleases ? LastCheckedAllRelease : LastCheckedLatestRelease;
             return LastChecked?.IsNewerVersion == true;
         }
         finally {
@@ -88,14 +89,15 @@ internal static class Updater {
         UpdateToken = new();
     }
     public async static void ShowUpdateForm(bool AllowSkip) {
-        if (General.DownloadBetaVersions ? LastCheckedAllRelease is null : LastCheckedLatestRelease is null) {
-            await RefreshRelease();
+        bool IncludePreReleases = General.DownloadBetaVersions;
+        if (IncludePreReleases ? LastCheckedAllRelease is null : LastCheckedLatestRelease is null) {
+            await RefreshRelease(IncludePreReleases);
             if (LastChecked?.IsNewerVersion != true) {
                 return;
             }
         }
 
-        LastChecked = General.DownloadBetaVersions ? LastCheckedAllRelease : LastCheckedLatestRelease;
+        LastChecked = IncludePreReleases ? LastCheckedAllRelease : LastCheckedLatestRelease;
         if (LastChecked is null) {
             return;
         }
@@ -111,7 +113,7 @@ internal static class Updater {
             case DialogResult.Ignore when AllowSkip: {
                 Log.Write($"Ignoring update v{LastChecked.Version}");
 
-                if (General.DownloadBetaVersions) {
+                if (IncludePreReleases) {
                     if (LastCheckedAllRelease is not null) {
                         Initialization.SkippedBetaVersion = LastCheckedAllRelease.Version;
                     }
@@ -503,8 +505,8 @@ internal static class Updater {
     /// <summary>
     /// Refreshes the release data within the application.
     /// </summary>
-    private static async Task RefreshRelease() {
-        string ReleaseUrl = (General.DownloadBetaVersions ? GithubLinks.GithubAllReleasesJson : GithubLinks.GithubLatestJson)
+    private static async Task RefreshRelease(bool IncludePreReleases) {
+        string ReleaseUrl = (IncludePreReleases ? GithubLinks.GithubAllReleasesJson : GithubLinks.GithubLatestJson)
             .Format("murrty", Language.ApplicationName);
         string? Json = await GetJSON(ReleaseUrl);
 
@@ -514,7 +516,7 @@ internal static class Updater {
 
         GithubData CurrentCheck;
 
-        if (General.DownloadBetaVersions) {
+        if (IncludePreReleases) {
             GithubData[] Releases = Json.JsonDeserialize<GithubData[]>()
                 ?? throw new ApiParsingException("Could not deserialize release metadata.", ReleaseUrl);
             CurrentCheck = LastCheckedAllRelease = GithubData.GetNewestRelease(Releases);

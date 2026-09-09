@@ -42,7 +42,7 @@ public static class DownloadHelper {
         //new(RegexPrefix + "", RegexOptions.Compiled),
     ];
 
-    private static readonly Regex BasicUrlRegex = new(@"([^\r\n\t\f\v]){1,}\.([^\r\n\t\f\v]){1,}", RegexOptions.Compiled);
+    private static readonly Regex BasicUrlRegex = new(@"[^\r\n\t\f\v]\.[^\r\n\t\f\v]", RegexOptions.Compiled);
 
     public static bool IsReddit(string Url) => CompiledRegex[2].IsMatch(Url);
 

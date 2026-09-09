@@ -23,6 +23,21 @@ internal static class ThumbnailFixture {
             return 0;
         }
         string pid = Environment.GetEnvironmentVariable("YTDL_AUDIT_PID_FILE");
+        if (Array.IndexOf(args, "--simulate") >= 0 && Environment.GetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE") == "flood") {
+            File.WriteAllText(pid, Process.GetCurrentProcess().Id.ToString());
+            Thread errors = new Thread(() => {
+                for (int i = 0; i < 2000; i++) { Console.Error.WriteLine("audit stress stderr " + i); Thread.Sleep(1); }
+            });
+            errors.IsBackground = true;
+            errors.Start();
+            for (int i = 0; i < 2000; i++) {
+                Console.WriteLine(i % 3 == 0 ? "[download] 12.5% of 10MiB at 1MiB/s ETA 00:10" : "audit stress stdout " + i);
+                Thread.Sleep(1);
+            }
+            errors.Join();
+            Thread.Sleep(Timeout.Infinite);
+            return 0;
+        }
         if (args.Length != 0 && args[0] == "--tool-hold") {
             File.WriteAllText(pid + ".child", Process.GetCurrentProcess().Id.ToString());
             Thread.Sleep(Timeout.Infinite);

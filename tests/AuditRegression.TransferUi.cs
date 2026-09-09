@@ -13,10 +13,18 @@ internal static partial class AuditRegression {
         }
         Require(condition(), message);
     }
-    private static void CloseLiveTransfer(string kind) {
+    private static void CloseLiveTransfer(string kind, bool flood = false) {
         string pidFile = Path.Combine(Environment.CurrentDirectory, "ui-" + kind + "-" + Guid.NewGuid().ToString("N") + ".pid");
-        Environment.SetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE", "hang");
+        Environment.SetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE", flood ? "flood" : "hang");
         Environment.SetEnvironmentVariable("YTDL_AUDIT_PID_FILE", pidFile);
+        Type verification = T("youtube_dl_gui.Verification");
+        object oldDownloader = verification.GetProperty("YoutubeDlPath", All).GetValue(null, null);
+        object oldConverter = verification.GetProperty("FFmpegPath", All).GetValue(null, null);
+        if (flood) {
+            string fixture = Path.Combine(Path.GetDirectoryName(Self), "ThumbnailFixture.exe");
+            Set(verification, null, "YoutubeDlPath", fixture);
+            Set(verification, null, "FFmpegPath", fixture);
+        }
         Form form = null;
         Thread worker = null;
         // Program.Main normally owns this handler. Closing a real processing form
@@ -53,6 +61,10 @@ internal static partial class AuditRegression {
             PumpUntil(() => File.Exists(pidFile), 10000, "The " + kind + " transfer fixture did not start");
             worker = (Thread)(kind == "extended" ? Get(form, "ProcessingThread") : Field(form, kind == "quick" ? "DownloadThread" : "ConverterThread"));
             Require(worker != null && worker.IsAlive, "Transfer worker is not running");
+            if (flood) {
+                TextBoxBase console = (TextBoxBase)Field(form, kind == "converter" ? "rtbConsoleOutput" : "rtbVerbose");
+                PumpUntil(() => console.Text.Contains("audit stress"), 5000, "No live output reached the transfer form");
+            }
             form.Close();
             PumpUntil(() => !worker.IsAlive && form.IsDisposed, 12000, "Close did not complete after cancelling the " + kind + " transfer");
             AssertGone(pidFile);
@@ -63,6 +75,8 @@ internal static partial class AuditRegression {
             if (worker != null) PumpUntil(() => !worker.IsAlive, 5000, "Transfer test left a worker running");
             Environment.SetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE", null);
             Environment.SetEnvironmentVariable("YTDL_AUDIT_PID_FILE", null);
+            Set(verification, null, "YoutubeDlPath", oldDownloader);
+            Set(verification, null, "FFmpegPath", oldConverter);
             handler.Dispose();
             Set(T("youtube_dl_gui.Program"), null, "QueueHandler", null);
         }
@@ -72,6 +86,12 @@ internal static partial class AuditRegression {
         Test("D006.QuickCloseCompletesAfterCleanup", () => CloseLiveTransfer("quick"));
         Test("D006.ConverterCloseCompletesAfterCleanup", () => CloseLiveTransfer("converter"));
         Test("D006.ExtendedCloseCompletesAfterCleanup", () => CloseLiveTransfer("extended"));
+        foreach (string kind in new[] { "quick", "converter", "extended" }) {
+            string captured = kind;
+            Test("Stress." + captured + "CloseDuringConcurrentOutput", () => {
+                for (int repeat = 0; repeat < 3; repeat++) CloseLiveTransfer(captured, true);
+            });
+        }
         RunConversionOptionTests();
     }
 }

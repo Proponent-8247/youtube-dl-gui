@@ -25,16 +25,17 @@ internal static class ReviewObservations {
     static int Main(string[] args) {
         if (args.Length != 2) return 44;
         try {
+            // Subscribe before the application's diagnostic handler can open a modal dialog.
+            if (args[1] == "batch-quotes") AppDomain.CurrentDomain.UnhandledException += (sender, e) => {
+                Console.WriteLine("OBSERVED unhandled batch worker: " + e.ExceptionObject);
+                Console.Out.Flush();
+                Environment.Exit(e.ExceptionObject is ArgumentNullException ? 42 : 44);
+            };
             app = Assembly.LoadFrom(Path.GetFullPath(args[0]));
             File.WriteAllText("youtube-dl-gui.ini", "[youtube-dl-gui]\r\nfirstTime=False\r\nCheckForUpdatesOnLaunch=False\r\nAutoUpdateYoutubeDl=False\r\n");
             T("Language").GetMethod("LoadInternalEnglish", Flags).Invoke(null, null);
             switch (args[1]) {
                 case "batch-quotes": {
-                    AppDomain.CurrentDomain.UnhandledException += (sender, e) => {
-                        Console.WriteLine("OBSERVED unhandled batch worker: " + e.ExceptionObject);
-                        Console.Out.Flush();
-                        Environment.Exit(e.ExceptionObject is ArgumentNullException ? 42 : 44);
-                    };
                     Form form = (Form)New(T("frmBatchDownloader"));
                     IntPtr handle = form.Handle;
                     ((ComboBox)Field(form, "cbBatchDownloadType")).SelectedIndex = 0;
@@ -43,6 +44,40 @@ internal static class ReviewObservations {
                     Call(form, "btnBatchDownloadStartStopExit_Click", form, EventArgs.Empty);
                     for (int i = 0; i < 200; i++) { Application.DoEvents(); Thread.Sleep(10); }
                     return 43;
+                }
+                case "ini-retry": {
+                    PropertyInfo option = T("General").GetProperty("UseStaticYtdl", Flags);
+                    bool before = (bool)option.GetValue(null, null);
+                    string ini = (string)T("IniProvider").GetField("IniPath", Flags).GetValue(null);
+                    bool failed = false;
+                    File.SetAttributes(ini, FileAttributes.ReadOnly);
+                    try { option.SetValue(null, !before, null); }
+                    catch (TargetInvocationException e) { failed = e.InnerException is IOException; }
+                    finally { File.SetAttributes(ini, FileAttributes.Normal); }
+                    option.SetValue(null, !before, null);
+                    string text = File.ReadAllText(ini);
+                    return Observed(failed && (bool)option.GetValue(null, null) != before && !text.Contains("UseStaticYtdl="), "Write failed=" + failed + "; retry content=" + text);
+                }
+                case "error-logging-preference": {
+                    SetStatic("Errors", "logErrors", true);
+                    bool enabled = (bool)app.GetType("murrty.logging.Log", true).GetProperty("AllowWritingToFile", Flags).GetValue(null, null);
+                    return Observed(!enabled, "Errors.logErrors=true; Log.AllowWritingToFile=" + enabled);
+                }
+                case "numeric-after-arrow": {
+                    using (Control box = (Control)New(app.GetType("murrty.controls.ExtendedTextBox", true))) {
+                        Set(box, "TextType", Enum.Parse(app.GetType("murrty.controls.AllowedCharacters", true), "NumericOnly"));
+                        Call(box, "OnKeyDown", new KeyEventArgs(Keys.Left));
+                        Call(box, "OnKeyDown", new KeyEventArgs(Keys.D1));
+                        KeyPressEventArgs press = new KeyPressEventArgs('1');
+                        Call(box, "OnKeyPress", press);
+                        return Observed(press.Handled, "Digit after navigation suppressed=" + press.Handled);
+                    }
+                }
+                case "version-format": {
+                    Type version = app.GetType("murrty.updater.Version", true);
+                    object[] parse = { "1-2-3", Activator.CreateInstance(version) };
+                    bool accepted = (bool)version.GetMethod("TryParse", Flags).Invoke(null, parse);
+                    return Observed(accepted, "Malformed 1-2-3 accepted=" + accepted + "; value=" + parse[1]);
                 }
                 case "duration-rounding": {
                     object data = New(T("YoutubeDlData"));

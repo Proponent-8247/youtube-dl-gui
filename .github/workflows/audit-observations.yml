@@ -37,7 +37,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $app = Join-Path $PWD 'youtube-dl-gui\bin\Release\youtube-dl-gui.exe'
           $results = @()
-          foreach ($case in @('batch-quotes','duration-rounding','duration-budget','time-span','time-width','time-malformed','format-boundary','configured-schema')) {
+          foreach ($case in @('batch-quotes','duration-rounding','duration-budget','time-span','time-width','time-malformed','format-boundary','configured-schema','ini-retry','error-logging-preference','numeric-after-arrow','version-format')) {
             $scratch = Join-Path $env:RUNNER_TEMP ('review-' + [Guid]::NewGuid().ToString('N'))
             New-Item -ItemType Directory $scratch | Out-Null
             $stdout = Join-Path $out "$case.txt"

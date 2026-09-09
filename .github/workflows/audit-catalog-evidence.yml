@@ -44,6 +44,7 @@ jobs:
           (out / 'history.json').write_text(json.dumps({'head': head, 'master': master, 'merge_base': base, 'exported_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'commits': commits}, indent=2), encoding='utf-8')
           (out / 'history.txt').write_text('\n'.join(c['sha'] + ' ' + c['subject'] for c in commits) + '\n', encoding='utf-8')
           (out / 'master-to-head.diff').write_text(git('diff', '--no-ext-diff', master, head, '--', '*.cs', '*.csproj', '*.projitems'), encoding='utf-8')
+          subprocess.check_call(['git', 'archive', '--format=zip', '--output=' + str(out / 'source.zip'), 'HEAD'])
           hashes = ['%s  %s' % (hashlib.sha256(p.read_bytes()).hexdigest(), p.name) for p in sorted(out.iterdir()) if p.is_file()]
           (out / 'SHA256SUMS.txt').write_text('\n'.join(hashes) + '\n', encoding='ascii')
           print('Exported', len(commits), 'audit-branch commits from merge base', base)

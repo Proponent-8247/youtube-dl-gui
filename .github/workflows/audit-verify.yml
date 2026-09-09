@@ -98,6 +98,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           & ./tests/Run-AuditRegression.ps1 -EvidenceDirectory "$PWD/audit-evidence/after-full-release"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./tests/Run-AuditRegression.ps1 -EvidenceDirectory "$PWD/audit-evidence/x86-full-release" -Platform x86
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          [xml]$x86 = Get-Content audit-evidence/x86-full-release/regression-results.xml -Raw
           [xml]$before = Get-Content audit-evidence/regression-results.xml -Raw
           [xml]$after = Get-Content audit-evidence/after-full-release/regression-results.xml -Raw
           $beforeNames = @($before.SelectNodes('/testsuite/testcase') | ForEach-Object { $_.GetAttribute('name') } | Sort-Object)
@@ -109,13 +112,18 @@ jobs:
           if ($before.SelectNodes('/testsuite/testcase/failure').Count -ne 0 -or $after.SelectNodes('/testsuite/testcase/failure').Count -ne 0) {
             throw 'Regression failures prevent audit sign-off.'
           }
+          $x86Names = @($x86.SelectNodes('/testsuite/testcase') | ForEach-Object { $_.GetAttribute('name') } | Sort-Object)
+          if (($afterNames -join "`n") -cne ($x86Names -join "`n") -or $x86.SelectNodes('/testsuite/testcase/failure').Count -ne 0) {
+            throw 'The x86 runtime failed or lost required regression coverage.'
+          }
           git diff --exit-code -- '*.cs' '*.csproj' '*.projitems' '.github/workflows/*.yml'
           if ($LASTEXITCODE -ne 0) { throw 'Build or tests modified reviewed source files.' }
           [ordered]@{
             revision = $env:GITHUB_SHA
             master_revision = (Get-Content audit-evidence/master-commit.txt).Trim()
             tests_per_pass = $afterNames.Count
-            passes = 2
+            passes = 3
+            runtime_platforms = @("AnyCPU on x64 runner", "x86")
             failures = 0
             package_exe_sha256 = (Get-FileHash Release/youtube-dl-gui.exe -Algorithm SHA256).Hash
             package_zip_sha256 = (Get-FileHash Release/youtube-dl-gui.zip -Algorithm SHA256).Hash

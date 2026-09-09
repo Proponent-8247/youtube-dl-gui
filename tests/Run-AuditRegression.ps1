@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$EvidenceDirectory = (Join-Path $PSScriptRoot '..\audit-evidence'),
-    [string]$ApplicationPath = (Join-Path $PSScriptRoot '..\youtube-dl-gui\bin\Release\youtube-dl-gui.exe')
+    [string]$ApplicationPath = (Join-Path $PSScriptRoot '..\youtube-dl-gui\bin\Release\youtube-dl-gui.exe'),
+    [ValidateSet('AnyCPU', 'x86')][string]$Platform = 'AnyCPU'
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -14,10 +15,10 @@ if (!(Test-Path $csc)) { throw '.NET Framework C# compiler was not found.' }
 if (!(Test-Path $ApplicationPath)) { throw "Application assembly was not found: $ApplicationPath" }
 $exe = Join-Path $EvidenceDirectory 'AuditRegression.exe'
 $sources = @(Get-ChildItem (Join-Path $PSScriptRoot 'AuditRegression*.cs') | ForEach-Object { $_.FullName })
-& $csc /nologo /langversion:5 /target:exe "/out:$exe" /reference:System.Core.dll /reference:System.Net.Http.dll /reference:System.Xml.Linq.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll @sources
+& $csc /nologo /langversion:5 /target:exe "/platform:$Platform" "/out:$exe" /reference:System.Core.dll /reference:System.Net.Http.dll /reference:System.Xml.Linq.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll @sources
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $fixture = Join-Path $EvidenceDirectory 'ThumbnailFixture.exe'
-& $csc /nologo /langversion:5 /target:exe "/out:$fixture" (Join-Path $PSScriptRoot 'ThumbnailFixture.cs')
+& $csc /nologo /langversion:5 /target:exe "/platform:$Platform" "/out:$fixture" (Join-Path $PSScriptRoot 'ThumbnailFixture.cs')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $stdout = Join-Path $EvidenceDirectory 'regression-console.txt'
 $stderr = Join-Path $EvidenceDirectory 'regression-stderr.txt'

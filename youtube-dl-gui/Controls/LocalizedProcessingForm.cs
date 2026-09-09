@@ -39,6 +39,14 @@ public class LocalizedProcessingForm : LocalizedForm {
             throw;
         }
     }
+    protected override void Dispose(bool disposing) {
+        try {
+            base.Dispose(disposing);
+        }
+        finally {
+            if (disposing) Program.RemoveProcessingForm(this);
+        }
+    }
     protected override void OnClosed(EventArgs e) {
         try {
             base.OnClosed(e);

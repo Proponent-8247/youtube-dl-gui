@@ -1,0 +1,31 @@
+{
+  "reviewed_source_revision": "e5858408008e17a34241779f18e7dfa1fed6a057",
+  "probe_revision": "b4536ae7b322a0c524dd24a53a2ec1560deaf83d",
+  "run_id": 34315957693,
+  "artifact_id": 10090076552,
+  "artifact_sha256": "38b14beb507150e3eb36ffbf3c35cae93e5560a0d80c25f873a010835c48d9da",
+  "purpose": "Characterization of existing defects; success means defects were observed, NOT fixed",
+  "production_code_changed_by_review": false,
+  "results": [
+    {"case":"batch-quotes","item":"O010","defect_observed":true,"exit_code":42,"detail":"One accepted row; unhandled ArgumentNullException in MediaData constructor on frmBatchDownloader worker"},
+    {"case":"duration-rounding","item":"O015","defect_observed":true,"exit_code":42,"detail":"59.9 seconds rendered as 0:60"},
+    {"case":"duration-budget","item":"O015","defect_observed":true,"exit_code":124,"timed_out":true,"detail":"Entered duration getter with 10^12 seconds; exceeded eight-second process deadline"},
+    {"case":"time-span","item":"O001","defect_observed":true,"exit_code":42,"detail":"25-hour TimeSpan round trip returned 1 hour"},
+    {"case":"time-width","item":"O002","defect_observed":true,"exit_code":42,"detail":"100-hour SetValue retained hour-field width 2"},
+    {"case":"time-malformed","item":"O003","defect_observed":true,"exit_code":42,"detail":"Actual UpdateControl parser threw IndexOutOfRangeException on malformed display text; full user input sequence not established"},
+    {"case":"format-boundary","item":"O012","defect_observed":true,"exit_code":42,"detail":"Generated -f fixture --print AUDIT_BOUNDARY/best from a single format identifier"},
+    {"case":"configured-schema","item":"O011","defect_observed":true,"exit_code":42,"detail":"Before binding: AUDIT_%(id)s.%(ext)s; after binding: empty"},
+    {"case":"ini-retry","item":"O016","defect_observed":true,"exit_code":42,"detail":"Read-only INI write failed; new cached value caused same-value retry to skip persistence after file became writable"},
+    {"case":"error-logging-preference","item":"O017","defect_observed":true,"exit_code":42,"detail":"Errors.logErrors=true; Log.AllowWritingToFile=false"},
+    {"case":"numeric-after-arrow","item":"O019","defect_observed":true,"exit_code":42,"detail":"NumericOnly control suppressed digit after Left key through actual event handlers"},
+    {"case":"version-format","item":"O020","defect_observed":true,"exit_code":42,"detail":"TryParse accepted 1-2-3 as 1.0.0-2"}
+  ],
+  "separate_userscript_observation": {
+    "item": "O034",
+    "method": "Node execution of repository JavaScript against a minimal DOM-shaped fixture",
+    "single_post_buttons": [3],
+    "two_post_listing_buttons": [3,0],
+    "listing_links_target_document_url": true,
+    "live_browser_or_userscript_manager_tested": false
+  }
+}

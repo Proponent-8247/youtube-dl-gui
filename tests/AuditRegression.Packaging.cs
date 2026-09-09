@@ -21,6 +21,8 @@ internal static partial class AuditRegression {
             string expected = (string)T("youtube_dl_gui.GeneratedUpdaterHash").GetField("Value", All).GetValue(null);
             byte[] updater = (byte[])T("youtube_dl_gui.Properties.Resources").GetProperty("youtube_dl_gui_updater", All).GetValue(null, null);
             using (MemoryStream memory = new MemoryStream(updater)) Equal(expected.ToLowerInvariant(), Sha256(memory));
+            string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
+            Equal(FileSha256(Path.Combine(root, "youtube-dl-gui-updater", "bin", "Release", "youtube-dl-gui-updater.exe")), expected.ToLowerInvariant());
         });
         Test("N005.ReleaseArchiveAndChecksumsMatchBuiltFiles", () => {
             string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));

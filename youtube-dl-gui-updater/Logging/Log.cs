@@ -187,6 +187,7 @@ public static class Log {
                 try {
                     System.IO.File.WriteAllText(
                         System.IO.Path.Combine(Environment.CurrentDirectory, $"ex_{ReceivedException.ExceptionTime:yyyy-MM-dd_HH-mm-ss.fff}.log"), ReceivedException.Exception.ToString());
+                    return;
                 }
                 catch (Exception SaveException) {
                     ExceptionInfo FileException = new(SaveException) {

@@ -257,7 +257,9 @@ internal static class Updater {
             return true;
         }
         else {
-            if (LatestYoutubeDl is null) {
+            int TypeIndex = Verification.GetYoutubeDlType();
+            if (LatestYoutubeDl is null || LatestYoutubeDlType != TypeIndex) {
+                Log.Write("Provider selection changed; check its release before downloading an update.");
                 return false;
             }
 
@@ -266,7 +268,6 @@ internal static class Updater {
             }
 
             Log.Write($"Downloading youtube-dl version {LatestYoutubeDl.VersionTag}.");
-            int TypeIndex = Verification.GetYoutubeDlType();
 
             string DownloadUrl =
                 GithubLinks.ApplicationDownloadUrl.Format(

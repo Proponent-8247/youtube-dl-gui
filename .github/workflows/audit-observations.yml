@@ -30,11 +30,12 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $out = Join-Path $PWD 'review-observations'
           New-Item -ItemType Directory $out | Out-Null
-          $compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+          $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
           $exe = Join-Path $out 'ReviewObservations.exe'
-          & $compiler /nologo /langversion:5 /target:exe "/out:$exe" /reference:System.Core.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll audit/repro/ReviewObservations.cs
+          $source = (Resolve-Path 'audit\repro\ReviewObservations.cs').Path
+          & $compiler /nologo /langversion:5 /target:exe "/out:$exe" /reference:System.Core.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll $source 2>&1 | Tee-Object (Join-Path $out 'compiler.txt')
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $app = Join-Path $PWD 'youtube-dl-gui/bin/Release/youtube-dl-gui.exe'
+          $app = Join-Path $PWD 'youtube-dl-gui\bin\Release\youtube-dl-gui.exe'
           $results = @()
           foreach ($case in @('batch-quotes','duration-rounding','duration-budget','time-span','time-width','time-malformed','format-boundary','configured-schema')) {
             $scratch = Join-Path $env:RUNNER_TEMP ('review-' + [Guid]::NewGuid().ToString('N'))
@@ -51,7 +52,7 @@ jobs:
                 $code = 124
               } else { $process.WaitForExit(); $code = $process.ExitCode }
             } finally { $process.Dispose() }
-            $text = Get-Content $stdout -Raw
+            $text = [string](Get-Content $stdout -Raw)
             $observed = ($code -eq 42) -or ($case -eq 'duration-budget' -and $timedOut -and $text.Contains('ENTER_DURATION_GETTER'))
             $results += [ordered]@{ case=$case; defect_observed=$observed; exit_code=$code; timed_out=$timedOut; output=$text }
             Write-Host "$case : defect_observed=$observed exit=$code"

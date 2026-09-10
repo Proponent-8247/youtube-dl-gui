@@ -86,9 +86,9 @@ internal static partial class AuditRegression {
     static partial void RunConversionOptionTests();
     static partial void RunConverterTests() {
         Test("O043.LinkLabelPreservesConfiguredColorsAcrossHover", () => {
-            Control control = (Control)New("murrty.controls.ExtendedLinkLabel");
+            Type type = T("murrty.controls.ExtendedLinkLabel");
+            Control control = (Control)Activator.CreateInstance(type);
             try {
-                Type type = control.GetType();
                 BindingFlags declaredPublic = BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly;
                 BindingFlags declaredNonPublic = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
                 PropertyInfo linkColor = type.GetProperty("LinkColor", declaredPublic);

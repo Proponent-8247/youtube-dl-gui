@@ -192,13 +192,23 @@ internal sealed class YoutubeDlData {
         if (DurationTime is null || Video.VideoBitrate is null) {
             return "null";
         }
-        return "~" + (DurationTime.Value * (Video.VideoBitrate.Value / 8) * 1024).SizeToString();
+        try {
+            return "~" + (DurationTime.Value * (Video.VideoBitrate.Value / 8) * 1024).SizeToString();
+        }
+        catch (OverflowException) {
+            return "null";
+        }
     }
     public string GetApproximateAudioSize(YoutubeDlSubdata.Format Audio) {
         if (DurationTime is null || Audio.AudioBitrate is null) {
             return "null";
         }
-        return "~" + (((DurationTime.Value * Audio.AudioBitrate.Value) / 8) * 1024).SizeToString();
+        try {
+            return "~" + (((DurationTime.Value * Audio.AudioBitrate.Value) / 8) * 1024).SizeToString();
+        }
+        catch (OverflowException) {
+            return "null";
+        }
     }
 
     [IgnoreDataMember]

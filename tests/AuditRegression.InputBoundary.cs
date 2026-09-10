@@ -98,7 +98,7 @@ internal static partial class AuditRegression {
                 Set(picker.GetType(), picker, "Value", maximum);
                 Call(picker.GetType(), picker, "SelectHourPosition");
                 Call(picker.GetType(), picker, "TimeDisplay_KeyDown", display, new KeyEventArgs(Keys.Up));
-                Equal(int.MaxValue, Get(Get(picker, "Value"), "Hours"));
+                Equal(int.MaxValue, picker.GetType().GetProperty("Hours", All).GetValue(picker, null));
             }
         });
         Test("CR_O010.BatchRejectsQuoteOnlySources", () => {

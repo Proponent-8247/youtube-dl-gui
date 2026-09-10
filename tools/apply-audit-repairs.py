@@ -1,4 +1,4 @@
-"""Apply exact, hash-pinned source edits. No commands are accepted from the plan."""
+"""Apply exact, base-commit-pinned source edits. No commands are accepted from the plan."""
 import argparse
 import hashlib
 import json
@@ -28,7 +28,30 @@ def normalized_hash(data):
     return hashlib.sha256(data.replace(b'\r\n', b'\n')).hexdigest()
 
 
-def prepare(repair, state):
+def apply_edits(name, data, edits):
+    result = data
+    for edit in edits:
+        old = edit['old'].encode('utf-8')
+        new = edit['new'].encode('utf-8')
+        if not old or b'\r' in old or b'\r' in new:
+            raise ValueError('Edits must contain nonempty LF-normalized anchors')
+        expected_count = edit.get('count', 1)
+        if not isinstance(expected_count, int) or expected_count < 1:
+            raise ValueError('Invalid match count')
+        if b'\n' not in old and b'\r\n' in result:
+            new = new.replace(b'\n', b'\r\n')
+        candidates = [(old, new)]
+        if b'\n' in old:
+            candidates.append((old.replace(b'\n', b'\r\n'), new.replace(b'\n', b'\r\n')))
+        matches = [(a, b) for a, b in candidates if result.count(a) == expected_count]
+        if len(matches) != 1:
+            raise ValueError('Expected one unambiguous anchor variant in ' + name)
+        a, b = matches[0]
+        result = result.replace(a, b)
+    return result
+
+
+def prepare(repair, state, version):
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', repair['id']):
         raise ValueError('Invalid repair id')
     changed = {}
@@ -40,36 +63,31 @@ def prepare(repair, state):
             raise ValueError('Duplicate source path: ' + name)
         seen.add(name.casefold())
         data = state[name] if name in state else (target.read_bytes() if target.exists() else None)
-        expected = change['before_sha256']
-        if expected is None:
-            if data is not None:
-                raise ValueError('New file already exists: ' + name)
-            result = change['content'].encode('utf-8')
+
+        if version == 1:
+            expected = change['before_sha256']
+            if expected is None:
+                if data is not None:
+                    raise ValueError('New file already exists: ' + name)
+                result = change['content'].encode('utf-8')
+            else:
+                if data is None or normalized_hash(data) != expected:
+                    raise ValueError('Source hash mismatch: ' + name)
+                result = apply_edits(name, data, change['edits'])
         else:
-            if data is None or normalized_hash(data) != expected:
-                raise ValueError('Source hash mismatch: ' + name)
-            result = data
-            for edit in change['edits']:
-                old = edit['old'].encode('utf-8')
-                new = edit['new'].encode('utf-8')
-                if not old or b'\r' in old or b'\r' in new:
-                    raise ValueError('Edits must contain nonempty LF-normalized anchors')
-                expected_count = edit.get('count', 1)
-                if not isinstance(expected_count, int) or expected_count < 1:
-                    raise ValueError('Invalid match count')
-                if b'\n' not in old and b'\r\n' in result:
-                    new = new.replace(b'\n', b'\r\n')
-                candidates = [(old, new)]
-                if b'\n' in old:
-                    candidates.append((old.replace(b'\n', b'\r\n'), new.replace(b'\n', b'\r\n')))
-                matches = [(a, b) for a, b in candidates if result.count(a) == expected_count]
-                if len(matches) != 1:
-                    raise ValueError('Expected one unambiguous anchor variant in ' + name)
-                a, b = matches[0]
-                result = result.replace(a, b)
+            # Version 2 plans are only for existing files. The request's parent
+            # commit pins the complete source tree, while exact anchors pin each
+            # intended edit within that tree. The workflow separately refuses a
+            # superseded remote head and pushes without force.
+            if data is None:
+                raise ValueError('Version 2 cannot create source files: ' + name)
+            if 'content' in change or 'before_sha256' in change or 'after_sha256' in change:
+                raise ValueError('Version 2 uses exact edits, not per-file hashes: ' + name)
+            result = apply_edits(name, data, change['edits'])
+
         if result == data:
             raise ValueError('No-op edit: ' + name)
-        if normalized_hash(result) != change['after_sha256']:
+        if version == 1 and normalized_hash(result) != change['after_sha256']:
             raise ValueError('Result hash mismatch: ' + name)
         changed[name] = result
     state.update(changed)
@@ -82,19 +100,20 @@ def main():
     parser.add_argument('--apply', type=int)
     args = parser.parse_args()
     plan = json.loads(Path('.audit-repairs.json').read_text(encoding='utf-8-sig'))
-    if plan.get('version') != 1 or not 1 <= len(plan['repairs']) <= 64:
+    version = plan.get('version')
+    if version not in (1, 2) or not 1 <= len(plan['repairs']) <= 64:
         raise ValueError('Unsupported or empty repair plan')
     if args.preflight:
         state = {}
         for repair in plan['repairs']:
-            prepare(repair, state)
+            prepare(repair, state, version)
             print('Preflight:', repair['id'])
     elif args.apply is not None:
         if not 0 <= args.apply < len(plan['repairs']):
             raise ValueError('Repair index is outside the plan')
         repair = plan['repairs'][args.apply]
         # Check every file before writing any file in this conceptual repair.
-        changes = prepare(repair, {})
+        changes = prepare(repair, {}, version)
         for name, data in changes.items():
             target = source_path(name)
             target.parent.mkdir(parents=True, exist_ok=True)

@@ -64,14 +64,29 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Verified repair commit failed.' }
         $previous = $next
     }
-    if ($previous.Failed.Count -ne 0) { throw 'Remaining regressions prevent publication of this repair batch.' }
+
+    $remaining = @()
+    if ($plan.PSObject.Properties.Name -contains 'remaining_failures') {
+        $remaining = @($plan.remaining_failures | Sort-Object)
+    }
+    $unknownRemaining = @($remaining | Where-Object { $_ -notin $expected })
+    if ($unknownRemaining.Count -gt 0) { throw "Remaining failure set contains tests not present in the baseline: $unknownRemaining" }
+    if (($remaining -join "`n") -cne ($previous.Failed -join "`n")) {
+        throw 'The final failure set differs from the reviewed remaining-failure list.'
+    }
+
     Remove-Item .audit-repairs.json
     git add -- .audit-repairs.json
     git commit -m 'audit: close regression-verified repair batch'
     if ($LASTEXITCODE -ne 0) { throw 'Request cleanup commit failed.' }
     git push origin HEAD:audit-fixes
     if ($LASTEXITCODE -ne 0) { throw 'Branch moved or push failed; no force update was attempted.' }
-    'All repairs and the complete regression suite passed.' | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
+    if ($remaining.Count -eq 0) {
+        'All repairs and the complete regression suite passed.' | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
+    }
+    else {
+        "All requested repairs passed; $($remaining.Count) reviewed regression failure(s) remain for later guarded batches." | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
+    }
 }
 finally {
     git rev-parse HEAD | Set-Content (Join-Path $EvidenceDirectory 'commit.txt')

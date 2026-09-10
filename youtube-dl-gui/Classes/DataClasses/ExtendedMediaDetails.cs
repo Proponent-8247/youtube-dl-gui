@@ -556,22 +556,22 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
         switch (SelectedType) {
             case DownloadType.Video when SelectedVideoItem?.Tag is YoutubeDlSubdata.Format vf: {
                 VideoFormat = vf;
-                string Argument = "-f " + VideoFormat.Identifier;
+                string Selector = VideoFormat.Identifier;
 
                 if (VideoDownloadAudio && SelectedAudioItem?.Tag is YoutubeDlSubdata.Format af) {
                     AudioFormat = af;
-                    Argument += VideoSeparateAudio ? "/best," + AudioFormat.Identifier + "/best" : "+" + AudioFormat.Identifier + "/best";
+                    Selector += VideoSeparateAudio ? "/best," + AudioFormat.Identifier + "/best" : "+" + AudioFormat.Identifier + "/best";
                 }
                 else {
-                    Argument += "/best";
+                    Selector += "/best";
                 }
 
                 if (SelectedUnknownItem?.Tag is YoutubeDlSubdata.Format uf) {
                     UnknownFormat = uf;
-                    Argument += ',' + UnknownFormat.Identifier;
+                    Selector += ',' + UnknownFormat.Identifier;
                 }
 
-                ArgumentBuffer.Add(Argument);
+                ArgumentBuffer.Add("-f " + ArgumentList.EscapeArgument(Selector));
 
                 if (VideoRemuxIndex > 0) {
                     ArgumentBuffer.Add("--remux-video " + Formats.ExtendedVideoFormats[VideoRemuxIndex - 1]);
@@ -582,14 +582,14 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
             } break;
             case DownloadType.Audio when SelectedAudioItem?.Tag is YoutubeDlSubdata.Format af: {
                 AudioFormat = af;
-                string Argument = "-f " + AudioFormat.Identifier + "/best";
+                string Selector = AudioFormat.Identifier + "/best";
 
                 if (SelectedUnknownItem?.Tag is YoutubeDlSubdata.Format uf) {
                     UnknownFormat = uf;
-                    Argument += ',' + UnknownFormat.Identifier;
+                    Selector += ',' + UnknownFormat.Identifier;
                 }
 
-                ArgumentBuffer.Add(Argument);
+                ArgumentBuffer.Add("-f " + ArgumentList.EscapeArgument(Selector));
 
                 if (AudioEncoderIndex > 0) {
                     ArgumentBuffer.Add("--extract-audio --audio-format " + Formats.ExtendedAudioFormats[AudioEncoderIndex - 1]);
@@ -600,7 +600,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
             } break;
             case DownloadType.Unknown when SelectedUnknownItem?.Tag is YoutubeDlSubdata.Format uf: {
                 UnknownFormat = uf;
-                ArgumentBuffer.Add("-f " + UnknownFormat.Identifier + "/best");
+                ArgumentBuffer.Add("-f " + ArgumentList.EscapeArgument(UnknownFormat.Identifier + "/best"));
             } break;
             case DownloadType.Custom: {
                 if (!CustomArguments.IsNullEmptyWhitespace()) {

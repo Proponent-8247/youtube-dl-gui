@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Threading;
 using System.Windows.Forms;
@@ -83,6 +84,34 @@ internal static partial class AuditRegression {
     }
     static partial void RunConversionOptionTests();
     static partial void RunConverterTests() {
+        Test("O043.LinkLabelPreservesConfiguredColorsAcrossHover", () => {
+            Control control = (Control)New("murrty.controls.ExtendedLinkLabel");
+            try {
+                Type type = control.GetType();
+                Color normal = Color.FromArgb(12, 34, 56);
+                Color visited = Color.FromArgb(65, 43, 21);
+                Color changedWhileHovered = Color.FromArgb(90, 80, 70);
+                Set(type, control, "LinkColor", normal);
+                Set(type, control, "VisitedLinkColor", visited);
+
+                Call(type, control, "OnMouseEnter", EventArgs.Empty);
+                Equal(normal, Get(control, "LinkColor"));
+                Equal(visited, Get(control, "VisitedLinkColor"));
+                Equal(Color.FromArgb(0x33, 0x99, 0xFF), typeof(LinkLabel).GetProperty("LinkColor").GetValue(control, null));
+                Equal(Color.FromArgb(0xA4, 0x00, 0xA4), typeof(LinkLabel).GetProperty("VisitedLinkColor").GetValue(control, null));
+
+                Set(type, control, "LinkColor", changedWhileHovered);
+                Call(type, control, "OnMouseLeave", EventArgs.Empty);
+                Equal(changedWhileHovered, typeof(LinkLabel).GetProperty("LinkColor").GetValue(control, null));
+                Equal(visited, typeof(LinkLabel).GetProperty("VisitedLinkColor").GetValue(control, null));
+
+                Call(type, control, "OnMouseEnter", EventArgs.Empty);
+                Call(type, control, "OnMouseLeave", EventArgs.Empty);
+                Equal(changedWhileHovered, Get(control, "LinkColor"));
+                Equal(visited, Get(control, "VisitedLinkColor"));
+            }
+            finally { control.Dispose(); }
+        });
         Test("D006.QuickCloseCompletesAfterCleanup", () => CloseLiveTransfer("quick"));
         Test("D006.ConverterCloseCompletesAfterCleanup", () => CloseLiveTransfer("converter"));
         Test("D006.ExtendedCloseCompletesAfterCleanup", () => CloseLiveTransfer("extended"));

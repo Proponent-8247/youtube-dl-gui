@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "base_sha": "27d893f7b0cb62eadbc1d0186ece497ee0aa326e",
+  "base_sha": "120e5834c621f52ee8d0044c7418274b39a25def",
   "expected_failures": [
     "O010.UpdaterHashMismatchHasNoIgnoreOverride"
   ],
@@ -15,11 +15,11 @@
         {
           "path": "youtube-dl-gui-updater/Forms/frmUpdater.cs",
           "before_sha256": "ba5a91636ce61e6be6134fea68fb2abe266a0aef4b2ce621b5f20433b9199238",
-          "after_sha256": "b6e47cc3e91f7f03c9466140a979564cef32f9065793b4068b9cffab4ef8efed",
+          "after_sha256": "5254cd82db95dc0258735e46268dc6b2c473a599fc453b91a33cf2f042a15837",
           "edits": [
             {
               "old": "            switch ((DialogResult)this.Invoke(() => MessageBox.Show(this, string.Format(Language.dlgUpdaterUpdatedVersionHashNoMatch, ExpectedHash, ReceivedHash), Language.ApplicationName, MessageBoxButtons.AbortRetryIgnore, MessageBoxIcon.Warning))) {\n                case DialogResult.Abort:\n                    throw new CryptographicException(\"The known hash of the file does not match the hash calculated by the updater.\");\n\n                case DialogResult.Retry:\n                    File.Delete(FileName);\n                    this.Invoke(() => {\n                        tmrForm.Start();\n                        pbDownloadProgress.Value = 50;\n                        pbDownloadProgress.ProgressState = ProgressState.Normal;\n                    });\n                    await GetUpdate(Url, FileName);\n                    continue;\n\n                case DialogResult.Ignore:\n                    pbDownloadProgress.Invoke(() => pbDownloadProgress.ProgressState = ProgressState.Normal);\n                    return;\n            }\n",
-              "new": "            switch ((DialogResult)this.Invoke(() => MessageBox.Show(this, string.Format(Language.dlgUpdaterUpdatedVersionHashNoMatch, ExpectedHash, ReceivedHash), Language.ApplicationName, MessageBoxButtons.AbortRetry, MessageBoxIcon.Warning))) {\n                case DialogResult.Abort:\n                    throw new CryptographicException(\"The known hash of the file does not match the hash calculated by the updater.\");\n\n                case DialogResult.Retry:\n                    File.Delete(FileName);\n                    this.Invoke(() => {\n                        tmrForm.Start();\n                        pbDownloadProgress.Value = 50;\n                        pbDownloadProgress.ProgressState = ProgressState.Normal;\n                    });\n                    await GetUpdate(Url, FileName);\n                    continue;\n            }\n",
+              "new": "            switch ((DialogResult)this.Invoke(() => MessageBox.Show(this, string.Format(Language.dlgUpdaterUpdatedVersionHashNoMatch, ExpectedHash, ReceivedHash), Language.ApplicationName, MessageBoxButtons.RetryCancel, MessageBoxIcon.Warning))) {\n                case DialogResult.Retry:\n                    File.Delete(FileName);\n                    this.Invoke(() => {\n                        tmrForm.Start();\n                        pbDownloadProgress.Value = 50;\n                        pbDownloadProgress.ProgressState = ProgressState.Normal;\n                    });\n                    await GetUpdate(Url, FileName);\n                    continue;\n\n                case DialogResult.Cancel:\n                    throw new CryptographicException(\"The known hash of the file does not match the hash calculated by the updater.\");\n            }\n",
               "count": 1
             }
           ]

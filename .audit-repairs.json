@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "base_sha": "b509c0e9a79710de3095947bff3f911abe07a6fd",
+  "expected_failures": [
+    "CR_O019.ExtendedTextBoxNavigationDoesNotPoisonNextDigit",
+    "CR_O020.VersionParserRejectsMalformedSeparators",
+    "E2E_O020.InvalidBooleanIniUsesCallerDefault",
+    "E2E_O032.ProgressPercentageIsSafeForUiRange",
+    "E2E_O044.BatchIdsAreUniqueAndReadable",
+    "P001.ApplicationUpdateUrlsUseForkReleases"
+  ],
+  "remaining_failures": [
+    "E2E_O032.ProgressPercentageIsSafeForUiRange",
+    "E2E_O044.BatchIdsAreUniqueAndReadable",
+    "P001.ApplicationUpdateUrlsUseForkReleases"
+  ],
+  "repairs": [
+    {
+      "id": "CR_O019",
+      "message": "fix: reset ExtendedTextBox character filter per key",
+      "resolves": ["CR_O019.ExtendedTextBoxNavigationDoesNotPoisonNextDigit"],
+      "files": [{
+        "path": "Controls/ExtendedTextBox.cs",
+        "edits": [{
+          "old": "    protected override void OnKeyDown(KeyEventArgs e) {\n        if (TextType == AllowedCharacters.UnfilteredCharactersOnly) {\n",
+          "new": "    protected override void OnKeyDown(KeyEventArgs e) {\n        fCheckChar = false;\n        if (TextType == AllowedCharacters.UnfilteredCharactersOnly) {\n",
+          "count": 1
+        }]
+      }]
+    },
+    {
+      "id": "CR_O020",
+      "message": "fix: require literal dots in version parsing",
+      "resolves": ["CR_O020.VersionParserRejectsMalformedSeparators"],
+      "files": [{
+        "path": "Controls/Version.cs",
+        "edits": [{
+          "old": "        if (Regex.IsMatch(Data, @\"^\\d{1,3}((.\\d{1,3}){1,2})?(-\\d{1,3})?$\", RegexOptions.Compiled)) {\n",
+          "new": "        if (Regex.IsMatch(Data, @\"^\\d{1,3}((\\.\\d{1,3}){1,2})?(-\\d{1,3})?$\", RegexOptions.Compiled)) {\n",
+          "count": 1
+        }]
+      }]
+    },
+    {
+      "id": "E2E_O020",
+      "message": "fix: fall back on malformed boolean INI values",
+      "resolves": ["E2E_O020.InvalidBooleanIniUsesCallerDefault"],
+      "files": [{
+        "path": "youtube-dl-gui/Config/Interfacing/IniProvider.cs",
+        "edits": [{
+          "old": "        if (InternalKeyExists(Key, out string? Data, Section ?? Language.ApplicationName)) {\n            return Data.ToLower() switch {\n                \"true\" or \"on\" or \"1\" => true,\n                _ => false\n            };\n        }\n",
+          "new": "        if (InternalKeyExists(Key, out string? Data, Section ?? Language.ApplicationName)) {\n            return Data.Trim().ToLowerInvariant() switch {\n                \"true\" or \"on\" or \"1\" => true,\n                \"false\" or \"off\" or \"0\" => false,\n                _ => Default\n            };\n        }\n",
+          "count": 1
+        }]
+      }]
+    }
+  ]
+}

@@ -176,7 +176,7 @@ public readonly struct Version {
             return false;
         }
 
-        if (Regex.IsMatch(Data, @"^\d{1,3}((.\d{1,3}){1,2})?(-\d{1,3})?$", RegexOptions.Compiled)) {
+        if (Regex.IsMatch(Data, @"^\d{1,3}((\.\d{1,3}){1,2})?(-\d{1,3})?$", RegexOptions.Compiled)) {
             byte Major = 0;
             byte Minor = 0;
             byte Revision = 0;

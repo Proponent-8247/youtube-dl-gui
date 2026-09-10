@@ -88,27 +88,29 @@ internal static partial class AuditRegression {
             Control control = (Control)New("murrty.controls.ExtendedLinkLabel");
             try {
                 Type type = control.GetType();
+                System.Reflection.PropertyInfo linkColor = type.GetProperty("LinkColor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.DeclaredOnly);
+                System.Reflection.PropertyInfo visitedLinkColor = type.GetProperty("VisitedLinkColor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.DeclaredOnly);
                 Color normal = Color.FromArgb(12, 34, 56);
                 Color visited = Color.FromArgb(65, 43, 21);
                 Color changedWhileHovered = Color.FromArgb(90, 80, 70);
-                Set(type, control, "LinkColor", normal);
-                Set(type, control, "VisitedLinkColor", visited);
+                linkColor.SetValue(control, normal, null);
+                visitedLinkColor.SetValue(control, visited, null);
 
                 Call(type, control, "OnMouseEnter", EventArgs.Empty);
-                Equal(normal, Get(control, "LinkColor"));
-                Equal(visited, Get(control, "VisitedLinkColor"));
+                Equal(normal, linkColor.GetValue(control, null));
+                Equal(visited, visitedLinkColor.GetValue(control, null));
                 Equal(Color.FromArgb(0x33, 0x99, 0xFF), typeof(LinkLabel).GetProperty("LinkColor").GetValue(control, null));
                 Equal(Color.FromArgb(0xA4, 0x00, 0xA4), typeof(LinkLabel).GetProperty("VisitedLinkColor").GetValue(control, null));
 
-                Set(type, control, "LinkColor", changedWhileHovered);
+                linkColor.SetValue(control, changedWhileHovered, null);
                 Call(type, control, "OnMouseLeave", EventArgs.Empty);
                 Equal(changedWhileHovered, typeof(LinkLabel).GetProperty("LinkColor").GetValue(control, null));
                 Equal(visited, typeof(LinkLabel).GetProperty("VisitedLinkColor").GetValue(control, null));
 
                 Call(type, control, "OnMouseEnter", EventArgs.Empty);
                 Call(type, control, "OnMouseLeave", EventArgs.Empty);
-                Equal(changedWhileHovered, Get(control, "LinkColor"));
-                Equal(visited, Get(control, "VisitedLinkColor"));
+                Equal(changedWhileHovered, linkColor.GetValue(control, null));
+                Equal(visited, visitedLinkColor.GetValue(control, null));
             }
             finally { control.Dispose(); }
         });

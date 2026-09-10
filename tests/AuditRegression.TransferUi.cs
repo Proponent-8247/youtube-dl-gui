@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -88,27 +89,36 @@ internal static partial class AuditRegression {
             Control control = (Control)New("murrty.controls.ExtendedLinkLabel");
             try {
                 Type type = control.GetType();
-                System.Reflection.PropertyInfo linkColor = type.GetProperty("LinkColor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.DeclaredOnly);
-                System.Reflection.PropertyInfo visitedLinkColor = type.GetProperty("VisitedLinkColor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.DeclaredOnly);
+                BindingFlags declaredPublic = BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly;
+                BindingFlags declaredNonPublic = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+                PropertyInfo linkColor = type.GetProperty("LinkColor", declaredPublic);
+                PropertyInfo visitedLinkColor = type.GetProperty("VisitedLinkColor", declaredPublic);
+                PropertyInfo baseLinkColor = typeof(LinkLabel).GetProperty("LinkColor", declaredPublic);
+                PropertyInfo baseVisitedLinkColor = typeof(LinkLabel).GetProperty("VisitedLinkColor", declaredPublic);
+                MethodInfo onMouseEnter = type.GetMethod("OnMouseEnter", declaredNonPublic);
+                MethodInfo onMouseLeave = type.GetMethod("OnMouseLeave", declaredNonPublic);
+                Require(linkColor != null && visitedLinkColor != null && baseLinkColor != null && baseVisitedLinkColor != null && onMouseEnter != null && onMouseLeave != null,
+                    "ExtendedLinkLabel reflection targets were not found");
+
                 Color normal = Color.FromArgb(12, 34, 56);
                 Color visited = Color.FromArgb(65, 43, 21);
                 Color changedWhileHovered = Color.FromArgb(90, 80, 70);
                 linkColor.SetValue(control, normal, null);
                 visitedLinkColor.SetValue(control, visited, null);
 
-                Call(type, control, "OnMouseEnter", EventArgs.Empty);
+                onMouseEnter.Invoke(control, new object[] { EventArgs.Empty });
                 Equal(normal, linkColor.GetValue(control, null));
                 Equal(visited, visitedLinkColor.GetValue(control, null));
-                Equal(Color.FromArgb(0x33, 0x99, 0xFF), typeof(LinkLabel).GetProperty("LinkColor").GetValue(control, null));
-                Equal(Color.FromArgb(0xA4, 0x00, 0xA4), typeof(LinkLabel).GetProperty("VisitedLinkColor").GetValue(control, null));
+                Equal(Color.FromArgb(0x33, 0x99, 0xFF), baseLinkColor.GetValue(control, null));
+                Equal(Color.FromArgb(0xA4, 0x00, 0xA4), baseVisitedLinkColor.GetValue(control, null));
 
                 linkColor.SetValue(control, changedWhileHovered, null);
-                Call(type, control, "OnMouseLeave", EventArgs.Empty);
-                Equal(changedWhileHovered, typeof(LinkLabel).GetProperty("LinkColor").GetValue(control, null));
-                Equal(visited, typeof(LinkLabel).GetProperty("VisitedLinkColor").GetValue(control, null));
+                onMouseLeave.Invoke(control, new object[] { EventArgs.Empty });
+                Equal(changedWhileHovered, baseLinkColor.GetValue(control, null));
+                Equal(visited, baseVisitedLinkColor.GetValue(control, null));
 
-                Call(type, control, "OnMouseEnter", EventArgs.Empty);
-                Call(type, control, "OnMouseLeave", EventArgs.Empty);
+                onMouseEnter.Invoke(control, new object[] { EventArgs.Empty });
+                onMouseLeave.Invoke(control, new object[] { EventArgs.Empty });
                 Equal(changedWhileHovered, linkColor.GetValue(control, null));
                 Equal(visited, visitedLinkColor.GetValue(control, null));
             }

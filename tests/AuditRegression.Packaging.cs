@@ -24,6 +24,22 @@ internal static partial class AuditRegression {
             string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
             Equal(FileSha256(Path.Combine(root, "youtube-dl-gui-updater", "bin", "Release", "youtube-dl-gui-updater.exe")), expected.ToLowerInvariant());
         });
+        Test("O009.UpdaterIntegrityIsFailClosed", () => {
+            string invalid = Path.Combine(Environment.CurrentDirectory, "o009-invalid-updater.exe");
+            string valid = Path.Combine(Environment.CurrentDirectory, "o009-valid-updater.exe");
+            try {
+                File.WriteAllText(invalid, "tampered updater bytes");
+                Require(!(bool)Call(T("youtube_dl_gui.Updater"), null, "UpdaterFileMatchesKnownHash", invalid), "A mismatched updater was accepted");
+
+                byte[] updater = (byte[])T("youtube_dl_gui.Properties.Resources").GetProperty("youtube_dl_gui_updater", All).GetValue(null, null);
+                File.WriteAllBytes(valid, updater);
+                Require((bool)Call(T("youtube_dl_gui.Updater"), null, "UpdaterFileMatchesKnownHash", valid), "The build-pinned embedded updater was rejected");
+            }
+            finally {
+                if (File.Exists(invalid)) File.Delete(invalid);
+                if (File.Exists(valid)) File.Delete(valid);
+            }
+        });
         Test("N005.ReleaseArchiveAndChecksumsMatchBuiltFiles", () => {
             string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
             string release = Path.Combine(root, "Release");

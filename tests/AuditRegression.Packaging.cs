@@ -50,8 +50,9 @@ internal static partial class AuditRegression {
                 try {
                     sawDialog = true;
                     ignoreExposed |= O010GetDlgItem(window, (int)DialogResult.Ignore) != IntPtr.Zero;
-                    IntPtr abort = O010GetDlgItem(window, (int)DialogResult.Abort);
-                    if (abort != IntPtr.Zero) SendO010Button(abort, 0x00F5, IntPtr.Zero, IntPtr.Zero);
+                    IntPtr terminal = O010GetDlgItem(window, (int)DialogResult.Cancel);
+                    if (terminal == IntPtr.Zero) terminal = O010GetDlgItem(window, (int)DialogResult.Abort);
+                    if (terminal != IntPtr.Zero) SendO010Button(terminal, 0x00F5, IntPtr.Zero, IntPtr.Zero);
                 }
                 catch (Exception ex) { unexpected = ex; }
                 return false;
@@ -65,7 +66,7 @@ internal static partial class AuditRegression {
                 catch (CryptographicException) { rejected = true; }
                 if (unexpected != null) throw unexpected;
                 Require(sawDialog, "Updater hash mismatch did not present its recovery dialog");
-                Require(rejected, "Updater hash mismatch was not rejected after Abort");
+                Require(rejected, "Updater hash mismatch was not rejected after the terminal response");
                 Require(!ignoreExposed, "Updater hash mismatch still offers an Ignore override");
             }
             finally { timer.Stop(); }

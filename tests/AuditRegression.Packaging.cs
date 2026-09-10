@@ -3,13 +3,76 @@ using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 
 internal static partial class AuditRegression {
     private static string Sha256(Stream stream) {
         using (SHA256 hash = SHA256.Create()) return BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
     }
     private static string FileSha256(string file) { using (Stream stream = File.OpenRead(file)) return Sha256(stream); }
+
+    private delegate bool O010EnumWindow(IntPtr hwnd, IntPtr data);
+    [DllImport("user32.dll")] private static extern bool EnumThreadWindows(uint thread, O010EnumWindow callback, IntPtr data);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, StringBuilder text, int capacity);
+    [DllImport("user32.dll")] private static extern IntPtr GetDlgItem(IntPtr hwnd, int id);
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")] private static extern IntPtr SendO010Button(IntPtr hwnd, uint message, IntPtr wp, IntPtr lp);
+
+    private static void VerifyUpdaterMismatchCannotBeIgnored() {
+        string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
+        Assembly updaterAssembly = Assembly.LoadFrom(Path.Combine(root, "youtube-dl-gui-updater", "bin", "Release", "youtube-dl-gui-updater.exe"));
+        Type language = updaterAssembly.GetType("youtube_dl_gui_updater.Language", true);
+        Type updateDataType = updaterAssembly.GetType("youtube_dl_gui_updater.UpdateData", false) ?? updaterAssembly.GetTypes().Single(t => t.Name == "UpdateData");
+        Type updaterType = updaterAssembly.GetType("youtube_dl_gui_updater.frmUpdater", true);
+        Call(language, null, "LoadInternalEnglish");
+
+        string file = Path.Combine(Environment.CurrentDirectory, "o010-mismatch.part");
+        File.WriteAllText(file, "mismatched payload");
+        bool sawDialog = false;
+        bool ignoreExposed = false;
+        Exception unexpected = null;
+        uint thread = GetCurrentThreadId();
+        using (Form form = (Form)Activator.CreateInstance(updaterType, true))
+        using (Timer timer = new Timer { Interval = 50 }) {
+            object data = Activator.CreateInstance(updateDataType);
+            Set(updateDataType, data, "UpdateHash", new string('0', 64));
+            Field(form, "UpdateData", data);
+            IntPtr handle = form.Handle;
+            timer.Tick += (sender, args) => EnumThreadWindows(thread, (window, state) => {
+                StringBuilder name = new StringBuilder(256);
+                GetClassName(window, name, name.Capacity);
+                if (name.ToString() != "#32770") return true;
+                try {
+                    sawDialog = true;
+                    ignoreExposed |= GetDlgItem(window, (int)DialogResult.Ignore) != IntPtr.Zero;
+                    IntPtr abort = GetDlgItem(window, (int)DialogResult.Abort);
+                    if (abort != IntPtr.Zero) SendO010Button(abort, 0x00F5, IntPtr.Zero, IntPtr.Zero);
+                }
+                catch (Exception ex) { unexpected = ex; }
+                return false;
+            }, IntPtr.Zero);
+            try {
+                timer.Start();
+                Task task = (Task)Call(updaterType, form, "VerifyHash", "https://example.invalid/update.exe", file);
+                PumpUntil(() => task.IsCompleted, 10000, "Updater hash-mismatch dialog did not complete");
+                bool rejected = false;
+                try { task.GetAwaiter().GetResult(); }
+                catch (CryptographicException) { rejected = true; }
+                if (unexpected != null) throw unexpected;
+                Require(sawDialog, "Updater hash mismatch did not present its recovery dialog");
+                Require(rejected, "Updater hash mismatch was not rejected after Abort");
+                Require(!ignoreExposed, "Updater hash mismatch still offers an Ignore override");
+            }
+            finally { timer.Stop(); }
+        }
+        if (File.Exists(file)) File.Delete(file);
+    }
+
     static partial void RunPackagingTests() {
         Test("N005.BuildDateGeneratedWithoutExternalHelper", () => {
             string text = (string)T("youtube_dl_gui.GeneratedBuildDate").GetField("Value", All).GetValue(null);
@@ -40,6 +103,7 @@ internal static partial class AuditRegression {
                 if (File.Exists(valid)) File.Delete(valid);
             }
         });
+        Test("O010.UpdaterHashMismatchHasNoIgnoreOverride", VerifyUpdaterMismatchCannotBeIgnored);
         Test("N005.ReleaseArchiveAndChecksumsMatchBuiltFiles", () => {
             string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
             string release = Path.Combine(root, "Release");
@@ -58,8 +122,8 @@ internal static partial class AuditRegression {
                 string[] expected = Directory.GetFiles(Path.Combine(root, "Languages"), "*.ini").Select(p => "lang/" + Path.GetFileName(p)).Concat(new[] { "youtube-dl-gui.exe" }).OrderBy(n => n).ToArray();
                 Equal(string.Join("\n", expected), string.Join("\n", names));
                 using (Stream packaged = archive.GetEntry("youtube-dl-gui.exe").Open()) Equal(FileSha256(exe), Sha256(packaged));
-                foreach (string language in Directory.GetFiles(Path.Combine(root, "Languages"), "*.ini")) {
-                    using (Stream packaged = archive.GetEntry("lang/" + Path.GetFileName(language)).Open()) Equal(FileSha256(language), Sha256(packaged));
+                foreach (string languageFile in Directory.GetFiles(Path.Combine(root, "Languages"), "*.ini")) {
+                    using (Stream packaged = archive.GetEntry("lang/" + Path.GetFileName(languageFile)).Open()) Equal(FileSha256(languageFile), Sha256(packaged));
                 }
             }
         });

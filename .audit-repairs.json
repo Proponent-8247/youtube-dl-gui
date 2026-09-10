@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "base_sha": "a7e7830f3333b05cb9ade36d004789ca16a01b17",
+  "base_sha": "0200b7d7a299206c83520d595ee06f5162a39107",
   "expected_failures": [
     "E2E_O032.ProgressPercentageIsSafeForUiRange",
     "E2E_O044.BatchIdsAreUniqueAndReadable",
@@ -52,8 +52,8 @@
         {
           "path": "youtube-dl-gui/Updater/GithubLinks.cs",
           "edits": [{
-            "old": "internal static class GithubLinks {\n    public const string GithubLatestJson = \"https://api.github.com/repos/{0}/{1}/releases/latest\";\n    public const string GithubAllReleasesJson = \"https://api.github.com/repos/{0}/{1}/releases\";\n",
-            "new": "internal static class GithubLinks {\n    public const string GithubLatestJson = \"https://api.github.com/repos/{0}/{1}/releases/latest\";\n    public const string GithubAllReleasesJson = \"https://api.github.com/repos/{0}/{1}/releases\";\n    public const string ApplicationUpdateUser = \"Proponent-8247\";\n    public const string ApplicationUpdateRepo = \"youtube-dl-gui\";\n    public const string ApplicationReleasesUrl = \"https://github.com/Proponent-8247/youtube-dl-gui/releases\";\n    public static string GetApplicationReleaseMetadataUrl(bool IncludePreReleases) =>\n        (IncludePreReleases ? GithubAllReleasesJson : GithubLatestJson).Format(ApplicationUpdateUser, ApplicationUpdateRepo);\n",
+            "old": "    public const string GithubAllReleasesJson   = \"https://api.github.com/repos/{0}/{1}/releases\";\n",
+            "new": "    public const string GithubAllReleasesJson   = \"https://api.github.com/repos/{0}/{1}/releases\";\n\n    public const string ApplicationUpdateUser = \"Proponent-8247\";\n    public const string ApplicationUpdateRepo = \"youtube-dl-gui\";\n    public const string ApplicationReleasesUrl = \"https://github.com/Proponent-8247/youtube-dl-gui/releases\";\n    public static string GetApplicationReleaseMetadataUrl(bool IncludePreReleases) =>\n        (IncludePreReleases ? GithubAllReleasesJson : GithubLatestJson).Format(ApplicationUpdateUser, ApplicationUpdateRepo);\n",
             "count": 1
           }]
         },

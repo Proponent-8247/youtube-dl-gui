@@ -90,9 +90,12 @@ public static class DownloadHelper {
             LineParts[1][..PercentIndex],
             System.Globalization.NumberStyles.Float,
             System.Globalization.CultureInfo.InvariantCulture,
-            out float ParsedPercentage)) {
+            out float ParsedPercentage)
+            || float.IsNaN(ParsedPercentage)
+            || float.IsInfinity(ParsedPercentage)) {
             return "Could not parse line";
         }
+        ParsedPercentage = Math.Max(0f, Math.Min(100f, ParsedPercentage));
 
         if (LineParts.Length > 3 && LineParts[3] == "~") {
             if (LineParts.Length <= 8) {

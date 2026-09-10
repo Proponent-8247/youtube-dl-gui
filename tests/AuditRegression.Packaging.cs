@@ -17,10 +17,10 @@ internal static partial class AuditRegression {
     private static string FileSha256(string file) { using (Stream stream = File.OpenRead(file)) return Sha256(stream); }
 
     private delegate bool O010EnumWindow(IntPtr hwnd, IntPtr data);
-    [DllImport("user32.dll")] private static extern bool EnumThreadWindows(uint thread, O010EnumWindow callback, IntPtr data);
-    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, StringBuilder text, int capacity);
-    [DllImport("user32.dll")] private static extern IntPtr GetDlgItem(IntPtr hwnd, int id);
+    [DllImport("user32.dll")] private static extern bool O010EnumThreadWindows(uint thread, O010EnumWindow callback, IntPtr data);
+    [DllImport("kernel32.dll")] private static extern uint O010GetCurrentThreadId();
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int O010GetClassName(IntPtr hwnd, StringBuilder text, int capacity);
+    [DllImport("user32.dll")] private static extern IntPtr O010GetDlgItem(IntPtr hwnd, int id);
     [DllImport("user32.dll", EntryPoint = "SendMessageW")] private static extern IntPtr SendO010Button(IntPtr hwnd, uint message, IntPtr wp, IntPtr lp);
 
     private static void VerifyUpdaterMismatchCannotBeIgnored() {
@@ -36,21 +36,21 @@ internal static partial class AuditRegression {
         bool sawDialog = false;
         bool ignoreExposed = false;
         Exception unexpected = null;
-        uint thread = GetCurrentThreadId();
+        uint thread = O010GetCurrentThreadId();
         using (Form form = (Form)Activator.CreateInstance(updaterType, true))
         using (Timer timer = new Timer { Interval = 50 }) {
             object data = Activator.CreateInstance(updateDataType);
             Set(updateDataType, data, "UpdateHash", new string('0', 64));
             Field(form, "UpdateData", data);
             IntPtr handle = form.Handle;
-            timer.Tick += (sender, args) => EnumThreadWindows(thread, (window, state) => {
+            timer.Tick += (sender, args) => O010EnumThreadWindows(thread, (window, state) => {
                 StringBuilder name = new StringBuilder(256);
-                GetClassName(window, name, name.Capacity);
+                O010GetClassName(window, name, name.Capacity);
                 if (name.ToString() != "#32770") return true;
                 try {
                     sawDialog = true;
-                    ignoreExposed |= GetDlgItem(window, (int)DialogResult.Ignore) != IntPtr.Zero;
-                    IntPtr abort = GetDlgItem(window, (int)DialogResult.Abort);
+                    ignoreExposed |= O010GetDlgItem(window, (int)DialogResult.Ignore) != IntPtr.Zero;
+                    IntPtr abort = O010GetDlgItem(window, (int)DialogResult.Abort);
                     if (abort != IntPtr.Zero) SendO010Button(abort, 0x00F5, IntPtr.Zero, IntPtr.Zero);
                 }
                 catch (Exception ex) { unexpected = ex; }

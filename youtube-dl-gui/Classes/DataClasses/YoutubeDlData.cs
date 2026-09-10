@@ -204,33 +204,30 @@ internal sealed class YoutubeDlData {
     [IgnoreDataMember]
     public string Duration {
         get {
-            int hours = 0;
-            int minutes = 0;
-            decimal seconds = 0;
+            decimal totalSeconds = 0;
 
-            if (DurationTime is not null) {
-                seconds = DurationTime.Value;
-            }
-            else if (IsPlaylist) {
-                for (int i = 0; i < PlaylistVideos.Length; i++) {
-                    if (PlaylistVideos[i].DurationTime is not null) {
-                        seconds += PlaylistVideos[i].DurationTime!.Value;
+            try {
+                if (DurationTime is not null) {
+                    totalSeconds = DurationTime.Value;
+                }
+                else if (IsPlaylist) {
+                    for (int i = 0; i < PlaylistVideos.Length; i++) {
+                        if (PlaylistVideos[i].DurationTime is not null) {
+                            totalSeconds = checked(totalSeconds + PlaylistVideos[i].DurationTime!.Value);
+                        }
                     }
                 }
             }
+            catch (OverflowException) {
+                return DurationString.IsNullEmptyWhitespace() ? "?:??" : DurationString;
+            }
 
-            if (seconds > 0) {
-                while (seconds >= 60) {
-                    minutes++;
-                    seconds -= 60;
-                }
-
-                while (minutes >= 60) {
-                    hours++;
-                    minutes -= 60;
-                }
-
-                return $"{(hours > 0 ? $"{hours:N0}:{minutes:00.##}" : $"{minutes}")}:{Math.Round(seconds, MidpointRounding.ToEven):00.##}";
+            if (totalSeconds > 0) {
+                decimal roundedSeconds = Math.Round(totalSeconds, 0, MidpointRounding.ToEven);
+                decimal hours = decimal.Floor(roundedSeconds / 3600m);
+                decimal minutes = decimal.Floor((roundedSeconds % 3600m) / 60m);
+                decimal seconds = roundedSeconds % 60m;
+                return $"{(hours > 0 ? $"{hours:N0}:{minutes:00}" : $"{minutes:0}")}:{seconds:00}";
             }
 
             return DurationString.IsNullEmptyWhitespace() ? "?:??" : DurationString;

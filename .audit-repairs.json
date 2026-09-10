@@ -1,0 +1,71 @@
+{
+  "version": 2,
+  "base_sha": "c0a96d82d57c5a0ee6734abe10af6fd6a5f5ee6c",
+  "expected_failures": [
+    "E2E_O014.ExtendedRelativeWindowsRootResolvesFromProgramPath",
+    "CR_O015_E2E_O018.DurationFormattingRoundsAndScales",
+    "E2E_O019.MediaSizeOverflowIsContained",
+    "CR_O019.ExtendedTextBoxNavigationDoesNotPoisonNextDigit",
+    "CR_O020.VersionParserRejectsMalformedSeparators",
+    "E2E_O020.InvalidBooleanIniUsesCallerDefault",
+    "E2E_O032.ProgressPercentageIsSafeForUiRange",
+    "E2E_O044.BatchIdsAreUniqueAndReadable",
+    "P001.ApplicationUpdateUrlsUseForkReleases"
+  ],
+  "remaining_failures": [
+    "CR_O019.ExtendedTextBoxNavigationDoesNotPoisonNextDigit",
+    "CR_O020.VersionParserRejectsMalformedSeparators",
+    "E2E_O020.InvalidBooleanIniUsesCallerDefault",
+    "E2E_O032.ProgressPercentageIsSafeForUiRange",
+    "E2E_O044.BatchIdsAreUniqueAndReadable",
+    "P001.ApplicationUpdateUrlsUseForkReleases"
+  ],
+  "repairs": [
+    {
+      "id": "E2E_O014",
+      "message": "fix: resolve Windows relative extended download roots",
+      "resolves": ["E2E_O014.ExtendedRelativeWindowsRootResolvesFromProgramPath"],
+      "files": [{
+        "path": "youtube-dl-gui/Classes/DataClasses/ExtendedMediaDetails.cs",
+        "edits": [{
+          "old": "        OutputPath.Append(Downloads.downloadPath.StartsWith(\"./\") || Downloads.downloadPath.StartsWith(\"\\\\.\") ?\n            $\"{Program.ProgramPath}\\\\{Downloads.downloadPath[2..]}\" : Downloads.downloadPath);\n",
+          "new": "        OutputPath.Append(Downloads.downloadPath.StartsWith(\"./\") || Downloads.downloadPath.StartsWith(\".\\\\\") ?\n            $\"{Program.ProgramPath}\\\\{Downloads.downloadPath[2..]}\" : Downloads.downloadPath);\n",
+          "count": 1
+        }]
+      }]
+    },
+    {
+      "id": "CR_O015_E2E_O018",
+      "message": "fix: format metadata duration in bounded time",
+      "resolves": ["CR_O015_E2E_O018.DurationFormattingRoundsAndScales"],
+      "files": [{
+        "path": "youtube-dl-gui/Classes/DataClasses/YoutubeDlData.cs",
+        "edits": [{
+          "old": "    [IgnoreDataMember]\n    public string Duration {\n        get {\n            int hours = 0;\n            int minutes = 0;\n            decimal seconds = 0;\n\n            if (DurationTime is not null) {\n                seconds = DurationTime.Value;\n            }\n            else if (IsPlaylist) {\n                for (int i = 0; i < PlaylistVideos.Length; i++) {\n                    if (PlaylistVideos[i].DurationTime is not null) {\n                        seconds += PlaylistVideos[i].DurationTime!.Value;\n                    }\n                }\n            }\n\n            if (seconds > 0) {\n                while (seconds >= 60) {\n                    minutes++;\n                    seconds -= 60;\n                }\n\n                while (minutes >= 60) {\n                    hours++;\n                    minutes -= 60;\n                }\n\n                return $\"{(hours > 0 ? $\"{hours:N0}:{minutes:00.##}\" : $\"{minutes}\")}:{Math.Round(seconds, MidpointRounding.ToEven):00.##}\";\n            }\n\n            return DurationString.IsNullEmptyWhitespace() ? \"?:??\" : DurationString;\n        }\n    }\n",
+          "new": "    [IgnoreDataMember]\n    public string Duration {\n        get {\n            decimal totalSeconds = 0;\n\n            try {\n                if (DurationTime is not null) {\n                    totalSeconds = DurationTime.Value;\n                }\n                else if (IsPlaylist) {\n                    for (int i = 0; i < PlaylistVideos.Length; i++) {\n                        if (PlaylistVideos[i].DurationTime is not null) {\n                            totalSeconds = checked(totalSeconds + PlaylistVideos[i].DurationTime!.Value);\n                        }\n                    }\n                }\n            }\n            catch (OverflowException) {\n                return DurationString.IsNullEmptyWhitespace() ? \"?:??\" : DurationString;\n            }\n\n            if (totalSeconds > 0) {\n                decimal roundedSeconds = Math.Round(totalSeconds, 0, MidpointRounding.ToEven);\n                decimal hours = decimal.Floor(roundedSeconds / 3600m);\n                decimal minutes = decimal.Floor((roundedSeconds % 3600m) / 60m);\n                decimal seconds = roundedSeconds % 60m;\n                return $\"{(hours > 0 ? $\"{hours:N0}:{minutes:00}\" : $\"{minutes:0}\")}:{seconds:00}\";\n            }\n\n            return DurationString.IsNullEmptyWhitespace() ? \"?:??\" : DurationString;\n        }\n    }\n",
+          "count": 1
+        }]
+      }]
+    },
+    {
+      "id": "E2E_O019",
+      "message": "fix: contain extreme metadata size estimates",
+      "resolves": ["E2E_O019.MediaSizeOverflowIsContained"],
+      "files": [{
+        "path": "youtube-dl-gui/Classes/DataClasses/YoutubeDlData.cs",
+        "edits": [
+          {
+            "old": "    public string GetApproximateVideoSize(YoutubeDlSubdata.Format Video) {\n        if (DurationTime is null || Video.VideoBitrate is null) {\n            return \"null\";\n        }\n        return \"~\" + (DurationTime.Value * (Video.VideoBitrate.Value / 8) * 1024).SizeToString();\n    }\n",
+            "new": "    public string GetApproximateVideoSize(YoutubeDlSubdata.Format Video) {\n        if (DurationTime is null || Video.VideoBitrate is null) {\n            return \"null\";\n        }\n        try {\n            return \"~\" + (DurationTime.Value * (Video.VideoBitrate.Value / 8) * 1024).SizeToString();\n        }\n        catch (OverflowException) {\n            return \"null\";\n        }\n    }\n",
+            "count": 1
+          },
+          {
+            "old": "    public string GetApproximateAudioSize(YoutubeDlSubdata.Format Audio) {\n        if (DurationTime is null || Audio.AudioBitrate is null) {\n            return \"null\";\n        }\n        return \"~\" + (((DurationTime.Value * Audio.AudioBitrate.Value) / 8) * 1024).SizeToString();\n    }\n",
+            "new": "    public string GetApproximateAudioSize(YoutubeDlSubdata.Format Audio) {\n        if (DurationTime is null || Audio.AudioBitrate is null) {\n            return \"null\";\n        }\n        try {\n            return \"~\" + (((DurationTime.Value * Audio.AudioBitrate.Value) / 8) * 1024).SizeToString();\n        }\n        catch (OverflowException) {\n            return \"null\";\n        }\n    }\n",
+            "count": 1
+          }
+        ]
+      }]
+    }
+  ]
+}

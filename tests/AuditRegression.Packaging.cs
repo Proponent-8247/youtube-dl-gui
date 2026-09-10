@@ -17,10 +17,10 @@ internal static partial class AuditRegression {
     private static string FileSha256(string file) { using (Stream stream = File.OpenRead(file)) return Sha256(stream); }
 
     private delegate bool O010EnumWindow(IntPtr hwnd, IntPtr data);
-    [DllImport("user32.dll")] private static extern bool O010EnumThreadWindows(uint thread, O010EnumWindow callback, IntPtr data);
-    [DllImport("kernel32.dll")] private static extern uint O010GetCurrentThreadId();
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int O010GetClassName(IntPtr hwnd, StringBuilder text, int capacity);
-    [DllImport("user32.dll")] private static extern IntPtr O010GetDlgItem(IntPtr hwnd, int id);
+    [DllImport("user32.dll", EntryPoint = "EnumThreadWindows")] private static extern bool O010EnumThreadWindows(uint thread, O010EnumWindow callback, IntPtr data);
+    [DllImport("kernel32.dll", EntryPoint = "GetCurrentThreadId")] private static extern uint O010GetCurrentThreadId();
+    [DllImport("user32.dll", EntryPoint = "GetClassNameW", CharSet = CharSet.Unicode)] private static extern int O010GetClassName(IntPtr hwnd, StringBuilder text, int capacity);
+    [DllImport("user32.dll", EntryPoint = "GetDlgItem")] private static extern IntPtr O010GetDlgItem(IntPtr hwnd, int id);
     [DllImport("user32.dll", EntryPoint = "SendMessageW")] private static extern IntPtr SendO010Button(IntPtr hwnd, uint message, IntPtr wp, IntPtr lp);
 
     private static void VerifyUpdaterMismatchCannotBeIgnored() {

@@ -6,7 +6,7 @@ import re
 from pathlib import Path, PurePosixPath
 
 ROOT = Path.cwd().resolve()
-ALLOWED_ROOTS = {'Controls', 'youtube-dl-gui', 'youtube-dl-gui-updater'}
+ALLOWED_ROOTS = {'Controls', 'Languages', 'youtube-dl-gui', 'youtube-dl-gui-updater'}
 ALLOWED_SUFFIXES = {'.cs', '.csproj', '.projitems', '.resx', '.ini'}
 
 

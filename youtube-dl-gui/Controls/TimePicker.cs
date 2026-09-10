@@ -159,6 +159,7 @@ public sealed class TimePicker : UserControl {
         this.Minutes = Minute >= 59 ? 59 : Minute < 0 ? 0 : Minute;
         this.Seconds = Second >= 59 ? 59 : Second < 0 ? 0 : Second;
         this.Milliseconds = Millisecond >= 999 ? 999 : Millisecond < 0 ? 0 : Millisecond;
+        UpdateHourSeparator();
         UpdateDisplay();
     }
     private void UpdateControl() {

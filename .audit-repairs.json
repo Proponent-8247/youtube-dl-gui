@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "base_sha": "7c6954c2dd8e75960bd4bd75e1aaf070f5d4830c",
+  "expected_failures": [
+    "O041.RemoteLanguageNamesStayInsideLanguageDirectory"
+  ],
+  "repairs": [
+    {
+      "id": "O041",
+      "message": "fix: confine remote language downloads",
+      "resolves": [
+        "O041.RemoteLanguageNamesStayInsideLanguageDirectory"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Forms/frmDownloadLanguage.cs",
+          "before_sha256": "e1b6a293d2fd925860ecb440388d0f613b057cce8cdc199a48460a266b162272",
+          "after_sha256": "8915350690f347a0822183ca317f04bdca194193ad8d18b6434e300dfc22297c",
+          "edits": [
+            {
+              "old": "    public string? FileName { get; private set; }\n\n    public frmDownloadLanguage(GithubRepoContent[] AvailableLanguages) {\n",
+              "new": "    public string? FileName { get; private set; }\n\n    private static bool IsReservedWindowsFileName(string FileName) {\n        string Stem = System.IO.Path.GetFileNameWithoutExtension(FileName).TrimEnd(' ', '.');\n        if (Stem.Equals(\"CON\", StringComparison.OrdinalIgnoreCase) ||\n            Stem.Equals(\"PRN\", StringComparison.OrdinalIgnoreCase) ||\n            Stem.Equals(\"AUX\", StringComparison.OrdinalIgnoreCase) ||\n            Stem.Equals(\"NUL\", StringComparison.OrdinalIgnoreCase)) {\n            return true;\n        }\n\n        return Stem.Length == 4 &&\n            (Stem.StartsWith(\"COM\", StringComparison.OrdinalIgnoreCase) || Stem.StartsWith(\"LPT\", StringComparison.OrdinalIgnoreCase)) &&\n            Stem[3] >= '1' && Stem[3] <= '9';\n    }\n\n    private static bool TryGetLanguageOutputPath(string? FileName, out string Output) {\n        Output = string.Empty;\n        if (FileName.IsNullEmptyWhitespace() ||\n            !FileName!.EndsWith(\".ini\", StringComparison.OrdinalIgnoreCase) ||\n            FileName.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) >= 0 ||\n            FileName.IndexOf('\\\\') >= 0 || FileName.IndexOf('/') >= 0 ||\n            IsReservedWindowsFileName(FileName)) {\n            return false;\n        }\n\n        try {\n            string LanguageDirectory = System.IO.Path.GetFullPath(System.IO.Path.Combine(Environment.CurrentDirectory, \"lang\"));\n            string Candidate = System.IO.Path.GetFullPath(System.IO.Path.Combine(LanguageDirectory, FileName));\n            if (!string.Equals(System.IO.Path.GetDirectoryName(Candidate), LanguageDirectory, StringComparison.OrdinalIgnoreCase)) {\n                return false;\n            }\n            Output = Candidate;\n            return true;\n        }\n        catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is System.IO.PathTooLongException) {\n            return false;\n        }\n    }\n\n    public frmDownloadLanguage(GithubRepoContent[] AvailableLanguages) {\n",
+              "count": 1
+            },
+            {
+              "old": "                .Where(x => !x.name.IsNullEmptyWhitespace() && !x.download_url.IsNullEmptyWhitespace())\n",
+              "new": "                .Where(x => !x.download_url.IsNullEmptyWhitespace() && TryGetLanguageOutputPath(x.name, out _))\n",
+              "count": 1
+            },
+            {
+              "old": "        Log.Write($\"Downloading language file {lang.name}.\");\n        if (!System.IO.Directory.Exists(Environment.CurrentDirectory + \"\\\\lang\")) {\n            System.IO.Directory.CreateDirectory(Environment.CurrentDirectory + \"\\\\lang\");\n        }\n        string URL = lang.download_url!;\n        string Output = Environment.CurrentDirectory + \"\\\\lang\\\\\" + lang.name;\n",
+              "new": "        Log.Write($\"Downloading language file {lang.name}.\");\n        if (!TryGetLanguageOutputPath(lang.name, out string Output)) {\n            Log.Write($\"Rejected unsafe language file name {lang.name}.\");\n            return false;\n        }\n        string LanguageDirectory = System.IO.Path.GetDirectoryName(Output)!;\n        if (!System.IO.Directory.Exists(LanguageDirectory)) {\n            System.IO.Directory.CreateDirectory(LanguageDirectory);\n        }\n        string URL = lang.download_url!;\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

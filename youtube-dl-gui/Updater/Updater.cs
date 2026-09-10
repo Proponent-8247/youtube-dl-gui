@@ -124,6 +124,22 @@ internal static class Updater {
             } break;
         }
     }
+    private static bool UpdaterFileMatchesKnownHash(string UpdaterPath) {
+        try {
+            return File.Exists(UpdaterPath) &&
+                Program.CalculateSha256Hash(UpdaterPath).Equals(KnownUpdaterHash, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (IOException) {
+            return false;
+        }
+        catch (UnauthorizedAccessException) {
+            return false;
+        }
+        catch (CryptographicException) {
+            return false;
+        }
+    }
+
     private static void BeginUpdate() {
         if (LastChecked?.ExecutableHash.IsNullEmptyWhitespace() != false) {
             Log.MessageBox("The selected release does not include a valid executable SHA-256 hash. The update cannot continue.");
@@ -147,10 +163,15 @@ internal static class Updater {
             File.WriteAllBytes(UpdaterPath, Properties.Resources.youtube_dl_gui_updater);
         }
 
-        // Sanity check the updater.
-        if (Program.CalculateSha256Hash(UpdaterPath) != KnownUpdaterHash.ToLowerInvariant() &&
-        Log.MessageBox(Language.dlgUpdaterHashNoMatch, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No) {
-            File.Delete(UpdaterPath);
+        // Sanity check the updater. A cryptographic mismatch is terminal; user consent cannot make untrusted bytes safe.
+        if (!UpdaterFileMatchesKnownHash(UpdaterPath)) {
+            Log.MessageBox("The updater failed its SHA-256 integrity check and will not be executed.", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            try {
+                File.Delete(UpdaterPath);
+            }
+            catch (Exception ex) {
+                Log.Write($"Failed to remove the untrusted updater after its integrity check failed: {ex.Message}");
+            }
             return;
         }
 

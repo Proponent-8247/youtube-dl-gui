@@ -33,9 +33,10 @@ internal static class IniProvider {
     }
     public static bool Read(bool Value, bool Default, string? Section = null, [CallerArgumentExpression(nameof(Value))] string Key = null!) {
         if (InternalKeyExists(Key, out string? Data, Section ?? Language.ApplicationName)) {
-            return Data.ToLower() switch {
+            return Data.Trim().ToLowerInvariant() switch {
                 "true" or "on" or "1" => true,
-                _ => false
+                "false" or "off" or "0" => false,
+                _ => Default
             };
         }
 

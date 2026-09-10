@@ -164,12 +164,22 @@ public sealed class TimePicker : UserControl {
     }
     private void UpdateControl() {
         string[] Parts = TimeDisplay.Text.Trim().Split(":".ToCharArray());
+        if (Parts.Length != 3) {
+            SpecifyingNumbers = false;
+            UpdateDisplay();
+            return;
+        }
 
         this.Hours = !int.TryParse(Parts[0], out int ParseHours) || ParseHours < 0 ? 0 : ParseHours >= 25 && DateBasedTime ? 24 : ParseHours;
         this.Minutes = !int.TryParse(Parts[1], out int ParseMinutes) || ParseMinutes < 0 ? 0 : ParseMinutes >= 59 ? 59 : ParseMinutes;
 
         if (ShowMilliseconds) {
             string[] SecondParts = Parts[2].Split(".".ToCharArray());
+            if (SecondParts.Length != 2) {
+                SpecifyingNumbers = false;
+                UpdateDisplay();
+                return;
+            }
             this.Seconds = !int.TryParse(SecondParts[0], out int ParseSeconds) || ParseSeconds < 0 ? 0 : ParseSeconds >= 59 ? 59 : ParseSeconds;
             this.Milliseconds = !int.TryParse(SecondParts[1], out int ParseMilliseconds) || ParseMilliseconds < 0 ? 0 : ParseMilliseconds >= 999 ? 999 : ParseMilliseconds;
         }
@@ -243,8 +253,11 @@ public sealed class TimePicker : UserControl {
                         if (DateBasedTime && Hours >= 24) {
                             Hours = 0;
                         }
-                        else {
+                        else if (Hours < int.MaxValue) {
                             Hours++;
+                        }
+                        else {
+                            System.Media.SystemSounds.Exclamation.Play();
                         }
 
                         UpdateHourSeparator();
@@ -279,8 +292,11 @@ public sealed class TimePicker : UserControl {
                         if (DateBasedTime && Hours >= 24) {
                             Hours = 0;
                         }
-                        else {
+                        else if (Hours < int.MaxValue) {
                             Hours++;
+                        }
+                        else {
+                            System.Media.SystemSounds.Exclamation.Play();
                         }
 
                         UpdateHourSeparator();

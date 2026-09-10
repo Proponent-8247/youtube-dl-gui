@@ -494,7 +494,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
 
         #region Outuput path
         StringBuilder OutputPath = new("-o \"");
-        OutputPath.Append(Downloads.downloadPath.StartsWith("./") || Downloads.downloadPath.StartsWith("\\.") ?
+        OutputPath.Append(Downloads.downloadPath.StartsWith("./") || Downloads.downloadPath.StartsWith(".\\") ?
             $"{Program.ProgramPath}\\{Downloads.downloadPath[2..]}" : Downloads.downloadPath);
 
         if (BatchDownloadItem && Downloads.SeparateBatchDownloads) {

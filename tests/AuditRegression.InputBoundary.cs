@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Threading;
+using System.Windows.Forms;
 
 internal static partial class AuditRegression {
     private static void VerifySingleLogWrite(bool updater) {
@@ -17,6 +18,13 @@ internal static partial class AuditRegression {
         string[] logs = Directory.GetFiles(scratch, "ex_*.log");
         Equal(1, logs.Length);
         Require(File.ReadAllText(logs[0]).Contains("audit-log-fixture"), "Exception log content was not preserved");
+    }
+    private static object LanguageContent(Type type, string name) {
+        object value = Activator.CreateInstance(type);
+        Set(type, value, "name", name);
+        Set(type, value, "download_url", "https://example.invalid/lang/" + Uri.EscapeDataString(name));
+        Set(type, value, "size", 123L);
+        return value;
     }
     private static void RunInputBoundaryTests() {
         Test("N014.ApplicationLogWriteReturnsAfterSuccess", () => VerifySingleLogWrite(false));
@@ -33,6 +41,31 @@ internal static partial class AuditRegression {
             }
             foreach (string text in new[] { "", "a", ".", "a.", ".b", "a\n.b", "a.\nb", "no dot here" }) {
                 Equal(false, Call(T("youtube_dl_gui.DownloadHelper"), null, "SupportedDownloadLink", text));
+            }
+        });
+        Test("O041.RemoteLanguageNamesStayInsideLanguageDirectory", () => {
+            Type contentType = T("murrty.updater.GithubRepoContent");
+            string[] names = {
+                "Spanish.ini",
+                "日本語.ini",
+                "..\\outside.ini",
+                "nested/file.ini",
+                "C:\\outside.ini",
+                "CON.ini",
+                "not-a-language.exe"
+            };
+            Array values = Array.CreateInstance(contentType, names.Length);
+            for (int i = 0; i < names.Length; i++) values.SetValue(LanguageContent(contentType, names[i]), i);
+            Type formType = T("youtube_dl_gui.frmDownloadLanguage");
+            using (Form form = (Form)Activator.CreateInstance(formType, new object[] { values })) {
+                Array accepted = (Array)Field(form, "EnumeratedLanguages");
+                ListView list = (ListView)Field(form, "lvAvailableLanguages");
+                Equal(2, accepted.Length);
+                Equal(2, list.Items.Count);
+                string displayed = list.Items[0].Text + "\n" + list.Items[1].Text;
+                Require(displayed.Contains("Spanish") && displayed.Contains("日本語"), "Valid simple .ini language names were not retained");
+                foreach (string rejected in new[] { "outside", "nested", "CON", "not-a-language" })
+                    Require(!displayed.Contains(rejected), "Unsafe language metadata was offered in the UI: " + rejected);
             }
         });
         Test("Progress.MalformedRowsCannotThrow", () => {

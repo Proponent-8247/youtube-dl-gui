@@ -112,7 +112,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
     public frmExtendedDownloader(string URL, bool Archived) : this(false) {
         MediaDetails = new(URL) {
-            Archived = Archived
+            Archived = Archived,
+            FileNameSchema = cbSchema.Text,
+            FileNameSchemaIndex = cbSchema.SelectedIndex
         };
 
         llbLink.Text = (Archived ? URL.Split(':')[1] : URL);
@@ -1286,8 +1288,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
         Console.WriteLine("Loading media");
         txtCustomArguments.Text = MediaDetails.CustomArguments;
-        cbSchema.Text = MediaDetails.FileNameSchema;
-        cbSchema.SelectedIndex = MediaDetails.FileNameSchemaIndex;
+        if (MediaDetails.FileNameSchemaIndex >= 0 && MediaDetails.FileNameSchemaIndex < cbSchema.Items.Count) {
+            cbSchema.SelectedIndex = MediaDetails.FileNameSchemaIndex;
+        }
+        else {
+            cbSchema.SelectedIndex = -1;
+            cbSchema.Text = MediaDetails.FileNameSchema;
+        }
         numFragmentThreads.Value = MediaDetails.FragmentThreads;
         chkAudioVBR.Checked = MediaDetails.AudioVBR;
         cbVbrQualities.SelectedIndex = MediaDetails.VBRIndex;

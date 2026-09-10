@@ -327,7 +327,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
             AbortDownload = false;
             btnBatchDownloadRemoveSelected.Enabled = false;
             btnBatchDownloadStartStopExit.Text = Language.GenericStop;
-            string BatchTime = BatchHelper.CurrentTime;
+            string BatchTime = BatchHelper.CreateBatchId();
             DownloadThread = new(() => {
                 for (int i = 0; ; i++) {
                     string DownloadUrl;

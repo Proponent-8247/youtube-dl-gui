@@ -472,6 +472,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
     }
 
     private void AddItemToList(string URL) {
+        URL = URL?.Trim(' ', '"', '\r', '\n', '\t', '\0', '\b') ?? string.Empty;
         if (!string.IsNullOrWhiteSpace(URL) && cbBatchDownloadType.SelectedIndex != -1) {
             for (int i = 0; i < lvBatchDownloadQueue.Items.Count; i++) {
                 if (lvBatchDownloadQueue.Items[i].Text[1..] == URL) {

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "base_sha": "d1dcafb420be88ba055cdd4476118ad4f4b8dbf2",
+  "base_sha": "a7e7830f3333b05cb9ade36d004789ca16a01b17",
   "expected_failures": [
     "E2E_O032.ProgressPercentageIsSafeForUiRange",
     "E2E_O044.BatchIdsAreUniqueAndReadable",
@@ -29,8 +29,8 @@
         {
           "path": "youtube-dl-gui/Classes/BatchHelper.cs",
           "edits": [{
-            "old": "internal static class BatchHelper {\n    public static string CurrentTime => $\"{DateTime.Now:yyyy_MM_dd-HH_mm_ss}\";\n",
-            "new": "internal static class BatchHelper {\n    public static string CurrentTime => $\"{DateTime.Now:yyyy_MM_dd-HH_mm_ss}\";\n    public static string CreateBatchId() => $\"{DateTime.Now:yyyy_MM_dd-HH_mm_ss}-{Guid.NewGuid():N}\";\n",
+            "old": "public static class BatchHelper {\n    /// <summary>\n    /// Gets the current date and time in \"yyyy_MM_dd-HH_mm_ss\" format.\n    /// </summary>\n    /// <returns>The current date and time formatted.</returns>\n    public static string CurrentTime {\n        get => $\"{DateTime.Now:yyyy_MM_dd-HH_mm_ss}\";\n    }\n",
+            "new": "public static class BatchHelper {\n    /// <summary>\n    /// Gets the current date and time in \"yyyy_MM_dd-HH_mm_ss\" format.\n    /// </summary>\n    /// <returns>The current date and time formatted.</returns>\n    public static string CurrentTime {\n        get => $\"{DateTime.Now:yyyy_MM_dd-HH_mm_ss}\";\n    }\n\n    /// <summary>\n    /// Allocates a readable identifier that remains unique for independent batches started in the same second.\n    /// </summary>\n    public static string CreateBatchId() => $\"{CurrentTime}-{Guid.NewGuid():N}\";\n",
             "count": 1
           }]
         },

@@ -1,0 +1,78 @@
+{
+  "version": 2,
+  "base_sha": "d1dcafb420be88ba055cdd4476118ad4f4b8dbf2",
+  "expected_failures": [
+    "E2E_O032.ProgressPercentageIsSafeForUiRange",
+    "E2E_O044.BatchIdsAreUniqueAndReadable",
+    "P001.ApplicationUpdateUrlsUseForkReleases"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "E2E_O032",
+      "message": "fix: constrain parsed progress to UI-safe range",
+      "resolves": ["E2E_O032.ProgressPercentageIsSafeForUiRange"],
+      "files": [{
+        "path": "youtube-dl-gui/Classes/DownloadHelper.cs",
+        "edits": [{
+          "old": "        if (PercentIndex <= 0 || !float.TryParse(\n            LineParts[1][..PercentIndex],\n            System.Globalization.NumberStyles.Float,\n            System.Globalization.CultureInfo.InvariantCulture,\n            out float ParsedPercentage)) {\n            return \"Could not parse line\";\n        }\n\n        if (LineParts.Length > 3 && LineParts[3] == \"~\") {\n",
+          "new": "        if (PercentIndex <= 0 || !float.TryParse(\n            LineParts[1][..PercentIndex],\n            System.Globalization.NumberStyles.Float,\n            System.Globalization.CultureInfo.InvariantCulture,\n            out float ParsedPercentage)\n            || float.IsNaN(ParsedPercentage)\n            || float.IsInfinity(ParsedPercentage)) {\n            return \"Could not parse line\";\n        }\n        ParsedPercentage = Math.Max(0f, Math.Min(100f, ParsedPercentage));\n\n        if (LineParts.Length > 3 && LineParts[3] == \"~\") {\n",
+          "count": 1
+        }]
+      }]
+    },
+    {
+      "id": "E2E_O044",
+      "message": "fix: allocate unique readable batch identifiers",
+      "resolves": ["E2E_O044.BatchIdsAreUniqueAndReadable"],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/BatchHelper.cs",
+          "edits": [{
+            "old": "internal static class BatchHelper {\n    public static string CurrentTime => $\"{DateTime.Now:yyyy_MM_dd-HH_mm_ss}\";\n",
+            "new": "internal static class BatchHelper {\n    public static string CurrentTime => $\"{DateTime.Now:yyyy_MM_dd-HH_mm_ss}\";\n    public static string CreateBatchId() => $\"{DateTime.Now:yyyy_MM_dd-HH_mm_ss}-{Guid.NewGuid():N}\";\n",
+            "count": 1
+          }]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmBatchDownloader.cs",
+          "edits": [{
+            "old": "        string BatchTime = BatchHelper.CurrentTime;\n",
+            "new": "        string BatchTime = BatchHelper.CreateBatchId();\n",
+            "count": 1
+          }]
+        }
+      ]
+    },
+    {
+      "id": "P001",
+      "message": "fix: source application updates from fork releases",
+      "resolves": ["P001.ApplicationUpdateUrlsUseForkReleases"],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Updater/GithubLinks.cs",
+          "edits": [{
+            "old": "internal static class GithubLinks {\n    public const string GithubLatestJson = \"https://api.github.com/repos/{0}/{1}/releases/latest\";\n    public const string GithubAllReleasesJson = \"https://api.github.com/repos/{0}/{1}/releases\";\n",
+            "new": "internal static class GithubLinks {\n    public const string GithubLatestJson = \"https://api.github.com/repos/{0}/{1}/releases/latest\";\n    public const string GithubAllReleasesJson = \"https://api.github.com/repos/{0}/{1}/releases\";\n    public const string ApplicationUpdateUser = \"Proponent-8247\";\n    public const string ApplicationUpdateRepo = \"youtube-dl-gui\";\n    public const string ApplicationReleasesUrl = \"https://github.com/Proponent-8247/youtube-dl-gui/releases\";\n    public static string GetApplicationReleaseMetadataUrl(bool IncludePreReleases) =>\n        (IncludePreReleases ? GithubAllReleasesJson : GithubLatestJson).Format(ApplicationUpdateUser, ApplicationUpdateRepo);\n",
+            "count": 1
+          }]
+        },
+        {
+          "path": "youtube-dl-gui/Updater/Updater.cs",
+          "edits": [
+            {
+              "old": "            Process.Start(\"https://github.com/murrty/youtube-dl-gui/releases\");\n",
+              "new": "            Process.Start(GithubLinks.ApplicationReleasesUrl);\n",
+              "count": 1
+            },
+            {
+              "old": "            string GitLink = (IncludePreReleases ? GithubLinks.GithubAllReleasesJson : GithubLinks.GithubLatestJson)\n                .Format(\"murrty\", Language.ApplicationName);\n",
+              "new": "            string GitLink = GithubLinks.GetApplicationReleaseMetadataUrl(IncludePreReleases);\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

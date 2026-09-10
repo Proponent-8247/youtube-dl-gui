@@ -394,6 +394,7 @@ public class ExtendedTextBox : TextBox {
 
     /// <inheritdoc/>
     protected override void OnKeyDown(KeyEventArgs e) {
+        fCheckChar = false;
         if (TextType == AllowedCharacters.UnfilteredCharactersOnly) {
             fCheckChar = true;
             base.OnKeyDown(e);

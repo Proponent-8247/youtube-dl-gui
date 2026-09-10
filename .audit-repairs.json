@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "base_sha": "0200b7d7a299206c83520d595ee06f5162a39107",
+  "base_sha": "4e47d9be2ddda4c87a6935176fd92d502fadf5a4",
   "expected_failures": [
     "E2E_O032.ProgressPercentageIsSafeForUiRange",
     "E2E_O044.BatchIdsAreUniqueAndReadable",
@@ -66,8 +66,8 @@
               "count": 1
             },
             {
-              "old": "            string GitLink = (IncludePreReleases ? GithubLinks.GithubAllReleasesJson : GithubLinks.GithubLatestJson)\n                .Format(\"murrty\", Language.ApplicationName);\n",
-              "new": "            string GitLink = GithubLinks.GetApplicationReleaseMetadataUrl(IncludePreReleases);\n",
+              "old": "        string ReleaseUrl = (IncludePreReleases ? GithubLinks.GithubAllReleasesJson : GithubLinks.GithubLatestJson)\n            .Format(\"murrty\", Language.ApplicationName);\n",
+              "new": "        string ReleaseUrl = GithubLinks.GetApplicationReleaseMetadataUrl(IncludePreReleases);\n",
               "count": 1
             }
           ]

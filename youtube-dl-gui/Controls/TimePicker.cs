@@ -82,13 +82,22 @@ public sealed class TimePicker : UserControl {
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public TimeSpan TimeSpan {
         get {
-            return new TimeSpan(0, Hours > 24 ? 0 : Hours, Minutes, Seconds, Milliseconds);
+            return new System.TimeSpan(0, Hours, Minutes, Seconds, Milliseconds);
         }
         set {
-            Hours = value.Hours;
+            if (value < System.TimeSpan.Zero) {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            Hours = checked(value.Days * 24 + value.Hours);
+            if (DateBasedTime && Hours > 24) {
+                Hours = 24;
+            }
             Minutes = value.Minutes;
             Seconds = value.Seconds;
             Milliseconds = value.Milliseconds;
+            UpdateHourSeparator();
+            UpdateDisplay();
         }
     }
 

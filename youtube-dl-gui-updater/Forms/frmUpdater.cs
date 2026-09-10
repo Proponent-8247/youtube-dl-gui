@@ -303,10 +303,7 @@ internal partial class frmUpdater : Form {
                 pbDownloadProgress.ProgressState = ProgressState.Paused;
             });
 
-            switch ((DialogResult)this.Invoke(() => MessageBox.Show(this, string.Format(Language.dlgUpdaterUpdatedVersionHashNoMatch, ExpectedHash, ReceivedHash), Language.ApplicationName, MessageBoxButtons.AbortRetryIgnore, MessageBoxIcon.Warning))) {
-                case DialogResult.Abort:
-                    throw new CryptographicException("The known hash of the file does not match the hash calculated by the updater.");
-
+            switch ((DialogResult)this.Invoke(() => MessageBox.Show(this, string.Format(Language.dlgUpdaterUpdatedVersionHashNoMatch, ExpectedHash, ReceivedHash), Language.ApplicationName, MessageBoxButtons.RetryCancel, MessageBoxIcon.Warning))) {
                 case DialogResult.Retry:
                     File.Delete(FileName);
                     this.Invoke(() => {
@@ -317,9 +314,8 @@ internal partial class frmUpdater : Form {
                     await GetUpdate(Url, FileName);
                     continue;
 
-                case DialogResult.Ignore:
-                    pbDownloadProgress.Invoke(() => pbDownloadProgress.ProgressState = ProgressState.Normal);
-                    return;
+                case DialogResult.Cancel:
+                    throw new CryptographicException("The known hash of the file does not match the hash calculated by the updater.");
             }
         }
     }

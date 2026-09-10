@@ -32,6 +32,12 @@ internal static class GithubLinks {
     /// </summary>
     public const string GithubAllReleasesJson   = "https://api.github.com/repos/{0}/{1}/releases";
 
+    public const string ApplicationUpdateUser = "Proponent-8247";
+    public const string ApplicationUpdateRepo = "youtube-dl-gui";
+    public const string ApplicationReleasesUrl = "https://github.com/Proponent-8247/youtube-dl-gui/releases";
+    public static string GetApplicationReleaseMetadataUrl(bool IncludePreReleases) =>
+        (IncludePreReleases ? GithubAllReleasesJson : GithubLatestJson).Format(ApplicationUpdateUser, ApplicationUpdateRepo);
+
     /// <summary>
     /// A download URL to a piece of github content.
     /// Format with the following args:

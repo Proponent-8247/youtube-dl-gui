@@ -55,7 +55,7 @@ internal static class Updater {
     public static async Task<bool?> CheckForUpdate(bool ForceCheck) {
         if (!Program.UpdaterEnabled) {
             Log.Write("Cannot check for updates: TLS 1.2+ is not in use.");
-            Process.Start("https://github.com/murrty/youtube-dl-gui/releases");
+            Process.Start(GithubLinks.ApplicationReleasesUrl);
             return null;
         }
 
@@ -528,8 +528,7 @@ internal static class Updater {
     /// Refreshes the release data within the application.
     /// </summary>
     private static async Task RefreshRelease(bool IncludePreReleases) {
-        string ReleaseUrl = (IncludePreReleases ? GithubLinks.GithubAllReleasesJson : GithubLinks.GithubLatestJson)
-            .Format("murrty", Language.ApplicationName);
+        string ReleaseUrl = GithubLinks.GetApplicationReleaseMetadataUrl(IncludePreReleases);
         string? Json = await GetJSON(ReleaseUrl);
 
         if (Json.IsNullEmptyWhitespace()) {

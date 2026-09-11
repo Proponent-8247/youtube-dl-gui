@@ -93,6 +93,7 @@ internal static partial class AuditRegression {
         File.WriteAllText(path, "https://example.invalid/one\r\nhttps://example.invalid/two\r\n");
         using (Form form = (Form)New("youtube_dl_gui.frmBatchDownloader")) {
             ListView queue = (ListView)Field(form, "lvBatchDownloadQueue");
+            ((ComboBox)Field(form, "cbBatchDownloadType")).SelectedIndex = 0;
             using (FileStream locked = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
                 object[] blocked = { path, null };
                 Equal(false, Call(form.GetType(), form, "TryImportLinksFromFile", blocked));

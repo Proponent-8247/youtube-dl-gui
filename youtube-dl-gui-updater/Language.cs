@@ -298,17 +298,27 @@ public static class Language {
     /// <param name="Name">The output of the Name of the control to be named, as lowercase.</param>
     /// <param name="Value">The vlaue of the control.</param>
     private static void GetControlInfo(string Input, out string Name, out string Value) {
-        switch (Input.Split('=').Length) {
-            case -1: case 0: {
-                Name = null;
-                Value = null;
-            } return;
-
-            default: {
-                Input = Input.Contains("//") ? Input.Substring(0, Input.IndexOf("//")) : Input;
-                Name = Input.Split('=')[0].Trim();
-                Value = Input.Substring(Input.IndexOf('=') + 1).Trim().Replace("\\n", "\n").Replace("\\r", "\r");
-            } break;
+        bool Quoted = false;
+        for (int i = 0; i + 1 < Input.Length; i++) {
+            if (Input[i] == '"') {
+                int Backslashes = 0;
+                for (int j = i - 1; j >= 0 && Input[j] == '\\'; j--) {
+                    Backslashes++;
+                }
+                if (Backslashes % 2 == 0) {
+                    Quoted = !Quoted;
+                }
+            }
+            if (!Quoted && Input[i] == '/' && Input[i + 1] == '/'
+            && (i == 0 || char.IsWhiteSpace(Input[i - 1]))) {
+                Input = Input[..i];
+                break;
+            }
         }
+
+        int Separator = Input.IndexOf('=');
+        Name = (Separator < 0 ? Input : Input[..Separator]).Trim();
+        Value = Separator < 0 ? string.Empty :
+            Input[(Separator + 1)..].Trim().Replace("\\n", "\n").Replace("\\r", "\r");
     }
 }

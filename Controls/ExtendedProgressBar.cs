@@ -39,6 +39,7 @@ public sealed class ExtendedProgressBar : ProgressBar {
     /// The brush used for the drop shadow.
     /// </summary>
     private Brush DropShadowBrush = SystemBrushes.ControlDark;
+    private bool OwnsDropShadowBrush;
 
     /// <summary>
     /// The state of the progress.
@@ -69,6 +70,7 @@ public sealed class ExtendedProgressBar : ProgressBar {
     /// The brush used for the text.
     /// </summary>
     private Brush TextBrush = SystemBrushes.ControlText;
+    private bool OwnsTextBrush;
 
     /// <summary>
     /// The graphics used for drawing text.
@@ -113,7 +115,11 @@ public sealed class ExtendedProgressBar : ProgressBar {
         get => _DropShadowColor;
         set {
             _DropShadowColor = value;
+            if (OwnsDropShadowBrush) {
+                DropShadowBrush.Dispose();
+            }
             DropShadowBrush = new SolidBrush(value);
+            OwnsDropShadowBrush = true;
             Invalidate();
         }
     }
@@ -161,7 +167,11 @@ public sealed class ExtendedProgressBar : ProgressBar {
         get => base.ForeColor;
         set {
             base.ForeColor = value;
+            if (OwnsTextBrush) {
+                TextBrush.Dispose();
+            }
             TextBrush = new SolidBrush(value);
+            OwnsTextBrush = true;
             Invalidate();
         }
     }
@@ -440,6 +450,14 @@ public sealed class ExtendedProgressBar : ProgressBar {
         if (disposing) {
             TextGraphics?.Dispose();
             TextGraphics = null;
+            if (OwnsTextBrush) {
+                TextBrush.Dispose();
+                OwnsTextBrush = false;
+            }
+            if (OwnsDropShadowBrush) {
+                DropShadowBrush.Dispose();
+                OwnsDropShadowBrush = false;
+            }
         }
         base.Dispose(disposing);
     }

@@ -57,10 +57,14 @@ public partial class frmMerger : LocalizedForm {
             if (RootNode.Nodes.Count > 0) {
                 for (int i = 0; i < RootNode.Nodes.Count; i++) {
                     CurrentFile = (FfprobeNodeTag)RootNode.Nodes[i].Tag;
-                    FileIndex = Files.IndexOf(CurrentFile.ParentFile.Format!.filename!);
+                    string InputPath = CurrentFile.ParentFile.FilePath;
+                    if (InputPath.IsNullEmptyWhitespace()) {
+                        continue;
+                    }
+                    FileIndex = Files.IndexOf(InputPath);
                     if (FileIndex == -1) {
-                        Files.Add(CurrentFile.ParentFile.Format!.filename!);
-                        InputArgument.Append("-i \"").Append(CurrentFile.ParentFile.Format.filename).Append("\" ");
+                        Files.Add(InputPath);
+                        InputArgument.Append("-i \"").Append(InputPath).Append("\" ");
                         FileIndex = Files.Count - 1;
                     }
                     MapArgument.Append("-map ").Append(FileIndex).Append(':').Append(CurrentFile.Stream.index).Append(' ');
@@ -178,9 +182,8 @@ public partial class frmMerger : LocalizedForm {
         if (sfd.ShowDialog() == DialogResult.OK) {
             string OutputPath = Path.GetFullPath(sfd.FileName);
             if (LoadedMediaFiles.Any(Media =>
-                Media.Format?.filename is string InputPath
-                && !InputPath.IsNullEmptyWhitespace()
-                && string.Equals(Path.GetFullPath(InputPath), OutputPath, StringComparison.OrdinalIgnoreCase))) {
+                !Media.FilePath.IsNullEmptyWhitespace()
+                && string.Equals(Path.GetFullPath(Media.FilePath), OutputPath, StringComparison.OrdinalIgnoreCase))) {
                 Log.MessageBox("The merge output cannot overwrite one of its input files.");
                 return;
             }

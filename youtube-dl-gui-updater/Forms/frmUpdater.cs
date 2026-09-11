@@ -98,6 +98,9 @@ internal partial class frmUpdater : Form {
         pbDownloadProgress.Text = Language.pbDownloadProgressPreparing;
     }
     private async Task RunUpdate() {
+        // Fail closed unless the successful launch path explicitly clears the exit code.
+        Program.ExitCode = 1;
+
         // Check if the latest version needs to be downloaded.
         if (DownloadLatest) {
             await GetVersionFromGithub();

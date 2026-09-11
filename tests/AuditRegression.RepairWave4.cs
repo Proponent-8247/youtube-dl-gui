@@ -108,7 +108,7 @@ internal static partial class AuditRegression {
     private static void ProtocolPreservesNestedUrlEncoding() {
         string encodedUrl = "https://example.invalid/a%2Fb?q=one%25two&quoted=%22value%22&space=one%20two";
         string[] args = { "ytdlgui:v%20%22" + encodedUrl + "%22" };
-        IList parsed = (IList)Call(T("youtube_dl_gui.Arguments"), null, "RetrieveArguments", args);
+        IList parsed = (IList)Call(T("youtube_dl_gui.Arguments"), null, "RetrieveArguments", (object)args);
         Equal(1, parsed.Count);
         object item = parsed[0];
         object type = item.GetType().GetField("Item1").GetValue(item);

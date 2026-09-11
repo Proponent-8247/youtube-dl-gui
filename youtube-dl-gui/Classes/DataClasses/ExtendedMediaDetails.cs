@@ -560,10 +560,10 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
 
                 if (VideoDownloadAudio && SelectedAudioItem?.Tag is YoutubeDlSubdata.Format af) {
                     AudioFormat = af;
-                    Selector += VideoSeparateAudio ? "/best," + AudioFormat.Identifier + "/best" : "+" + AudioFormat.Identifier + "/best";
+                    Selector += VideoSeparateAudio ? "/bestvideo," + AudioFormat.Identifier + "/bestaudio" : "+" + AudioFormat.Identifier + "/best";
                 }
                 else {
-                    Selector += "/best";
+                    Selector += "/bestvideo";
                 }
 
                 if (SelectedUnknownItem?.Tag is YoutubeDlSubdata.Format uf) {
@@ -582,7 +582,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
             } break;
             case DownloadType.Audio when SelectedAudioItem?.Tag is YoutubeDlSubdata.Format af: {
                 AudioFormat = af;
-                string Selector = AudioFormat.Identifier + "/best";
+                string Selector = AudioFormat.Identifier + "/bestaudio";
 
                 if (SelectedUnknownItem?.Tag is YoutubeDlSubdata.Format uf) {
                     UnknownFormat = uf;

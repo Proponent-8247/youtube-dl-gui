@@ -19,13 +19,20 @@ public partial class frmMerger : LocalizedForm {
         tvSelectedStreams.HandleCreated += (s, e) => murrty.controls.natives.NativeMethods.SetWindowTheme(tvSelectedStreams.Handle, "Explorer", null);
     }
     private void frmMerger_DragEnter(object sender, DragEventArgs e) {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop)) {
-            string[] Files = (string[])e.Data.GetData(DataFormats.FileDrop);
+        if (e.Data.GetDataPresent(DataFormats.FileDrop)
+        && e.Data.GetData(DataFormats.FileDrop) is string[] Files
+        && Files.Length > 0) {
             e.Effect = File.Exists(Files[0]) ? DragDropEffects.Copy : DragDropEffects.None;
+            return;
         }
+        e.Effect = DragDropEffects.None;
     }
     private async void frmMerger_DragDrop(object sender, DragEventArgs e) {
-        string[] Files = (string[])e.Data.GetData(DataFormats.FileDrop);
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)
+        || e.Data.GetData(DataFormats.FileDrop) is not string[] Files
+        || Files.Length == 0) {
+            return;
+        }
         await AddFilesAsync(Files);
     }
 

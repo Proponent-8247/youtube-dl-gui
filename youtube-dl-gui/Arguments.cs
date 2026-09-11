@@ -52,35 +52,72 @@ internal static class Arguments {
         }
 
         List<string> Args = [.. Arguments];
-        if (Arguments[0].StartsWith(ProtocolPrefix, StringComparison.InvariantCultureIgnoreCase)) {
-            Arguments[0] = Arguments[0][ProtocolPrefix.Length..];
-        }
+        string RawFirstArgument = Arguments[0];
+        bool ProtocolArgument = RawFirstArgument.StartsWith(ProtocolPrefix, StringComparison.InvariantCultureIgnoreCase);
+        if (ProtocolArgument) {
+            RawFirstArgument = RawFirstArgument[ProtocolPrefix.Length..];
+            int LiteralSeparator = RawFirstArgument.IndexOf(' ');
+            int EncodedSeparator = RawFirstArgument.IndexOf("%20", StringComparison.OrdinalIgnoreCase);
+            int SeparatorIndex;
+            int SeparatorLength;
+            if (LiteralSeparator >= 0 && (EncodedSeparator < 0 || LiteralSeparator < EncodedSeparator)) {
+                SeparatorIndex = LiteralSeparator;
+                SeparatorLength = 1;
+            }
+            else {
+                SeparatorIndex = EncodedSeparator;
+                SeparatorLength = EncodedSeparator >= 0 ? 3 : 0;
+            }
 
-        string FirstArgument;
-        try {
-            FirstArgument = Uri.UnescapeDataString(Arguments[0]);
-        }
-        catch (UriFormatException) {
-            FirstArgument = Arguments[0];
-        }
-
-        var Matches = Regex.Matches(FirstArgument, @"\""(\""\""|[^\""])+\""|[^ ]+", RegexOptions.ExplicitCapture);
-        if (Matches.Count > 0) {
             Args.RemoveAt(0);
-            for (int i = 0; i < Matches.Count; i++) {
-                if (Matches[i].Success) {
-                    string NewArgument = Matches[i].Value;
-                    if (NewArgument.StartsWith("\"") && NewArgument.EndsWith("\"")) {
-                        NewArgument = NewArgument[1..^1].Replace("\"\"", "\"");
-                    }
-                    if (NewArgument.StartsWith("\\\"") && NewArgument.EndsWith("\"")) {
-                        NewArgument = NewArgument[1..^1];
-                    }
-
-                    Args.Insert(i, NewArgument);
+            if (SeparatorIndex >= 0) {
+                string Command = RawFirstArgument[..SeparatorIndex];
+                try { Command = Uri.UnescapeDataString(Command); } catch (UriFormatException) { }
+                string Operand = RawFirstArgument[(SeparatorIndex + SeparatorLength)..];
+                if (Operand.StartsWith("%22", StringComparison.OrdinalIgnoreCase)
+                    && Operand.EndsWith("%22", StringComparison.OrdinalIgnoreCase)
+                    && Operand.Length >= 6) {
+                    Operand = Operand[3..^3];
                 }
+                else if (Operand.StartsWith("\"") && Operand.EndsWith("\"") && Operand.Length >= 2) {
+                    Operand = Operand[1..^1].Replace("\"\"", "\"");
+                }
+                Args.Insert(0, Command);
+                Args.Insert(1, Operand);
+            }
+            else {
+                try { RawFirstArgument = Uri.UnescapeDataString(RawFirstArgument); } catch (UriFormatException) { }
+                Args.Insert(0, RawFirstArgument);
             }
             Arguments = [.. Args];
+        }
+        else {
+            string FirstArgument;
+            try {
+                FirstArgument = Uri.UnescapeDataString(RawFirstArgument);
+            }
+            catch (UriFormatException) {
+                FirstArgument = RawFirstArgument;
+            }
+
+            var Matches = Regex.Matches(FirstArgument, @"\""(\""\""|[^\""])+\""|[^ ]+", RegexOptions.ExplicitCapture);
+            if (Matches.Count > 0) {
+                Args.RemoveAt(0);
+                for (int i = 0; i < Matches.Count; i++) {
+                    if (Matches[i].Success) {
+                        string NewArgument = Matches[i].Value;
+                        if (NewArgument.StartsWith("\"") && NewArgument.EndsWith("\"")) {
+                            NewArgument = NewArgument[1..^1].Replace("\"\"", "\"");
+                        }
+                        if (NewArgument.StartsWith("\\\"") && NewArgument.EndsWith("\"")) {
+                            NewArgument = NewArgument[1..^1];
+                        }
+
+                        Args.Insert(i, NewArgument);
+                    }
+                }
+                Arguments = [.. Args];
+            }
         }
 
         Log.Write($"There are {Arguments.Length} arguments to parse through.");

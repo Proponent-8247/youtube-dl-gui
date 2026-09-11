@@ -1,0 +1,152 @@
+{
+  "version": 2,
+  "base_sha": "58664e1c88560590e2685b5bca2db73969ea5be5",
+  "expected_failures": [
+    "E2E_O026.MergerUsesSelectedInputPath",
+    "E2E_O031.EmptyMergerDropIsIgnored",
+    "E2E_O030.InvalidConversionPathIsContained",
+    "E2E_O037.ClipboardContentionIsContained",
+    "E2E_O038.ProviderUpdateStartFailureIsContained",
+    "CR_O023.UpdaterFailureReturnsNonZero",
+    "E2E_O039.ProgressBrushesAreOwned",
+    "E2E_O040.FolderBrowserDisposesOwnedDialog"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "E2E_O026",
+      "message": "fix: use selected merger source paths",
+      "resolves": ["E2E_O026.MergerUsesSelectedInputPath"],
+      "files": [{
+        "path": "youtube-dl-gui/Forms/frmMerger.cs",
+        "edits": [
+          {
+            "old": "                    CurrentFile = (FfprobeNodeTag)RootNode.Nodes[i].Tag;\n                    FileIndex = Files.IndexOf(CurrentFile.ParentFile.Format!.filename!);\n                    if (FileIndex == -1) {\n                        Files.Add(CurrentFile.ParentFile.Format!.filename!);\n                        InputArgument.Append(\"-i \\\"\").Append(CurrentFile.ParentFile.Format.filename).Append(\"\\\" \");\n                        FileIndex = Files.Count - 1;\n                    }",
+            "new": "                    CurrentFile = (FfprobeNodeTag)RootNode.Nodes[i].Tag;\n                    string InputPath = CurrentFile.ParentFile.FilePath;\n                    if (InputPath.IsNullEmptyWhitespace()) {\n                        continue;\n                    }\n                    FileIndex = Files.IndexOf(InputPath);\n                    if (FileIndex == -1) {\n                        Files.Add(InputPath);\n                        InputArgument.Append(\"-i \\\"\").Append(InputPath).Append(\"\\\" \");\n                        FileIndex = Files.Count - 1;\n                    }",
+            "count": 1
+          },
+          {
+            "old": "            if (LoadedMediaFiles.Any(Media =>\n                Media.Format?.filename is string InputPath\n                && !InputPath.IsNullEmptyWhitespace()\n                && string.Equals(Path.GetFullPath(InputPath), OutputPath, StringComparison.OrdinalIgnoreCase))) {",
+            "new": "            if (LoadedMediaFiles.Any(Media =>\n                !Media.FilePath.IsNullEmptyWhitespace()\n                && string.Equals(Path.GetFullPath(Media.FilePath), OutputPath, StringComparison.OrdinalIgnoreCase))) {",
+            "count": 1
+          }
+        ]
+      }]
+    },
+    {
+      "id": "E2E_O031",
+      "message": "fix: ignore empty merger file drops",
+      "resolves": ["E2E_O031.EmptyMergerDropIsIgnored"],
+      "files": [{
+        "path": "youtube-dl-gui/Forms/frmMerger.cs",
+        "edits": [{
+          "old": "    private void frmMerger_DragEnter(object sender, DragEventArgs e) {\n        if (e.Data.GetDataPresent(DataFormats.FileDrop)) {\n            string[] Files = (string[])e.Data.GetData(DataFormats.FileDrop);\n            e.Effect = File.Exists(Files[0]) ? DragDropEffects.Copy : DragDropEffects.None;\n        }\n    }\n    private async void frmMerger_DragDrop(object sender, DragEventArgs e) {\n        string[] Files = (string[])e.Data.GetData(DataFormats.FileDrop);\n        await AddFilesAsync(Files);\n    }",
+          "new": "    private void frmMerger_DragEnter(object sender, DragEventArgs e) {\n        if (e.Data.GetDataPresent(DataFormats.FileDrop)\n        && e.Data.GetData(DataFormats.FileDrop) is string[] Files\n        && Files.Length > 0) {\n            e.Effect = File.Exists(Files[0]) ? DragDropEffects.Copy : DragDropEffects.None;\n            return;\n        }\n        e.Effect = DragDropEffects.None;\n    }\n    private async void frmMerger_DragDrop(object sender, DragEventArgs e) {\n        if (!e.Data.GetDataPresent(DataFormats.FileDrop)\n        || e.Data.GetData(DataFormats.FileDrop) is not string[] Files\n        || Files.Length == 0) {\n            return;\n        }\n        await AddFilesAsync(Files);\n    }",
+          "count": 1
+        }]
+      }]
+    },
+    {
+      "id": "E2E_O030",
+      "message": "fix: contain invalid converter paths",
+      "resolves": ["E2E_O030.InvalidConversionPathIsContained"],
+      "files": [{
+        "path": "youtube-dl-gui/Forms/frmConverter.cs",
+        "edits": [{
+          "old": "        if (!CurrentConversion.FullCustomArguments\n        && string.Equals(\n            System.IO.Path.GetFullPath(CurrentConversion.InputFile),\n            System.IO.Path.GetFullPath(CurrentConversion.OutputFile!),\n            StringComparison.OrdinalIgnoreCase)) {\n            rtbConsoleOutput.AppendText(\"The output file cannot be the same as the input file.\");\n            CurrentConversion.Status = ConversionStatus.ProgramError;\n            Log.Write(\"Conversion cannot overwrite its input file.\");\n            return;\n        }",
+          "new": "        if (!CurrentConversion.FullCustomArguments) {\n            string InputPath;\n            string OutputPath;\n            try {\n                InputPath = System.IO.Path.GetFullPath(CurrentConversion.InputFile);\n                OutputPath = System.IO.Path.GetFullPath(CurrentConversion.OutputFile!);\n            }\n            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or System.Security.SecurityException) {\n                rtbConsoleOutput.AppendText(\"The input or output path is invalid: \" + ex.Message);\n                CurrentConversion.Status = ConversionStatus.ProgramError;\n                Log.Write(\"Conversion cannot continue because an input or output path is invalid.\");\n                return;\n            }\n\n            if (string.Equals(InputPath, OutputPath, StringComparison.OrdinalIgnoreCase)) {\n                rtbConsoleOutput.AppendText(\"The output file cannot be the same as the input file.\");\n                CurrentConversion.Status = ConversionStatus.ProgramError;\n                Log.Write(\"Conversion cannot overwrite its input file.\");\n                return;\n            }\n        }",
+          "count": 1
+        }]
+      }]
+    },
+    {
+      "id": "E2E_O037",
+      "message": "fix: contain clipboard contention in filtered text boxes",
+      "resolves": ["E2E_O037.ClipboardContentionIsContained"],
+      "files": [{
+        "path": "Controls/ExtendedTextBox.cs",
+        "edits": [
+          {
+            "old": "    /// <inheritdoc/>\n    protected override void OnKeyDown(KeyEventArgs e) {",
+            "new": "    private static bool TryGetClipboardText(out string Text) {\n        try {\n            if (Clipboard.ContainsText()) {\n                Text = Clipboard.GetText();\n                return true;\n            }\n        }\n        catch (ExternalException) {\n            // Another process may temporarily own the clipboard. Treat it as unavailable.\n        }\n        Text = string.Empty;\n        return false;\n    }\n\n    /// <inheritdoc/>\n    protected override void OnKeyDown(KeyEventArgs e) {",
+            "count": 1
+          },
+          {
+            "old": "                                case Keys.V: {\n                                    if (Clipboard.ContainsText()) {\n                                        e.SuppressKeyPress = !Regex.IsMatch(Clipboard.GetText(),\n                                            TextType switch {",
+            "new": "                                case Keys.V: {\n                                    if (TryGetClipboardText(out string ClipboardText)) {\n                                        e.SuppressKeyPress = !Regex.IsMatch(ClipboardText,\n                                            TextType switch {",
+            "count": 1
+          },
+          {
+            "old": "                                    }\n                                } break;\n                            }\n                        }\n                    } break;\n\n                    case AllowedCharacters.NumericOnly:",
+            "new": "                                    }\n                                    else {\n                                        e.SuppressKeyPress = true;\n                                    }\n                                } break;\n                            }\n                        }\n                    } break;\n\n                    case AllowedCharacters.NumericOnly:",
+            "count": 1
+          },
+          {
+            "old": "                                case Keys.V: {\n                                    e.SuppressKeyPress = Clipboard.ContainsText() && !Regex.IsMatch(Clipboard.GetText(), $\"^[0-9{(AllowSpace ? \" \" : \"\")}]+$\");\n                                } break;",
+            "new": "                                case Keys.V: {\n                                    e.SuppressKeyPress = !TryGetClipboardText(out string ClipboardText)\n                                        || !Regex.IsMatch(ClipboardText, $\"^[0-9{(AllowSpace ? \" \" : \"\")}]+$\");\n                                } break;",
+            "count": 1
+          }
+        ]
+      }]
+    },
+    {
+      "id": "E2E_O038",
+      "message": "fix: contain provider internal update start failures",
+      "resolves": ["E2E_O038.ProviderUpdateStartFailureIsContained"],
+      "files": [{
+        "path": "youtube-dl-gui/Updater/Updater.cs",
+        "edits": [{
+          "old": "            UpdateYoutubeDl.Start();\n            return true;",
+          "new": "            try {\n                return UpdateYoutubeDl.Start();\n            }\n            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) {\n                Log.Write($\"Could not start the provider's internal updater: {ex.Message}\");\n                return false;\n            }",
+          "count": 1
+        }]
+      }]
+    },
+    {
+      "id": "CR_O023",
+      "message": "fix: return failure status when updater run fails",
+      "resolves": ["CR_O023.UpdaterFailureReturnsNonZero"],
+      "files": [{
+        "path": "youtube-dl-gui-updater/Forms/frmUpdater.cs",
+        "edits": [{
+          "old": "    private async Task RunUpdate() {\n        // Check if the latest version needs to be downloaded.",
+          "new": "    private async Task RunUpdate() {\n        // Fail closed unless the successful launch path explicitly clears the exit code.\n        Program.ExitCode = 1;\n\n        // Check if the latest version needs to be downloaded.",
+          "count": 1
+        }]
+      }]
+    },
+    {
+      "id": "E2E_O039",
+      "message": "fix: dispose progress bar owned brushes",
+      "resolves": ["E2E_O039.ProgressBrushesAreOwned"],
+      "files": [{
+        "path": "Controls/ExtendedProgressBar.cs",
+        "edits": [
+          {"old": "    private Brush DropShadowBrush = SystemBrushes.ControlDark;", "new": "    private Brush DropShadowBrush = SystemBrushes.ControlDark;\n    private bool OwnsDropShadowBrush;", "count": 1},
+          {"old": "    private Brush TextBrush = SystemBrushes.ControlText;", "new": "    private Brush TextBrush = SystemBrushes.ControlText;\n    private bool OwnsTextBrush;", "count": 1},
+          {"old": "            _DropShadowColor = value;\n            DropShadowBrush = new SolidBrush(value);", "new": "            _DropShadowColor = value;\n            if (OwnsDropShadowBrush) {\n                DropShadowBrush.Dispose();\n            }\n            DropShadowBrush = new SolidBrush(value);\n            OwnsDropShadowBrush = true;", "count": 1},
+          {"old": "            base.ForeColor = value;\n            TextBrush = new SolidBrush(value);", "new": "            base.ForeColor = value;\n            if (OwnsTextBrush) {\n                TextBrush.Dispose();\n            }\n            TextBrush = new SolidBrush(value);\n            OwnsTextBrush = true;", "count": 1},
+          {"old": "        if (disposing) {\n            TextGraphics?.Dispose();\n            TextGraphics = null;\n        }", "new": "        if (disposing) {\n            TextGraphics?.Dispose();\n            TextGraphics = null;\n            if (OwnsTextBrush) {\n                TextBrush.Dispose();\n                OwnsTextBrush = false;\n            }\n            if (OwnsDropShadowBrush) {\n                DropShadowBrush.Dispose();\n                OwnsDropShadowBrush = false;\n            }\n        }", "count": 1}
+        ]
+      }]
+    },
+    {
+      "id": "E2E_O040",
+      "message": "fix: dispose folder browser owned resources",
+      "resolves": ["E2E_O040.FolderBrowserDisposesOwnedDialog"],
+      "files": [{
+        "path": "Controls/BetterFolderBrowser.cs",
+        "edits": [
+          {"old": "using System.Reflection;\nusing System.Windows.Forms;", "new": "using System.Reflection;\nusing System.Runtime.InteropServices;\nusing System.Windows.Forms;", "count": 1},
+          {"old": "        protected override void Dispose(bool disposing) {\n            if (disposing && (components != null)) {\n                components.Dispose();\n            }\n            base.Dispose(disposing);\n        }", "new": "        protected override void Dispose(bool disposing) {\n            if (disposing) {\n                _dialog.Dispose();\n                components?.Dispose();\n            }\n            base.Dispose(disposing);\n        }", "count": 1},
+          {"old": "                BetterFolderBrowser editor = new() {\n                    editorService = editorService,\n                    Multiselect = false\n                };", "new": "                using BetterFolderBrowser editor = new() {\n                    editorService = editorService,\n                    Multiselect = false\n                };", "count": 1},
+          {"old": "                BetterFolderBrowser editor = new() {\n                    editorService = editorService,\n                    Multiselect = true\n                };", "new": "                using BetterFolderBrowser editor = new() {\n                    editorService = editorService,\n                    Multiselect = true\n                };", "count": 1},
+          {"old": "    public class BetterFolderBrowserDialog {", "new": "    public class BetterFolderBrowserDialog : IDisposable {", "count": 1},
+          {"old": "        #region Methods\n\n        /// <summary>\n        /// Shows the dialog.", "new": "        #region Methods\n\n        public void Dispose() => ofd.Dispose();\n\n        /// <summary>\n        /// Shows the dialog.", "count": 1},
+          {"old": "                finally {\n                    r.CallAs(typeIFileDialog, dialog, \"Unadvise\", num);\n                    GC.KeepAlive(pfde);\n                }", "new": "                finally {\n                    r.CallAs(typeIFileDialog, dialog, \"Unadvise\", num);\n                    GC.KeepAlive(pfde);\n                    if (Marshal.IsComObject(dialog)) {\n                        Marshal.FinalReleaseComObject(dialog);\n                    }\n                }", "count": 1},
+          {"old": "                FolderBrowserDialog fbd = new() {", "new": "                using FolderBrowserDialog fbd = new() {", "count": 1}
+        ]
+      }]
+    }
+  ]
+}

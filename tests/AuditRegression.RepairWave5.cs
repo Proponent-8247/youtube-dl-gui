@@ -73,9 +73,8 @@ internal static partial class AuditRegression {
         try {
             Set(downloads, null, "YtdlType", 2); // YoutubeDl
             object youtubeDl = TimedExtendedVideo("https://example.invalid/youtube-dl", 5, 10);
-            Require((bool)Call(youtubeDl.GetType(), youtubeDl, "GenerateArguments"), "youtube-dl argument generation failed");
-            Require(((string)Get(youtubeDl, "Arguments")).IndexOf("--download-sections", StringComparison.Ordinal) < 0,
-                "yt-dlp-only --download-sections was emitted for youtube-dl");
+            Require(!(bool)Call(youtubeDl.GetType(), youtubeDl, "GenerateArguments"),
+                "youtube-dl accepted a time range that requires the yt-dlp-only --download-sections option");
 
             Set(downloads, null, "YtdlType", 0); // YtDlp
             object ytDlp = TimedExtendedVideo("https://example.invalid/yt-dlp", 5, 10);

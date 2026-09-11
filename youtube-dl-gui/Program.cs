@@ -428,6 +428,11 @@ internal static class Program {
             && Kind >= (long)ArgumentType.DownloadVideo && Kind <= (long)ArgumentType.DownloadArchived;
     }
 
+    internal static bool ShouldSkipVideoAudio(ArgumentType Type) =>
+        Type == ArgumentType.DownloadVideoNoSound ||
+        Type == ArgumentType.DownloadAuthenticateVideoNoSound ||
+        ((Type == ArgumentType.DownloadVideo || Type == ArgumentType.DownloadAuthenticateVideo) && !Downloads.VideoDownloadSound);
+
     internal static void ParseCopyData(ref Message m, string CustomArguments) {
         if (m.LParam == IntPtr.Zero) {
             m.Result = IntPtr.Zero;
@@ -472,7 +477,7 @@ internal static class Program {
                         Type = DownloadType.Video,
                         VideoQuality = (VideoQualityType)Saved.videoQuality,
                         VideoFormat = (VideoFormatType)Saved.VideoFormat,
-                        SkipAudioForVideos = Type == ArgumentType.DownloadVideoNoSound || Type == ArgumentType.DownloadAuthenticateVideoNoSound,
+                        SkipAudioForVideos = ShouldSkipVideoAudio(Type),
                         CustomArguments = CustomArguments,
                         Authentication = Auth,
                     };

@@ -79,7 +79,8 @@ internal static partial class AuditRegression {
         Set(program, null, "DownloadClient", null);
         object data = Activator.CreateInstance(updateType);
         Set(updateType, data, "FileName", Path.Combine(Environment.CurrentDirectory, "audit-updater-target.exe"));
-        Set(updateType, data, "NewVersion", new Version(99, 0));
+        Type versionType = assembly.GetType("murrty.updater.Version", true);
+        Set(updateType, data, "NewVersion", Activator.CreateInstance(versionType, new object[] { (byte)99, (byte)0 }));
         Set(updateType, data, "UpdateHash", new string('0', 64));
         using (Form form = (Form)Activator.CreateInstance(formType, true)) {
             Field(form, "UpdateData", data);

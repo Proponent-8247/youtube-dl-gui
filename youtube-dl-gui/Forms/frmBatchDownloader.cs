@@ -191,11 +191,17 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
     }
 
     private void mBatchDownloaderLoadArgsFromArgsTxt_Click(object sender, EventArgs e) {
-        if (System.IO.File.Exists(Environment.CurrentDirectory + "\\args.txt")) {
-            cbArguments.Items.AddRange(System.IO.File.ReadAllLines(Environment.CurrentDirectory + "\\args.txt"));
-            if (Saved.CustomArgumentsIndex > -1 && Saved.CustomArgumentsIndex < cbArguments.Items.Count) {
-                cbArguments.SelectedIndex = Saved.CustomArgumentsIndex;
-            }
+        if (!System.IO.File.Exists(CustomArguments.ArgsFilePath)) {
+            return;
+        }
+        if (!CustomArguments.TryReadArgsFile(out string[] ArgsFileArguments, out string ArgsReadError)) {
+            Log.Write(ArgsReadError);
+            Log.MessageBox(ArgsReadError);
+            return;
+        }
+        cbArguments.Items.AddRange(ArgsFileArguments);
+        if (Saved.CustomArgumentsIndex > -1 && Saved.CustomArgumentsIndex < cbArguments.Items.Count) {
+            cbArguments.SelectedIndex = Saved.CustomArgumentsIndex;
         }
     }
 

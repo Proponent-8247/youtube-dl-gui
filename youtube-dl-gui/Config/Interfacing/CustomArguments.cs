@@ -22,14 +22,65 @@ internal static class CustomArguments {
     /// </summary>
     public static string LastUsedFfmpegArgument { get; set; } = string.Empty;
 
+    internal static string ArgsFilePath => System.IO.Path.Combine(Environment.CurrentDirectory, "args.txt");
+
+    internal static bool TryReadArgsFile(out string[] Arguments, out string Error) {
+        Arguments = [];
+        Error = string.Empty;
+        try {
+            if (!System.IO.File.Exists(ArgsFilePath)) {
+                Error = $"args.txt does not exist: {ArgsFilePath}";
+                return false;
+            }
+            Arguments = System.IO.File.ReadAllLines(ArgsFilePath);
+            return true;
+        }
+        catch (Exception ex) when (ex is System.IO.IOException
+                                or UnauthorizedAccessException
+                                or System.Security.SecurityException
+                                or ArgumentException
+                                or NotSupportedException) {
+            Error = $"Could not read args.txt at '{ArgsFilePath}': {ex.Message}";
+            return false;
+        }
+    }
+
+    internal static bool TryWriteArgsFile(IEnumerable<string> Arguments, out string Error) {
+        Error = string.Empty;
+        string TempPath = ArgsFilePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try {
+            System.IO.File.WriteAllLines(TempPath, Arguments);
+            if (System.IO.File.Exists(ArgsFilePath)) {
+                System.IO.File.Replace(TempPath, ArgsFilePath, null);
+            }
+            else {
+                System.IO.File.Move(TempPath, ArgsFilePath);
+            }
+            return true;
+        }
+        catch (Exception ex) when (ex is System.IO.IOException
+                                or UnauthorizedAccessException
+                                or System.Security.SecurityException
+                                or ArgumentException
+                                or NotSupportedException) {
+            Error = $"Could not write args.txt at '{ArgsFilePath}': {ex.Message}";
+            try { if (System.IO.File.Exists(TempPath)) System.IO.File.Delete(TempPath); } catch { }
+            return false;
+        }
+    }
+
     static CustomArguments() {
-        string[] YtdlArgs = General.SaveCustomArgs switch {
-            1 when System.IO.File.Exists(Environment.CurrentDirectory + "\\args.txt") =>
-                System.IO.File.ReadAllLines(Environment.CurrentDirectory + "\\args.txt"),
-            2 when !Saved.DownloadCustomArguments.IsNullEmptyWhitespace() =>
-                Saved.DownloadCustomArguments.Trim('|', ' ').Split('|'),
-            _ => [],
-        };
+        string[] YtdlArgs = [];
+        switch (General.SaveCustomArgs) {
+            case 1 when System.IO.File.Exists(ArgsFilePath):
+                if (!TryReadArgsFile(out YtdlArgs, out string Error)) {
+                    Log.Write(Error);
+                }
+                break;
+            case 2 when !Saved.DownloadCustomArguments.IsNullEmptyWhitespace():
+                YtdlArgs = Saved.DownloadCustomArguments.Trim('|', ' ').Split('|');
+                break;
+        }
         if (YtdlArgs.Length > 0) {
             HashSet<string> Arguments = [];
             YtdlArgs.For((Arg) => {

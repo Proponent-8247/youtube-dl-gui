@@ -191,7 +191,10 @@ public partial class frmMain : LocalizedForm {
         int CustomArgumentsIndex = Math.Max(-1, rbCustom.Checked ? cbCustomArguments.SelectedIndex : cbCustomArguments.SelectedIndex - 1);
         switch (General.SaveCustomArgs) {
             case 1:
-                System.IO.File.WriteAllLines(Environment.CurrentDirectory + "\\args.txt", CustomArguments.YtdlArguments);
+                if (!CustomArguments.TryWriteArgsFile(CustomArguments.YtdlArguments, out string ArgsWriteError)) {
+                    Log.Write(ArgsWriteError);
+                    Log.MessageBox(ArgsWriteError);
+                }
                 Saved.CustomArgumentsIndex = CustomArgumentsIndex;
                 break;
             case 2:
@@ -591,17 +594,22 @@ public partial class frmMain : LocalizedForm {
             return;
         }
 
-        if (!System.IO.File.Exists(Environment.CurrentDirectory + "\\args.txt")) {
+        if (!System.IO.File.Exists(CustomArguments.ArgsFilePath)) {
             Log.MessageBox(Language.dlgMainArgsTxtDoesntExist);
             return;
         }
-        if (string.IsNullOrEmpty(System.IO.File.ReadAllText(Environment.CurrentDirectory + "\\args.txt"))) {
+        if (!CustomArguments.TryReadArgsFile(out string[] ArgsFileArguments, out string ArgsReadError)) {
+            Log.Write(ArgsReadError);
+            Log.MessageBox(ArgsReadError);
+            return;
+        }
+        if (ArgsFileArguments.Length == 0 || string.IsNullOrEmpty(string.Join(string.Empty, ArgsFileArguments))) {
             Log.MessageBox(Language.dlgMainArgsTxtIsEmpty);
             return;
         }
 
         DownloadInfo NewInfo = new(ClipboardText) {
-            CustomArguments = System.IO.File.ReadAllLines(Environment.CurrentDirectory + "\\args.txt")[0],
+            CustomArguments = ArgsFileArguments[0],
             Type = DownloadType.Custom,
         };
         frmDownloader Downloader = new(NewInfo);

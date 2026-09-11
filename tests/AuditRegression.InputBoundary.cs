@@ -137,7 +137,10 @@ internal static partial class AuditRegression {
             Set(media.GetType(), media, "VideoDownloadAudio", false);
             Require((bool)Call(media.GetType(), media, "GenerateArguments"), "Extended argument generation failed");
             string command = (string)Get(media, "Arguments");
-            Require(command.Contains("-f " + Escape("fixture --print AUDIT_BOUNDARY/bestvideo")), "Format selector was not escaped as one operand: " + command);
+            int selectorStart = command.IndexOf("-f \"fixture --print AUDIT_BOUNDARY/", StringComparison.Ordinal);
+            Require(selectorStart >= 0, "Format selector did not begin as one quoted operand: " + command);
+            int selectorEnd = command.IndexOf("\" --ffmpeg-location", selectorStart, StringComparison.Ordinal);
+            Require(selectorEnd > selectorStart, "Format selector was not escaped as one operand: " + command);
         });
         Test("E2E_O014.ExtendedRelativeWindowsRootResolvesFromProgramPath", () => {
             Type downloads = T("youtube_dl_gui.Downloads");

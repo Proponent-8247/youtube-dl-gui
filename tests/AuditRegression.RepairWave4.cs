@@ -125,5 +125,6 @@ internal static partial class AuditRegression {
         Test("E2E_O028.CookieHelpLinkHasAction", CookieHelpLinkHasAction);
         Test("E2E_O033.ArbitraryFileImportIsAtomic", ArbitraryFileImportIsAtomic);
         Test("CURRENT_O036.ProtocolPreservesNestedUrlEncoding", ProtocolPreservesNestedUrlEncoding);
+        RunRepairWave5Tests();
     }
 }

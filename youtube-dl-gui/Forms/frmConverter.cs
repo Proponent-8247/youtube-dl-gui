@@ -210,15 +210,26 @@ public partial class frmConverter : LocalizedProcessingForm {
             Log.Write("Conversion cannot conintue.");
             return;
         }
-        if (!CurrentConversion.FullCustomArguments
-        && string.Equals(
-            System.IO.Path.GetFullPath(CurrentConversion.InputFile),
-            System.IO.Path.GetFullPath(CurrentConversion.OutputFile!),
-            StringComparison.OrdinalIgnoreCase)) {
-            rtbConsoleOutput.AppendText("The output file cannot be the same as the input file.");
-            CurrentConversion.Status = ConversionStatus.ProgramError;
-            Log.Write("Conversion cannot overwrite its input file.");
-            return;
+        if (!CurrentConversion.FullCustomArguments) {
+            string InputPath;
+            string OutputPath;
+            try {
+                InputPath = System.IO.Path.GetFullPath(CurrentConversion.InputFile);
+                OutputPath = System.IO.Path.GetFullPath(CurrentConversion.OutputFile!);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or System.IO.PathTooLongException or System.Security.SecurityException) {
+                rtbConsoleOutput.AppendText("The input or output path is invalid: " + ex.Message);
+                CurrentConversion.Status = ConversionStatus.ProgramError;
+                Log.Write("Conversion cannot continue because an input or output path is invalid.");
+                return;
+            }
+
+            if (string.Equals(InputPath, OutputPath, StringComparison.OrdinalIgnoreCase)) {
+                rtbConsoleOutput.AppendText("The output file cannot be the same as the input file.");
+                CurrentConversion.Status = ConversionStatus.ProgramError;
+                Log.Write("Conversion cannot overwrite its input file.");
+                return;
+            }
         }
 
         Log.Write($"Starting conversion for \"{CurrentConversion.InputFile}\" -> \"{CurrentConversion.OutputFile}\".");

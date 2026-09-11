@@ -10,8 +10,8 @@ using murrty.updater;
 internal static class Github {
     private const int MaxRetries = 5;
     private const int RetryDelay = 1_000;
-    private const string LatestRepo = "https://api.github.com/repos/murrty/youtube-dl-gui/releases/latest";
-    private const string AllReleaseRepo = "https://api.github.com/repos/murrty/youtube-dl-gui/releases";
+    private const string LatestRepo = "https://api.github.com/repos/Proponent-8247/youtube-dl-gui/releases/latest";
+    private const string AllReleaseRepo = "https://api.github.com/repos/Proponent-8247/youtube-dl-gui/releases";
 
     public static async Task<UpdateData> GetUpdateData() {
         bool CanRetry;

@@ -10,7 +10,7 @@ using murrty.controls;
 internal partial class frmUpdater : Form {
     private const int MaxRetries = 5;
     private const int RetryDelay = 1_000;
-    private const string ApplicationDownloadUrl = "https://github.com/murrty/{0}/releases/download/{1}/{0}.exe";
+    private const string ApplicationDownloadUrl = "https://github.com/Proponent-8247/{0}/releases/download/{1}/{0}.exe";
 
     private UpdateData UpdateData;
     private Process ProgramProcess;

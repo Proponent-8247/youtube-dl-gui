@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Design;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Windows.Forms.Design;
 
@@ -27,8 +28,9 @@ namespace BetterFolderBrowserNS {
         private System.ComponentModel.IContainer components = null;
 
         protected override void Dispose(bool disposing) {
-            if (disposing && (components != null)) {
-                components.Dispose();
+            if (disposing) {
+                _dialog.Dispose();
+                components?.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -207,7 +209,7 @@ namespace BetterFolderBrowserNS.Editors {
 
         public override object EditValue(ITypeDescriptorContext context, IServiceProvider provider, object value) {
             if (provider.GetService(typeof(IWindowsFormsEditorService)) is IWindowsFormsEditorService editorService) {
-                BetterFolderBrowser editor = new() {
+                using BetterFolderBrowser editor = new() {
                     editorService = editorService,
                     Multiselect = false
                 };
@@ -240,7 +242,7 @@ namespace BetterFolderBrowserNS.Editors {
 
         public override object EditValue(ITypeDescriptorContext context, IServiceProvider provider, object value) {
             if (provider.GetService(typeof(IWindowsFormsEditorService)) is IWindowsFormsEditorService editorService) {
-                BetterFolderBrowser editor = new() {
+                using BetterFolderBrowser editor = new() {
                     editorService = editorService,
                     Multiselect = true
                 };
@@ -415,7 +417,7 @@ namespace BetterFolderBrowserNS.Helpers {
     /// Wraps System.Windows.Forms.OpenFileDialog to make it present
     /// a vista-style dialog.
     /// </summary>
-    public class BetterFolderBrowserDialog {
+    public class BetterFolderBrowserDialog : IDisposable {
         #region Constructor
 
         /// <summary>
@@ -487,6 +489,8 @@ namespace BetterFolderBrowserNS.Helpers {
 
         #region Methods
 
+        public void Dispose() => ofd.Dispose();
+
         /// <summary>
         /// Shows the dialog.
         /// </summary>
@@ -525,10 +529,13 @@ namespace BetterFolderBrowserNS.Helpers {
                 finally {
                     r.CallAs(typeIFileDialog, dialog, "Unadvise", num);
                     GC.KeepAlive(pfde);
+                    if (Marshal.IsComObject(dialog)) {
+                        Marshal.FinalReleaseComObject(dialog);
+                    }
                 }
             }
             else {
-                FolderBrowserDialog fbd = new() {
+                using FolderBrowserDialog fbd = new() {
                     Description = this.Title,
                     SelectedPath = this.InitialDirectory,
                     ShowNewFolderButton = false

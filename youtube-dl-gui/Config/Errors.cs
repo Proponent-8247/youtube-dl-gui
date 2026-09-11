@@ -7,6 +7,7 @@ internal static class Errors {
         Log.Write("Loading Error config.");
         fdetailedErrors = IniProvider.Read(detailedErrors, false, ConfigName);
         flogErrors = IniProvider.Read(logErrors, false, ConfigName);
+        Log.AllowWritingToFile = flogErrors;
         fsuppressErrors = IniProvider.Read(suppressErrors, false, ConfigName);
     }
 
@@ -27,6 +28,7 @@ internal static class Errors {
             if (flogErrors != value) {
                 flogErrors = value;
                 IniProvider.Write(logErrors, ConfigName);
+                Log.AllowWritingToFile = value;
             }
         }
     }

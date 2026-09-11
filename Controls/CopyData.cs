@@ -215,4 +215,32 @@ internal static class CopyData {
         int Msg,
         nint wParam,
         nint lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern nint SendMessageTimeout(
+        nint hWnd,
+        int Msg,
+        nint wParam,
+        nint lParam,
+        uint fuFlags,
+        uint uTimeout,
+        out nint lpdwResult);
+
+    public static bool TrySendMessage(
+        nint hWnd,
+        int Msg,
+        nint wParam,
+        nint lParam,
+        uint TimeoutMilliseconds) {
+        const uint SMTO_BLOCK = 0x0001;
+        const uint SMTO_ABORTIFHUNG = 0x0002;
+        return SendMessageTimeout(
+            hWnd,
+            Msg,
+            wParam,
+            lParam,
+            SMTO_BLOCK | SMTO_ABORTIFHUNG,
+            TimeoutMilliseconds,
+            out _) != 0;
+    }
 }

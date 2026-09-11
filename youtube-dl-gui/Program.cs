@@ -122,11 +122,14 @@ internal static class Program {
                             };
 
                             cdsPointer = CopyData.NintAlloc(copyData);
-                            CopyData.SendMessage(
+                            if (!CopyData.TrySendMessage(
                                 hWnd: hwnd,
                                 Msg: CopyData.WM_COPYDATA,
                                 wParam: 0x1,
-                                lParam: cdsPointer);
+                                lParam: cdsPointer,
+                                TimeoutMilliseconds: 2000)) {
+                                Log.Write("Timed out while forwarding an argument to the existing application instance.");
+                            }
 
                             // wParam should be the handle to the Window that sent the message.
                             // Since WM_COPYDATA is overridden, I can DO WHAT I WANT.
@@ -148,7 +151,9 @@ internal static class Program {
                         }
                     }
                 }
-                else CopyData.SendMessage(hwnd, CopyData.WM_SHOWFORM, 0, 0);
+                else if (!CopyData.TrySendMessage(hwnd, CopyData.WM_SHOWFORM, 0, 0, 2000)) {
+                    Log.Write("Timed out while asking the existing application instance to show itself.");
+                }
             }
 
             return 1152;

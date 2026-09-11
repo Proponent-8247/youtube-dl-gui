@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
@@ -60,9 +61,15 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static int StaticInt(Type type, string name) {
+        PropertyInfo property = type.GetProperty(name, All);
+        Require(property != null, "Missing static property " + type.FullName + "." + name);
+        return (int)property.GetValue(null, null);
+    }
+
     private static void DownloadSectionsRequireYtDlp() {
         Type downloads = T("youtube_dl_gui.Downloads");
-        int original = (int)Get(downloads, "YtdlType");
+        int original = StaticInt(downloads, "YtdlType");
         try {
             Set(downloads, null, "YtdlType", 2); // YoutubeDl
             object youtubeDl = TimedExtendedVideo("https://example.invalid/youtube-dl", 5, 10);
@@ -80,7 +87,7 @@ internal static partial class AuditRegression {
 
     private static void ReversedDownloadSectionsAreRejected() {
         Type downloads = T("youtube_dl_gui.Downloads");
-        int original = (int)Get(downloads, "YtdlType");
+        int original = StaticInt(downloads, "YtdlType");
         try {
             Set(downloads, null, "YtdlType", 0); // YtDlp
             object media = TimedExtendedVideo("https://example.invalid/reversed", 20, 10);

@@ -209,10 +209,21 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
         using OpenFileDialog ofd = new();
         ofd.Title = "Select a file to read as arguments";
         ofd.Filter = "All files (*.*)|*.*";
-        if (ofd.ShowDialog() == DialogResult.OK) {
-            if (System.IO.File.Exists(ofd.FileName)) {
-                cbArguments.Text = System.IO.File.ReadAllText(ofd.FileName).Trim(' ').Replace('\r', ' ').Replace('\n', ' ').Trim(' ');
-            }
+        if (ofd.ShowDialog() != DialogResult.OK || !System.IO.File.Exists(ofd.FileName)) {
+            return;
+        }
+        try {
+            string FileArguments = System.IO.File.ReadAllText(ofd.FileName).Trim(' ').Replace('\r', ' ').Replace('\n', ' ').Trim(' ');
+            cbArguments.Text = FileArguments;
+        }
+        catch (Exception ex) when (ex is System.IO.IOException
+                                or UnauthorizedAccessException
+                                or System.Security.SecurityException
+                                or ArgumentException
+                                or NotSupportedException) {
+            string Error = $"Could not read arguments from '{ofd.FileName}': {ex.Message}";
+            Log.Write(Error);
+            Log.MessageBox(Error);
         }
     }
 
@@ -559,16 +570,40 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
         sbBatchDownloaderImportLinks.ShowDropDownMenu();
     }
 
+    private bool TryImportLinksFromFile(string FileName, out string Error) {
+        Error = string.Empty;
+        List<string> Links = [];
+        int LineNumber = 1;
+        try {
+            using System.IO.StreamReader Reader = new(FileName);
+            string? CurrentLine;
+            while ((CurrentLine = Reader.ReadLine()) is not null) {
+                Links.Add(CurrentLine);
+                LineNumber++;
+            }
+        }
+        catch (Exception ex) when (ex is System.IO.IOException
+                                or UnauthorizedAccessException
+                                or System.Security.SecurityException
+                                or ArgumentException
+                                or NotSupportedException) {
+            Error = $"Could not import '{FileName}' near line {LineNumber}: {ex.Message}";
+            return false;
+        }
+
+        foreach (string Link in Links) {
+            AddItemToList(Link);
+        }
+        return true;
+    }
+
     private void mBatchDownloaderImportLinksFromFile_Click(object sender, EventArgs e) {
         using OpenFileDialog ofd = new();
         ofd.Title = "Select a text file to import...";
         ofd.Filter = "Text document (*.txt)|*.txt";
-        if (ofd.ShowDialog() == DialogResult.OK) {
-            using System.IO.StreamReader reader = new(ofd.FileName);
-            string CurrentLine;
-            while ((CurrentLine = reader.ReadLine()) != null) {
-                AddItemToList(CurrentLine);
-            }
+        if (ofd.ShowDialog() == DialogResult.OK && !TryImportLinksFromFile(ofd.FileName, out string Error)) {
+            Log.Write(Error);
+            Log.MessageBox(Error);
         }
     }
 

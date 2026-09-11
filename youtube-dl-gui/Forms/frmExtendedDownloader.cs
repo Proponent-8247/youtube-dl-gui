@@ -1997,13 +1997,25 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             return [];
         }
 
-        FileInfo Info = new(OFD.FileName);
-        if (!Info.Exists || Info.Length < 3) {
+        try {
+            FileInfo Info = new(OFD.FileName);
+            if (!Info.Exists || Info.Length < 3) {
+                return [];
+            }
+
+            string FileData = File.ReadAllText(OFD.FileName);
+            return FileData.Replace("\r\n", "\n").Split('\n');
+        }
+        catch (Exception ex) when (ex is IOException
+                                or UnauthorizedAccessException
+                                or System.Security.SecurityException
+                                or ArgumentException
+                                or NotSupportedException) {
+            string Error = $"Could not import links from '{OFD.FileName}': {ex.Message}";
+            Log.Write(Error);
+            Log.MessageBox(Error);
             return [];
         }
-
-        string FileData = File.ReadAllText(OFD.FileName);
-        return FileData.Replace("\r\n", "\n").Split('\n');
     }
     private void lvQueuedMedia_SelectedIndexChanged(object sender, EventArgs e) {
         ExtendedMediaDetails? Details;

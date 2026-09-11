@@ -55,7 +55,7 @@ internal static class Updater {
     public static async Task<bool?> CheckForUpdate(bool ForceCheck) {
         if (!Program.UpdaterEnabled) {
             Log.Write("Cannot check for updates: TLS 1.2+ is not in use.");
-            Process.Start(GithubLinks.ApplicationReleasesUrl);
+            Program.TryOpenWebUrl(GithubLinks.ApplicationReleasesUrl);
             return null;
         }
 

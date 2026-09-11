@@ -725,6 +725,31 @@ internal static class Program {
         }
     }
 
+    internal static bool IsWebUrl(string? Value) {
+        if (!Uri.TryCreate(Value, UriKind.Absolute, out Uri? ParsedUri)) {
+            return false;
+        }
+        return ParsedUri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            || ParsedUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool TryOpenWebUrl(string? Value) {
+        if (!IsWebUrl(Value)) {
+            return false;
+        }
+        try {
+            using Process? Browser = Process.Start(new ProcessStartInfo(Value!) { UseShellExecute = true });
+            return Browser is not null;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception
+                                or InvalidOperationException
+                                or NotSupportedException
+                                or ArgumentException) {
+            Log.Write($"Unable to open a web link in the default browser: {ex.Message}");
+            return false;
+        }
+    }
+
     internal static string CalculateSha256Hash(string File) {
         using SHA256 ComputeUpdaterHash = SHA256.Create();
         using FileStream UpdaterStream = System.IO.File.OpenRead(File);

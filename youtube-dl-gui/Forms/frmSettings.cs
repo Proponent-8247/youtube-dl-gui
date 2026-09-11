@@ -754,7 +754,7 @@ public partial class frmSettings : LocalizedForm {
             txtSettingsDownloadsSavePath.Text = GetSelectedPath(fbd.SelectedPath);
     }
     private void llSettingsDownloadsSchemaHelp_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) {
-        Process.Start("https://github.com/ytdl-org/youtube-dl/blob/master/README.md#output-template");
+        Program.TryOpenWebUrl("https://github.com/ytdl-org/youtube-dl/blob/master/README.md#output-template");
     }
     private void txtSettingsDownloadsFileNameSchema_KeyPress(object sender, KeyPressEventArgs e) {
         switch (e.KeyChar) {
@@ -825,7 +825,7 @@ public partial class frmSettings : LocalizedForm {
         }
     }
     private void llbSettingsDownloadsInstallProtocolMoreInfo_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) {
-        Process.Start("https://github.com/murrty/youtube-dl-gui/blob/master/ARGUMENTS.md#protocol-support");
+        Program.TryOpenWebUrl("https://github.com/murrty/youtube-dl-gui/blob/master/ARGUMENTS.md#protocol-support");
     }
     private void chkSettingsDownloadsDownloadSubtitles_CheckedChanged(object sender, EventArgs e) {
         chkSettingsDownloadsEmbedSubtitles.Enabled = chkSettingsDownloadsDownloadSubtitles.Checked;
@@ -872,7 +872,7 @@ public partial class frmSettings : LocalizedForm {
     }
     private void llbSettingsDownloadsYtdlTypeViewRepo_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) {
         if (cbSettingsDownloadsUpdatingYtdlType.SelectedIndex > -1) {
-            Process.Start(
+            Program.TryOpenWebUrl(
                 string.Format(
                     GithubLinks.GithubRepoUrl,
                     GithubLinks.ProviderRepos[cbSettingsDownloadsUpdatingYtdlType.SelectedIndex].User,

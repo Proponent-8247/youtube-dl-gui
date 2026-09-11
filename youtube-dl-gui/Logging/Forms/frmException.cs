@@ -339,5 +339,5 @@ internal partial class frmException : Form {
     /// <param name="sender"></param>
     /// <param name="e"></param>
     private void btnExceptionGithub_Click(object sender, EventArgs e) =>
-        System.Diagnostics.Process.Start("https://github.com/murrty/youtube-dl-gui/issues");
+        Program.TryOpenWebUrl("https://github.com/murrty/youtube-dl-gui/issues");
 }

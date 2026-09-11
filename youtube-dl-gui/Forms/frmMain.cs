@@ -515,10 +515,10 @@ public partial class frmMain : LocalizedForm {
         switch (Verification.GetYoutubeDlType()) {
             case (int)GitID.YoutubeDl:
             case (int)GitID.YoutubeDlNightly: {
-                Process.Start("https://github.com/ytdl-org/youtube-dl/blob/master/docs/supportedsites.md");
+                Program.TryOpenWebUrl("https://github.com/ytdl-org/youtube-dl/blob/master/docs/supportedsites.md");
             } break;
             default: {
-                Process.Start("https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md");
+                Program.TryOpenWebUrl("https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md");
             } break;
         }
     }

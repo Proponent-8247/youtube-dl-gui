@@ -73,8 +73,8 @@ public partial class frmAbout : LocalizedForm {
     }
 
     private void pbIcon_Click(object sender, EventArgs e) =>
-        Process.Start("https://github.com/murrty/youtube-dl-gui/");
+        Program.TryOpenWebUrl("https://github.com/murrty/youtube-dl-gui/");
 
     private void llbGithub_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) =>
-        Process.Start("https://github.com/murrty/youtube-dl-gui");
+        Program.TryOpenWebUrl("https://github.com/murrty/youtube-dl-gui");
 }

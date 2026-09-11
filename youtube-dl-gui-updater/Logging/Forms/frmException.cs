@@ -327,5 +327,5 @@ internal sealed partial class frmException : Form {
         lbVersion.Text = "v" + Program.CurrentVersion.ToString();
     }
     private void lbVersion_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) =>
-        System.Diagnostics.Process.Start("https://github.com/murrty/youtube-dl-gui/issues");
+        Program.TryOpenWebUrl("https://github.com/murrty/youtube-dl-gui/issues");
 }

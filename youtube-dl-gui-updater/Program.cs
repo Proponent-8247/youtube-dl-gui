@@ -100,6 +100,31 @@ static class Program {
         };
         return Type != DownloadType.None;
     }
+    internal static bool IsWebUrl(string Value) {
+        if (!Uri.TryCreate(Value, UriKind.Absolute, out Uri ParsedUri)) {
+            return false;
+        }
+        return ParsedUri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            || ParsedUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool TryOpenWebUrl(string Value) {
+        if (!IsWebUrl(Value)) {
+            return false;
+        }
+        try {
+            using System.Diagnostics.Process Browser = System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(Value) { UseShellExecute = true });
+            return Browser is not null;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception
+                                or InvalidOperationException
+                                or NotSupportedException
+                                or ArgumentException) {
+            return false;
+        }
+    }
+
     internal static void SetTls() {
         try { //try TLS 1.3
             System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)12288

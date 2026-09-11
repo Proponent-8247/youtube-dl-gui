@@ -1570,7 +1570,12 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
         switch (e.Button) {
             case MouseButtons.Left: {
-                Process.Start(MediaDetails.URL);
+                if (!Program.IsWebUrl(MediaDetails.URL)) {
+                    Log.MessageBox("Only HTTP or HTTPS web addresses can be opened in a browser.");
+                }
+                else if (!Program.TryOpenWebUrl(MediaDetails.URL)) {
+                    Log.MessageBox("The web address could not be opened in the default browser.");
+                }
             } break;
             case MouseButtons.Right: {
                 if (TrySetClipboardText(MediaDetails.URL)) {
@@ -2137,8 +2142,14 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         }
     }
     private void mQueueViewInBrowser_Click(object sender, EventArgs e) {
-        if (MediaDetails is not null) {
-            Process.Start(MediaDetails.URL);
+        if (MediaDetails is null) {
+            return;
+        }
+        if (!Program.IsWebUrl(MediaDetails.URL)) {
+            Log.MessageBox("Only HTTP or HTTPS web addresses can be opened in a browser.");
+        }
+        else if (!Program.TryOpenWebUrl(MediaDetails.URL)) {
+            Log.MessageBox("The web address could not be opened in the default browser.");
         }
     }
     private void mQueueRemoveSelected_Click(object sender, EventArgs e) {

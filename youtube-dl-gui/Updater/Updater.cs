@@ -274,8 +274,13 @@ internal static class Updater {
                     Arguments = "-U",
                 }
             };
-            UpdateYoutubeDl.Start();
-            return true;
+            try {
+                return UpdateYoutubeDl.Start();
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) {
+                Log.Write($"Could not start the provider's internal updater: {ex.Message}");
+                return false;
+            }
         }
         else {
             int TypeIndex = Verification.GetYoutubeDlType();

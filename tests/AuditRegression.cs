@@ -22,6 +22,7 @@ internal static partial class AuditRegression {
     static partial void RunReconciliationTests();
     static partial void RunRepairWave2Tests();
     static partial void RunRepairWave3Tests();
+    static partial void RunRepairWave4Tests();
     private static Assembly App;
     private static readonly BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
     private static readonly List<XElement> Results = new List<XElement>();
@@ -187,6 +188,7 @@ internal static partial class AuditRegression {
             RunReconciliationTests();
             RunRepairWave2Tests();
             RunRepairWave3Tests();
+            RunRepairWave4Tests();
             RunUpdaterTests();
             RunPackagingTests();
         }

@@ -392,6 +392,20 @@ public class ExtendedTextBox : TextBox {
         base.OnResize(e);
     }
 
+    private static bool TryGetClipboardText(out string Text) {
+        try {
+            if (Clipboard.ContainsText()) {
+                Text = Clipboard.GetText();
+                return true;
+            }
+        }
+        catch (ExternalException) {
+            // Another process may temporarily own the clipboard. Treat it as unavailable.
+        }
+        Text = string.Empty;
+        return false;
+    }
+
     /// <inheritdoc/>
     protected override void OnKeyDown(KeyEventArgs e) {
         fCheckChar = false;
@@ -448,13 +462,16 @@ public class ExtendedTextBox : TextBox {
                                 } break;
 
                                 case Keys.V: {
-                                    if (Clipboard.ContainsText()) {
-                                        e.SuppressKeyPress = !Regex.IsMatch(Clipboard.GetText(),
+                                    if (TryGetClipboardText(out string ClipboardText)) {
+                                        e.SuppressKeyPress = !Regex.IsMatch(ClipboardText,
                                             TextType switch {
                                                 AllowedCharacters.AlphabeticalOnly => $"^[a-zA-Z{(AllowSpace ? " " : "")}]+$",
                                                 AllowedCharacters.AlphaNumericOnly => $"^[a-zA-Z0-9{(AllowSpace ? " " : "")}]+$",
                                                 _ => throw new ArgumentOutOfRangeException("Ctrl + V was pressed but regex couldn't use a proper TextType.")
                                             });
+                                    }
+                                    else {
+                                        e.SuppressKeyPress = true;
                                     }
                                 } break;
                             }
@@ -470,7 +487,8 @@ public class ExtendedTextBox : TextBox {
                                 } break;
 
                                 case Keys.V: {
-                                    e.SuppressKeyPress = Clipboard.ContainsText() && !Regex.IsMatch(Clipboard.GetText(), $"^[0-9{(AllowSpace ? " " : "")}]+$");
+                                    e.SuppressKeyPress = !TryGetClipboardText(out string ClipboardText)
+                                        || !Regex.IsMatch(ClipboardText, $"^[0-9{(AllowSpace ? " " : "")}]+$");
                                 } break;
 
                                 default: {

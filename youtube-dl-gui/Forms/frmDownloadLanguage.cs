@@ -48,6 +48,7 @@ public partial class frmDownloadLanguage : LocalizedForm {
 
     public frmDownloadLanguage(GithubRepoContent[] AvailableLanguages) {
         InitializeComponent();
+        LoadLanguage();
 
         try {
             EnumeratedLanguages = AvailableLanguages

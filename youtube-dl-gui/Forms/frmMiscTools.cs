@@ -67,6 +67,7 @@ public partial class frmMiscTools : LocalizedForm {
 
     public frmMiscTools() {
         InitializeComponent();
+        LoadLanguage();
     }
 
     public override void LoadLanguage() {

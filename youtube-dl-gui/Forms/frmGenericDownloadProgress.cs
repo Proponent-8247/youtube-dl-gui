@@ -22,6 +22,7 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
     public frmGenericDownloadProgress(string URL, string Output) : this(URL, Output, null) { }
     public frmGenericDownloadProgress(string URL, string Output, Point? Location) {
         InitializeComponent();
+        LoadLanguage();
         this.URL = URL;
         this.Output = Output;
         this.TempFile = Output + ".tmp";

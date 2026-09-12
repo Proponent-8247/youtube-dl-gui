@@ -51,6 +51,43 @@ def apply_edits(name, data, edits):
     return result
 
 
+def apply_ini_write_before_cache_assignment(name, data, expected_count):
+    if not isinstance(expected_count, int) or expected_count < 1:
+        raise ValueError('Invalid config persistence transform count')
+    pattern = re.compile(
+        rb'(?m)^(?P<indent>[ \t]+)(?P<field>f[A-Za-z_][A-Za-z0-9_]*) = value;'
+        rb'(?P<newline>\r?\n)(?P=indent)'
+        rb'(?P<write>IniProvider\.Write\(value, [^\r\n]+\);)$')
+    matches = list(pattern.finditer(data))
+    if len(matches) != expected_count:
+        raise ValueError(
+            'Expected {} config persistence assignments in {}; found {}'.format(
+                expected_count, name, len(matches)))
+
+    def replacement(match):
+        indent = match.group('indent')
+        newline = match.group('newline')
+        return (indent + match.group('write') + newline
+                + indent + match.group('field') + b' = value;')
+
+    result, count = pattern.subn(replacement, data)
+    if count != expected_count:
+        raise ValueError('Config persistence transform count changed while applying ' + name)
+    return result
+
+
+def apply_transforms(name, data, transforms):
+    result = data
+    for transform in transforms:
+        transform_name = transform.get('name')
+        if transform_name == 'ini_write_before_cache_assignment':
+            result = apply_ini_write_before_cache_assignment(
+                name, result, transform.get('count'))
+        else:
+            raise ValueError('Unsupported named transform: ' + str(transform_name))
+    return result
+
+
 def prepare(repair, state, version):
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', repair['id']):
         raise ValueError('Invalid repair id')
@@ -76,14 +113,20 @@ def prepare(repair, state, version):
                 result = apply_edits(name, data, change['edits'])
         else:
             # Version 2 plans are only for existing files. The request's parent
-            # commit pins the complete source tree, while exact anchors pin each
-            # intended edit within that tree. The workflow separately refuses a
-            # superseded remote head and pushes without force.
+            # commit pins the complete source tree, while exact anchors or a
+            # constrained named transform pin each intended change within it.
+            # The workflow separately refuses a superseded remote head and
+            # pushes without force.
             if data is None:
                 raise ValueError('Version 2 cannot create source files: ' + name)
             if 'content' in change or 'before_sha256' in change or 'after_sha256' in change:
-                raise ValueError('Version 2 uses exact edits, not per-file hashes: ' + name)
-            result = apply_edits(name, data, change['edits'])
+                raise ValueError('Version 2 uses exact edits or named transforms, not per-file hashes: ' + name)
+            has_edits = 'edits' in change
+            has_transforms = 'transforms' in change
+            if has_edits == has_transforms:
+                raise ValueError('Version 2 change must specify exactly one of edits or transforms: ' + name)
+            result = (apply_edits(name, data, change['edits']) if has_edits
+                      else apply_transforms(name, data, change['transforms']))
 
         if result == data:
             raise ValueError('No-op edit: ' + name)

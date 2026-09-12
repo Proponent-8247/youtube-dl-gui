@@ -1,0 +1,86 @@
+{
+  "version": 2,
+  "base_sha": "aa2d4588f05f0c39d7d3bacd5542a0690ad59231",
+  "expected_failures": [
+    "CURRENT_O016.ConfigWriteFailureCanRetry",
+    "F_O023.DocumentedArchiveAliasesAreParsed",
+    "CURRENT_O008.UpdaterPartialPathsAreUnique",
+    "F_O017.ProtocolInstallerWaitIsBounded"
+  ],
+  "remaining_failures": [
+    "CURRENT_O016.ConfigWriteFailureCanRetry"
+  ],
+  "repairs": [
+    {
+      "id": "O023_ARCHIVE_ALIASES",
+      "message": "fix: honor documented archive argument aliases",
+      "resolves": ["F_O023.DocumentedArchiveAliasesAreParsed"],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Arguments.cs",
+          "edits": [
+            {
+              "old": "                case \"archived\" or \"ar\" when ++i < Arguments.Length: {\n                    TemporaryList.Add((ArgumentType.DownloadArchived, Arguments[i]));\n                } break;",
+              "new": "                case \"archived\" or \"ar\" or \"var\" or \"varchive\" or \"videoarchive\" when ++i < Arguments.Length: {\n                    TemporaryList.Add((ArgumentType.DownloadArchived, Arguments[i]));\n                } break;\n                case \"aar\" or \"aarchive\" or \"audioarchive\" when ++i < Arguments.Length: {\n                    TemporaryList.Add((ArgumentType.DownloadArchivedNoSound, Arguments[i]));\n                } break;",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O008_UPDATER_PARTIAL_OWNERSHIP",
+      "message": "fix: isolate updater partial downloads",
+      "resolves": ["CURRENT_O008.UpdaterPartialPathsAreUnique"],
+      "files": [
+        {
+          "path": "youtube-dl-gui-updater/Forms/frmUpdater.cs",
+          "edits": [
+            {
+              "old": "    private void LoadLanguage() {\n        this.Text = Language.frmUpdater;",
+              "new": "    private static string CreateUpdateDestinationPath() =>\n        Path.Combine(Environment.CurrentDirectory, $\"update.{Process.GetCurrentProcess().Id}.{Guid.NewGuid():N}.part\");\n\n    private void LoadLanguage() {\n        this.Text = Language.frmUpdater;",
+              "count": 1
+            },
+            {
+              "old": "        string UpdateDestination = $\"{Environment.CurrentDirectory}\\\\update.part\";",
+              "new": "        string UpdateDestination = CreateUpdateDestinationPath();",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O017_PROTOCOL_INSTALLER_WAIT",
+      "message": "fix: bound protocol installer lifetime",
+      "resolves": ["F_O017.ProtocolInstallerWaitIsBounded"],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Forms/frmSettings.cs",
+          "edits": [
+            {
+              "old": "using System.Threading;\nusing System.Windows.Forms;",
+              "new": "using System.Threading;\nusing System.Threading.Tasks;\nusing System.Windows.Forms;",
+              "count": 1
+            },
+            {
+              "old": "    private bool SettingsSaved;\n    #endregion",
+              "new": "    private bool SettingsSaved;\n    private CancellationTokenSource? ProtocolInstallerCancellation;\n    private const int ProtocolInstallerTimeoutMilliseconds = 60_000;\n    #endregion",
+              "count": 1
+            },
+            {
+              "old": "    private void frmSettings_FormClosing(object sender, FormClosingEventArgs e) {\n        if (!SettingsSaved) {",
+              "new": "    private void frmSettings_FormClosing(object sender, FormClosingEventArgs e) {\n        ProtocolInstallerCancellation?.Cancel();\n        if (!SettingsSaved) {",
+              "count": 1
+            },
+            {
+              "old": "    private void btnSettingsDownloadsInstallProtocol_Click(object sender, EventArgs e) {\n        if (!ProtocolAvailable) {\n            int Result;\n            if (Program.IsAdmin) {\n                Result = SystemRegistry.SetRegistry();\n            }\n            else {\n                using Process InstallerProcess = new() {\n                    StartInfo = new() {\n                        Arguments = \"installprotocol\",\n                        FileName = Program.FullProgramPath,\n                        Verb = \"runas\",\n                        WorkingDirectory = Environment.CurrentDirectory,\n                    }\n                };\n                try {\n                    InstallerProcess.Start();\n                    InstallerProcess.WaitForExit();\n                    Result = InstallerProcess.ExitCode;\n                }\n                catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) {\n                    Result = 2;\n                }\n            }\n\n            switch (Result) {",
+              "new": "    private static Task<int> WaitForOwnedInstallerAsync(Process InstallerProcess, int TimeoutMilliseconds, CancellationToken Cancellation) {\n        if (InstallerProcess is null) throw new ArgumentNullException(nameof(InstallerProcess));\n        if (TimeoutMilliseconds <= 0) throw new ArgumentOutOfRangeException(nameof(TimeoutMilliseconds));\n\n        return Task.Run(() => {\n            using murrty.controls.ProcessOwnership Ownership = new(InstallerProcess);\n            Ownership.Attach();\n            Stopwatch Timer = Stopwatch.StartNew();\n            while (!InstallerProcess.WaitForExit(100)) {\n                Cancellation.ThrowIfCancellationRequested();\n                if (Timer.ElapsedMilliseconds >= TimeoutMilliseconds)\n                    throw new TimeoutException(\"The protocol installer did not complete within the permitted time.\");\n            }\n            Cancellation.ThrowIfCancellationRequested();\n            return InstallerProcess.ExitCode;\n        });\n    }\n\n    private async void btnSettingsDownloadsInstallProtocol_Click(object sender, EventArgs e) {\n        if (!ProtocolAvailable && ProtocolInstallerCancellation is null) {\n            int Result;\n            if (Program.IsAdmin) {\n                Result = SystemRegistry.SetRegistry();\n            }\n            else {\n                using Process InstallerProcess = new() {\n                    StartInfo = new() {\n                        Arguments = \"installprotocol\",\n                        FileName = Program.FullProgramPath,\n                        Verb = \"runas\",\n                        WorkingDirectory = Environment.CurrentDirectory,\n                    }\n                };\n                using CancellationTokenSource Cancellation = new();\n                ProtocolInstallerCancellation = Cancellation;\n                try {\n                    InstallerProcess.Start();\n                    Result = await WaitForOwnedInstallerAsync(InstallerProcess, ProtocolInstallerTimeoutMilliseconds, Cancellation.Token);\n                }\n                catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) {\n                    Result = 2;\n                }\n                catch (OperationCanceledException) {\n                    return;\n                }\n                catch (Exception ex) {\n                    Log.ReportException(ex);\n                    Result = 1;\n                }\n                finally {\n                    if (ReferenceEquals(ProtocolInstallerCancellation, Cancellation))\n                        ProtocolInstallerCancellation = null;\n                }\n            }\n\n            switch (Result) {",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

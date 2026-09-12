@@ -1,0 +1,199 @@
+{
+  "version": 2,
+  "base_sha": "ace5280f982040252a58624388b6911fea14c2b8",
+  "expected_failures": [
+    "CURRENT_O004.ForcedThumbnailReplacementDisposesOldImage",
+    "CURRENT_O014.DownloadSectionsRequireYtDlp",
+    "CURRENT_O036.ReversedDownloadSectionsAreRejected",
+    "F_O029.WmvProfileCheckIsCaseInsensitive",
+    "F_O034.ExtendedTextBoxAlignmentMatchesEnum"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "O004_THUMBNAIL_REPLACEMENT_OWNERSHIP",
+      "message": "fix: dispose forced thumbnail replacements",
+      "resolves": [
+        "CURRENT_O004.ForcedThumbnailReplacementDisposesOldImage"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DataClasses/ExtendedMediaDetails.cs",
+          "edits": [
+            {
+              "old": "        if (MediaData is not null && (Thumbnail is null || ForceRedownload)) {\n            Thumbnail = MediaData.GetThumbnail(Cancellation);\n        }",
+              "new": "        if (MediaData is not null && (Thumbnail is null || ForceRedownload)) {\n            Image? PreviousThumbnail = Thumbnail;\n            Image? NewThumbnail = MediaData.GetThumbnail(Cancellation);\n            if (NewThumbnail is not null) {\n                Thumbnail = NewThumbnail;\n                if (PreviousThumbnail is not null && !ReferenceEquals(PreviousThumbnail, NewThumbnail)) {\n                    PreviousThumbnail.Dispose();\n                }\n            }\n        }",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O014_YTDLP_DOWNLOAD_SECTIONS_ONLY",
+      "message": "fix: reject time ranges for unsupported providers",
+      "resolves": [
+        "CURRENT_O014.DownloadSectionsRequireYtDlp"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DataClasses/ExtendedMediaDetails.cs",
+          "edits": [
+            {
+              "old": "        if (SelectedType != DownloadType.Custom) {\n            if (!Verification.FfmpegAvailable) {",
+              "new": "        if (SelectedType != DownloadType.Custom) {\n            if ((StartTime.HasValue || EndTime.HasValue)\n            && Downloads.YtdlType != (int)GitID.YtDlp\n            && Downloads.YtdlType != (int)GitID.YtDlpNightly) {\n                base.Arguments = null;\n                ArgumentsCensored = string.Empty;\n                return false;\n            }\n\n            if (!Verification.FfmpegAvailable) {",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O036_REJECT_REVERSED_SECTIONS",
+      "message": "fix: reject reversed download sections",
+      "resolves": [
+        "CURRENT_O036.ReversedDownloadSectionsAreRejected"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DataClasses/ExtendedMediaDetails.cs",
+          "edits": [
+            {
+              "old": "            if (!Verification.FfmpegAvailable) {",
+              "new": "            if (StartTime.HasValue && EndTime.HasValue && EndTime < StartTime) {\n                base.Arguments = null;\n                ArgumentsCensored = string.Empty;\n                return false;\n            }\n\n            if (!Verification.FfmpegAvailable) {",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O029_WMV_PROFILE_CASE",
+      "message": "fix: compare wmv extension case-insensitively",
+      "resolves": [
+        "F_O029.WmvProfileCheckIsCaseInsensitive"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Forms/frmConverter.cs",
+          "edits": [
+            {
+              "old": "if (!CurrentConversion.OutputFile.EndsWith(\".wmv\") && CurrentConversion.VideoUseProfile)",
+              "new": "if (!CurrentConversion.OutputFile.EndsWith(\".wmv\", StringComparison.OrdinalIgnoreCase) && CurrentConversion.VideoUseProfile)",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O034_TEXTBOX_ALIGNMENT_SEMANTICS",
+      "message": "fix: align inset button semantics with enum",
+      "resolves": [
+        "F_O034.ExtendedTextBoxAlignmentMatchesEnum"
+      ],
+      "files": [
+        {
+          "path": "Controls/ExtendedTextBox.cs",
+          "edits": [
+            {
+              "old": "private ButtonAlignment fButtonAlignment = ButtonAlignment.Left;",
+              "new": "private ButtonAlignment fButtonAlignment = ButtonAlignment.Right;",
+              "count": 1
+            },
+            {
+              "old": "                switch (fButtonAlignment) {\n                    default: {\n                        NativeMethods.SendMessage(Handle, Consts.EM_SETMARGINS, Consts.EC_RIGHTMARGIN, (InsetButton.Width << 16));\n                    } break;\n\n                    case ButtonAlignment.Right: {\n                        NativeMethods.SendMessage(Handle, Consts.EM_SETMARGINS, Consts.EC_LEFTMARGIN, InsetButton.Width);\n                    } break;\n                }",
+              "new": "                switch (fButtonAlignment) {\n                    case ButtonAlignment.Left: {\n                        NativeMethods.SendMessage(Handle, Consts.EM_SETMARGINS, Consts.EC_LEFTMARGIN, InsetButton.Width);\n                    } break;\n\n                    default: {\n                        NativeMethods.SendMessage(Handle, Consts.EM_SETMARGINS, Consts.EC_RIGHTMARGIN, (InsetButton.Width << 16));\n                    } break;\n                }",
+              "count": 1
+            },
+            {
+              "old": "            InsetButton.Location = fButtonAlignment switch {\n                ButtonAlignment.Right => new(0, -2),\n                _ => new(ClientSize.Width - InsetButton.Width, -2),\n            };",
+              "new": "            InsetButton.Location = fButtonAlignment switch {\n                ButtonAlignment.Left => new(0, -2),\n                _ => new(ClientSize.Width - InsetButton.Width, -2),\n            };",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmExtendedConverter.Designer.cs",
+          "edits": [
+            {
+              "old": "ButtonAlignment = murrty.controls.ButtonAlignment.Left;",
+              "new": "ButtonAlignment = murrty.controls.ButtonAlignment.Right;",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmMain.Designer.cs",
+          "edits": [
+            {
+              "old": "ButtonAlignment = murrty.controls.ButtonAlignment.Left;",
+              "new": "ButtonAlignment = murrty.controls.ButtonAlignment.Right;",
+              "count": 5
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmBatchConverter.Designer.cs",
+          "edits": [
+            {
+              "old": "ButtonAlignment = murrty.controls.ButtonAlignment.Left;",
+              "new": "ButtonAlignment = murrty.controls.ButtonAlignment.Right;",
+              "count": 3
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmBatchDownloader.Designer.cs",
+          "edits": [
+            {
+              "old": "ButtonAlignment = murrty.controls.ButtonAlignment.Left;",
+              "new": "ButtonAlignment = murrty.controls.ButtonAlignment.Right;",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmSettings.Designer.cs",
+          "edits": [
+            {
+              "old": "ButtonAlignment = murrty.controls.ButtonAlignment.Left;",
+              "new": "ButtonAlignment = murrty.controls.ButtonAlignment.Right;",
+              "count": 8
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmAuthentication.Designer.cs",
+          "edits": [
+            {
+              "old": "ButtonAlignment = murrty.controls.ButtonAlignment.Left;",
+              "new": "ButtonAlignment = murrty.controls.ButtonAlignment.Right;",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmExtendedDownloader.Designer.cs",
+          "edits": [
+            {
+              "old": "ButtonAlignment = murrty.controls.ButtonAlignment.Left;",
+              "new": "ButtonAlignment = murrty.controls.ButtonAlignment.Right;",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmArchiveDownloader.Designer.cs",
+          "edits": [
+            {
+              "old": "ButtonAlignment = murrty.controls.ButtonAlignment.Left;",
+              "new": "ButtonAlignment = murrty.controls.ButtonAlignment.Right;",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

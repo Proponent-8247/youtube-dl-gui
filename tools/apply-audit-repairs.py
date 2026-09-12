@@ -54,24 +54,36 @@ def apply_edits(name, data, edits):
 def apply_ini_write_before_cache_assignment(name, data, expected_count):
     if not isinstance(expected_count, int) or expected_count < 1:
         raise ValueError('Invalid config persistence transform count')
-    pattern = re.compile(
-        rb'(?m)^(?P<indent>[ \t]+)(?P<field>f[A-Za-z_][A-Za-z0-9_]*) = value;'
-        rb'(?P<newline>\r?\n)(?P=indent)'
-        rb'(?P<write>IniProvider\.Write\(value, [^\r\n]+\);)$')
-    matches = list(pattern.finditer(data))
-    if len(matches) != expected_count:
-        raise ValueError(
-            'Expected {} config persistence assignments in {}; found {}'.format(
-                expected_count, name, len(matches)))
 
-    def replacement(match):
+    sectioned = re.compile(
+        rb'(?m)^(?P<indent>[ \t]+)(?P<field>f[A-Za-z_][A-Za-z0-9_]*) = value;'
+        rb'(?P<newline>\r?\n)(?P=indent)IniProvider\.Write\('
+        rb'(?P<property>[A-Za-z_][A-Za-z0-9_]*), ConfigName\);$')
+    unsectioned = re.compile(
+        rb'(?m)^(?P<indent>[ \t]+)(?P<field>f[A-Za-z_][A-Za-z0-9_]*) = value;'
+        rb'(?P<newline>\r?\n)(?P=indent)IniProvider\.Write\('
+        rb'(?P<property>[A-Za-z_][A-Za-z0-9_]*)\);$')
+
+    def replacement(match, section):
         indent = match.group('indent')
         newline = match.group('newline')
-        return (indent + match.group('write') + newline
-                + indent + match.group('field') + b' = value;')
+        prop = match.group('property')
+        write = (b'IniProvider.Write(value, ' + section + b', nameof(' + prop + b'));')
+        return indent + write + newline + indent + match.group('field') + b' = value;'
 
-    result, count = pattern.subn(replacement, data)
-    if count != expected_count:
+    sectioned_matches = list(sectioned.finditer(data))
+    unsectioned_matches = list(unsectioned.finditer(data))
+    actual_count = len(sectioned_matches) + len(unsectioned_matches)
+    if actual_count != expected_count:
+        raise ValueError(
+            'Expected {} config persistence assignments in {}; found {}'.format(
+                expected_count, name, actual_count))
+
+    result, sectioned_count = sectioned.subn(
+        lambda match: replacement(match, b'ConfigName'), data)
+    result, unsectioned_count = unsectioned.subn(
+        lambda match: replacement(match, b'null'), result)
+    if sectioned_count + unsectioned_count != expected_count:
         raise ValueError('Config persistence transform count changed while applying ' + name)
     return result
 

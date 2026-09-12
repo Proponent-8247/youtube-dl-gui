@@ -225,6 +225,27 @@ internal static partial class AuditRegression {
             }
         });
 
+        Test("CURRENT_O007.UnlaunchedRequestWithoutMetadataIsRejected", () => {
+            Type updaterType = T("youtube_dl_gui.Updater");
+            object previousRelease = updaterType.GetProperty("LastChecked", All).GetValue(null, null);
+            PropertyInfo expectedPid = ExpectedUpdaterProcessIdProperty();
+            object previousExpectedPid = expectedPid == null ? null : expectedPid.GetValue(null, null);
+            using (Form handler = (Form)New("youtube_dl_gui.MessageHandler"))
+            using (PassiveUpdater fake = new PassiveUpdater()) {
+                try {
+                    if (expectedPid != null) expectedPid.SetValue(null, 0, null);
+                    Set(updaterType, null, "LastChecked", null);
+                    SendMessage(handler.Handle, 0x1001, fake.Handle, IntPtr.Zero);
+                    Require(!fake.Received, "An unauthorized updater request was accepted without cached release metadata");
+                    Require(!(bool)Get(handler, "CanUpdate"), "Unauthorized metadata-free request left the acknowledgement gate armed");
+                }
+                finally {
+                    Set(updaterType, null, "LastChecked", previousRelease);
+                    if (expectedPid != null) expectedPid.SetValue(null, previousExpectedPid, null);
+                }
+            }
+        });
+
         Test("CURRENT_O007.WrongProcessUpdaterRequestIsRejected", () => {
             Type updaterType = T("youtube_dl_gui.Updater");
             object previousRelease = updaterType.GetProperty("LastChecked", All).GetValue(null, null);

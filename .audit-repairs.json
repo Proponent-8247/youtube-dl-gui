@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "base_sha": "c35f0d4ecaf7f1b801dea8a33af02950c2488b3c",
+  "expected_failures": [
+    "CURRENT_O005.ParentExitWaitHonorsCloseCancellation",
+    "CURRENT_O005.StaleRequestTargetIsBounded"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "O005_UPDATER_PARENT_WAIT_CANCELLATION",
+      "message": "fix: cancel and bound updater parent wait",
+      "resolves": [
+        "CURRENT_O005.ParentExitWaitHonorsCloseCancellation",
+        "CURRENT_O005.StaleRequestTargetIsBounded"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui-updater/Forms/frmUpdater.cs",
+          "edits": [
+            {
+              "old": "    private const int MaxRetries = 5;\n    private const int RetryDelay = 1_000;\n    private const string ApplicationDownloadUrl = \"https://github.com/Proponent-8247/{0}/releases/download/{1}/{0}.exe\";",
+              "new": "    private const int MaxRetries = 5;\n    private const int RetryDelay = 1_000;\n    private const uint ParentMessageTimeoutMilliseconds = 2_000;\n    private const string ApplicationDownloadUrl = \"https://github.com/Proponent-8247/{0}/releases/download/{1}/{0}.exe\";",
+              "count": 1
+            },
+            {
+              "old": "    private Process ProgramProcess;\n    private readonly ApplicationHandles ApplicationData;\n    private readonly bool DownloadLatest = false;\n    //private bool Received = false;",
+              "new": "    private Process ProgramProcess;\n    private readonly ApplicationHandles ApplicationData;\n    private readonly bool DownloadLatest = false;\n    private bool WaitingForApplication;\n    //private bool Received = false;",
+              "count": 1
+            },
+            {
+              "old": "    protected override void WndProc(ref Message m) {",
+              "new": "    protected override void OnFormClosing(FormClosingEventArgs e) {\n        if (WaitingForApplication && !Program.CancelToken.IsCancellationRequested) {\n            Program.CancelToken.Cancel();\n        }\n        base.OnFormClosing(e);\n    }\n\n    protected override void WndProc(ref Message m) {",
+              "count": 1
+            },
+            {
+              "old": "        // Wait for the main application to exit.\n        if (ProgramProcess is not null)\n            await WaitForApplication();\n\n        // This will be the backup location for the current version.",
+              "new": "        // Wait for the main application to exit.\n        if (ProgramProcess is not null) {\n            try {\n                await WaitForApplication();\n            }\n            catch (OperationCanceledException) {\n                return;\n            }\n            catch (Exception ex) {\n                Log.ReportException(ex, \"The updater could not wait for the main application to exit.\", this);\n                return;\n            }\n        }\n\n        // This will be the backup location for the current version.",
+              "count": 1
+            },
+            {
+              "old": "    private async Task WaitForApplication() {\n        // We are gonna gather the update data from the running process.\n        // WM_UPDATEREADY is a non-standard message that tells youtube-dl-gui to send the updater is ready and that it should close.\n        // The updater is going to wait for the main program to exit, allowing the user to finish any in-progress downloads.\n        CopyData.SendMessage(ApplicationData.MessageHandle, CopyData.WM_UPDATEDATAREQUEST, this.Handle, 0);\n        pbDownloadProgress.Text = Language.pbDownloadProgressWaitingForClose;\n\n        //while (!Received)\n        //    await Task.Delay(500);\n\n        // Wait for the exit.\n        await Task.Run(ProgramProcess.WaitForExit);\n    }",
+              "new": "    private async Task WaitForApplication() {\n        WaitingForApplication = true;\n        try {\n            Program.CancelToken.Token.ThrowIfCancellationRequested();\n\n            // We are gonna gather the update data from the running process.\n            // WM_UPDATEREADY is a non-standard message that tells youtube-dl-gui to send the updater is ready and that it should close.\n            // The updater is going to wait for the main program to exit, allowing the user to finish any in-progress downloads.\n            if (!CopyData.TrySendMessage(\n                ApplicationData.MessageHandle,\n                CopyData.WM_UPDATEDATAREQUEST,\n                this.Handle,\n                0,\n                ParentMessageTimeoutMilliseconds)) {\n                throw new TimeoutException(\"The main application did not accept the updater request within the allowed time.\");\n            }\n            pbDownloadProgress.Text = Language.pbDownloadProgressWaitingForClose;\n\n            // Wait for the exit without terminating the main application when updater cancellation is requested.\n            await Task.Run(() => {\n                while (!ProgramProcess.WaitForExit(100)) {\n                    Program.CancelToken.Token.ThrowIfCancellationRequested();\n                }\n            }, Program.CancelToken.Token);\n        }\n        finally {\n            WaitingForApplication = false;\n        }\n    }",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

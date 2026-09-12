@@ -205,8 +205,93 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void UpdaterStaleRequestTargetDoesNotWaitForParent() {
+        string pidFile = Path.Combine(Environment.CurrentDirectory, "updater-stale-target-" + Guid.NewGuid().ToString("N") + ".pid");
+        Assembly updater = LoadUpdaterAssembly();
+        Type program = updater.GetType("youtube_dl_gui_updater.Program", true);
+        Type formType = updater.GetType("youtube_dl_gui_updater.frmUpdater", true);
+        Type handlesType = updater.GetType("youtube_dl_gui_shared.ApplicationHandles", true);
+        object previousToken = program.GetProperty("CancelToken", All).GetValue(null, null);
+        using (CancellationTokenSource cancellation = new CancellationTokenSource()) {
+            Process child = null;
+            Form form = null;
+            Task wait = null;
+            try {
+                Set(program, null, "CancelToken", cancellation);
+                child = Process.Start(Fixture("hang", pidFile));
+                Require(child != null, "Could not start the stale-target parent fixture");
+                PumpUntil(() => File.Exists(pidFile), 5000, "Stale-target parent fixture did not start");
+
+                form = (Form)Activator.CreateInstance(formType, true);
+                object handles = Activator.CreateInstance(
+                    handlesType, All, null, new object[] { IntPtr.Zero, child.Id },
+                    System.Globalization.CultureInfo.InvariantCulture);
+                Field(form, "ApplicationData", handles);
+                Field(form, "ProgramProcess", child);
+
+                wait = (Task)Call(formType, form, "WaitForApplication");
+                PumpUntil(() => wait.IsCompleted, 2500, "A stale updater message target left the updater waiting for the parent process");
+                bool rejected = false;
+                try { wait.GetAwaiter().GetResult(); }
+                catch (TimeoutException) { rejected = true; }
+                Require(rejected, "A stale updater message target was not rejected as a bounded IPC failure");
+                Require(!child.HasExited, "Rejecting a stale updater message target terminated the parent application");
+            }
+            finally {
+                if (form != null) form.Dispose();
+                KillFixture(pidFile);
+                if (wait != null && !wait.IsCompleted) {
+                    try { wait.Wait(5000); } catch (AggregateException) { }
+                }
+                if (child != null) child.Dispose();
+                try { File.Delete(pidFile); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                Set(program, null, "CancelToken", previousToken);
+            }
+        }
+    }
+
+    private static void UpdaterParentExitRaceCompletes() {
+        string pidFile = Path.Combine(Environment.CurrentDirectory, "updater-exit-race-" + Guid.NewGuid().ToString("N") + ".pid");
+        Assembly updater = LoadUpdaterAssembly();
+        Type program = updater.GetType("youtube_dl_gui_updater.Program", true);
+        Type formType = updater.GetType("youtube_dl_gui_updater.frmUpdater", true);
+        Type handlesType = updater.GetType("youtube_dl_gui_shared.ApplicationHandles", true);
+        object previousToken = program.GetProperty("CancelToken", All).GetValue(null, null);
+        using (CancellationTokenSource cancellation = new CancellationTokenSource())
+        using (UpdaterRequestSink sink = new UpdaterRequestSink()) {
+            Process child = null;
+            Form form = null;
+            try {
+                Set(program, null, "CancelToken", cancellation);
+                child = Process.Start(Fixture("exit", pidFile));
+                Require(child != null, "Could not start the exiting parent fixture");
+                Require(child.WaitForExit(5000), "Exiting parent fixture did not exit");
+
+                form = (Form)Activator.CreateInstance(formType, true);
+                object handles = Activator.CreateInstance(
+                    handlesType, All, null, new object[] { sink.Handle, child.Id },
+                    System.Globalization.CultureInfo.InvariantCulture);
+                Field(form, "ApplicationData", handles);
+                Field(form, "ProgramProcess", child);
+
+                Task wait = (Task)Call(formType, form, "WaitForApplication");
+                PumpUntil(() => wait.IsCompleted, 2000, "Updater did not complete when the parent had already exited");
+                wait.GetAwaiter().GetResult();
+                Require(sink.Received, "Updater skipped the update-data request during the parent exit race");
+            }
+            finally {
+                if (form != null) form.Dispose();
+                if (child != null) child.Dispose();
+                try { File.Delete(pidFile); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                Set(program, null, "CancelToken", previousToken);
+            }
+        }
+    }
+
     static partial void RunRepairWave5Tests() {
         Test("CURRENT_O005.ParentExitWaitHonorsCloseCancellation", UpdaterParentExitWaitHonorsCloseCancellation);
+        Test("CURRENT_O005.StaleRequestTargetIsBounded", UpdaterStaleRequestTargetDoesNotWaitForParent);
+        Test("CURRENT_O005.ParentExitRaceCompletes", UpdaterParentExitRaceCompletes);
         Test("CURRENT_O004.ForcedThumbnailReplacementDisposesOldImage", ForcedThumbnailReplacementDisposesOldImage);
         Test("CURRENT_O014.DownloadSectionsRequireYtDlp", DownloadSectionsRequireYtDlp);
         Test("CURRENT_O036.ReversedDownloadSectionsAreRejected", ReversedDownloadSectionsAreRejected);

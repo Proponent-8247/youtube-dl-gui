@@ -18,7 +18,10 @@ internal static partial class AuditRegression {
             bool failed = false;
             using (FileStream locked = new FileStream(iniPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)) {
                 try { property.SetValue(null, requested, null); }
-                catch (TargetInvocationException ex) when (ex.InnerException is IOException) { failed = true; }
+                catch (TargetInvocationException ex) {
+                    if (ex.InnerException is IOException) failed = true;
+                    else throw;
+                }
             }
             Require(failed, "The locked INI fixture did not make the configuration write fail");
             Equal(original, property.GetValue(null, null));

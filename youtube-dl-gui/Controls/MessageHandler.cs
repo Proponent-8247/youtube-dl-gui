@@ -7,6 +7,7 @@ public partial class MessageHandler : Form {
     public bool AcceptMessages { get; private set;} = false;
     public bool AwaitingExit { get; private set; } = false;
     private bool CanUpdate { get; set; } = false;
+    private nint ExpectedUpdaterWindow { get; set; } = 0;
 
     public MessageHandler() {
         this.AutoScaleMode = AutoScaleMode.Font;
@@ -44,6 +45,17 @@ public partial class MessageHandler : Form {
         this.Dispose();
     }
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(nint WindowHandle, out uint ProcessId);
+
+    private static bool IsExpectedUpdaterWindow(nint WindowHandle) {
+        if (WindowHandle == 0 || GetWindowThreadProcessId(WindowHandle, out uint ProcessId) == 0
+        || ProcessId == 0 || ProcessId > int.MaxValue) {
+            return false;
+        }
+        return Updater.IsExpectedUpdaterProcess((int)ProcessId);
+    }
+
     [DebuggerStepThrough]
     protected override void WndProc(ref Message m) {
         switch (m.Msg) {
@@ -79,9 +91,15 @@ public partial class MessageHandler : Form {
             // WM_UPDATEDATAREQUEST is a custom message.
             // Only allowed when the updater is launched from youtube-dl-gui.
             case CopyData.WM_UPDATEDATAREQUEST: {
+                if (!IsExpectedUpdaterWindow(m.WParam)) {
+                    m.Result = IntPtr.Zero;
+                    break;
+                }
                 if (Updater.LastChecked is null) {
+                    Updater.ClearExpectedUpdaterProcess();
                     Log.MessageBox("LastChecked is null.");
-                    return;
+                    m.Result = IntPtr.Zero;
+                    break;
                 }
                 UpdateData Data = new() {
                     FileName = AppDomain.CurrentDomain.FriendlyName,
@@ -91,6 +109,7 @@ public partial class MessageHandler : Form {
                 CopyDataStruct DataStruct = new();
                 nint CopyDataBuffer = 0;
                 nint DataBuffer = 0;
+                ExpectedUpdaterWindow = m.WParam;
                 try {
                     DataBuffer = CopyData.NintAlloc(Data);
                     DataStruct.cbData = Marshal.SizeOf(Data);
@@ -103,17 +122,24 @@ public partial class MessageHandler : Form {
                 }
                 finally {
                     CanUpdate = false;
+                    ExpectedUpdaterWindow = 0;
+                    Updater.ClearExpectedUpdaterProcess();
                     CopyData.NintFree(ref CopyDataBuffer);
                     CopyData.NintFree(ref DataBuffer);
                 }
+                m.Result = IntPtr.Zero;
             } break;
 
             // WM_UPDATERREADY is a custom message.
             // Only ran when WM_UPDATEDATAREQUEST has been called at least once.
             // Other cases, this is not a valid request.
-            case CopyData.WM_UPDATERREADY when CanUpdate: {
-                CanUpdate = false;
-                Program.KillForUpdate();
+            case CopyData.WM_UPDATERREADY: {
+                if (CanUpdate && m.WParam == ExpectedUpdaterWindow) {
+                    CanUpdate = false;
+                    Updater.ClearExpectedUpdaterProcess();
+                    Program.KillForUpdate();
+                }
+                m.Result = IntPtr.Zero;
             } break;
 
             default: {

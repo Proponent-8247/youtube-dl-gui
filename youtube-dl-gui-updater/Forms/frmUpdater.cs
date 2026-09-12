@@ -86,7 +86,7 @@ internal partial class frmUpdater : Form {
                 UpdateData.UpdateHash = UpdateData.UpdateHash.ToLowerInvariant();
                 if (!UpdateData.FileName.ToLowerInvariant().EndsWith(".exe"))
                     UpdateData.FileName += ".exe";
-                CopyData.SendMessage(ApplicationData.MessageHandle, CopyData.WM_UPDATERREADY, 0, 0);
+                CopyData.SendMessage(ApplicationData.MessageHandle, CopyData.WM_UPDATERREADY, this.Handle, 0);
                 //Received = true;
                 m.Result = IntPtr.Zero;
             } break;

@@ -30,6 +30,11 @@ internal static class Updater {
     private static CancellationTokenSource UpdateToken = new();
 
     #region Properties
+    internal static int ExpectedUpdaterProcessId { get; set; }
+    internal static bool IsExpectedUpdaterProcess(int ProcessId) =>
+        ProcessId > 0 && ProcessId == ExpectedUpdaterProcessId;
+    internal static void ClearExpectedUpdaterProcess() => ExpectedUpdaterProcessId = 0;
+
     /// <summary>
     /// Represents the very last checked repository release.
     /// </summary>
@@ -141,6 +146,7 @@ internal static class Updater {
     }
 
     private static void BeginUpdate() {
+        ExpectedUpdaterProcessId = 0;
         if (LastChecked?.ExecutableHash.IsNullEmptyWhitespace() != false) {
             Log.MessageBox("The selected release does not include a valid executable SHA-256 hash. The update cannot continue.");
             return;
@@ -185,7 +191,9 @@ internal static class Updater {
             }
         };
         Log.Write($"Using the pid {ProcessId} with hwnd {Program.GetMessagesHandle()}");
-        Updater.Start();
+        if (Updater.Start()) {
+            ExpectedUpdaterProcessId = Updater.Id;
+        }
     }
 
     /// <summary>

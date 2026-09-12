@@ -288,7 +288,36 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void GenericDownloadRecoversBackupBeforeCancelledAttempt() {
+        string output = Path.Combine(Environment.CurrentDirectory, "generic-recovery-" + Guid.NewGuid().ToString("N") + ".exe");
+        string backup = output + ".bck";
+        string temp = output + ".tmp";
+        const string knownGood = "known-good-prior-output";
+        try {
+            File.WriteAllText(backup, knownGood);
+            File.WriteAllText(temp, "orphaned-partial-download");
+            using (Form form = (Form)New("youtube_dl_gui.frmGenericDownloadProgress", "http://127.0.0.1:1/offline", output)) {
+                IntPtr handle = form.Handle;
+                CancellationTokenSource cancellation = (CancellationTokenSource)Field(form, "CancelToken");
+                cancellation.Cancel();
+                Task task = (Task)Call(form.GetType(), form, "RunDownload");
+                PumpUntil(() => task.IsCompleted, 5000, "Cancelled generic recovery attempt did not complete");
+                task.GetAwaiter().GetResult();
+            }
+
+            Require(File.Exists(output), "A known-good orphaned backup was not restored before the cancelled network attempt");
+            Equal(knownGood, File.ReadAllText(output));
+            Require(!File.Exists(backup), "Recovered backup remained stranded beside the restored live output");
+        }
+        finally {
+            foreach (string path in new[] { output, backup, temp }) {
+                try { File.Delete(path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            }
+        }
+    }
+
     static partial void RunRepairWave5Tests() {
+        Test("F_O026.GenericDownloadRestoresBackupBeforeCancelledAttempt", GenericDownloadRecoversBackupBeforeCancelledAttempt);
         Test("CURRENT_O005.ParentExitWaitHonorsCloseCancellation", UpdaterParentExitWaitHonorsCloseCancellation);
         Test("CURRENT_O005.StaleRequestTargetIsBounded", UpdaterStaleRequestTargetDoesNotWaitForParent);
         Test("CURRENT_O005.ParentExitRaceCompletes", UpdaterParentExitRaceCompletes);

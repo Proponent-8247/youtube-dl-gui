@@ -10,12 +10,14 @@ using murrty.controls;
 internal partial class frmUpdater : Form {
     private const int MaxRetries = 5;
     private const int RetryDelay = 1_000;
+    private const uint ParentMessageTimeoutMilliseconds = 2_000;
     private const string ApplicationDownloadUrl = "https://github.com/Proponent-8247/{0}/releases/download/{1}/{0}.exe";
 
     private UpdateData UpdateData;
     private Process ProgramProcess;
     private readonly ApplicationHandles ApplicationData;
     private readonly bool DownloadLatest = false;
+    private bool WaitingForApplication;
     //private bool Received = false;
 
 
@@ -44,6 +46,13 @@ internal partial class frmUpdater : Form {
             pbDownloadProgress.Text = "getting latest version...";
         }
         else this.UpdateData = UpdateData.Value;
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e) {
+        if (WaitingForApplication && !Program.CancelToken.IsCancellationRequested) {
+            Program.CancelToken.Cancel();
+        }
+        base.OnFormClosing(e);
     }
 
     protected override void WndProc(ref Message m) {
@@ -111,8 +120,18 @@ internal partial class frmUpdater : Form {
         }
 
         // Wait for the main application to exit.
-        if (ProgramProcess is not null)
-            await WaitForApplication();
+        if (ProgramProcess is not null) {
+            try {
+                await WaitForApplication();
+            }
+            catch (OperationCanceledException) {
+                return;
+            }
+            catch (Exception ex) {
+                Log.ReportException(ex, "The updater could not wait for the main application to exit.", this);
+                return;
+            }
+        }
 
         // This will be the backup location for the current version.
         string BackupLocation = UpdateData.FileName + ".old";
@@ -217,17 +236,33 @@ internal partial class frmUpdater : Form {
         }
     }
     private async Task WaitForApplication() {
-        // We are gonna gather the update data from the running process.
-        // WM_UPDATEREADY is a non-standard message that tells youtube-dl-gui to send the updater is ready and that it should close.
-        // The updater is going to wait for the main program to exit, allowing the user to finish any in-progress downloads.
-        CopyData.SendMessage(ApplicationData.MessageHandle, CopyData.WM_UPDATEDATAREQUEST, this.Handle, 0);
-        pbDownloadProgress.Text = Language.pbDownloadProgressWaitingForClose;
+        WaitingForApplication = true;
+        try {
+            Program.CancelToken.Token.ThrowIfCancellationRequested();
 
-        //while (!Received)
-        //    await Task.Delay(500);
+            // We are gonna gather the update data from the running process.
+            // WM_UPDATEREADY is a non-standard message that tells youtube-dl-gui to send the updater is ready and that it should close.
+            // The updater is going to wait for the main program to exit, allowing the user to finish any in-progress downloads.
+            if (!CopyData.TrySendMessage(
+                ApplicationData.MessageHandle,
+                CopyData.WM_UPDATEDATAREQUEST,
+                this.Handle,
+                0,
+                ParentMessageTimeoutMilliseconds)) {
+                throw new TimeoutException("The main application did not accept the updater request within the allowed time.");
+            }
+            pbDownloadProgress.Text = Language.pbDownloadProgressWaitingForClose;
 
-        // Wait for the exit.
-        await Task.Run(ProgramProcess.WaitForExit);
+            // Wait for the exit without terminating the main application when updater cancellation is requested.
+            await Task.Run(() => {
+                while (!ProgramProcess.WaitForExit(100)) {
+                    Program.CancelToken.Token.ThrowIfCancellationRequested();
+                }
+            }, Program.CancelToken.Token);
+        }
+        finally {
+            WaitingForApplication = false;
+        }
     }
     private async Task GetUpdate(string FileUrl, string FileDestination) {
         // The progress bar has a max of 200. Half of it is used for the download progress.

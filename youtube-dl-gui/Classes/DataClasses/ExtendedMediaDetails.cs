@@ -620,6 +620,14 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
 
         #region Other settings (if not Custom)
         if (SelectedType != DownloadType.Custom) {
+            if ((StartTime.HasValue || EndTime.HasValue)
+            && Downloads.YtdlType != (int)GitID.YtDlp
+            && Downloads.YtdlType != (int)GitID.YtDlpNightly) {
+                base.Arguments = null;
+                ArgumentsCensored = string.Empty;
+                return false;
+            }
+
             if (!Verification.FfmpegAvailable) {
                 Verification.RefreshFFmpegLocation();
             }

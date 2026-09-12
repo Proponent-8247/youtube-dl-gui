@@ -1,10 +1,12 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 internal static partial class AuditRegression {
@@ -129,7 +131,103 @@ internal static partial class AuditRegression {
         }
     }
 
+    private sealed class UpdaterRequestSink : NativeWindow, IDisposable {
+        internal bool Received { get; private set; }
+
+        internal UpdaterRequestSink() {
+            CreateHandle(new CreateParams());
+        }
+
+        protected override void WndProc(ref Message message) {
+            if (message.Msg == 0x1001) {
+                Received = true;
+                message.Result = IntPtr.Zero;
+                return;
+            }
+            base.WndProc(ref message);
+        }
+
+        public void Dispose() {
+            DestroyHandle();
+        }
+    }
+
+    private static void UpdaterCloseCancelsPendingWork() {
+        Assembly updater = LoadUpdaterAssembly();
+        Type program = updater.GetType("youtube_dl_gui_updater.Program", true);
+        Type formType = updater.GetType("youtube_dl_gui_updater.frmUpdater", true);
+        object previousToken = program.GetProperty("CancelToken", All).GetValue(null, null);
+        int previousExitCode = (int)program.GetProperty("ExitCode", All).GetValue(null, null);
+        using (CancellationTokenSource cancellation = new CancellationTokenSource())
+        using (Form form = (Form)Activator.CreateInstance(formType, true)) {
+            try {
+                Set(program, null, "CancelToken", cancellation);
+                Set(program, null, "ExitCode", 1);
+                Call(formType, form, "OnFormClosing", new FormClosingEventArgs(CloseReason.UserClosing, false));
+                Require(cancellation.IsCancellationRequested, "Closing the updater did not cancel its pending work");
+            }
+            finally {
+                Set(program, null, "CancelToken", previousToken);
+                Set(program, null, "ExitCode", previousExitCode);
+            }
+        }
+    }
+
+    private static void UpdaterParentExitWaitHonorsCancellation() {
+        string pidFile = Path.Combine(Environment.CurrentDirectory, "updater-parent-wait-" + Guid.NewGuid().ToString("N") + ".pid");
+        Assembly updater = LoadUpdaterAssembly();
+        Type program = updater.GetType("youtube_dl_gui_updater.Program", true);
+        Type formType = updater.GetType("youtube_dl_gui_updater.frmUpdater", true);
+        Type handlesType = updater.GetType("youtube_dl_gui_shared.ApplicationHandles", true);
+        object previousToken = program.GetProperty("CancelToken", All).GetValue(null, null);
+        int previousExitCode = (int)program.GetProperty("ExitCode", All).GetValue(null, null);
+        using (CancellationTokenSource cancellation = new CancellationTokenSource())
+        using (UpdaterRequestSink sink = new UpdaterRequestSink()) {
+            Process child = null;
+            Form form = null;
+            Task wait = null;
+            try {
+                Set(program, null, "CancelToken", cancellation);
+                Set(program, null, "ExitCode", 1);
+                child = Process.Start(Fixture("hang", pidFile));
+                Require(child != null, "Could not start the updater parent fixture");
+                PumpUntil(() => File.Exists(pidFile), 5000, "Updater parent fixture did not start");
+
+                form = (Form)Activator.CreateInstance(formType, true);
+                object handles = Activator.CreateInstance(
+                    handlesType, All, null, new object[] { sink.Handle, child.Id },
+                    System.Globalization.CultureInfo.InvariantCulture);
+                Field(form, "ApplicationData", handles);
+                Field(form, "ProgramProcess", child);
+
+                wait = (Task)Call(formType, form, "WaitForApplication");
+                Require(sink.Received, "Updater did not request update data before waiting for its parent");
+                cancellation.Cancel();
+                PumpUntil(() => wait.IsCompleted, 2000, "Cancelling the updater did not release the parent-exit wait");
+
+                bool cancelled = false;
+                try { wait.GetAwaiter().GetResult(); }
+                catch (OperationCanceledException) { cancelled = true; }
+                Require(cancelled, "Parent-exit wait completed without reporting cancellation");
+                Require(!child.HasExited, "Cancelling the updater terminated the parent application");
+            }
+            finally {
+                if (form != null) form.Dispose();
+                KillFixture(pidFile);
+                if (wait != null && !wait.IsCompleted) {
+                    try { wait.Wait(5000); } catch (AggregateException) { }
+                }
+                if (child != null) child.Dispose();
+                try { File.Delete(pidFile); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                Set(program, null, "CancelToken", previousToken);
+                Set(program, null, "ExitCode", previousExitCode);
+            }
+        }
+    }
+
     static partial void RunRepairWave5Tests() {
+        Test("CURRENT_O005.UpdaterCloseCancelsPendingWork", UpdaterCloseCancelsPendingWork);
+        Test("CURRENT_O005.ParentExitWaitHonorsCancellation", UpdaterParentExitWaitHonorsCancellation);
         Test("CURRENT_O004.ForcedThumbnailReplacementDisposesOldImage", ForcedThumbnailReplacementDisposesOldImage);
         Test("CURRENT_O014.DownloadSectionsRequireYtDlp", DownloadSectionsRequireYtDlp);
         Test("CURRENT_O036.ReversedDownloadSectionsAreRejected", ReversedDownloadSectionsAreRejected);

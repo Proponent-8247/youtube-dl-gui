@@ -151,8 +151,11 @@ internal static class Arguments {
                     TemporaryList.Add((ArgumentType.DownloadAuthenticateCustom, Arguments[i]));
                 } break;
 
-                case "archived" or "ar" when ++i < Arguments.Length: {
+                case "archived" or "ar" or "var" or "varchive" or "videoarchive" when ++i < Arguments.Length: {
                     TemporaryList.Add((ArgumentType.DownloadArchived, Arguments[i]));
+                } break;
+                case "aar" or "aarchive" or "audioarchive" when ++i < Arguments.Length: {
+                    TemporaryList.Add((ArgumentType.DownloadArchivedNoSound, Arguments[i]));
                 } break;
 
                 case "installprotocol": {

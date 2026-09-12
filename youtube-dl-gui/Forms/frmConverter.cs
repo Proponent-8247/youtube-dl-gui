@@ -281,7 +281,7 @@ public partial class frmConverter : LocalizedProcessingForm {
                         ArgumentsBuffer.Add($"-crf {CurrentConversion.VideoCRF}");
                     }
 
-                    if (!CurrentConversion.OutputFile.EndsWith(".wmv") && CurrentConversion.VideoUseProfile) {
+                    if (!CurrentConversion.OutputFile.EndsWith(".wmv", StringComparison.OrdinalIgnoreCase) && CurrentConversion.VideoUseProfile) {
                         ArgumentsBuffer.Add($"-profile:v {ConvertHelper.GetVideoProfile(CurrentConversion.VideoProfile)}");
                     }
 

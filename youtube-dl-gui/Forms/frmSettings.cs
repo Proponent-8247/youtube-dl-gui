@@ -2,6 +2,7 @@
 namespace youtube_dl_gui;
 using System.Diagnostics;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 public partial class frmSettings : LocalizedForm {
     // TODO: ytdl type will save every time it changes. Implement a safeguard to prevent oversaving to ini.
@@ -19,6 +20,8 @@ public partial class frmSettings : LocalizedForm {
     private bool useYtdlUpdater_Last;
     private int YtdlType_Last;
     private bool SettingsSaved;
+    private CancellationTokenSource? ProtocolInstallerCancellation;
+    private const int ProtocolInstallerTimeoutMilliseconds = 60_000;
     #endregion
 
     public frmSettings() {
@@ -44,6 +47,7 @@ public partial class frmSettings : LocalizedForm {
         LoadingForm = false;
     }
     private void frmSettings_FormClosing(object sender, FormClosingEventArgs e) {
+        ProtocolInstallerCancellation?.Cancel();
         if (!SettingsSaved) {
             RestoreImmediateSettings();
         }
@@ -783,8 +787,26 @@ public partial class frmSettings : LocalizedForm {
             } break;
         }
     }
-    private void btnSettingsDownloadsInstallProtocol_Click(object sender, EventArgs e) {
-        if (!ProtocolAvailable) {
+    private static Task<int> WaitForOwnedInstallerAsync(Process InstallerProcess, int TimeoutMilliseconds, CancellationToken Cancellation) {
+        if (InstallerProcess is null) throw new ArgumentNullException(nameof(InstallerProcess));
+        if (TimeoutMilliseconds <= 0) throw new ArgumentOutOfRangeException(nameof(TimeoutMilliseconds));
+
+        return Task.Run(() => {
+            using murrty.controls.ProcessOwnership Ownership = new(InstallerProcess);
+            Ownership.Attach();
+            Stopwatch Timer = Stopwatch.StartNew();
+            while (!InstallerProcess.WaitForExit(100)) {
+                Cancellation.ThrowIfCancellationRequested();
+                if (Timer.ElapsedMilliseconds >= TimeoutMilliseconds)
+                    throw new TimeoutException("The protocol installer did not complete within the permitted time.");
+            }
+            Cancellation.ThrowIfCancellationRequested();
+            return InstallerProcess.ExitCode;
+        });
+    }
+
+    private async void btnSettingsDownloadsInstallProtocol_Click(object sender, EventArgs e) {
+        if (!ProtocolAvailable && ProtocolInstallerCancellation is null) {
             int Result;
             if (Program.IsAdmin) {
                 Result = SystemRegistry.SetRegistry();
@@ -798,13 +820,25 @@ public partial class frmSettings : LocalizedForm {
                         WorkingDirectory = Environment.CurrentDirectory,
                     }
                 };
+                using CancellationTokenSource Cancellation = new();
+                ProtocolInstallerCancellation = Cancellation;
                 try {
                     InstallerProcess.Start();
-                    InstallerProcess.WaitForExit();
-                    Result = InstallerProcess.ExitCode;
+                    Result = await WaitForOwnedInstallerAsync(InstallerProcess, ProtocolInstallerTimeoutMilliseconds, Cancellation.Token);
                 }
                 catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) {
                     Result = 2;
+                }
+                catch (OperationCanceledException) {
+                    return;
+                }
+                catch (Exception ex) {
+                    Log.ReportException(ex);
+                    Result = 1;
+                }
+                finally {
+                    if (ReferenceEquals(ProtocolInstallerCancellation, Cancellation))
+                        ProtocolInstallerCancellation = null;
                 }
             }
 

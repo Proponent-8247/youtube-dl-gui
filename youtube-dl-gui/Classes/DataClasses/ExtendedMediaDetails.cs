@@ -194,7 +194,14 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
     public Image? DownloadThumbnail(bool ForceRedownload, System.Threading.CancellationToken Cancellation) {
         Cancellation.ThrowIfCancellationRequested();
         if (MediaData is not null && (Thumbnail is null || ForceRedownload)) {
-            Thumbnail = MediaData.GetThumbnail(Cancellation);
+            Image? PreviousThumbnail = Thumbnail;
+            Image? NewThumbnail = MediaData.GetThumbnail(Cancellation);
+            if (NewThumbnail is not null) {
+                Thumbnail = NewThumbnail;
+                if (PreviousThumbnail is not null && !ReferenceEquals(PreviousThumbnail, NewThumbnail)) {
+                    PreviousThumbnail.Dispose();
+                }
+            }
         }
 
         return Thumbnail;

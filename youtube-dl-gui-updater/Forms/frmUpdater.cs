@@ -100,6 +100,9 @@ internal partial class frmUpdater : Form {
         await RunUpdate();
     }
 
+    private static string CreateUpdateDestinationPath() =>
+        Path.Combine(Environment.CurrentDirectory, $"update.{Process.GetCurrentProcess().Id}.{Guid.NewGuid():N}.part");
+
     private void LoadLanguage() {
         this.Text = Language.frmUpdater;
         lbUpdaterHeader.Text = Language.lbUpdaterHeader;
@@ -137,7 +140,7 @@ internal partial class frmUpdater : Form {
         string BackupLocation = UpdateData.FileName + ".old";
 
         // The temp path of the file.
-        string UpdateDestination = $"{Environment.CurrentDirectory}\\update.part";
+        string UpdateDestination = CreateUpdateDestinationPath();
 
         // The URL that will be downloaded using the client
         string FileUrl = string.Format(ApplicationDownloadUrl, Language.ApplicationName, UpdateData.NewVersion.ToString());

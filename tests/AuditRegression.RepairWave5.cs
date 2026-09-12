@@ -152,28 +152,7 @@ internal static partial class AuditRegression {
         }
     }
 
-    private static void UpdaterCloseCancelsPendingWork() {
-        Assembly updater = LoadUpdaterAssembly();
-        Type program = updater.GetType("youtube_dl_gui_updater.Program", true);
-        Type formType = updater.GetType("youtube_dl_gui_updater.frmUpdater", true);
-        object previousToken = program.GetProperty("CancelToken", All).GetValue(null, null);
-        int previousExitCode = (int)program.GetProperty("ExitCode", All).GetValue(null, null);
-        using (CancellationTokenSource cancellation = new CancellationTokenSource())
-        using (Form form = (Form)Activator.CreateInstance(formType, true)) {
-            try {
-                Set(program, null, "CancelToken", cancellation);
-                Set(program, null, "ExitCode", 1);
-                Call(formType, form, "OnFormClosing", new FormClosingEventArgs(CloseReason.UserClosing, false));
-                Require(cancellation.IsCancellationRequested, "Closing the updater did not cancel its pending work");
-            }
-            finally {
-                Set(program, null, "CancelToken", previousToken);
-                Set(program, null, "ExitCode", previousExitCode);
-            }
-        }
-    }
-
-    private static void UpdaterParentExitWaitHonorsCancellation() {
+    private static void UpdaterParentExitWaitHonorsCloseCancellation() {
         string pidFile = Path.Combine(Environment.CurrentDirectory, "updater-parent-wait-" + Guid.NewGuid().ToString("N") + ".pid");
         Assembly updater = LoadUpdaterAssembly();
         Type program = updater.GetType("youtube_dl_gui_updater.Program", true);
@@ -202,8 +181,9 @@ internal static partial class AuditRegression {
 
                 wait = (Task)Call(formType, form, "WaitForApplication");
                 Require(sink.Received, "Updater did not request update data before waiting for its parent");
-                cancellation.Cancel();
-                PumpUntil(() => wait.IsCompleted, 2000, "Cancelling the updater did not release the parent-exit wait");
+                Call(formType, form, "OnFormClosing", new FormClosingEventArgs(CloseReason.UserClosing, false));
+                Require(cancellation.IsCancellationRequested, "Closing the updater did not cancel its parent-exit wait");
+                PumpUntil(() => wait.IsCompleted, 2000, "Closing the updater did not release the parent-exit wait");
 
                 bool cancelled = false;
                 try { wait.GetAwaiter().GetResult(); }
@@ -226,8 +206,7 @@ internal static partial class AuditRegression {
     }
 
     static partial void RunRepairWave5Tests() {
-        Test("CURRENT_O005.UpdaterCloseCancelsPendingWork", UpdaterCloseCancelsPendingWork);
-        Test("CURRENT_O005.ParentExitWaitHonorsCancellation", UpdaterParentExitWaitHonorsCancellation);
+        Test("CURRENT_O005.ParentExitWaitHonorsCloseCancellation", UpdaterParentExitWaitHonorsCloseCancellation);
         Test("CURRENT_O004.ForcedThumbnailReplacementDisposesOldImage", ForcedThumbnailReplacementDisposesOldImage);
         Test("CURRENT_O014.DownloadSectionsRequireYtDlp", DownloadSectionsRequireYtDlp);
         Test("CURRENT_O036.ReversedDownloadSectionsAreRejected", ReversedDownloadSectionsAreRejected);

@@ -628,6 +628,12 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
                 return false;
             }
 
+            if (StartTime.HasValue && EndTime.HasValue && EndTime < StartTime) {
+                base.Arguments = null;
+                ArgumentsCensored = string.Empty;
+                return false;
+            }
+
             if (!Verification.FfmpegAvailable) {
                 Verification.RefreshFFmpegLocation();
             }

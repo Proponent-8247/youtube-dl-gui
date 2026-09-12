@@ -43,5 +43,6 @@ internal static partial class AuditRegression {
 
     private static void RunRepairWave7Tests() {
         Test("W_O021.LastHandleClosureRemovesAbandonedState", LastHandleClosureRemovesAbandonedState);
+        RunRepairWave8Tests();
     }
 }

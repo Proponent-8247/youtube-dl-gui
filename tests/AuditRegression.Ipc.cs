@@ -148,10 +148,62 @@ internal static partial class AuditRegression {
         public void Dispose() { DestroyHandle(); }
     }
 
+    private sealed class UpdaterReadySink : NativeWindow, IDisposable {
+        internal bool Received;
+        internal IntPtr RequesterWindow;
+        internal UpdaterReadySink() { CreateHandle(new CreateParams()); }
+        protected override void WndProc(ref Message message) {
+            if (message.Msg == 0x1002) {
+                Received = true;
+                RequesterWindow = message.WParam;
+                message.Result = IntPtr.Zero;
+                return;
+            }
+            base.WndProc(ref message);
+        }
+        public void Dispose() { DestroyHandle(); }
+    }
+
     [DllImport("user32.dll")]
     private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
 
     static partial void RunUpdaterHandshakeTests() {
+        Test("CURRENT_O007.UpdaterAcknowledgementIdentifiesRequesterWindow", () => {
+            Assembly updaterAssembly = LoadUpdaterAssembly();
+            Type formType = updaterAssembly.GetType("youtube_dl_gui_updater.frmUpdater", true);
+            Type handlesType = updaterAssembly.GetType("youtube_dl_gui_shared.ApplicationHandles", true);
+            object packet = UpdatePacket("custom.exe", new string('a', 64));
+            IntPtr packetPointer = IntPtr.Zero;
+            IntPtr headerPointer = IntPtr.Zero;
+            using (UpdaterReadySink sink = new UpdaterReadySink())
+            using (Form updater = (Form)Activator.CreateInstance(formType, true)) {
+                try {
+                    object handles = Activator.CreateInstance(
+                        handlesType, All, null, new object[] { sink.Handle, Process.GetCurrentProcess().Id },
+                        System.Globalization.CultureInfo.InvariantCulture);
+                    Field(updater, "ApplicationData", handles);
+
+                    int packetSize = Marshal.SizeOf(packet);
+                    packetPointer = Marshal.AllocHGlobal(packetSize);
+                    Marshal.StructureToPtr(packet, packetPointer, false);
+                    object header = CopyHeader(1, packetSize, packetPointer);
+                    headerPointer = Marshal.AllocHGlobal(Marshal.SizeOf(header));
+                    Marshal.StructureToPtr(header, headerPointer, false);
+
+                    SendMessage(updater.Handle, 0x004A, sink.Handle, headerPointer);
+                    Require(sink.Received, "The standalone updater did not acknowledge valid update data");
+                    Equal(updater.Handle, sink.RequesterWindow);
+                }
+                finally {
+                    if (headerPointer != IntPtr.Zero) Marshal.FreeHGlobal(headerPointer);
+                    if (packetPointer != IntPtr.Zero) {
+                        Marshal.DestroyStructure(packetPointer, packet.GetType());
+                        Marshal.FreeHGlobal(packetPointer);
+                    }
+                }
+            }
+        });
+
         Test("CURRENT_O007.UnlaunchedUpdaterRequestIsRejected", () => {
             Type updaterType = T("youtube_dl_gui.Updater");
             object previousRelease = updaterType.GetProperty("LastChecked", All).GetValue(null, null);

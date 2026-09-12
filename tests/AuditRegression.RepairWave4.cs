@@ -127,5 +127,6 @@ internal static partial class AuditRegression {
         Test("CURRENT_O036.ProtocolPreservesNestedUrlEncoding", ProtocolPreservesNestedUrlEncoding);
         RunRepairWave5Tests();
         RunRepairWave6Tests();
+        RunRepairWave7Tests();
     }
 }

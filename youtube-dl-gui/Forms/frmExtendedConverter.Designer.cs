@@ -717,7 +717,7 @@ partial class frmExtendedConverter {
             // 
             this.txtOutput.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtOutput.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtOutput.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtOutput.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtOutput.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtOutput.ButtonImageIndex = -1;
@@ -736,7 +736,7 @@ partial class frmExtendedConverter {
             // 
             this.txtInput.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtInput.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtInput.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtInput.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtInput.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtInput.ButtonImageIndex = -1;

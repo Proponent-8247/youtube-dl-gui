@@ -427,7 +427,7 @@
             // 
             this.txtSettingsGeneralYoutubeDlPath.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtSettingsGeneralYoutubeDlPath.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtSettingsGeneralYoutubeDlPath.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtSettingsGeneralYoutubeDlPath.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtSettingsGeneralYoutubeDlPath.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtSettingsGeneralYoutubeDlPath.ButtonImageIndex = -1;
@@ -518,7 +518,7 @@
             // 
             this.txtSettingsGeneralFFmpegPath.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtSettingsGeneralFFmpegPath.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtSettingsGeneralFFmpegPath.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtSettingsGeneralFFmpegPath.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtSettingsGeneralFFmpegPath.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtSettingsGeneralFFmpegPath.ButtonImageIndex = -1;
@@ -1009,7 +1009,7 @@
             // 
             // txtSettingsDownloadsProxyPort
             // 
-            this.txtSettingsDownloadsProxyPort.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtSettingsDownloadsProxyPort.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtSettingsDownloadsProxyPort.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtSettingsDownloadsProxyPort.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtSettingsDownloadsProxyPort.ButtonImageIndex = -1;
@@ -1027,7 +1027,7 @@
             // 
             // txtSettingsDownloadsProxyIp
             // 
-            this.txtSettingsDownloadsProxyIp.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtSettingsDownloadsProxyIp.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtSettingsDownloadsProxyIp.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtSettingsDownloadsProxyIp.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtSettingsDownloadsProxyIp.ButtonImageIndex = -1;
@@ -1300,7 +1300,7 @@
             // 
             this.txtSettingsDownloadsSavePath.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtSettingsDownloadsSavePath.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtSettingsDownloadsSavePath.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtSettingsDownloadsSavePath.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtSettingsDownloadsSavePath.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtSettingsDownloadsSavePath.ButtonImageIndex = -1;
@@ -1626,7 +1626,7 @@
             // txtSettingsConverterCustomArguments
             // 
             this.txtSettingsConverterCustomArguments.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtSettingsConverterCustomArguments.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtSettingsConverterCustomArguments.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtSettingsConverterCustomArguments.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtSettingsConverterCustomArguments.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtSettingsConverterCustomArguments.ButtonImageIndex = -1;
@@ -1768,7 +1768,7 @@
             // txtSettingsExtensionsExtensionShort
             // 
             this.txtSettingsExtensionsExtensionShort.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtSettingsExtensionsExtensionShort.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtSettingsExtensionsExtensionShort.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtSettingsExtensionsExtensionShort.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtSettingsExtensionsExtensionShort.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtSettingsExtensionsExtensionShort.ButtonImageIndex = -1;
@@ -1784,7 +1784,7 @@
             // 
             this.txtSettingsExtensionsExtensionFullName.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtSettingsExtensionsExtensionFullName.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtSettingsExtensionsExtensionFullName.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtSettingsExtensionsExtensionFullName.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtSettingsExtensionsExtensionFullName.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtSettingsExtensionsExtensionFullName.ButtonImageIndex = -1;

@@ -39,7 +39,7 @@
             // 
             // txtArchiveDownloaderHint
             // 
-            this.txtArchiveDownloaderHint.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtArchiveDownloaderHint.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtArchiveDownloaderHint.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtArchiveDownloaderHint.ButtonFont = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtArchiveDownloaderHint.ButtonImageIndex = -1;

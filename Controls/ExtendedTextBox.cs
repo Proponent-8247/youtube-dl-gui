@@ -30,7 +30,7 @@ public class ExtendedTextBox : TextBox {
     /// <summary>
     /// The alignment of the button.
     /// </summary>
-    private ButtonAlignment fButtonAlignment = ButtonAlignment.Left;
+    private ButtonAlignment fButtonAlignment = ButtonAlignment.Right;
     /// <summary>
     /// If the font should be syncronized across the button and text.
     /// </summary>
@@ -359,12 +359,12 @@ public class ExtendedTextBox : TextBox {
             if (fShowButton) {
                 UpdateButton();
                 switch (fButtonAlignment) {
-                    default: {
-                        NativeMethods.SendMessage(Handle, Consts.EM_SETMARGINS, Consts.EC_RIGHTMARGIN, (InsetButton.Width << 16));
+                    case ButtonAlignment.Left: {
+                        NativeMethods.SendMessage(Handle, Consts.EM_SETMARGINS, Consts.EC_LEFTMARGIN, InsetButton.Width);
                     } break;
 
-                    case ButtonAlignment.Right: {
-                        NativeMethods.SendMessage(Handle, Consts.EM_SETMARGINS, Consts.EC_LEFTMARGIN, InsetButton.Width);
+                    default: {
+                        NativeMethods.SendMessage(Handle, Consts.EM_SETMARGINS, Consts.EC_RIGHTMARGIN, (InsetButton.Width << 16));
                     } break;
                 }
             }
@@ -569,7 +569,7 @@ public class ExtendedTextBox : TextBox {
         if (this.IsHandleCreated) {
             InsetButton.Size = new(InsetButton.Size.Width, ClientSize.Height + 3);
             InsetButton.Location = fButtonAlignment switch {
-                ButtonAlignment.Right => new(0, -2),
+                ButtonAlignment.Left => new(0, -2),
                 _ => new(ClientSize.Width - InsetButton.Width, -2),
             };
         }

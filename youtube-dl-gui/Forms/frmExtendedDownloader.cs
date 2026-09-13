@@ -1002,6 +1002,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
                 MediaDetails.BatchDownloadTime = BatchTime;
                 ActiveBatchMedia = MediaDetails;
+                Log.WriteQueueHistory("PROCESS", MediaDetails.URL);
                 if (!MediaDetails.GenerateArguments()) {
                     MediaDetails.DisposeAuthenticationConfig();
                     ActiveBatchMedia = null;
@@ -1188,6 +1189,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     if (!ItemSucceeded) {
                         BatchHadErrors = true;
                     }
+                    Log.WriteQueueHistory(ItemSucceeded ? "FINISHED" : "ERROR", MediaDetails.URL);
                     lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = ItemSucceeded ? StatusIcon.Finished : StatusIcon.Errored);
                 }
                 else {
@@ -1865,6 +1867,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             }
         }
 
+        Log.WriteQueueHistory("ADD", Link);
         bool StartResolver;
         lock (QueueSync) {
             QueueList!.Add(NewMedia);
@@ -2185,7 +2188,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         }
 
         if (lvQueuedMedia.SelectedItems.Count > 0) {
-            lvQueuedMedia.Items.RemoveAt(lvQueuedMedia.SelectedItems[0].Index);
+            ListViewItem RemovedItem = lvQueuedMedia.SelectedItems[0];
+            string RemovedValue = RemovedItem.Tag is ExtendedMediaDetails Details ? Details.URL : RemovedItem.Text;
+            Log.WriteQueueHistory("REMOVE", RemovedValue);
+            lvQueuedMedia.Items.RemoveAt(RemovedItem.Index);
         }
 
         if (lvQueuedMedia.Items.Count == 0) {

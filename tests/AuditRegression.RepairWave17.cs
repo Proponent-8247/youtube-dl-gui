@@ -186,7 +186,33 @@ internal static partial class AuditRegression {
             "Userscript still advertises subreddit listing-page support while targeting document.URL");
     }
 
+    private static void SessionHistoryRetainsAndExports() {
+        Type log = T("murrty.logging.Log");
+        string marker = "session-history-" + Guid.NewGuid().ToString("N");
+        string rawMarker = new string('R', 70000);
+        string export = Path.Combine(Environment.CurrentDirectory, "session-export-" + Guid.NewGuid().ToString("N") + ".log");
+        try {
+            Call(log, null, "WriteSessionHistory", "TEST", marker);
+            Call(log, null, "WriteRawProviderHistory", true, rawMarker);
+            Call(log, null, "WriteQueueHistory", "ADD", "https://user:password@example.invalid/watch?v=1&token=secret");
+            string sessionPath = (string)log.GetProperty("SessionHistoryPath", All).GetValue(null, null);
+            string history = File.ReadAllText(sessionPath, Encoding.UTF8);
+            Require(history.Contains(marker), "Session log did not retain normal diagnostic history");
+            Require(history.Contains(rawMarker), "Session log truncated raw provider history");
+            Require(history.Contains("token=[REDACTED]"), "Queue history did not redact sensitive URL query data");
+            Require(!history.Contains("user:password@"), "Queue history retained URL authority credentials");
+            Equal(true, Call(log, null, "ExportSessionHistory", export));
+            Equal(history, File.ReadAllText(export, Encoding.UTF8));
+
+            Type bounded = T("murrty.controls.BoundedProcessOutput");
+            Delegate sink = (Delegate)bounded.GetProperty("RawHistorySink", All).GetValue(null, null);
+            Require(sink != null, "Bounded process output is not connected to session history");
+        }
+        finally { try { File.Delete(export); } catch { } }
+    }
+
     private static void RunRepairWave17Tests() {
+        Test("POLICY_P002.SessionHistoryRetainsAndExports", SessionHistoryRetainsAndExports);
         Test("CURRENT_O020.ProviderReleaseRequiresAuthoritativeDigest", ProviderReleaseRequiresAuthoritativeDigest);
         Test("CURRENT_O019.FfmpegArchiveRequiresVerifiedDigest", FfmpegArchiveRequiresVerifiedDigest);
         Test("CURRENT_O031.LanguageBlobRequiresGitObjectIdentity", LanguageBlobRequiresGitObjectIdentity);

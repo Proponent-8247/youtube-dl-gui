@@ -18,6 +18,10 @@ internal partial class frmLog : Form, ILocalizedForm {
 
         lbLines.Dispose();
         rtbLog.ContextMenu = cmLog;
+        cmLog.MenuItems.Add("-");
+        MenuItem ExportSessionHistory = new("Export session history...");
+        ExportSessionHistory.Click += mExportSessionHistory_Click;
+        cmLog.MenuItems.Add(ExportSessionHistory);
 
         Language.RegisterForm(this);
     }
@@ -67,7 +71,20 @@ internal partial class frmLog : Form, ILocalizedForm {
     }
     private void btnClear_Click(object sender, EventArgs e) {
         rtbLog.Clear();
-        Append("Log has been cleared");
+        Append("Log has been cleared; full session history remains available for export.");
+    }
+    private void mExportSessionHistory_Click(object? sender, EventArgs e) {
+        using SaveFileDialog Dialog = new() {
+            AddExtension = true,
+            DefaultExt = "log",
+            Filter = "Log files (*.log)|*.log|Text files (*.txt)|*.txt|All files (*.*)|*.*",
+            FileName = $"youtube-dl-gui-session-{DateTime.Now:yyyyMMdd-HHmmss}.log",
+            Title = "Export session history"
+        };
+        if (Dialog.ShowDialog(this) != DialogResult.OK) return;
+        if (!Log.ExportSessionHistory(Dialog.FileName)) {
+            Log.MessageBox("The session history could not be exported to the selected path.", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
     private void btnRemoveException_Click(object sender, EventArgs e) {
         if (tcExceptions.SelectedTab is not null) {

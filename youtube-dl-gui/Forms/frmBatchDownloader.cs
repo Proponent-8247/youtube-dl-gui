@@ -365,6 +365,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
                         DownloadFormatValue = DownloadFormat[i];
                         DownloadSoundVbrValue = DownloadSoundVBR[i];
                     }
+                    Log.WriteQueueHistory("PROCESS", DownloadUrl);
 
                     NewInfo = new DownloadInfo(DownloadUrl) {
                         BatchDownload = true,
@@ -401,7 +402,9 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
                         sbBatchDownloader.Text = Language.sbBatchDownloaderDownloading;
                     });
                     Downloader = new frmDownloader(NewInfo);
-                    switch (Downloader.ShowDialog()) {
+                    DialogResult DownloadResult = Downloader.ShowDialog();
+                    Log.WriteQueueHistory($"RESULT={DownloadResult}", DownloadUrl);
+                    switch (DownloadResult) {
                         case DialogResult.Yes:
                             this.Invoke((Action)delegate {
                                 lvBatchDownloadQueue.Items[i].ImageIndex = (int)StatusIcon.Finished;
@@ -539,6 +542,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
                 DownloadFormat.Add(cbBatchFormat.SelectedIndex);
                 DownloadSoundVBR.Add(chkBatchDownloaderSoundVBR.Checked);
                 lvBatchDownloadQueue.Items.Add(lvi);
+                Log.WriteQueueHistory("ADD", URL);
             }
             SaveCurrentSelection();
 
@@ -550,6 +554,7 @@ public partial class frmBatchDownloader : LocalizedProcessingForm {
         if (lvBatchDownloadQueue.SelectedIndices.Count > 0 && !InProgress) {
             for (int i = lvBatchDownloadQueue.Items.Count - 1; i >= 0; i--) {
                 if (lvBatchDownloadQueue.Items[i].Selected) {
+                    Log.WriteQueueHistory("REMOVE", DownloadUrls[i]);
                     lvBatchDownloadQueue.Items[i].Remove();
                     DownloadUrls.RemoveAt(i);
                     DownloadTypes.RemoveAt(i);

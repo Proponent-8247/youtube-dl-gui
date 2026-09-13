@@ -2,6 +2,7 @@
 #define ALLOWUNHANDLEDCATCHING
 namespace murrty.logging;
 using System.Diagnostics;
+using System.IO;
 using System.Diagnostics.CodeAnalysis;
 using System.Management;
 using System.Threading;
@@ -17,6 +18,11 @@ internal static class Log {
     /// The log form that is used globally to log data.
     /// </summary>
     private static volatile frmLog? LogForm;
+    private static readonly object SessionHistorySync = new();
+    private static readonly string SessionHistoryFilePath = Path.Combine(
+        Path.GetTempPath(), $"youtube-dl-gui-session-{Process.GetCurrentProcess().Id}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}.log");
+
+    internal static string SessionHistoryPath => SessionHistoryFilePath;
 
     /// <summary>
     /// Gets the computer versioning information, such as the running operating system, language, etc.
@@ -59,6 +65,15 @@ internal static class Log {
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
 #endif
 
+            InitializeSessionHistory();
+            murrty.controls.BoundedProcessOutput.RawHistorySink = WriteRawProviderHistory;
+            AppDomain.CurrentDomain.ProcessExit += (sender, args) => {
+                lock (SessionHistorySync) {
+                    try { File.Delete(SessionHistoryFilePath); }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+            };
             EnableLogging();
 
 #if RELEASE || ALLOWUNHANDLEDCATCHING
@@ -178,6 +193,56 @@ internal static class Log {
     internal const string RawProviderDiagnosticWarning =
         "WARNING: Raw provider diagnostics below are not redacted and may contain URLs, cookies, tokens, or credentials. Review them before sharing.";
 
+    private static void InitializeSessionHistory() {
+        lock (SessionHistorySync) {
+            try {
+                File.WriteAllText(SessionHistoryFilePath,
+                    $"youtube-dl-gui session history started {DateTime.Now:O}{Environment.NewLine}{RawProviderDiagnosticWarning}{Environment.NewLine}",
+                    new UTF8Encoding(false));
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    internal static void WriteSessionHistory(string Channel, string Message) {
+        if (Message is null) return;
+        lock (SessionHistorySync) {
+            try {
+                File.AppendAllText(SessionHistoryFilePath,
+                    $"[{DateTime.Now:yyyy/MM/dd HH:mm:ss.fff}] [{Channel}] {Message}{Environment.NewLine}",
+                    new UTF8Encoding(false));
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    internal static void WriteRawProviderHistory(bool StandardOutput, string Data) {
+        if (string.IsNullOrEmpty(Data)) return;
+        WriteSessionHistory(StandardOutput ? "RAW-PROVIDER-STDOUT" : "RAW-PROVIDER-STDERR", Data);
+    }
+
+    internal static void WriteQueueHistory(string Action, string Value) {
+        WriteSessionHistory("QUEUE", $"{Action}: {RedactDiagnosticValue(Value ?? string.Empty)}");
+    }
+
+    internal static bool ExportSessionHistory(string DestinationPath) {
+        if (DestinationPath.IsNullEmptyWhitespace()) return false;
+        lock (SessionHistorySync) {
+            try {
+                string Source = Path.GetFullPath(SessionHistoryFilePath);
+                string Destination = Path.GetFullPath(DestinationPath);
+                if (Source.Equals(Destination, StringComparison.OrdinalIgnoreCase)) return true;
+                File.Copy(Source, Destination, true);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Security.SecurityException) {
+                return false;
+            }
+        }
+    }
+
     internal static string RedactDiagnosticValue(string Value) {
         if (string.IsNullOrWhiteSpace(Value)
         || !Uri.TryCreate(Value, UriKind.Absolute, out Uri Parsed)
@@ -236,6 +301,7 @@ internal static class Log {
     /// <param name="message">The message to be sent to the log.</param>
     //[DebuggerStepThrough]
     public static void Write(string message) {
+        WriteSessionHistory("LOG", message);
         Debug.Print(message);
         if (LogFormUsable) {
             LogForm.Append(message);
@@ -248,6 +314,7 @@ internal static class Log {
     /// <param name="message">The message to be sent to the log.</param>
     [DebuggerStepThrough]
     public static void WriteNoDate(string message) {
+        WriteSessionHistory("LOG", message);
         Debug.Print(message);
         if (LogFormUsable) {
             LogForm.AppendNoDate(message);
@@ -260,6 +327,7 @@ internal static class Log {
     /// <param name="message">The message to be sent to the console.</param>
     [DebuggerStepThrough]
     public static void WriteToConsole(string message) {
+        WriteSessionHistory("CONSOLE", message);
         Console.WriteLine(message);
     }
     #endregion

@@ -23,6 +23,7 @@ internal sealed class BoundedProcessOutput : IDisposable {
     private Task errorTask = Task.CompletedTask;
     private int started;
     private int disposed;
+    internal static Action<bool, string>? RawHistorySink { get; set; }
     public event EventHandler<ProcessOutputEventArgs>? OutputDataReceived;
     public event EventHandler<ProcessOutputEventArgs>? ErrorDataReceived;
 
@@ -62,6 +63,11 @@ internal sealed class BoundedProcessOutput : IDisposable {
         while (Volatile.Read(ref disposed) == 0) {
             int count = await reader.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
             if (count == 0) break;
+            Action<bool, string>? historySink = RawHistorySink;
+            if (historySink is not null) {
+                try { historySink(output, new string(buffer, 0, count)); }
+                catch { /* Session-history failures must never break process draining. */ }
+            }
             for (int i = 0; i < count; i++) {
                 char c = buffer[i];
                 if (afterCarriageReturn && c == '\n') { afterCarriageReturn = false; continue; }

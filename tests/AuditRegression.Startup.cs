@@ -33,7 +33,8 @@ internal static partial class AuditRegression {
             try { await Task.Delay(400, token).ConfigureAwait(false); }
             finally { Waiting = false; }
             if (request.RequestUri.AbsolutePath.EndsWith("/latest", StringComparison.Ordinal)) {
-                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"tag_name\":\"2099.01.01\",\"assets\":[]}") };
+                string release = "{\"tag_name\":\"2099.01.01\",\"assets\":[{\"name\":\"yt-dlp.exe\",\"browser_download_url\":\"https://audit.invalid/yt-dlp.exe\",\"digest\":\"sha256:" + FileSha256(Self) + "\",\"size\":" + executable.Length + "}]}";
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(release) };
             }
             if (request.RequestUri.AbsolutePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) {
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(archive) };

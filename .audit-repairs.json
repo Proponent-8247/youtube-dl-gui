@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "base_sha": "c0e1beb5aeec5752c81d2cd78e8b417ac9436edd",
+  "expected_failures": [
+    "CURRENT_O035.MainLanguageCompositeFormatsAreValidated",
+    "CURRENT_O035.UpdaterLanguageCompositeFormatsAreValidated"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "O035_TRANSLATOR_FORMAT_VALIDATION",
+      "message": "fix: validate translator composite format strings",
+      "resolves": [
+        "CURRENT_O035.MainLanguageCompositeFormatsAreValidated",
+        "CURRENT_O035.UpdaterLanguageCompositeFormatsAreValidated"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Language.cs",
+          "edits": [
+            {
+              "old": "    #region Load Language File\n",
+              "new": "    private static string ValidateCompositeFormat(string Value, string Fallback, int ArgumentCount, string Key) {\n        try {\n            _ = string.Format(Value, new object[ArgumentCount]);\n            return Value;\n        }\n        catch (FormatException) {\n            Log.Write($\"Ignoring invalid composite format string for language key \\\"{Key}\\\".\");\n            return Fallback;\n        }\n    }\n\n    #region Load Language File\n",
+              "count": 1
+            },
+            {"old":"                                GenericError = ReadValue;\n","new":"                                GenericError = ValidateCompositeFormat(ReadValue, InternalEnglish.GenericError, 1, nameof(GenericError));\n","count":1},
+            {"old":"                                GenericAltError = ReadValue;\n","new":"                                GenericAltError = ValidateCompositeFormat(ReadValue, InternalEnglish.GenericAltError, 1, nameof(GenericAltError));\n","count":1},
+            {"old":"                                dlgUpdateNoUpdateAvailable = ReadValue;\n","new":"                                dlgUpdateNoUpdateAvailable = ValidateCompositeFormat(ReadValue, InternalEnglish.dlgUpdateNoUpdateAvailable, 2, nameof(dlgUpdateNoUpdateAvailable));\n","count":1},
+            {"old":"                                dlgUpdateNoBetaUpdateAvailable = ReadValue;\n","new":"                                dlgUpdateNoBetaUpdateAvailable = ValidateCompositeFormat(ReadValue, InternalEnglish.dlgUpdateNoBetaUpdateAvailable, 2, nameof(dlgUpdateNoBetaUpdateAvailable));\n","count":1},
+            {"old":"                                dlgUpateYoutubeDlNoUpdateRequired = ReadValue;\n","new":"                                dlgUpateYoutubeDlNoUpdateRequired = ValidateCompositeFormat(ReadValue, InternalEnglish.dlgUpateYoutubeDlNoUpdateRequired, 2, nameof(dlgUpateYoutubeDlNoUpdateRequired));\n","count":1},
+            {"old":"                                lbAboutBody = ReadValue;\n","new":"                                lbAboutBody = ValidateCompositeFormat(ReadValue, InternalEnglish.lbAboutBody, 2, nameof(lbAboutBody));\n","count":1},
+            {"old":"                                frmExtendedDownloaderRetrieving = ReadValue;\n","new":"                                frmExtendedDownloaderRetrieving = ValidateCompositeFormat(ReadValue, InternalEnglish.frmExtendedDownloaderRetrieving, 1, nameof(frmExtendedDownloaderRetrieving));\n","count":1},
+            {"old":"                                lbUpdateAvailableUpdateVersion = ReadValue;\n","new":"                                lbUpdateAvailableUpdateVersion = ValidateCompositeFormat(ReadValue, InternalEnglish.lbUpdateAvailableUpdateVersion, 1, nameof(lbUpdateAvailableUpdateVersion));\n","count":1},
+            {"old":"                                lbUpdateAvailableCurrentVersion = ReadValue;\n","new":"                                lbUpdateAvailableCurrentVersion = ValidateCompositeFormat(ReadValue, InternalEnglish.lbUpdateAvailableCurrentVersion, 1, nameof(lbUpdateAvailableCurrentVersion));\n","count":1},
+            {"old":"                                lbUpdateSize = ReadValue;\n","new":"                                lbUpdateSize = ValidateCompositeFormat(ReadValue, InternalEnglish.lbUpdateSize, 1, nameof(lbUpdateSize));\n","count":1}
+          ]
+        },
+        {
+          "path": "youtube-dl-gui-updater/Language.cs",
+          "edits": [
+            {
+              "old": "    public static bool LoadLanguage(string LanguageFile = null) {\n",
+              "new": "    private static string ValidateCompositeFormat(string Value, string Fallback, int ArgumentCount, string Key) {\n        try {\n            _ = string.Format(Value, new object[ArgumentCount]);\n            return Value;\n        }\n        catch (FormatException) {\n            System.Diagnostics.Trace.WriteLine($\"Ignoring invalid composite format string for language key \\\"{Key}\\\".\");\n            return Fallback;\n        }\n    }\n\n    public static bool LoadLanguage(string LanguageFile = null) {\n",
+              "count": 1
+            },
+            {"old":"                                    dlgUpdaterUpdatedVersionHashNoMatch = ReadValue;\n","new":"                                    dlgUpdaterUpdatedVersionHashNoMatch = ValidateCompositeFormat(ReadValue, InternalEnglish.dlgUpdaterUpdatedVersionHashNoMatch, 2, nameof(dlgUpdaterUpdatedVersionHashNoMatch));\n","count":1}
+          ]
+        }
+      ]
+    }
+  ]
+}

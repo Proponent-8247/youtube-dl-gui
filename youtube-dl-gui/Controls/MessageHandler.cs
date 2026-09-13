@@ -38,7 +38,17 @@ public partial class MessageHandler : Form {
     }
 
     public void CheckExit() {
-        if (!AwaitingExit || !Program.RunningActions.IsEmpty)
+        if (this.IsDisposed) {
+            return;
+        }
+        if (this.InvokeRequired) {
+            try {
+                this.BeginInvoke((Action)CheckExit);
+            }
+            catch (InvalidOperationException) { }
+            return;
+        }
+        if (!AwaitingExit || Program.HasRunningActions)
             return;
         AcceptMessages = false;
         AwaitingExit = false;

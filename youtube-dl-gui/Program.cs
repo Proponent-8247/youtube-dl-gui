@@ -59,6 +59,9 @@ internal static class Program {
     /// The list of running downloads or conversions.
     /// </summary>
     internal static QueueList<Form> RunningActions { get; } = [];
+    private static int BackgroundActionCount;
+    internal static bool HasRunningActions =>
+        !RunningActions.IsEmpty || Volatile.Read(ref BackgroundActionCount) > 0;
     /// <summary>
     /// The image list used for batch actions.
     /// </summary>
@@ -221,7 +224,7 @@ internal static class Program {
         (MainForm = new frmMain()).ShowDialog();
         MainForm = null;
 
-        if (!RunningActions.IsEmpty) {
+        if (HasRunningActions) {
             AwaitActions();
         }
 
@@ -788,6 +791,14 @@ internal static class Program {
                 Log.Write("TLS 1.2+ is unavailable; Github updating is disabled.");
             }
         }
+    }
+
+    internal static void BeginBackgroundAction() =>
+        Interlocked.Increment(ref BackgroundActionCount);
+
+    internal static void EndBackgroundAction() {
+        Interlocked.Decrement(ref BackgroundActionCount);
+        QueueHandler?.CheckExit();
     }
 
     internal static void AddProcessingForm(Form form) {

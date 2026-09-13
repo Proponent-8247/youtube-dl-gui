@@ -910,6 +910,34 @@ public partial class frmMain : LocalizedForm {
     private void mDownloadWithAuthentication_Click(object sender, EventArgs e) {
         DownloadDefaults(true);
     }
+    private static Thread StartBatchWorker(Action Work) {
+        if (Work is null) throw new ArgumentNullException(nameof(Work));
+
+        Program.BeginBackgroundAction();
+        try {
+            Thread Worker = new(() => {
+                try {
+                    Work();
+                }
+                catch (Exception ex) {
+                    Log.ReportException(ex);
+                }
+                finally {
+                    Program.EndBackgroundAction();
+                }
+            }) {
+                Name = "Batch download"
+            };
+            Worker.SetApartmentState(ApartmentState.STA);
+            Worker.Start();
+            return Worker;
+        }
+        catch {
+            Program.EndBackgroundAction();
+            throw;
+        }
+    }
+
     private void mBatchDownloadFromFile_Click(object sender, EventArgs e) {
         if (!Downloads.SkipBatchTip) {
             switch (Log.MessageBox(Language.msgBatchDownloadFromFile, MessageBoxButtons.YesNoCancel)) {
@@ -935,42 +963,36 @@ public partial class frmMain : LocalizedForm {
             return;
         }
 
-        Thread BatchThread = new(() => {
-            string videoArguments = string.Empty;
-            DownloadType Type = DownloadType.None;
-            int BatchQuality = 0;
-            int BatchFormat = 0;
-            string schema = string.Empty;
-            bool BatchSoundSetting = false;
-            string BatchCustomArguments = string.Empty;
-            bool BatchUseCustomArguments = false;
-            string BatchTime = BatchHelper.CurrentTime;
-
-            this.Invoke((Action)delegate {
-                BatchSoundSetting = chkDownloadSound.Checked;
-                BatchCustomArguments = cbCustomArguments.Text;
-                BatchUseCustomArguments = cbCustomArguments.SelectedIndex != 0 && !BatchCustomArguments.IsNullEmptyWhitespace();
-                if (!BatchSoundSetting) { videoArguments += "-nosound"; }
-                BatchQuality = cbQuality.SelectedIndex;
-                BatchFormat = cbFormat.SelectedIndex;
-                if (!string.IsNullOrWhiteSpace(cbSchema.Text)) {
-                    schema = cbSchema.Text;
-                    if (!Saved.FileNameSchemaHistory.Split('|').Contains(cbSchema.Text)) {
-                        cbSchema.Items.Add(cbSchema.Text);
-                        if (Saved.FileNameSchemaHistory == null) {
-                            Saved.FileNameSchemaHistory = cbSchema.Text;
-                        }
-                        else {
-                            Saved.FileNameSchemaHistory += "|" + cbSchema.Text;
-                        }
-                    }
+        string videoArguments = string.Empty;
+        DownloadType Type = DownloadType.None;
+        int BatchQuality = 0;
+        int BatchFormat = 0;
+        string schema = string.Empty;
+        bool BatchSoundSetting = chkDownloadSound.Checked;
+        string BatchCustomArguments = cbCustomArguments.Text;
+        bool BatchUseCustomArguments = cbCustomArguments.SelectedIndex != 0 && !BatchCustomArguments.IsNullEmptyWhitespace();
+        if (!BatchSoundSetting) { videoArguments += "-nosound"; }
+        BatchQuality = cbQuality.SelectedIndex;
+        BatchFormat = cbFormat.SelectedIndex;
+        if (!string.IsNullOrWhiteSpace(cbSchema.Text)) {
+            schema = cbSchema.Text;
+            if (!Saved.FileNameSchemaHistory.Split('|').Contains(cbSchema.Text)) {
+                cbSchema.Items.Add(cbSchema.Text);
+                if (Saved.FileNameSchemaHistory == null) {
+                    Saved.FileNameSchemaHistory = cbSchema.Text;
                 }
-                if (rbVideo.Checked) { Type = DownloadType.Video; }
-                else if (rbAudio.Checked) { Type = DownloadType.Audio; }
-                else if (rbCustom.Checked) { Type = DownloadType.Custom; }
-                else { Type = DownloadType.Unknown; }
-            });
+                else {
+                    Saved.FileNameSchemaHistory += "|" + cbSchema.Text;
+                }
+            }
+        }
+        if (rbVideo.Checked) { Type = DownloadType.Video; }
+        else if (rbAudio.Checked) { Type = DownloadType.Audio; }
+        else if (rbCustom.Checked) { Type = DownloadType.Custom; }
+        else { Type = DownloadType.Unknown; }
+        string BatchTime = BatchHelper.CurrentTime;
 
+        StartBatchWorker(() => {
             if (System.IO.File.Exists(TextFile)) {
                 string[] ReadFile = System.IO.File.ReadAllLines(TextFile);
                 if (ReadFile.Length == 0) {
@@ -1027,10 +1049,7 @@ public partial class frmMain : LocalizedForm {
                     }
                 }
             }
-        }) {
-            Name = "Batch download"
-        };
-        BatchThread.Start();
+        });
     }
     private void mQuickDownloadForm_Click(object sender, EventArgs e) {
         StartDownload(

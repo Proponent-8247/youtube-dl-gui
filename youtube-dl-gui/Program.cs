@@ -264,6 +264,10 @@ internal static class Program {
             return ExitCode;
         }
 
+        WriteAuditUpdaterIpcResult($"app-ptr-size={IntPtr.Size}");
+        WriteAuditUpdaterIpcResult($"app-update-size={Marshal.SizeOf<UpdateData>()}");
+        WriteAuditUpdaterIpcResult($"app-copydata-size={Marshal.SizeOf<CopyDataStruct>()}");
+
         QueueHandler = new();
         QueueHandler.Shown += (_, _) => {
             try {

@@ -127,9 +127,9 @@ internal static partial class AuditRegression {
             Equal(state.PayloadHash, updater["hash"]);
             Equal(state.Main.Id.ToString(), updater["app-pid"]);
             Equal(state.Updater.Id.ToString(), updater["updater-pid"]);
-            Equal(IntPtr.Size.ToString(), updater["ptr-size"]);
-            Equal(Marshal.SizeOf(T("youtube_dl_gui_shared.UpdateData")).ToString(), updater["update-size"]);
-            Equal(Marshal.SizeOf(T("youtube_dl_gui_shared.CopyDataStruct")).ToString(), updater["copydata-size"]);
+            Equal(main["app-ptr-size"], updater["ptr-size"]);
+            Equal(main["app-update-size"], updater["update-size"]);
+            Equal(main["app-copydata-size"], updater["copydata-size"]);
             Equal(state.PayloadHash, FileSha256(state.AppPath));
         }
     }

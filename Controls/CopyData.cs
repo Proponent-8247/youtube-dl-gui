@@ -231,15 +231,33 @@ internal static class CopyData {
         int Msg,
         nint wParam,
         nint lParam,
-        uint TimeoutMilliseconds) {
+        uint TimeoutMilliseconds) =>
+        TrySendMessageCore(hWnd, Msg, wParam, lParam, TimeoutMilliseconds, blockSender: true);
+
+    public static bool TrySendMessageReentrant(
+        nint hWnd,
+        int Msg,
+        nint wParam,
+        nint lParam,
+        uint TimeoutMilliseconds) =>
+        TrySendMessageCore(hWnd, Msg, wParam, lParam, TimeoutMilliseconds, blockSender: false);
+
+    private static bool TrySendMessageCore(
+        nint hWnd,
+        int Msg,
+        nint wParam,
+        nint lParam,
+        uint TimeoutMilliseconds,
+        bool blockSender) {
         const uint SMTO_BLOCK = 0x0001;
         const uint SMTO_ABORTIFHUNG = 0x0002;
+        uint Flags = SMTO_ABORTIFHUNG | (blockSender ? SMTO_BLOCK : 0);
         return SendMessageTimeout(
             hWnd,
             Msg,
             wParam,
             lParam,
-            SMTO_BLOCK | SMTO_ABORTIFHUNG,
+            Flags,
             TimeoutMilliseconds,
             out _) != 0;
     }

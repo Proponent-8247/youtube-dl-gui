@@ -369,7 +369,7 @@ internal partial class frmUpdater : Form {
             // We are gonna gather the update data from the running process.
             // WM_UPDATEREADY is a non-standard message that tells youtube-dl-gui to send the updater is ready and that it should close.
             // The updater is going to wait for the main program to exit, allowing the user to finish any in-progress downloads.
-            if (!CopyData.TrySendMessage(
+            if (!CopyData.TrySendMessageReentrant(
                 ApplicationData.MessageHandle,
                 CopyData.WM_UPDATEDATAREQUEST,
                 this.Handle,

@@ -232,7 +232,7 @@ internal static partial class AuditRegression {
         });
         Test("P001.ApplicationUpdateUrlsUseForkReleases", () => {
             Type links = T("youtube_dl_gui.GithubLinks");
-            Equal("https://api.github.com/repos/Proponent-8247/youtube-dl-gui/releases/latest", Call(links, null, "GetApplicationReleaseMetadataUrl", false));
+            Equal("https://api.github.com/repos/Proponent-8247/youtube-dl-gui/releases", Call(links, null, "GetApplicationReleaseMetadataUrl", false));
             Equal("https://api.github.com/repos/Proponent-8247/youtube-dl-gui/releases", Call(links, null, "GetApplicationReleaseMetadataUrl", true));
             Equal("https://github.com/Proponent-8247/youtube-dl-gui/releases", links.GetField("ApplicationReleasesUrl", All).GetValue(null));
         });

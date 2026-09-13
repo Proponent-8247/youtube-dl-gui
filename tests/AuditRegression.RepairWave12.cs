@@ -73,5 +73,6 @@ internal static partial class AuditRegression {
     private static void RunRepairWave12Tests() {
         Test("CURRENT_O034.DownloaderLiveOutputUsesUiMarshal", DownloaderLiveOutputUsesUiMarshal);
         Test("CURRENT_O034.ExtendedDownloaderLiveOutputUsesUiMarshal", ExtendedDownloaderLiveOutputUsesUiMarshal);
+        RunRepairWave13Tests();
     }
 }

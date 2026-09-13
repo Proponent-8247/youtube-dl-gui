@@ -404,6 +404,36 @@ internal static class Updater {
         return ExecutableTrust.GetStatus(FilePath) != ExecutableTrust.SignatureStatus.Invalid;
     }
 
+    private const long MaxFfmpegExecutableBytes = 512L * 1024L * 1024L;
+
+    private static void ExtractZipEntryBounded(ZipArchiveEntry Entry, string OutputPath, long MaxBytes) {
+        if (Entry is null) throw new ArgumentNullException(nameof(Entry));
+        if (MaxBytes <= 0) throw new ArgumentOutOfRangeException(nameof(MaxBytes));
+        if (Entry.Length < 0 || Entry.Length > MaxBytes) {
+            throw new InvalidDataException("ZIP entry exceeds the configured extraction limit.");
+        }
+
+        long Written = 0;
+        byte[] Buffer = new byte[81920];
+        try {
+            using Stream Input = Entry.Open();
+            using FileStream Output = new(OutputPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            while (true) {
+                int Read = Input.Read(Buffer, 0, Buffer.Length);
+                if (Read <= 0) break;
+                Written += Read;
+                if (Written > MaxBytes) {
+                    throw new InvalidDataException("ZIP entry exceeded the configured extraction limit while streaming.");
+                }
+                Output.Write(Buffer, 0, Read);
+            }
+        }
+        catch {
+            try { File.Delete(OutputPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            throw;
+        }
+    }
+
     private static bool CanUseProviderSelfUpdater() => false;
 
     private static bool TryGetProviderAsset(GithubData Release, string FileName, out string? DownloadUrl, out string? Digest, out string? ChecksumUrl, out long Length) {
@@ -678,14 +708,14 @@ internal static class Updater {
                     })
                     .ToArray();
 
-                bool HasFfmpeg = Files.Any(e => e.Name.Equals("ffmpeg.exe", StringComparison.OrdinalIgnoreCase));
-                bool HasFfprobe = Files.Any(e => e.Name.Equals("ffprobe.exe", StringComparison.OrdinalIgnoreCase));
-                if (!HasFfmpeg || !HasFfprobe) {
+                ZipArchiveEntry[] FfmpegEntries = Files.Where(e => e.Name.Equals("ffmpeg.exe", StringComparison.OrdinalIgnoreCase)).ToArray();
+                ZipArchiveEntry[] FfprobeEntries = Files.Where(e => e.Name.Equals("ffprobe.exe", StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (FfmpegEntries.Length != 1 || FfprobeEntries.Length != 1) {
                     return false;
                 }
 
-                ZipArchiveEntry FfmpegEntry = Files.First(e => e.Name.Equals("ffmpeg.exe", StringComparison.OrdinalIgnoreCase));
-                ZipArchiveEntry FfprobeEntry = Files.First(e => e.Name.Equals("ffprobe.exe", StringComparison.OrdinalIgnoreCase));
+                ZipArchiveEntry FfmpegEntry = FfmpegEntries[0];
+                ZipArchiveEntry FfprobeEntry = FfprobeEntries[0];
 
                 string FfmpegOutputPath = Verification.FFmpegPath ?? Verification.GetExpectedFfmpegPath();
                 string FfprobeOutputPath = Path.Combine(FfmpegPath, "ffprobe.exe");
@@ -716,8 +746,8 @@ internal static class Updater {
                         File.Delete(FfprobeTempPath);
                     }
 
-                    await Task.Run(() => FfmpegEntry.ExtractToFile(FfmpegTempPath));
-                    await Task.Run(() => FfprobeEntry.ExtractToFile(FfprobeTempPath));
+                    await Task.Run(() => ExtractZipEntryBounded(FfmpegEntry, FfmpegTempPath, MaxFfmpegExecutableBytes));
+                    await Task.Run(() => ExtractZipEntryBounded(FfprobeEntry, FfprobeTempPath, MaxFfmpegExecutableBytes));
 
                     bool FfmpegMovedOld = false;
                     bool FfprobeMovedOld = false;

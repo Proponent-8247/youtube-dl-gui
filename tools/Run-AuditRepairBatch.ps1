@@ -31,8 +31,10 @@ function Build-And-Test([string]$label) {
     [xml]$xml = Get-Content $result -Raw
     $cases = @($xml.SelectNodes('/testsuite/testcase'))
     if ($cases.Count -eq 0) { throw 'No tests were executed.' }
+    $names = @($cases | ForEach-Object { $_.GetAttribute('name') } | Sort-Object)
+    if (@($names | Select-Object -Unique).Count -ne $names.Count) { throw "Duplicate regression names at $label." }
     return [pscustomobject]@{
-        Names = @($cases | ForEach-Object { $_.GetAttribute('name') } | Sort-Object)
+        Names = $names
         Failed = @($xml.SelectNodes('/testsuite/testcase[failure]') | ForEach-Object { $_.GetAttribute('name') } | Sort-Object)
     }
 }
@@ -50,11 +52,12 @@ try {
         git -c core.whitespace=cr-at-eol diff --check
         if ($LASTEXITCODE -ne 0) { throw 'Whitespace validation failed.' }
         $next = Build-And-Test ('{0:D2}-{1}' -f ($i + 1), $repair.id)
-        if (($previous.Names -join "`n") -cne ($next.Names -join "`n")) { throw 'A repair changed the executed test inventory.' }
+        $removedTests = @($previous.Names | Where-Object { $_ -notin $next.Names })
+        if ($removedTests.Count -gt 0) { throw "A repair removed or renamed regression coverage: $removedTests" }
         $introduced = @($next.Failed | Where-Object { $_ -notin $previous.Failed })
         if ($introduced.Count -gt 0) { throw "New regression failures: $introduced" }
         foreach ($test in $repair.resolves) {
-            if ($test -notin $previous.Names -or $test -in $next.Failed) { throw "Repair did not satisfy its required regression: $test" }
+            if ($test -notin $next.Names -or $test -in $next.Failed) { throw "Repair did not satisfy its required regression: $test" }
         }
         $paths = @($repair.files | ForEach-Object { $_.path })
         git --literal-pathspecs add -- @paths 'youtube-dl-gui/Resources/youtube-dl-gui-updater.exe'

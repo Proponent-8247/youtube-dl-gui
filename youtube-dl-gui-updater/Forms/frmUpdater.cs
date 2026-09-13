@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using murrty.controls;
@@ -18,7 +19,7 @@ internal partial class frmUpdater : Form {
     private readonly ApplicationHandles ApplicationData;
     private readonly bool DownloadLatest = false;
     private bool WaitingForApplication;
-    //private bool Received = false;
+    private bool UpdateDataAccepted;
 
 
     private frmUpdater() {
@@ -48,6 +49,43 @@ internal partial class frmUpdater : Form {
         else this.UpdateData = UpdateData.Value;
     }
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(nint WindowHandle, out uint ProcessId);
+
+    private bool IsExpectedApplicationWindow(nint WindowHandle) {
+        if (WindowHandle == 0 || ApplicationData.ProcessID <= 0
+        || GetWindowThreadProcessId(WindowHandle, out uint ProcessId) == 0
+        || ProcessId != (uint)ApplicationData.ProcessID) return false;
+        return true;
+    }
+
+    private static bool IsSimpleExecutableName(string FileName) {
+        if (string.IsNullOrWhiteSpace(FileName) || Path.IsPathRooted(FileName)
+        || FileName.IndexOf('\\') >= 0 || FileName.IndexOf('/') >= 0
+        || FileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return false;
+        return string.Equals(Path.GetFileName(FileName), FileName, StringComparison.Ordinal);
+    }
+
+    private static bool IsSha256(string Hash) => Hash?.Length == 64 && Hash.All(Uri.IsHexDigit);
+
+    private bool TryGetExpectedApplicationPath(out string FileName) {
+        FileName = null;
+        if (ApplicationData.ProcessID <= 0) return false;
+        try {
+            using Process ExpectedProcess = Process.GetProcessById(ApplicationData.ProcessID);
+            if (ExpectedProcess.HasExited) return false;
+            string Candidate = ExpectedProcess.MainModule?.FileName;
+            if (string.IsNullOrWhiteSpace(Candidate)) return false;
+            FileName = Path.GetFullPath(Candidate);
+            return FileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException
+                                or System.ComponentModel.Win32Exception
+                                or NotSupportedException or IOException) {
+            return false;
+        }
+    }
+
     protected override void OnFormClosing(FormClosingEventArgs e) {
         if (WaitingForApplication && !Program.CancelToken.IsCancellationRequested) {
             Program.CancelToken.Cancel();
@@ -58,41 +96,33 @@ internal partial class frmUpdater : Form {
     protected override void WndProc(ref Message m) {
         switch (m.Msg) {
             case CopyData.WM_COPYDATA: {
-                if (ApplicationData.MessageHandle == 0 || m.WParam != ApplicationData.MessageHandle || m.LParam == IntPtr.Zero) {
+                if (UpdateDataAccepted || ApplicationData.MessageHandle == 0
+                || m.WParam != ApplicationData.MessageHandle || m.LParam == IntPtr.Zero
+                || !IsExpectedApplicationWindow(m.WParam)) {
                     m.Result = IntPtr.Zero;
                     break;
                 }
-
                 CopyDataStruct DataStruct;
-                try {
-                    DataStruct = m.GetCopyDataStructure();
-                }
-                catch {
+                try { DataStruct = m.GetCopyDataStructure(); }
+                catch { m.Result = IntPtr.Zero; break; }
+                if (DataStruct.lpData == IntPtr.Zero || DataStruct.cbData != Marshal.SizeOf<UpdateData>()) {
                     m.Result = IntPtr.Zero;
                     break;
                 }
-
-                if (DataStruct.lpData == IntPtr.Zero || DataStruct.cbData != System.Runtime.InteropServices.Marshal.SizeOf<UpdateData>()) {
+                UpdateData Candidate = CopyData.GetParam<UpdateData>(m.LParam);
+                if (!IsSimpleExecutableName(Candidate.FileName) || !IsSha256(Candidate.UpdateHash)
+                || !TryGetExpectedApplicationPath(out string ExpectedApplicationPath)) {
                     m.Result = IntPtr.Zero;
                     break;
                 }
-
-                UpdateData = CopyData.GetParam<UpdateData>(m.LParam);
-                if (string.IsNullOrWhiteSpace(UpdateData.FileName) || string.IsNullOrWhiteSpace(UpdateData.UpdateHash)) {
-                    m.Result = IntPtr.Zero;
-                    break;
-                }
-
-                UpdateData.UpdateHash = UpdateData.UpdateHash.ToLowerInvariant();
-                if (!UpdateData.FileName.ToLowerInvariant().EndsWith(".exe"))
-                    UpdateData.FileName += ".exe";
-                CopyData.SendMessage(ApplicationData.MessageHandle, CopyData.WM_UPDATERREADY, this.Handle, 0);
-                //Received = true;
+                Candidate.UpdateHash = Candidate.UpdateHash.ToLowerInvariant();
+                Candidate.FileName = ExpectedApplicationPath;
+                UpdateData = Candidate;
+                UpdateDataAccepted = true;
+                _ = CopyData.TrySendMessage(ApplicationData.MessageHandle, CopyData.WM_UPDATERREADY, this.Handle, 0, ParentMessageTimeoutMilliseconds);
                 m.Result = IntPtr.Zero;
             } break;
-            default: {
-                base.WndProc(ref m);
-            } break;
+            default: base.WndProc(ref m); break;
         }
     }
 

@@ -32,5 +32,6 @@ internal static partial class AuditRegression {
 
     private static void RunRepairWave13Tests() {
         Test("POLICY_O022.SettingsToolOperationOutlivesSettings", SettingsToolOperationOutlivesSettings);
+        RunRepairWave14Tests();
     }
 }

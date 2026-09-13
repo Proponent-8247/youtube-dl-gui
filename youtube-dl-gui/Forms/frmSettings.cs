@@ -683,39 +683,71 @@ public partial class frmSettings : LocalizedForm {
         }
     }
 
-    private async void btnSettingsRedownloadYoutubeDl_Click(object sender, EventArgs e) {
-        btnSettingsRedownloadYoutubeDl.Enabled = false;
-        if (chksettingsDownloadsUseYoutubeDlsUpdater.Checked) {
-            if (!Updater.UpdateYoutubeDl(true))
-                System.Media.SystemSounds.Hand.Play();
+    private static async Task RunApplicationOwnedToolOperationAsync(Func<Task> Work) {
+        if (Work is null) throw new ArgumentNullException(nameof(Work));
+
+        Program.BeginBackgroundAction();
+        try {
+            await Work().ConfigureAwait(false);
         }
-        else {
-            if (!await Updater.CheckForYoutubeDlUpdate(true)) {
-                Log.MessageBox(Language.dlgUpateYoutubeDlNoUpdateRequired.Format(Verification.YoutubeDlVersion ?? "Unknown", Updater.LatestYoutubeDl?.VersionTag ?? "unknown"), MessageBoxButtons.OK);
-                btnSettingsRedownloadYoutubeDl.Enabled = true;
+        catch (Exception ex) {
+            Log.ReportException(ex);
+        }
+        finally {
+            Program.EndBackgroundAction();
+        }
+    }
+
+    private void RestoreToolButtonWhenComplete(Task Operation, Button Button, SynchronizationContext? UiContext) {
+        _ = Operation.ContinueWith(_ => {
+            UiContext?.Post(__ => {
+                if (!this.IsDisposed && !Button.IsDisposed) Button.Enabled = true;
+            }, null);
+        }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+    }
+
+    private void btnSettingsRedownloadYoutubeDl_Click(object sender, EventArgs e) {
+        btnSettingsRedownloadYoutubeDl.Enabled = false;
+        bool UseInternalUpdater = chksettingsDownloadsUseYoutubeDlsUpdater.Checked;
+        System.Drawing.Point UpdateLocation = new(this.Location.X + 8, this.Location.Y + 8);
+        SynchronizationContext? UiContext = SynchronizationContext.Current;
+
+        Task Operation = RunApplicationOwnedToolOperationAsync(async () => {
+            if (UseInternalUpdater) {
+                if (!Updater.UpdateYoutubeDl(true)) System.Media.SystemSounds.Hand.Play();
                 return;
             }
 
-            if (Updater.UpdateYoutubeDl(false, new(this.Location.X + 8, this.Location.Y + 8))) {
+            if (!await Updater.CheckForYoutubeDlUpdate(true)) {
+                Log.MessageBox(Language.dlgUpateYoutubeDlNoUpdateRequired.Format(Verification.YoutubeDlVersion ?? "Unknown", Updater.LatestYoutubeDl?.VersionTag ?? "unknown"), MessageBoxButtons.OK);
+                return;
+            }
+
+            if (Updater.UpdateYoutubeDl(false, UpdateLocation)) {
                 System.Media.SystemSounds.Asterisk.Play();
                 Log.MessageBox(Language.dlgUpdatedYoutubeDl, MessageBoxButtons.OK);
             }
             else {
                 System.Media.SystemSounds.Hand.Play();
             }
-        }
-        btnSettingsRedownloadYoutubeDl.Enabled = true;
+        });
+        RestoreToolButtonWhenComplete(Operation, btnSettingsRedownloadYoutubeDl, UiContext);
     }
-    private async void btnSettingsRedownloadFfmpeg_Click(object sender, EventArgs e) {
+    private void btnSettingsRedownloadFfmpeg_Click(object sender, EventArgs e) {
         btnSettingsRedownloadFfmpeg.Enabled = false;
-        if (await Updater.UpdateFfmpeg(new(this.Location.X + 8, this.Location.Y + 8))) {
-            System.Media.SystemSounds.Asterisk.Play();
-            Log.MessageBox("Placeholder -- ffmpeg downloaded", MessageBoxButtons.OK);
-        }
-        else {
-            System.Media.SystemSounds.Hand.Play();
-        }
-        btnSettingsRedownloadFfmpeg.Enabled = true;
+        System.Drawing.Point UpdateLocation = new(this.Location.X + 8, this.Location.Y + 8);
+        SynchronizationContext? UiContext = SynchronizationContext.Current;
+
+        Task Operation = RunApplicationOwnedToolOperationAsync(async () => {
+            if (await Updater.UpdateFfmpeg(UpdateLocation)) {
+                System.Media.SystemSounds.Asterisk.Play();
+                Log.MessageBox("Placeholder -- ffmpeg downloaded", MessageBoxButtons.OK);
+            }
+            else {
+                System.Media.SystemSounds.Hand.Play();
+            }
+        });
+        RestoreToolButtonWhenComplete(Operation, btnSettingsRedownloadFfmpeg, UiContext);
     }
     #endregion
 

@@ -69,5 +69,6 @@ internal static partial class AuditRegression {
     private static void RunRepairWave9Tests() {
         Test("CURRENT_O035.MainLanguageCompositeFormatsAreValidated", MainLanguageRejectsInvalidCompositeFormatsPerKey);
         Test("CURRENT_O035.UpdaterLanguageCompositeFormatsAreValidated", UpdaterLanguageRejectsInvalidCompositeFormatsPerKey);
+        RunRepairWave10Tests();
     }
 }

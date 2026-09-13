@@ -2,6 +2,7 @@
 
 using System.IO;
 using System.Reflection;
+using System.Threading;
 using System.Windows.Forms;
 using murrty.controls;
 using murrty.updater;
@@ -16,7 +17,21 @@ static class Program {
     private static readonly string fFullApplicationPath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
 
     internal static ManagedHttpClient DownloadClient { get; private set; }
-    internal static CancellationTokenSource CancelToken { get; private set; }
+    private static CancellationTokenSource fCancelToken = new();
+    internal static CancellationTokenSource CancelToken {
+        get {
+            while (true) {
+                CancellationTokenSource Current = Volatile.Read(ref fCancelToken);
+                try { _ = Current.Token; return Current; }
+                catch (ObjectDisposedException) {
+                    CancellationTokenSource Replacement = new();
+                    if (ReferenceEquals(Interlocked.CompareExchange(ref fCancelToken, Replacement, Current), Current)) return Replacement;
+                    Replacement.Dispose();
+                }
+            }
+        }
+        private set => Volatile.Write(ref fCancelToken, value ?? new CancellationTokenSource());
+    }
 
     public static Version CurrentVersion { get; } = new(1, 6, 0);
     internal static string UserAgent { get; } = $"youtube_dl_gui-updater/{CurrentVersion}";

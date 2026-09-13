@@ -87,9 +87,8 @@ internal partial class frmUpdater : Form {
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e) {
-        if (WaitingForApplication && !Program.CancelToken.IsCancellationRequested) {
-            Program.CancelToken.Cancel();
-        }
+        CancellationTokenSource Cancellation = Program.CancelToken;
+        if (!Cancellation.IsCancellationRequested) Cancellation.Cancel();
         base.OnFormClosing(e);
     }
 
@@ -142,10 +141,13 @@ internal partial class frmUpdater : Form {
     private async Task RunUpdate() {
         // Fail closed unless the successful launch path explicitly clears the exit code.
         Program.ExitCode = 1;
+        CancellationToken Cancellation = Program.CancelToken.Token;
+        Cancellation.ThrowIfCancellationRequested();
 
         // Check if the latest version needs to be downloaded.
         if (DownloadLatest) {
             await GetVersionFromGithub();
+            Cancellation.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(UpdateData.FileName)) {
                 Program.ExitCode = 1;
                 return;
@@ -166,6 +168,8 @@ internal partial class frmUpdater : Form {
             }
         }
 
+        Cancellation.ThrowIfCancellationRequested();
+
         // This will be the backup location for the current version.
         string BackupLocation = UpdateData.FileName + ".old";
 
@@ -179,6 +183,7 @@ internal partial class frmUpdater : Form {
         bool MovedOldVersion = false, MovedNewVersion = false;
 
         try {
+            Cancellation.ThrowIfCancellationRequested();
             // Delete the old backup, if it exists, since it's clearly unused.
             if (File.Exists(BackupLocation))
                 File.Delete(BackupLocation);
@@ -189,6 +194,7 @@ internal partial class frmUpdater : Form {
 
             // Download the update.
             await GetUpdate(FileUrl, UpdateDestination);
+            Cancellation.ThrowIfCancellationRequested();
 
             // Check the file size.
             if (new FileInfo(UpdateDestination).Length <= 512) {
@@ -208,18 +214,22 @@ internal partial class frmUpdater : Form {
             // Verify the file hash.
             pbDownloadProgress.Text = "calculating new update hash...";
             await VerifyHash(FileUrl, UpdateDestination);
+            Cancellation.ThrowIfCancellationRequested();
 
             // Move the old file to the backup path.
             if (File.Exists(UpdateData.FileName)) {
+                Cancellation.ThrowIfCancellationRequested();
                 File.Move(UpdateData.FileName, BackupLocation);
                 MovedOldVersion = true;
             }
 
             // Move the new update to the last location.
+            Cancellation.ThrowIfCancellationRequested();
             File.Move(UpdateDestination, UpdateData.FileName);
             MovedNewVersion = true;
 
             // Finally, run it.
+            Cancellation.ThrowIfCancellationRequested();
             pbDownloadProgress.Value = pbDownloadProgress.Maximum;
             pbDownloadProgress.Style = ProgressBarStyle.Blocks;
             pbDownloadProgress.Text = Language.pbDownloadProgressDownloadFinishedLaunching;
@@ -229,6 +239,17 @@ internal partial class frmUpdater : Form {
             Program.ExitCode = 0;
             this.DialogResult = DialogResult.OK;
             this.Dispose();
+        }
+        catch (OperationCanceledException) {
+            try {
+                if (MovedNewVersion) {
+                    if (File.Exists(UpdateData.FileName)) File.Delete(UpdateData.FileName);
+                    if (MovedOldVersion && File.Exists(BackupLocation)) File.Move(BackupLocation, UpdateData.FileName);
+                }
+                else if (MovedOldVersion && File.Exists(BackupLocation)) File.Move(BackupLocation, UpdateData.FileName);
+                if (File.Exists(UpdateDestination)) File.Delete(UpdateDestination);
+            }
+            catch (Exception rollbackEx) { Debug.WriteLine($"Updater cancellation rollback failed: {rollbackEx}"); }
         }
         catch {
             tmrForm.Stop();
@@ -259,13 +280,16 @@ internal partial class frmUpdater : Form {
     }
     private async Task GetVersionFromGithub() {
         try {
+            Program.CancelToken.Token.ThrowIfCancellationRequested();
             UpdateData = await Github.GetUpdateData();
+            Program.CancelToken.Token.ThrowIfCancellationRequested();
             Process RunningProcess = Process.GetProcessesByName(Language.ApplicationName).FirstOrDefault();
             if (RunningProcess != default)
                 ProgramProcess = RunningProcess;
         }
+        catch (OperationCanceledException) when (Program.CancelToken.IsCancellationRequested) { throw; }
         catch {
-            pbDownloadProgress.Text = "could not get latest version.";
+            if (!this.IsDisposed) pbDownloadProgress.Text = "could not get latest version.";
         }
     }
     private async Task WaitForApplication() {
@@ -335,7 +359,7 @@ internal partial class frmUpdater : Form {
                     throw ex;
 
                 if (Retries != MaxRetries && (ex is not HttpException hex || (int)hex.StatusCode > 499)) {
-                    await Task.Delay(RetryDelay);
+                    await Task.Delay(RetryDelay, Program.CancelToken.Token);
                     Retries++;
                     CanRetry = true;
                     continue;
@@ -355,13 +379,15 @@ internal partial class frmUpdater : Form {
     }
     private async Task VerifyHash(string Url, string FileName) {
         while (true) {
+            Program.CancelToken.Token.ThrowIfCancellationRequested();
             pbDownloadProgress.Text = Language.pbDownloadProgressCalculatingHash;
 
             byte[] Data;
             using (SHA256 CNG = SHA256.Create())
             using (FileStream UpdateFileStream = File.OpenRead(FileName)) {
-                Data = await Task.Run(() => CNG.ComputeHash(UpdateFileStream));
+                Data = await Task.Run(() => CNG.ComputeHash(UpdateFileStream), Program.CancelToken.Token);
             }
+            Program.CancelToken.Token.ThrowIfCancellationRequested();
 
             string ReceivedHash = BitConverter.ToString(Data).Replace("-", "").ToLowerInvariant();
             string ExpectedHash = UpdateData.UpdateHash.ToLowerInvariant();
@@ -376,6 +402,7 @@ internal partial class frmUpdater : Form {
 
             switch ((DialogResult)this.Invoke(() => MessageBox.Show(this, string.Format(Language.dlgUpdaterUpdatedVersionHashNoMatch, ExpectedHash, ReceivedHash), Language.ApplicationName, MessageBoxButtons.RetryCancel, MessageBoxIcon.Warning))) {
                 case DialogResult.Retry:
+                    Program.CancelToken.Token.ThrowIfCancellationRequested();
                     File.Delete(FileName);
                     this.Invoke(() => {
                         tmrForm.Start();

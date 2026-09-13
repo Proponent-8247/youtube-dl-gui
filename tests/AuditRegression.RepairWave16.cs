@@ -71,5 +71,6 @@ internal static partial class AuditRegression {
         Test("POLICY_P003.HashVerificationRejectsMismatch", HashVerificationRejectsMismatch);
         Test("POLICY_P003.DownloadedExecutableRequiresHashAndValidAvailableSignature", DownloadedExecutableRequiresHashAndValidAvailableSignature);
         Test("POLICY_P003.ProviderSelfUpdaterIsNotTrustedPath", ProviderSelfUpdaterIsNotTrustedPath);
+        RunRepairWave17Tests();
     }
 }

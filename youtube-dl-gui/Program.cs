@@ -88,6 +88,17 @@ internal static class Program {
     /// </summary>
     internal static ManagedHttpClient HttpClient { get; private set; } = null!;
     internal static bool UpdaterEnabled { get; private set; } = true;
+#if DEBUG
+    internal static bool AuditUpdaterIpcMode { get; private set; }
+    internal static string AuditUpdaterIpcScenario => Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_SCENARIO") ?? string.Empty;
+    internal static void WriteAuditUpdaterIpcResult(string Value) {
+        string? PathValue = Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_MAIN_RESULT");
+        if (string.IsNullOrWhiteSpace(PathValue)) return;
+        try { File.AppendAllText(PathValue, Value + Environment.NewLine); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+#endif
 
     [STAThread]
     private static int Main(string[] args) {
@@ -97,6 +108,9 @@ internal static class Program {
         }
 
 #if DEBUG
+        if (args.Length == 1 && args[0].Equals("--audit-updater-ipc", StringComparison.Ordinal)) {
+            return RunAuditUpdaterIpc();
+        }
         DebugMode = true;
         Instance = new(true, ProgramGUID);
 #else
@@ -232,6 +246,39 @@ internal static class Program {
 
         return ExitCode;
     }
+
+#if DEBUG
+    private static int RunAuditUpdaterIpc() {
+        DebugMode = true;
+        AuditUpdaterIpcMode = true;
+        ExitCode = 1;
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        Language.LoadInternalEnglish();
+        if (Environment.CurrentDirectory != ProgramPath) Environment.CurrentDirectory = ProgramPath;
+
+        string Hash = Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_HASH") ?? string.Empty;
+        string UpdaterPath = Environment.GetEnvironmentVariable("YTDL_AUDIT_UPDATER_PATH") ?? string.Empty;
+        if (Hash.Length != 64 || !File.Exists(UpdaterPath)) {
+            WriteAuditUpdaterIpcResult("setup-error=1");
+            return ExitCode;
+        }
+
+        QueueHandler = new();
+        QueueHandler.Shown += (_, _) => {
+            try {
+                int UpdaterProcessId = Updater.BeginAuditUpdate(Hash, UpdaterPath);
+                WriteAuditUpdaterIpcResult($"updater-pid={UpdaterProcessId}");
+            }
+            catch (Exception ex) {
+                WriteAuditUpdaterIpcResult($"launch-error={ex.GetType().Name}");
+                QueueHandler.Dispose();
+            }
+        };
+        Application.Run(QueueHandler);
+        return ExitCode;
+    }
+#endif
 
     private static bool RunFirstTimeSetup() {
         using ApplicationContext SetupContext = new();
@@ -767,6 +814,18 @@ internal static class Program {
     }
 
     internal static void KillForUpdate() {
+#if DEBUG
+        if (AuditUpdaterIpcMode) {
+            WriteAuditUpdaterIpcResult("ack=1");
+            if (!AuditUpdaterIpcScenario.Equals("cancel", StringComparison.OrdinalIgnoreCase)) {
+                ExitCode = 0;
+                if (QueueHandler is not null && QueueHandler.IsHandleCreated && !QueueHandler.IsDisposed) {
+                    QueueHandler.BeginInvoke((Action)QueueHandler.Dispose);
+                }
+            }
+            return;
+        }
+#endif
         // Form diposes
         // Any downloads/conversion/merges in progress will finish before fully closing for updates.
         MainForm?.RemoveTrayIcon();

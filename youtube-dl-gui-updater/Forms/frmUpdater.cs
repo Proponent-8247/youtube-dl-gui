@@ -20,6 +20,17 @@ internal partial class frmUpdater : Form {
     private readonly bool DownloadLatest = false;
     private bool WaitingForApplication;
     private bool UpdateDataAccepted;
+#if DEBUG
+    private static bool AuditIpcMode => Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC") == "1";
+    private static string AuditScenario => Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_SCENARIO") ?? string.Empty;
+    private static void AuditWrite(string Value) {
+        string PathValue = Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_UPDATER_RESULT");
+        if (string.IsNullOrWhiteSpace(PathValue)) return;
+        try { File.AppendAllText(PathValue, Value + Environment.NewLine); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+#endif
 
 
     private frmUpdater() {
@@ -118,7 +129,28 @@ internal partial class frmUpdater : Form {
                 Candidate.FileName = ExpectedApplicationPath;
                 UpdateData = Candidate;
                 UpdateDataAccepted = true;
+#if DEBUG
+                if (AuditIpcMode) {
+                    AuditWrite("accepted=1");
+                    AuditWrite($"target={Candidate.FileName}");
+                    AuditWrite($"version={Candidate.NewVersion}");
+                    AuditWrite($"hash={Candidate.UpdateHash}");
+                    AuditWrite($"app-pid={ApplicationData.ProcessID}");
+                    AuditWrite($"updater-pid={Process.GetCurrentProcess().Id}");
+                    AuditWrite($"ptr-size={IntPtr.Size}");
+                    AuditWrite($"update-size={Marshal.SizeOf<UpdateData>()}");
+                    AuditWrite($"copydata-size={Marshal.SizeOf<CopyDataStruct>()}");
+                }
+#endif
                 _ = CopyData.TrySendMessage(ApplicationData.MessageHandle, CopyData.WM_UPDATERREADY, this.Handle, 0, ParentMessageTimeoutMilliseconds);
+#if DEBUG
+                if (AuditIpcMode) {
+                    AuditWrite("ack-sent=1");
+                    if (AuditScenario.Equals("cancel", StringComparison.OrdinalIgnoreCase)) {
+                        BeginInvoke((Action)(() => Program.CancelToken.Cancel()));
+                    }
+                }
+#endif
                 m.Result = IntPtr.Zero;
             } break;
             default: base.WndProc(ref m); break;
@@ -160,6 +192,12 @@ internal partial class frmUpdater : Form {
                 await WaitForApplication();
             }
             catch (OperationCanceledException) {
+#if DEBUG
+                if (AuditIpcMode) {
+                    AuditWrite("cancelled=1");
+                    BeginInvoke((Action)Dispose);
+                }
+#endif
                 return;
             }
             catch (Exception ex) {
@@ -178,6 +216,12 @@ internal partial class frmUpdater : Form {
 
         // The URL that will be downloaded using the client
         string FileUrl = string.Format(ApplicationDownloadUrl, Language.ApplicationName, UpdateData.NewVersion.ToString());
+#if DEBUG
+        if (AuditIpcMode) {
+            string AuditUrl = Environment.GetEnvironmentVariable("YTDL_AUDIT_UPDATE_URL");
+            if (!string.IsNullOrWhiteSpace(AuditUrl)) FileUrl = AuditUrl;
+        }
+#endif
 
         // Whethre the old and new version have been moved.
         bool MovedOldVersion = false, MovedNewVersion = false;
@@ -227,6 +271,19 @@ internal partial class frmUpdater : Form {
             Cancellation.ThrowIfCancellationRequested();
             File.Move(UpdateDestination, UpdateData.FileName);
             MovedNewVersion = true;
+#if DEBUG
+            if (AuditIpcMode && AuditScenario.Equals("rollback", StringComparison.OrdinalIgnoreCase)) {
+                AuditWrite("rollback-injected=1");
+                throw new InvalidOperationException("Audit-only rollback injection.");
+            }
+            if (AuditIpcMode) {
+                AuditWrite("replacement=1");
+                Program.ExitCode = 0;
+                this.DialogResult = DialogResult.OK;
+                this.Dispose();
+                return;
+            }
+#endif
 
             // Finally, run it.
             Cancellation.ThrowIfCancellationRequested();
@@ -250,6 +307,12 @@ internal partial class frmUpdater : Form {
                 if (File.Exists(UpdateDestination)) File.Delete(UpdateDestination);
             }
             catch (Exception rollbackEx) { Debug.WriteLine($"Updater cancellation rollback failed: {rollbackEx}"); }
+#if DEBUG
+            if (AuditIpcMode) {
+                AuditWrite("cancelled=1");
+                this.Dispose();
+            }
+#endif
         }
         catch {
             tmrForm.Stop();
@@ -276,6 +339,12 @@ internal partial class frmUpdater : Form {
             catch (Exception rollbackEx) {
                 Log.ReportException(rollbackEx, "The update failed and the previous application version could not be restored.", this);
             }
+#if DEBUG
+            if (AuditIpcMode) {
+                AuditWrite("rollback=1");
+                this.Dispose();
+            }
+#endif
         }
     }
     private async Task GetVersionFromGithub() {

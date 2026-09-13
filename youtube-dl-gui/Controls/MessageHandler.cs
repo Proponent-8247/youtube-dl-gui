@@ -126,6 +126,18 @@ public partial class MessageHandler : Form {
                     DataStruct.dwData = 1;
                     DataStruct.lpData = DataBuffer;
                     CopyDataBuffer = CopyData.NintAlloc(DataStruct);
+#if DEBUG
+                    if (Program.AuditUpdaterIpcMode) {
+                        CopyDataStruct Malformed = DataStruct;
+                        Malformed.cbData = Math.Max(1, DataStruct.cbData - 1);
+                        nint MalformedBuffer = CopyData.NintAlloc(Malformed);
+                        try {
+                            CopyData.SendMessage(m.WParam, CopyData.WM_COPYDATA, Handle, MalformedBuffer);
+                            Program.WriteAuditUpdaterIpcResult("malformed-sent=1");
+                        }
+                        finally { CopyData.NintFree(ref MalformedBuffer); }
+                    }
+#endif
                     // SendMessage is synchronous: the updater can acknowledge inside this call.
                     CanUpdate = true;
                     CopyData.SendMessage(m.WParam, CopyData.WM_COPYDATA, Handle, CopyDataBuffer);

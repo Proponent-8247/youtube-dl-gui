@@ -557,6 +557,34 @@ internal static class Updater {
     internal static bool CommitVerifiedGithubBlob(string StagedPath, string DestinationPath, string ExpectedObjectId) =>
         CommitVerifiedFile(StagedPath, DestinationPath, Path => GithubBlobMatches(Path, ExpectedObjectId));
 
+#if DEBUG
+    internal static int BeginAuditUpdate(string Hash, string UpdaterPath) {
+        if (Hash.IsNullEmptyWhitespace() || Hash.Length != 64 || !Hash.All(Uri.IsHexDigit))
+            throw new ArgumentException("Audit update hash must be SHA-256.", nameof(Hash));
+        if (UpdaterPath.IsNullEmptyWhitespace() || !File.Exists(UpdaterPath))
+            throw new FileNotFoundException("Audit updater executable was not found.", UpdaterPath);
+
+        LastChecked = new GithubData {
+            ExecutableHash = Hash.ToLowerInvariant(),
+            Version = new murrty.updater.Version(9, 8, 7, 6),
+            IsNewerVersion = true
+        };
+        ExpectedUpdaterProcessId = 0;
+        using Process CurrentProcess = Process.GetCurrentProcess();
+        using Process AuditUpdater = new() {
+            StartInfo = new() {
+                Arguments = $"-pid {CurrentProcess.Id} -hwnd {Program.GetMessagesHandle()}",
+                FileName = Path.GetFullPath(UpdaterPath),
+                WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(UpdaterPath)) ?? Environment.CurrentDirectory,
+                UseShellExecute = false
+            }
+        };
+        if (!AuditUpdater.Start()) throw new InvalidOperationException("Audit updater process did not start.");
+        ExpectedUpdaterProcessId = AuditUpdater.Id;
+        return AuditUpdater.Id;
+    }
+#endif
+
     private static void BeginUpdate() {
         ExpectedUpdaterProcessId = 0;
         if (LastChecked?.ExecutableHash.IsNullEmptyWhitespace() != false) {

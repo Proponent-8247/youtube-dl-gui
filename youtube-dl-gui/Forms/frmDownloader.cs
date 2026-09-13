@@ -23,6 +23,17 @@ internal partial class frmDownloader : LocalizedProcessingForm {
         CurrentDownload.Status = DownloadStatus.Aborted;
     }
 
+    private bool TryInvokeProgress(Action Update) {
+        if (Update is null) throw new ArgumentNullException(nameof(Update));
+        try {
+            pbStatus.Invoke(Update);
+            return true;
+        }
+        catch (InvalidOperationException) {
+            return false;
+        }
+    }
+
     public void RetryOrAbort() {
         if (CancellationRequested && DownloadThread?.IsAlive == true) return;
         if (CurrentDownload.BatchDownload) {
@@ -253,28 +264,20 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                                             });
                                         } break;
                                         default: {
-                                            if (pbStatus.Style != ProgressBarStyle.Blocks) {
-                                                pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);
-                                            }
-                                            if (pbStatus.Text != ".  .  .") {
-                                                pbStatus.Invoke(() => pbStatus.Text = ".  .  .");
-                                            }
-                                            if (pbStatus.Value != 0) {
-                                                pbStatus.Invoke(() => pbStatus.Value = 0);
-                                            }
+                                            _ = TryInvokeProgress(() => {
+                                                if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;
+                                                if (pbStatus.Text != ".  .  .") pbStatus.Text = ".  .  .";
+                                                if (pbStatus.Value != 0) pbStatus.Value = 0;
+                                            });
                                         } break;
                                     }
                                 }
                                 else {
-                                    if (pbStatus.Style != ProgressBarStyle.Blocks) {
-                                        pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);
-                                    }
-                                    if (pbStatus.Text != ".  .  .") {
-                                        pbStatus.Invoke(() => pbStatus.Text = ".  .  .");
-                                    }
-                                    if (pbStatus.Value != 0) {
-                                        pbStatus.Invoke(() => pbStatus.Value = 0);
-                                    }
+                                    _ = TryInvokeProgress(() => {
+                                        if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;
+                                        if (pbStatus.Text != ".  .  .") pbStatus.Text = ".  .  .";
+                                        if (pbStatus.Value != 0) pbStatus.Value = 0;
+                                    });
                                 }
 
                                 rtbVerbose?.Invoke(() => rtbVerbose.AppendLine(e.Data));
@@ -352,19 +355,18 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                                     case '4': case '5': case '6':
                                     case '7': case '8': case '9':
                                     case '0': {
-                                        if (!LineParts[1].Contains('%') || !pbStatus.IsHandleCreated) {
+                                        if (!LineParts[1].Contains('%')) {
                                             break;
                                         }
 
-                                        if (pbStatus.Style != ProgressBarStyle.Blocks) {
-                                            pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);
-                                        }
-
-                                        pbStatus.Invoke(() => {
+                                        if (!TryInvokeProgress(() => {
+                                            if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;
                                             pbStatus.Text =
                                                 $"{DownloadHelper.GetTransferData(LineParts, ref Percentage, ref Eta) } ETA {Eta}";
                                             pbStatus.Value = (int)Math.Floor(Percentage);
-                                        });
+                                        })) {
+                                            break;
+                                        }
                                     } break;
                                 }
                             } break;

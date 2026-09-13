@@ -46,6 +46,17 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     private bool ClipboardScannerActive;    // Whether the clipboard scanner is active.
     private string? ClipboardData;          // Clipboard data buffer.
 
+    private bool TryInvokeProgress(Action Update) {
+        if (Update is null) throw new ArgumentNullException(nameof(Update));
+        try {
+            pbStatus.Invoke(Update);
+            return true;
+        }
+        catch (InvalidOperationException) {
+            return false;
+        }
+    }
+
     public frmExtendedDownloader() : this (true) { }
     private frmExtendedDownloader(bool BatchDownload) {
         this.BatchDownload = BatchDownload;
@@ -689,15 +700,11 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                 }
                             }
                             else {
-                                if (pbStatus.Style != ProgressBarStyle.Blocks) {
-                                    pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);
-                                }
-                                if (pbStatus.Text != ".  .  .") {
-                                    pbStatus.Invoke(() => pbStatus.Text = ".  .  .");
-                                }
-                                if (pbStatus.Value != 0) {
-                                    pbStatus.Invoke(() => pbStatus.Value = 0);
-                                }
+                                _ = TryInvokeProgress(() => {
+                                    if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;
+                                    if (pbStatus.Text != ".  .  .") pbStatus.Text = ".  .  .";
+                                    if (pbStatus.Value != 0) pbStatus.Value = 0;
+                                });
                             }
                             rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data));
                         } break;
@@ -778,24 +785,22 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                 case '4': case '5': case '6':
                                 case '7': case '8': case '9':
                                 case '0': {
-                                    if (!LineParts[1].Contains('%') || !this.IsHandleCreated) {
+                                    if (!LineParts[1].Contains('%')) {
                                         break;
                                     }
 
-                                    if (pbStatus.Style != ProgressBarStyle.Blocks) {
-                                        pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);
-                                    }
-
-                                    this.Invoke(() => {
+                                    if (!TryInvokeProgress(() => {
+                                        if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;
                                         pbStatus.Text = DownloadHelper.GetTransferData(
                                             LineParts: LineParts,
                                             Percentage: ref Percentage,
                                             Eta: ref ETA);
 
                                         pbStatus.Value = (int)Math.Floor(Percentage);
-
                                         this.Text = $"ETA: {ETA} - {MediaDetails.ProgressMediaName}";
-                                    });
+                                    })) {
+                                        break;
+                                    }
                                 } break;
                             }
                         } break;
@@ -1110,20 +1115,17 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                     case '7': case '8': case '9':
                                     case '0': {
                                         if (LineParts[1].Contains('%')) {
-                                            if (pbStatus.Style != ProgressBarStyle.Blocks)
-                                                pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);
+                                            if (!TryInvokeProgress(() => {
+                                                if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;
+                                                pbStatus.Text = DownloadHelper.GetTransferData(
+                                                    LineParts: LineParts,
+                                                    Percentage: ref Percentage,
+                                                    Eta: ref ETA);
 
-                                            if (pbStatus.IsHandleCreated) {
-                                                this.Invoke(() => {
-                                                    pbStatus.Text = DownloadHelper.GetTransferData(
-                                                        LineParts: LineParts,
-                                                        Percentage: ref Percentage,
-                                                        Eta: ref ETA);
-
-                                                    pbStatus.Value = (int)Math.Floor(Percentage);
-
-                                                    this.Text = $"ETA: {ETA} - {MediaDetails.ProgressMediaName}";
-                                                });
+                                                pbStatus.Value = (int)Math.Floor(Percentage);
+                                                this.Text = $"ETA: {ETA} - {MediaDetails.ProgressMediaName}";
+                                            })) {
+                                                break;
                                             }
                                         }
                                     } break;

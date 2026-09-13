@@ -65,5 +65,6 @@ internal static partial class AuditRegression {
     private static void RunRepairWave11Tests() {
         Test("CURRENT_O024.BatchWorkerIsTrackedAndSta", BatchWorkerIsTrackedAndSta);
         Test("CURRENT_O023.FfmpegArchiveCleanupIsBestEffort", FfmpegArchiveCleanupIsBestEffort);
+        RunRepairWave12Tests();
     }
 }

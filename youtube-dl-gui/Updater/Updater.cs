@@ -12,6 +12,196 @@ using System.Windows.Forms;
 using murrty.controls;
 using murrty.logging;
 using murrty.updater;
+
+internal static class ExecutableTrust {
+    internal enum SignatureStatus {
+        Unsigned,
+        Valid,
+        Invalid,
+    }
+
+    private const uint WTD_UI_NONE = 2;
+    private const uint WTD_REVOKE_NONE = 0;
+    private const uint WTD_CHOICE_FILE = 1;
+    private const uint WTD_STATEACTION_IGNORE = 0;
+    private const uint WTD_REVOCATION_CHECK_NONE = 0x00000010;
+    private const int MAX_PATH = 260;
+
+    private static readonly Guid GenericVerifyAction = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
+    private static readonly Guid DriverActionVerify = new("F750E6C3-38EE-11D1-85E5-00C04FC295EE");
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private struct WinTrustFileInfo {
+        public uint cbStruct;
+        public IntPtr pcwszFilePath;
+        public IntPtr hFile;
+        public IntPtr pgKnownSubject;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct WinTrustData {
+        public uint cbStruct;
+        public IntPtr pPolicyCallbackData;
+        public IntPtr pSIPClientData;
+        public uint dwUIChoice;
+        public uint fdwRevocationChecks;
+        public uint dwUnionChoice;
+        public IntPtr pFile;
+        public uint dwStateAction;
+        public IntPtr hWVTStateData;
+        public IntPtr pwszURLReference;
+        public uint dwProvFlags;
+        public uint dwUIContext;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private struct CatalogInfo {
+        public uint cbStruct;
+        [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = MAX_PATH)]
+        public string wszCatalogFile;
+    }
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", ExactSpelling = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern uint WinVerifyTrust(IntPtr hwnd, ref Guid pgActionID, IntPtr pWVTData);
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    private static extern bool CryptCATAdminAcquireContext2(out IntPtr phCatAdmin, ref Guid pgSubsystem, string? pwszHashAlgorithm, IntPtr pStrongHashPolicy, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", SetLastError = true)]
+    private static extern bool CryptCATAdminCalcHashFromFileHandle2(IntPtr hCatAdmin, IntPtr hFile, ref uint pcbHash, [System.Runtime.InteropServices.Out] byte[]? pbHash, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", SetLastError = true)]
+    private static extern IntPtr CryptCATAdminEnumCatalogFromHash(IntPtr hCatAdmin, byte[] pbHash, uint cbHash, uint dwFlags, IntPtr phPrevCatInfo);
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    private static extern bool CryptCATCatalogInfoFromContext(IntPtr hCatInfo, ref CatalogInfo psCatInfo, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", SetLastError = true)]
+    private static extern bool CryptCATAdminReleaseCatalogContext(IntPtr hCatAdmin, IntPtr hCatInfo, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", SetLastError = true)]
+    private static extern bool CryptCATAdminReleaseContext(IntPtr hCatAdmin, uint dwFlags);
+
+    private static bool VerifyEmbeddedSignature(string FilePath) {
+        IntPtr PathPointer = IntPtr.Zero;
+        IntPtr FileInfoPointer = IntPtr.Zero;
+        IntPtr TrustDataPointer = IntPtr.Zero;
+        try {
+            PathPointer = System.Runtime.InteropServices.Marshal.StringToCoTaskMemUni(FilePath);
+            WinTrustFileInfo FileInfo = new() {
+                cbStruct = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(WinTrustFileInfo)),
+                pcwszFilePath = PathPointer,
+                hFile = IntPtr.Zero,
+                pgKnownSubject = IntPtr.Zero,
+            };
+            FileInfoPointer = System.Runtime.InteropServices.Marshal.AllocCoTaskMem(System.Runtime.InteropServices.Marshal.SizeOf(typeof(WinTrustFileInfo)));
+            System.Runtime.InteropServices.Marshal.StructureToPtr(FileInfo, FileInfoPointer, false);
+
+            WinTrustData TrustData = new() {
+                cbStruct = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(WinTrustData)),
+                pPolicyCallbackData = IntPtr.Zero,
+                pSIPClientData = IntPtr.Zero,
+                dwUIChoice = WTD_UI_NONE,
+                fdwRevocationChecks = WTD_REVOKE_NONE,
+                dwUnionChoice = WTD_CHOICE_FILE,
+                pFile = FileInfoPointer,
+                dwStateAction = WTD_STATEACTION_IGNORE,
+                hWVTStateData = IntPtr.Zero,
+                pwszURLReference = IntPtr.Zero,
+                dwProvFlags = WTD_REVOCATION_CHECK_NONE,
+                dwUIContext = 0,
+            };
+            TrustDataPointer = System.Runtime.InteropServices.Marshal.AllocCoTaskMem(System.Runtime.InteropServices.Marshal.SizeOf(typeof(WinTrustData)));
+            System.Runtime.InteropServices.Marshal.StructureToPtr(TrustData, TrustDataPointer, false);
+            Guid Action = GenericVerifyAction;
+            return WinVerifyTrust(new IntPtr(-1), ref Action, TrustDataPointer) == 0;
+        }
+        finally {
+            if (TrustDataPointer != IntPtr.Zero) System.Runtime.InteropServices.Marshal.FreeCoTaskMem(TrustDataPointer);
+            if (FileInfoPointer != IntPtr.Zero) System.Runtime.InteropServices.Marshal.FreeCoTaskMem(FileInfoPointer);
+            if (PathPointer != IntPtr.Zero) System.Runtime.InteropServices.Marshal.FreeCoTaskMem(PathPointer);
+        }
+    }
+
+    private static bool TryVerifyCatalog(string FilePath, string HashAlgorithm, out bool CatalogFound) {
+        CatalogFound = false;
+        IntPtr CatalogAdmin = IntPtr.Zero;
+        IntPtr CatalogContext = IntPtr.Zero;
+        try {
+            Guid DriverAction = DriverActionVerify;
+            if (!CryptCATAdminAcquireContext2(out CatalogAdmin, ref DriverAction, HashAlgorithm, IntPtr.Zero, 0)) {
+                return false;
+            }
+
+            using FileStream Stream = File.Open(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+            IntPtr FileHandle = Stream.SafeFileHandle.DangerousGetHandle();
+            uint HashLength = 0;
+            if (!CryptCATAdminCalcHashFromFileHandle2(CatalogAdmin, FileHandle, ref HashLength, null, 0) || HashLength == 0 || HashLength > 4096) {
+                return false;
+            }
+            byte[] Hash = new byte[HashLength];
+            if (!CryptCATAdminCalcHashFromFileHandle2(CatalogAdmin, FileHandle, ref HashLength, Hash, 0)) {
+                return false;
+            }
+
+            CatalogContext = CryptCATAdminEnumCatalogFromHash(CatalogAdmin, Hash, HashLength, 0, IntPtr.Zero);
+            if (CatalogContext == IntPtr.Zero) {
+                return false;
+            }
+            CatalogFound = true;
+
+            CatalogInfo Catalog = new() {
+                cbStruct = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(CatalogInfo)),
+                wszCatalogFile = string.Empty,
+            };
+            return CryptCATCatalogInfoFromContext(CatalogContext, ref Catalog, 0)
+                && !Catalog.wszCatalogFile.IsNullEmptyWhitespace()
+                && VerifyEmbeddedSignature(Catalog.wszCatalogFile);
+        }
+        finally {
+            if (CatalogContext != IntPtr.Zero && CatalogAdmin != IntPtr.Zero) CryptCATAdminReleaseCatalogContext(CatalogAdmin, CatalogContext, 0);
+            if (CatalogAdmin != IntPtr.Zero) CryptCATAdminReleaseContext(CatalogAdmin, 0);
+        }
+    }
+
+    internal static SignatureStatus GetStatus(string FilePath) {
+        if (FilePath.IsNullEmptyWhitespace() || !File.Exists(FilePath)) {
+            return SignatureStatus.Invalid;
+        }
+
+        try {
+            if (VerifyEmbeddedSignature(FilePath)) {
+                return SignatureStatus.Valid;
+            }
+
+            bool CatalogFound = false;
+            if (TryVerifyCatalog(FilePath, "SHA256", out bool Sha256CatalogFound)) {
+                return SignatureStatus.Valid;
+            }
+            CatalogFound |= Sha256CatalogFound;
+            if (TryVerifyCatalog(FilePath, "SHA1", out bool Sha1CatalogFound)) {
+                return SignatureStatus.Valid;
+            }
+            CatalogFound |= Sha1CatalogFound;
+            if (CatalogFound) {
+                return SignatureStatus.Invalid;
+            }
+
+            try {
+                using System.Security.Cryptography.X509Certificates.X509Certificate Certificate =
+                    System.Security.Cryptography.X509Certificates.X509Certificate.CreateFromSignedFile(FilePath);
+                return SignatureStatus.Invalid;
+            }
+            catch (CryptographicException) {
+                return SignatureStatus.Unsigned;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Runtime.InteropServices.ExternalException or DllNotFoundException or EntryPointNotFoundException) {
+            return SignatureStatus.Invalid;
+        }
+    }
+}
+
 internal static class Updater {
     private const int MaxRetries = 5;
     private const int RetryDelay = 1_000; // Time between retries.
@@ -145,6 +335,77 @@ internal static class Updater {
         }
     }
 
+    private static bool TryParseSha256Digest(string? Value, out string Digest) {
+        Digest = string.Empty;
+        if (Value.IsNullEmptyWhitespace()) {
+            return false;
+        }
+
+        string Candidate = Value!.Trim();
+        if (Candidate.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)) {
+            Candidate = Candidate[7..].Trim();
+        }
+        if (Candidate.Length != 64 || !Candidate.All(Uri.IsHexDigit)) {
+            return false;
+        }
+
+        Digest = Candidate.ToLowerInvariant();
+        return true;
+    }
+
+    private static bool TryParseSha256Checksum(string? Content, string FileName, out string Digest) {
+        Digest = string.Empty;
+        if (Content.IsNullEmptyWhitespace() || FileName.IsNullEmptyWhitespace()) {
+            return false;
+        }
+
+        string[] Lines = Content!.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        for (int i = 0; i < Lines.Length; i++) {
+            string Line = Lines[i].Trim();
+            if (Line.Length < 66) {
+                continue;
+            }
+
+            int Separator = Line.IndexOfAny([' ', '\t']);
+            if (Separator != 64 || !TryParseSha256Digest(Line[..Separator], out string Parsed)) {
+                continue;
+            }
+
+            string Name = Line[(Separator + 1)..].TrimStart();
+            if (Name.StartsWith("*", StringComparison.Ordinal)) {
+                Name = Name[1..];
+            }
+            if (!Name.Equals(FileName, StringComparison.Ordinal)) {
+                continue;
+            }
+
+            Digest = Parsed;
+            return true;
+        }
+        return false;
+    }
+
+    private static bool FileMatchesSha256(string FilePath, string ExpectedHash) {
+        if (!TryParseSha256Digest(ExpectedHash, out string Parsed) || !File.Exists(FilePath)) {
+            return false;
+        }
+        try {
+            return Program.CalculateSha256Hash(FilePath).Equals(Parsed, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException) {
+            return false;
+        }
+    }
+
+    private static bool VerifyDownloadedExecutable(string FilePath, string ExpectedHash) {
+        if (!FileMatchesSha256(FilePath, ExpectedHash)) {
+            return false;
+        }
+        return ExecutableTrust.GetStatus(FilePath) != ExecutableTrust.SignatureStatus.Invalid;
+    }
+
+    private static bool CanUseProviderSelfUpdater() => false;
+
     private static void BeginUpdate() {
         ExpectedUpdaterProcessId = 0;
         if (LastChecked?.ExecutableHash.IsNullEmptyWhitespace() != false) {
@@ -271,24 +532,8 @@ internal static class Updater {
     /// <returns><see langword="true"/> if the youtube-dl provider update has went through regardless of success; otherwise, <see langword="false"/>.</returns>
     public static bool UpdateYoutubeDl(bool Internal, System.Drawing.Point? Location = null) {
         if (Internal) {
-            if (!Verification.YoutubeDlAvailable) {
-                return false;
-            }
-
-            Log.Write("Using youtube-dls' internal updater to update the program.");
-
-            using Process UpdateYoutubeDl = new() {
-                StartInfo = new(Verification.YoutubeDlPath) {
-                    Arguments = "-U",
-                }
-            };
-            try {
-                return UpdateYoutubeDl.Start();
-            }
-            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) {
-                Log.Write($"Could not start the provider's internal updater: {ex.Message}");
-                return false;
-            }
+            Log.Write("Provider self-update is disabled because the replacement executable cannot be independently verified before installation.");
+            return CanUseProviderSelfUpdater();
         }
         else {
             int TypeIndex = Verification.GetYoutubeDlType();

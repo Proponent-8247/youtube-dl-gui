@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -16,6 +17,7 @@ internal static partial class AuditRegression {
         internal volatile bool Waiting;
         private readonly byte[] executable;
         private readonly byte[] archive;
+        private readonly string archiveHash;
         internal SetupTransport() {
             executable = File.ReadAllBytes(Self);
             using (MemoryStream memory = new MemoryStream()) {
@@ -26,6 +28,9 @@ internal static partial class AuditRegression {
                 }
                 archive = memory.ToArray();
             }
+            using (SHA256 sha = SHA256.Create()) {
+                archiveHash = BitConverter.ToString(sha.ComputeHash(archive)).Replace("-", string.Empty).ToLowerInvariant();
+            }
         }
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) {
             Interlocked.Increment(ref Requests);
@@ -35,6 +40,9 @@ internal static partial class AuditRegression {
             if (request.RequestUri.AbsolutePath.EndsWith("/latest", StringComparison.Ordinal)) {
                 string release = "{\"tag_name\":\"2099.01.01\",\"assets\":[{\"name\":\"yt-dlp.exe\",\"browser_download_url\":\"https://audit.invalid/yt-dlp.exe\",\"digest\":\"sha256:" + FileSha256(Self) + "\",\"size\":" + executable.Length + "}]}";
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(release) };
+            }
+            if (request.RequestUri.AbsolutePath.EndsWith(".zip.sha256", StringComparison.OrdinalIgnoreCase)) {
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(archiveHash) };
             }
             if (request.RequestUri.AbsolutePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) {
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(archive) };
@@ -109,7 +117,7 @@ internal static partial class AuditRegression {
                     timer.Start();
                     Equal(true, Call(program, null, "RunFirstTimeSetup"));
                     Equal(4, prompts);
-                    Equal(3, transport.Requests);
+                    Equal(4, transport.Requests);
                     Require(delayedTicks >= 6, "UI timers did not run during delayed dependency requests");
                     foreach (string file in new[] { "yt-dlp.exe", "ffmpeg.exe", "ffprobe.exe" }) {
                         Require(File.Exists(Path.Combine(scratch, file)), "First-run installation did not produce " + file);

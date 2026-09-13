@@ -397,6 +397,30 @@ internal static class Updater {
         }
     }
 
+    private static bool VerifyFfmpegArchive(string FilePath, string ExpectedSha256) =>
+        FileMatchesSha256(FilePath, ExpectedSha256);
+
+    private static bool TryParseFfmpegChecksum(string? Content, out string Digest) {
+        if (TryParseSha256Digest(Content, out Digest)) {
+            return true;
+        }
+        return TryParseSha256Checksum(Content, Path.GetFileName(FfmpegDownloadLink), out Digest);
+    }
+
+    private static async Task<string?> GetFfmpegArchiveDigest() {
+        try {
+            byte[] ChecksumBytes = await Program.HttpClient.DownloadBytesTaskAsync(
+                new Uri(FfmpegDownloadLink + ".sha256"), UpdateToken.Token, 4096);
+            string Checksum = System.Text.Encoding.UTF8.GetString(ChecksumBytes).Trim();
+            return TryParseFfmpegChecksum(Checksum, out string Digest) ? Digest : null;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or HttpException or TimeoutException or OperationCanceledException) {
+            if (ex is OperationCanceledException) throw;
+            Log.Write($"Could not retrieve the FFmpeg publisher checksum: {ex.Message}");
+            return null;
+        }
+    }
+
     private static bool VerifyDownloadedExecutable(string FilePath, string ExpectedHash) {
         if (!FileMatchesSha256(FilePath, ExpectedHash)) {
             return false;
@@ -715,9 +739,19 @@ internal static class Updater {
     public static async Task<bool> UpdateFfmpeg(System.Drawing.Point? Location) {
         Log.Write("Downloading the latest ffmpeg release.");
         string FfmpegZipPath = Environment.CurrentDirectory + "\\ffmpeg.zip";
+        string? ExpectedArchiveHash = await GetFfmpegArchiveDigest();
+        if (ExpectedArchiveHash.IsNullEmptyWhitespace()) {
+            Log.Write("FFmpeg update aborted because the publisher checksum could not be verified.");
+            return false;
+        }
 
         using frmGenericDownloadProgress Downloader = new(FfmpegDownloadLink, FfmpegZipPath, Location);
         if (Downloader.ShowDialog() != DialogResult.OK) {
+            return false;
+        }
+        if (!VerifyFfmpegArchive(FfmpegZipPath, ExpectedArchiveHash!)) {
+            Log.Write("FFmpeg update aborted because the downloaded archive did not match the publisher SHA-256 checksum.");
+            _ = TryDeleteFfmpegArchive(FfmpegZipPath);
             return false;
         }
 

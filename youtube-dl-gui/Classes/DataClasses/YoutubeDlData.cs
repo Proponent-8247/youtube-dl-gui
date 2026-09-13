@@ -120,42 +120,40 @@ internal sealed class YoutubeDlData {
         Log.Write($"Downloading the thumbnail for \"{Log.RedactDiagnosticValue(URL ?? ThumbnailLink)}\".");
         using ManagedHttpClient Client = new();
         byte[] ThumbBytes = Client.DownloadBytesTaskAsync(ThumbnailUri, Cancellation, MaximumThumbnailBytes).GetAwaiter().GetResult();
-        bool Webp = ThumbnailUri.AbsolutePath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
-            || (ThumbBytes.Length >= 12 && Encoding.ASCII.GetString(ThumbBytes, 0, 4) == "RIFF"
-                && Encoding.ASCII.GetString(ThumbBytes, 8, 4) == "WEBP");
-        if (Webp) {
-            if (!Verification.FfmpegAvailable) {
-                Verification.RefreshFFmpegLocation();
-                if (!Verification.FfmpegAvailable) return null;
-            }
 
-            string DirectoryPath = Path.Combine(Path.GetTempPath(), "youtube-dl-gui-thumb-" + Guid.NewGuid().ToString("N"));
-            string WebpPath = Path.Combine(DirectoryPath, "thumbnail.webp");
-            string JpgPath = Path.Combine(DirectoryPath, "thumbnail.jpg");
-            Directory.CreateDirectory(DirectoryPath);
+        // Remote image bytes are untrusted. Always normalize them in an owned external
+        // decoder process before passing the normalized output to GDI+.
+        if (!Verification.FfmpegAvailable) {
+            Verification.RefreshFFmpegLocation();
+            if (!Verification.FfmpegAvailable) return null;
+        }
+
+        string DirectoryPath = Path.Combine(Path.GetTempPath(), "youtube-dl-gui-thumb-" + Guid.NewGuid().ToString("N"));
+        string InputPath = Path.Combine(DirectoryPath, "thumbnail.input");
+        string OutputPath = Path.Combine(DirectoryPath, "thumbnail.png");
+        Directory.CreateDirectory(DirectoryPath);
+        try {
+            Cancellation.ThrowIfCancellationRequested();
+            File.WriteAllBytes(InputPath, ThumbBytes);
+            OwnedProcess.Result Result = OwnedProcess.Run(new ProcessStartInfo(Verification.FFmpegPath) {
+                Arguments = "-nostdin -nostats -hide_banner -y -i " + ArgumentList.EscapeArgument(InputPath)
+                    + " -frames:v 1 " + ArgumentList.EscapeArgument(OutputPath),
+                WindowStyle = ProcessWindowStyle.Hidden,
+            }, Cancellation, 60_000, 1024 * 1024);
+            if (Result.ExitCode != 0 || !File.Exists(OutputPath)) return null;
+            if (new FileInfo(OutputPath).Length > MaximumThumbnailBytes) {
+                throw new InvalidDataException("The normalized thumbnail exceeds the permitted size.");
+            }
+            ThumbBytes = File.ReadAllBytes(OutputPath);
+        }
+        finally {
             try {
-                Cancellation.ThrowIfCancellationRequested();
-                File.WriteAllBytes(WebpPath, ThumbBytes);
-                OwnedProcess.Result Result = OwnedProcess.Run(new ProcessStartInfo(Verification.FFmpegPath) {
-                    Arguments = "-nostdin -nostats -hide_banner -i " + ArgumentList.EscapeArgument(WebpPath)
-                        + " -frames:v 1 " + ArgumentList.EscapeArgument(JpgPath),
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                }, Cancellation, 60_000, 1024 * 1024);
-                if (Result.ExitCode != 0 || !File.Exists(JpgPath)) return null;
-                if (new FileInfo(JpgPath).Length > MaximumThumbnailBytes) {
-                    throw new InvalidDataException("The converted thumbnail exceeds the permitted size.");
-                }
-                ThumbBytes = File.ReadAllBytes(JpgPath);
+                if (File.Exists(InputPath)) File.Delete(InputPath);
+                if (File.Exists(OutputPath)) File.Delete(OutputPath);
+                Directory.Delete(DirectoryPath);
             }
-            finally {
-                try {
-                    if (File.Exists(WebpPath)) File.Delete(WebpPath);
-                    if (File.Exists(JpgPath)) File.Delete(JpgPath);
-                    Directory.Delete(DirectoryPath);
-                }
-                catch (IOException ex) { Log.Write($"Could not remove temporary thumbnail files: {ex.Message}"); }
-                catch (UnauthorizedAccessException ex) { Log.Write($"Could not remove temporary thumbnail files: {ex.Message}"); }
-            }
+            catch (IOException ex) { Log.Write($"Could not remove temporary thumbnail files: {ex.Message}"); }
+            catch (UnauthorizedAccessException ex) { Log.Write($"Could not remove temporary thumbnail files: {ex.Message}"); }
         }
 
         Cancellation.ThrowIfCancellationRequested();

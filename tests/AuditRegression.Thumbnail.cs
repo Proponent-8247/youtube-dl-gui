@@ -22,6 +22,39 @@ internal static partial class AuditRegression {
         try { return method.Invoke(data, new object[] { token }); }
         catch (TargetInvocationException e) { throw e.InnerException; }
     }
+    private sealed class ThumbnailNormalizerScope : IDisposable {
+        private readonly object PreviousFfmpeg;
+        private readonly string PreviousMode;
+        private readonly string PreviousPid;
+        private readonly string PreviousInput;
+        private readonly string Pid;
+        private readonly string InputRecord;
+
+        internal ThumbnailNormalizerScope() {
+            PreviousFfmpeg = T("youtube_dl_gui.Verification").GetProperty("FFmpegPath", All).GetValue(null, null);
+            PreviousMode = Environment.GetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE");
+            PreviousPid = Environment.GetEnvironmentVariable("YTDL_AUDIT_PID_FILE");
+            PreviousInput = Environment.GetEnvironmentVariable("YTDL_AUDIT_THUMB_INPUT");
+            Pid = Path.Combine(Environment.CurrentDirectory, "thumbnail-normalize-" + Guid.NewGuid().ToString("N") + ".pid");
+            InputRecord = Pid + ".input";
+
+            Environment.SetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE", "thumbnail-normalize");
+            Environment.SetEnvironmentVariable("YTDL_AUDIT_PID_FILE", Pid);
+            Environment.SetEnvironmentVariable("YTDL_AUDIT_THUMB_INPUT", InputRecord);
+            Set(T("youtube_dl_gui.Verification"), null, "FFmpegPath", Path.Combine(Path.GetDirectoryName(Self), "ThumbnailFixture.exe"));
+        }
+
+        public void Dispose() {
+            Set(T("youtube_dl_gui.Verification"), null, "FFmpegPath", PreviousFfmpeg);
+            Environment.SetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE", PreviousMode);
+            Environment.SetEnvironmentVariable("YTDL_AUDIT_PID_FILE", PreviousPid);
+            Environment.SetEnvironmentVariable("YTDL_AUDIT_THUMB_INPUT", PreviousInput);
+            try { File.Delete(Pid); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            try { File.Delete(InputRecord); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+    }
+    private static IDisposable UseThumbnailNormalizer() { return new ThumbnailNormalizerScope(); }
+
     static partial void RunThumbnailTests() {
         Test("N004.ThumbnailDownloadHonorsCancellation", () => {
             MethodInfo method = CancelableThumbnail();
@@ -50,6 +83,7 @@ internal static partial class AuditRegression {
             }
             object http = HttpClient();
             ((IDisposable)http).Dispose();
+            using (IDisposable decoder = UseThumbnailNormalizer())
             using (LoopbackResponse server = new LoopbackResponse(200, png, null, false, "/preview.png")) {
                 using (Image image = (Image)Call(T("youtube_dl_gui.YoutubeDlData"), ThumbnailData(server.Uri), "GetThumbnail")) {
                     Equal(2, image.Width);

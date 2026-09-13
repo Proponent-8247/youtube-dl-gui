@@ -13,35 +13,36 @@ internal static partial class AuditRegression {
     private static void BatchWorkerIsTrackedAndSta() {
         Type main = T("youtube_dl_gui.frmMain");
         Type program = T("youtube_dl_gui.Program");
-        using ManualResetEventSlim entered = new(false);
-        using ManualResetEventSlim release = new(false);
-        bool sawSta = false;
-        bool sawTracked = false;
+        using (ManualResetEventSlim entered = new ManualResetEventSlim(false))
+        using (ManualResetEventSlim release = new ManualResetEventSlim(false)) {
+            bool sawSta = false;
+            bool sawTracked = false;
 
-        Action work = () => {
-            sawSta = Thread.CurrentThread.GetApartmentState() == ApartmentState.STA;
-            sawTracked = ProgramHasRunningActions(program);
-            entered.Set();
-            release.Wait(5000);
-        };
+            Action work = () => {
+                sawSta = Thread.CurrentThread.GetApartmentState() == ApartmentState.STA;
+                sawTracked = ProgramHasRunningActions(program);
+                entered.Set();
+                release.Wait(5000);
+            };
 
-        Thread worker = null;
-        try {
-            worker = (Thread)Call(main, null, "StartBatchWorker", work);
-            Require(worker != null, "Batch worker helper did not return its thread");
-            PumpUntil(() => entered.IsSet, 5000, "Batch worker did not start");
-            Equal(true, ProgramHasRunningActions(program));
-            Equal(true, sawSta);
-            Equal(true, sawTracked);
-        }
-        finally {
-            release.Set();
-            if (worker != null) {
-                Require(worker.Join(5000), "Batch worker did not finish after release");
+            Thread worker = null;
+            try {
+                worker = (Thread)Call(main, null, "StartBatchWorker", work);
+                Require(worker != null, "Batch worker helper did not return its thread");
+                PumpUntil(() => entered.IsSet, 5000, "Batch worker did not start");
+                Equal(true, ProgramHasRunningActions(program));
+                Equal(true, sawSta);
+                Equal(true, sawTracked);
             }
-        }
+            finally {
+                release.Set();
+                if (worker != null) {
+                    Require(worker.Join(5000), "Batch worker did not finish after release");
+                }
+            }
 
-        Equal(false, ProgramHasRunningActions(program));
+            Equal(false, ProgramHasRunningActions(program));
+        }
     }
 
     private static void FfmpegArchiveCleanupIsBestEffort() {

@@ -11,9 +11,13 @@ internal static partial class AuditRegression {
     private static object Wave15Authentication(string user, string password, string twoFactor, string mediaPassword) {
         object auth = New("youtube_dl_gui.AuthenticationDetails");
         Set(auth.GetType(), auth, "Username", user);
-        Call(auth.GetType(), auth, "SetPassword", password);
+        MethodInfo setPassword = auth.GetType().GetMethod("SetPassword", All, null, new[] { typeof(string) }, null);
+        Require(setPassword != null, "AuthenticationDetails.SetPassword(string) was not found");
+        setPassword.Invoke(auth, new object[] { password });
         Set(auth.GetType(), auth, "TwoFactor", twoFactor);
-        Call(auth.GetType(), auth, "SetMediaPassword", mediaPassword);
+        MethodInfo setMediaPassword = auth.GetType().GetMethod("SetMediaPassword", All, null, new[] { typeof(string) }, null);
+        Require(setMediaPassword != null, "AuthenticationDetails.SetMediaPassword(string) was not found");
+        setMediaPassword.Invoke(auth, new object[] { mediaPassword });
         return auth;
     }
 
@@ -52,7 +56,9 @@ internal static partial class AuditRegression {
             Set(extended.GetType(), extended, "SelectedType", Enum.Parse(T("youtube_dl_gui.DownloadType"), "Custom"));
             Set(extended.GetType(), extended, "CustomArguments", "--simulate");
             Set(extended.GetType(), extended, "Authentication", Wave15Authentication(user, password, twoFactor, mediaPassword));
-            Equal(true, Call(extended.GetType(), extended, "GenerateArguments"));
+            MethodInfo generateArguments = extended.GetType().GetMethod("GenerateArguments", All, null, Type.EmptyTypes, null);
+            Require(generateArguments != null, "ExtendedMediaDetails.GenerateArguments() was not found");
+            Equal(true, generateArguments.Invoke(extended, null));
             string extendedArgs = (string)Get(extended, "Arguments");
             foreach (string secret in new[] { password, twoFactor, mediaPassword })
                 Require(extendedArgs.IndexOf(secret, StringComparison.Ordinal) < 0, "Extended downloader exposed authentication secret in argv");
@@ -68,7 +74,9 @@ internal static partial class AuditRegression {
     private static void ProviderAuthenticationConfigIsPrivateAndEphemeral() {
         Type config = T("youtube_dl_gui.ProviderAuthenticationConfig");
         object auth = Wave15Authentication("audit-user", "audit-secret", "audit-2fa", "audit-media");
-        object instance = Call(config, null, "Create", auth);
+        MethodInfo create = config.GetMethod("Create", All, null, new[] { T("youtube_dl_gui.AuthenticationDetails") }, null);
+        Require(create != null, "ProviderAuthenticationConfig.Create(AuthenticationDetails) was not found");
+        object instance = create.Invoke(null, new[] { auth });
         Require(instance is IDisposable, "Provider authentication config is not disposable");
         string path = (string)Get(instance, "FilePath");
         try {
@@ -92,7 +100,9 @@ internal static partial class AuditRegression {
     private static void NormalDiagnosticUrlsAreRedacted() {
         Type log = T("murrty.logging.Log");
         string source = "https://user:pass@example.invalid/path?ok=1&token=abc123&api_key=def456&signature=ghi789#fragment-secret";
-        string redacted = (string)Call(log, null, "RedactDiagnosticValue", source);
+        MethodInfo redact = log.GetMethod("RedactDiagnosticValue", All, null, new[] { typeof(string) }, null);
+        Require(redact != null, "Log.RedactDiagnosticValue(string) was not found");
+        string redacted = (string)redact.Invoke(null, new object[] { source });
         Require(redacted.Contains("https://example.invalid/path"), "Diagnostic redaction lost the useful URL location");
         Require(redacted.Contains("ok=1"), "Diagnostic redaction removed a non-secret query value");
         foreach (string secret in new[] { "user", "pass", "abc123", "def456", "ghi789", "fragment-secret" })
@@ -104,13 +114,15 @@ internal static partial class AuditRegression {
         Type trust = T("youtube_dl_gui.ExecutableTrust");
         string system = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
         Require(File.Exists(system), "Signed Windows executable fixture is unavailable");
-        object valid = Call(trust, null, "GetStatus", system);
+        MethodInfo getStatus = trust.GetMethod("GetStatus", All, null, new[] { typeof(string) }, null);
+        Require(getStatus != null, "ExecutableTrust.GetStatus(string) was not found");
+        object valid = getStatus.Invoke(null, new object[] { system });
         Equal("Valid", valid.ToString());
 
         string unsigned = Path.Combine(Environment.CurrentDirectory, "unsigned-" + Guid.NewGuid().ToString("N") + ".exe");
         try {
             File.WriteAllText(unsigned, "not a signed executable");
-            object status = Call(trust, null, "GetStatus", unsigned);
+            object status = getStatus.Invoke(null, new object[] { unsigned });
             Require(status.ToString() != "Valid", "Unsigned fixture was accepted as Authenticode-valid");
         }
         finally { try { File.Delete(unsigned); } catch { } }

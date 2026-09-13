@@ -58,11 +58,11 @@ def apply_ini_write_before_cache_assignment(name, data, expected_count):
     sectioned = re.compile(
         rb'(?m)^(?P<indent>[ \t]+)(?P<field>f[A-Za-z_][A-Za-z0-9_]*) = value;'
         rb'(?P<newline>\r?\n)(?P=indent)IniProvider\.Write\('
-        rb'(?P<property>[A-Za-z_][A-Za-z0-9_]*), ConfigName\);$')
+        rb'(?P<property>[A-Za-z_][A-Za-z0-9_]*), ConfigName\);(?=\r?$)')
     unsectioned = re.compile(
         rb'(?m)^(?P<indent>[ \t]+)(?P<field>f[A-Za-z_][A-Za-z0-9_]*) = value;'
         rb'(?P<newline>\r?\n)(?P=indent)IniProvider\.Write\('
-        rb'(?P<property>[A-Za-z_][A-Za-z0-9_]*)\);$')
+        rb'(?P<property>[A-Za-z_][A-Za-z0-9_]*)\);(?=\r?$)')
 
     def replacement(match, section):
         indent = match.group('indent')

@@ -44,7 +44,7 @@ internal sealed class YoutubeDlData {
             return null;
         }
 
-        Log.Write($"Gathering data for \"{URL}\".");
+        Log.Write($"Gathering data for \"{Log.RedactDiagnosticValue(URL)}\".");
         if (!Verification.YoutubeDlAvailable) {
             Verification.RefreshYoutubeDlLocation();
             if (!Verification.YoutubeDlAvailable) {
@@ -108,13 +108,14 @@ internal sealed class YoutubeDlData {
         StartInfo.Arguments = string.Empty;
 
         if (!Result.StandardError.IsNullEmptyWhitespace()) {
-            Log.Write($"Downloading info for \"{URL}\" output some errors.");
+            Log.Write($"Downloading info for \"{Log.RedactDiagnosticValue(URL)}\" output some errors.");
+            Log.Write(Log.RawProviderDiagnosticWarning);
             Log.Write(Result.StandardError);
         }
         RetrievedData = Result.StandardOutput.Length > 0 ? Result.StandardOutput : null;
 
         if (!RetrievedData.IsNullEmptyWhitespace()) {
-            Log.Write($"Finished downloading info for \"{URL}\", deserializing the data.");
+            Log.Write($"Finished downloading info for \"{Log.RedactDiagnosticValue(URL)}\", deserializing the data.");
             YoutubeDlData? Data = RetrievedData.JsonDeserialize<YoutubeDlData>();
             if (Data is null) {
                 return null;
@@ -137,7 +138,7 @@ internal sealed class YoutubeDlData {
 
         const int MaximumThumbnailBytes = 16 * 1024 * 1024;
         Uri ThumbnailUri = new(this.ThumbnailLink);
-        Log.Write($"Downloading the thumbnail for \"{URL}\".");
+        Log.Write($"Downloading the thumbnail for \"{Log.RedactDiagnosticValue(URL ?? ThumbnailLink)}\".");
         using ManagedHttpClient Client = new();
         byte[] ThumbBytes = Client.DownloadBytesTaskAsync(ThumbnailUri, Cancellation, MaximumThumbnailBytes).GetAwaiter().GetResult();
         bool Webp = ThumbnailUri.AbsolutePath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)

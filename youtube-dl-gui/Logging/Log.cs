@@ -175,6 +175,61 @@ internal static class Log {
         }
     }
 
+    internal const string RawProviderDiagnosticWarning =
+        "WARNING: Raw provider diagnostics below are not redacted and may contain URLs, cookies, tokens, or credentials. Review them before sharing.";
+
+    internal static string RedactDiagnosticValue(string Value) {
+        if (string.IsNullOrWhiteSpace(Value)
+        || !Uri.TryCreate(Value, UriKind.Absolute, out Uri Parsed)
+        || (Parsed.Scheme != Uri.UriSchemeHttp && Parsed.Scheme != Uri.UriSchemeHttps)) {
+            return Value;
+        }
+
+        StringBuilder Result = new();
+        Result.Append(Parsed.Scheme).Append("://");
+        if (Parsed.HostNameType == UriHostNameType.IPv6) Result.Append('[').Append(Parsed.Host).Append(']');
+        else Result.Append(Parsed.Host);
+        if (!Parsed.IsDefaultPort) Result.Append(':').Append(Parsed.Port);
+        Result.Append(Parsed.AbsolutePath);
+
+        string Query = Parsed.Query.TrimStart('?');
+        if (Query.Length > 0) {
+            Result.Append('?');
+            string[] Parts = Query.Split('&');
+            for (int i = 0; i < Parts.Length; i++) {
+                if (i > 0) Result.Append('&');
+                string Part = Parts[i];
+                int EqualsIndex = Part.IndexOf('=');
+                string EncodedKey = EqualsIndex >= 0 ? Part[..EqualsIndex] : Part;
+                string Key;
+                try { Key = Uri.UnescapeDataString(EncodedKey.Replace("+", " ")); }
+                catch (UriFormatException) { Key = EncodedKey; }
+                if (IsSensitiveDiagnosticKey(Key)) {
+                    Result.Append(EncodedKey).Append("=[REDACTED]");
+                }
+                else {
+                    Result.Append(Part);
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(Parsed.Fragment)) Result.Append("#[REDACTED]");
+        if (!string.IsNullOrEmpty(Parsed.UserInfo)) Result.Append(" [authority-credentials=[REDACTED]]");
+        return Result.ToString();
+    }
+
+    private static bool IsSensitiveDiagnosticKey(string Key) {
+        string Normalized = new(Key.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+        return Normalized is "token" or "accesstoken" or "refreshtoken"
+            or "apikey" or "key" or "auth" or "authorization"
+            or "sig" or "signature" or "password" or "passwd"
+            or "pass" or "secret" or "session" or "sessionid"
+            or "cookie" or "credential" or "credentials"
+            || Normalized.EndsWith("token", StringComparison.Ordinal)
+            || Normalized.EndsWith("secret", StringComparison.Ordinal)
+            || Normalized.EndsWith("signature", StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Writes a message to the log.
     /// </summary>

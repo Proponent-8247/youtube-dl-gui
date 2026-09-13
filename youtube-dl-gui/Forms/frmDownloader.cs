@@ -147,7 +147,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
     private void BeginDownload() {
         if (WorkerClosePending || DownloadThread?.IsAlive == true) return;
         CancellationRequested = false;
-        Log.Write($"Beginning download for {CurrentDownload.DownloadURL}.");
+        Log.Write($"Beginning download for {Log.RedactDiagnosticValue(CurrentDownload.DownloadURL)}.");
         DownloadProcess?.Dispose();
         DownloadProcess = null;
         if (CurrentDownload.DownloadURL.IsNullEmptyWhitespace()) {
@@ -189,6 +189,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
         }
 
         txtGeneratedArguments.Text = CurrentDownload.ArgumentsCensored;
+        rtbVerbose.AppendLine(Log.RawProviderDiagnosticWarning);
 
         #region Download thread
         rtbVerbose.AppendLine("Creating download thread");

@@ -33,7 +33,7 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
         this.TempFile = Output + SidecarId + ".tmp";
         this.BackupFile = Output + SidecarId + ".bck";
         CancelToken = new();
-        Log.Write($"Using generic downloader to display progress for '{URL}'.");
+        Log.Write($"Using generic downloader to display progress for '{Log.RedactDiagnosticValue(URL)}'.");
 
         DownloadClient = new();
         this.Load += (s, e) => {
@@ -120,7 +120,7 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
                     Cancelled = true;
                     CanRetry = false;
                 }
-                else if ((DialogResult)this.Invoke(() => Log.ReportRetriableException(ex, URL)) != DialogResult.Retry) {
+                else if ((DialogResult)this.Invoke(() => Log.ReportRetriableException(ex, Log.RedactDiagnosticValue(URL))) != DialogResult.Retry) {
                     Cancelled = true;
                     CanRetry = false;
                 }

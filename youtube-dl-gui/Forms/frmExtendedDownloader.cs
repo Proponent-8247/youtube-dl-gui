@@ -555,7 +555,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 }
                 catch (InvalidOperationException) { }
             }
-            Log.Write($"Thumbnail processing failed for \"{Media.URL}\": {ex}");
+            Log.Write($"Thumbnail processing failed for \"{Log.RedactDiagnosticValue(Media.URL)}\": {ex}");
         }
     }
     private void DownloadThumbnail() {
@@ -620,6 +620,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         }
 
         txtGeneratedArguments.Text = MediaDetails.ArgumentsCensored;
+        rtbVerbose.AppendLine(Log.RawProviderDiagnosticWarning);
         mDownload.Enabled = mDownloadWithAuthentication.Enabled = false;
         sbtnDownload.Text = Language.GenericCancel;
         pbStatus.ShowInTaskbar = true;
@@ -950,6 +951,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         }
 
         SaveMediaOptions();
+        rtbVerbose.AppendLine(Log.RawProviderDiagnosticWarning);
 
         mDownload.Enabled = mDownloadWithAuthentication.Enabled = false;
         sbtnDownload.Text = Language.GenericCancel;

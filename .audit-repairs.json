@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "base_sha": "3abff18733e2fccd47b84d2b7256daa4209e67c6",
+  "expected_failures": [
+    "CURRENT_O016.GeneratedProviderArgumentsDoNotExposeSecrets",
+    "CURRENT_O016.ProviderAuthenticationConfigIsPrivateAndEphemeral",
+    "CURRENT_O017.NormalDiagnosticUrlsAreRedacted",
+    "POLICY_P003.ExecutableTrustRecognizesAuthenticode",
+    "POLICY_P005.RemoteThumbnailAlwaysUsesIsolatedDecoder"
+  ],
+  "remaining_failures": [
+    "CURRENT_O016.GeneratedProviderArgumentsDoNotExposeSecrets",
+    "CURRENT_O016.ProviderAuthenticationConfigIsPrivateAndEphemeral",
+    "POLICY_P003.ExecutableTrustRecognizesAuthenticode",
+    "POLICY_P005.RemoteThumbnailAlwaysUsesIsolatedDecoder"
+  ],
+  "repairs": [
+    {
+      "id": "O017_DIAGNOSTIC_REDACTION",
+      "message": "fix: redact secrets from normal URL diagnostics",
+      "resolves": ["CURRENT_O017.NormalDiagnosticUrlsAreRedacted"],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Logging/Log.cs",
+          "edits": [
+            {
+              "old": "    /// <summary>\n    /// Writes a message to the log.\n",
+              "new": "    internal const string RawProviderDiagnosticWarning =\n        \"WARNING: Raw provider diagnostics below are not redacted and may contain URLs, cookies, tokens, or credentials. Review them before sharing.\";\n\n    internal static string RedactDiagnosticValue(string Value) {\n        if (string.IsNullOrWhiteSpace(Value)\n        || !Uri.TryCreate(Value, UriKind.Absolute, out Uri Parsed)\n        || (Parsed.Scheme != Uri.UriSchemeHttp && Parsed.Scheme != Uri.UriSchemeHttps)) {\n            return Value;\n        }\n\n        StringBuilder Result = new();\n        Result.Append(Parsed.Scheme).Append(\"://\");\n        if (Parsed.HostNameType == UriHostNameType.IPv6) Result.Append('[').Append(Parsed.Host).Append(']');\n        else Result.Append(Parsed.Host);\n        if (!Parsed.IsDefaultPort) Result.Append(':').Append(Parsed.Port);\n        Result.Append(Parsed.AbsolutePath);\n\n        string Query = Parsed.Query.TrimStart('?');\n        if (Query.Length > 0) {\n            Result.Append('?');\n            string[] Parts = Query.Split('&');\n            for (int i = 0; i < Parts.Length; i++) {\n                if (i > 0) Result.Append('&');\n                string Part = Parts[i];\n                int EqualsIndex = Part.IndexOf('=');\n                string EncodedKey = EqualsIndex >= 0 ? Part[..EqualsIndex] : Part;\n                string Key;\n                try { Key = Uri.UnescapeDataString(EncodedKey.Replace(\"+\", \" \")); }\n                catch (UriFormatException) { Key = EncodedKey; }\n                if (IsSensitiveDiagnosticKey(Key)) {\n                    Result.Append(EncodedKey).Append(\"=[REDACTED]\");\n                }\n                else {\n                    Result.Append(Part);\n                }\n            }\n        }\n\n        if (!string.IsNullOrEmpty(Parsed.Fragment)) Result.Append(\"#[REDACTED]\");\n        if (!string.IsNullOrEmpty(Parsed.UserInfo)) Result.Append(\" [authority-credentials=[REDACTED]]\");\n        return Result.ToString();\n    }\n\n    private static bool IsSensitiveDiagnosticKey(string Key) {\n        string Normalized = new(Key.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());\n        return Normalized is \"token\" or \"accesstoken\" or \"refreshtoken\"\n            or \"apikey\" or \"key\" or \"auth\" or \"authorization\"\n            or \"sig\" or \"signature\" or \"password\" or \"passwd\"\n            or \"pass\" or \"secret\" or \"session\" or \"sessionid\"\n            or \"cookie\" or \"credential\" or \"credentials\"\n            || Normalized.EndsWith(\"token\", StringComparison.Ordinal)\n            || Normalized.EndsWith(\"secret\", StringComparison.Ordinal)\n            || Normalized.EndsWith(\"signature\", StringComparison.Ordinal);\n    }\n\n    /// <summary>\n    /// Writes a message to the log.\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Classes/DataClasses/YoutubeDlData.cs",
+          "edits": [
+            {"old":"        Log.Write($\"Gathering data for \\\"{URL}\\\".\");\n","new":"        Log.Write($\"Gathering data for \\\"{Log.RedactDiagnosticValue(URL)}\\\".\");\n","count":1},
+            {"old":"            Log.Write($\"Downloading info for \\\"{URL}\\\" output some errors.\");\n            Log.Write(Result.StandardError);\n","new":"            Log.Write($\"Downloading info for \\\"{Log.RedactDiagnosticValue(URL)}\\\" output some errors.\");\n            Log.Write(Log.RawProviderDiagnosticWarning);\n            Log.Write(Result.StandardError);\n","count":1},
+            {"old":"            Log.Write($\"Finished downloading info for \\\"{URL}\\\", deserializing the data.\");\n","new":"            Log.Write($\"Finished downloading info for \\\"{Log.RedactDiagnosticValue(URL)}\\\", deserializing the data.\");\n","count":1},
+            {"old":"        Log.Write($\"Downloading the thumbnail for \\\"{URL}\\\".\");\n","new":"        Log.Write($\"Downloading the thumbnail for \\\"{Log.RedactDiagnosticValue(URL ?? ThumbnailLink)}\\\".\");\n","count":1}
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmGenericDownloadProgress.cs",
+          "edits": [
+            {"old":"        Log.Write($\"Using generic downloader to display progress for '{URL}'.\");\n","new":"        Log.Write($\"Using generic downloader to display progress for '{Log.RedactDiagnosticValue(URL)}'.\");\n","count":1},
+            {"old":"                else if ((DialogResult)this.Invoke(() => Log.ReportRetriableException(ex, URL)) != DialogResult.Retry) {\n","new":"                else if ((DialogResult)this.Invoke(() => Log.ReportRetriableException(ex, Log.RedactDiagnosticValue(URL))) != DialogResult.Retry) {\n","count":1}
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmDownloader.cs",
+          "edits": [
+            {"old":"        Log.Write($\"Beginning download for {CurrentDownload.DownloadURL}.\");\n","new":"        Log.Write($\"Beginning download for {Log.RedactDiagnosticValue(CurrentDownload.DownloadURL)}.\");\n","count":1},
+            {"old":"        txtGeneratedArguments.Text = CurrentDownload.ArgumentsCensored;\n\n        #region Download thread\n","new":"        txtGeneratedArguments.Text = CurrentDownload.ArgumentsCensored;\n        rtbVerbose.AppendLine(Log.RawProviderDiagnosticWarning);\n\n        #region Download thread\n","count":1}
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmExtendedDownloader.cs",
+          "edits": [
+            {"old":"            Log.Write($\"Thumbnail processing failed for \\\"{Media.URL}\\\": {ex}\");\n","new":"            Log.Write($\"Thumbnail processing failed for \\\"{Log.RedactDiagnosticValue(Media.URL)}\\\": {ex}\");\n","count":1},
+            {"old":"        txtGeneratedArguments.Text = MediaDetails.ArgumentsCensored;\n        mDownload.Enabled = mDownloadWithAuthentication.Enabled = false;\n","new":"        txtGeneratedArguments.Text = MediaDetails.ArgumentsCensored;\n        rtbVerbose.AppendLine(Log.RawProviderDiagnosticWarning);\n        mDownload.Enabled = mDownloadWithAuthentication.Enabled = false;\n","count":1},
+            {"old":"        SaveMediaOptions();\n\n        mDownload.Enabled = mDownloadWithAuthentication.Enabled = false;\n","new":"        SaveMediaOptions();\n        rtbVerbose.AppendLine(Log.RawProviderDiagnosticWarning);\n\n        mDownload.Enabled = mDownloadWithAuthentication.Enabled = false;\n","count":1}
+          ]
+        }
+      ]
+    }
+  ]
+}

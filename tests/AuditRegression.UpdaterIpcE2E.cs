@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
@@ -19,12 +20,54 @@ internal static partial class AuditRegression {
         return values;
     }
 
+    private static string V011Describe(Dictionary<string, string> values) {
+        if (values == null || values.Count == 0) return "<none>";
+        return string.Join(", ", values.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(pair => pair.Key + "=" + pair.Value));
+    }
+
     private static Dictionary<string, string> V011WaitFor(string path, string key, int timeoutMilliseconds) {
         Dictionary<string, string> values = null;
         PumpUntil(() => {
             values = V011ReadResult(path);
             return values.ContainsKey(key);
         }, timeoutMilliseconds, "Timed out waiting for updater IPC evidence: " + key);
+        return values;
+    }
+
+    private static Dictionary<string, string> V011WaitForOutcome(V011Scenario state, string successKey, int timeoutMilliseconds, params string[] failureKeys) {
+        Dictionary<string, string> values = null;
+        string terminalFailure = null;
+        bool updaterExited = false;
+        PumpUntil(() => {
+            values = V011ReadResult(state.UpdaterResult);
+            if (values.ContainsKey(successKey)) return true;
+            foreach (string failureKey in failureKeys) {
+                if (values.ContainsKey(failureKey)) {
+                    terminalFailure = failureKey;
+                    return true;
+                }
+            }
+            try {
+                if (state.Updater != null && state.Updater.HasExited) {
+                    updaterExited = true;
+                    return true;
+                }
+            }
+            catch (InvalidOperationException) { }
+            return false;
+        }, timeoutMilliseconds, "Timed out waiting for updater IPC terminal evidence: " + successKey +
+            "; updater=" + V011Describe(V011ReadResult(state.UpdaterResult)) +
+            "; main=" + V011Describe(V011ReadResult(state.MainResult)));
+
+        if (terminalFailure != null) {
+            throw new Exception("Updater reached unexpected terminal state '" + terminalFailure + "' while waiting for '" + successKey +
+                "'. Updater evidence: " + V011Describe(values) + "; main evidence: " + V011Describe(V011ReadResult(state.MainResult)));
+        }
+        if (updaterExited && !values.ContainsKey(successKey)) {
+            throw new Exception("Updater exited before recording '" + successKey + "'. Updater evidence: " + V011Describe(values) +
+                "; main evidence: " + V011Describe(V011ReadResult(state.MainResult)));
+        }
         return values;
     }
 
@@ -112,7 +155,11 @@ internal static partial class AuditRegression {
     private static void ActualUpdaterExecutablesExchangeBoundPacket() {
         using (V011Scenario state = V011Start("success", true)) {
             Dictionary<string, string> main = V011WaitFor(state.MainResult, "ack", 10000);
-            Dictionary<string, string> updater = V011WaitFor(state.UpdaterResult, "replacement", 15000);
+            PumpUntil(() => state.Server.Sent.WaitOne(0) || state.Updater.HasExited, 10000,
+                "Actual updater never requested the loopback payload; updater=" + V011Describe(V011ReadResult(state.UpdaterResult)) +
+                "; main=" + V011Describe(V011ReadResult(state.MainResult)));
+            Require(state.Server.Error == null, "Loopback payload fixture failed: " + state.Server.Error);
+            Dictionary<string, string> updater = V011WaitForOutcome(state, "replacement", 15000, "rollback", "cancelled");
             Require(state.Main.WaitForExit(10000), "Actual application did not exit after updater acknowledgement");
             Require(state.Updater.WaitForExit(10000), "Actual updater did not exit after replacement");
             Equal(0, state.Main.ExitCode);
@@ -137,7 +184,7 @@ internal static partial class AuditRegression {
     private static void ActualUpdaterCancellationLeavesApplicationUntouched() {
         using (V011Scenario state = V011Start("cancel", false)) {
             Dictionary<string, string> main = V011WaitFor(state.MainResult, "ack", 10000);
-            Dictionary<string, string> updater = V011WaitFor(state.UpdaterResult, "cancelled", 10000);
+            Dictionary<string, string> updater = V011WaitForOutcome(state, "cancelled", 10000, "rollback", "replacement");
             Require(state.Updater.WaitForExit(10000), "Actual updater did not exit after cancellation");
             Require(!state.Main.HasExited, "Cancellation unexpectedly terminated the application under test");
             Equal("1", main["malformed-sent"]);
@@ -151,7 +198,11 @@ internal static partial class AuditRegression {
     private static void ActualUpdaterRollbackRestoresApplication() {
         using (V011Scenario state = V011Start("rollback", true)) {
             V011WaitFor(state.MainResult, "ack", 10000);
-            Dictionary<string, string> updater = V011WaitFor(state.UpdaterResult, "rollback", 15000);
+            PumpUntil(() => state.Server.Sent.WaitOne(0) || state.Updater.HasExited, 10000,
+                "Rollback updater never requested the loopback payload; updater=" + V011Describe(V011ReadResult(state.UpdaterResult)) +
+                "; main=" + V011Describe(V011ReadResult(state.MainResult)));
+            Require(state.Server.Error == null, "Rollback loopback payload fixture failed: " + state.Server.Error);
+            Dictionary<string, string> updater = V011WaitForOutcome(state, "rollback", 15000, "cancelled", "replacement");
             Require(state.Main.WaitForExit(10000), "Actual application did not exit for rollback scenario");
             Require(state.Updater.WaitForExit(10000), "Actual updater did not exit after rollback");
             Equal("1", updater["rollback-injected"]);

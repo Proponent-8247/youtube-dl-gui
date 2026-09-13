@@ -12,6 +12,8 @@ internal sealed class ManagedHttpClient : IDisposable {
     internal const int EstimateReportTime = 1000 / ProgressReportTime;
     private static readonly TimeSpan ProgressThrottle = TimeSpan.FromMilliseconds(ProgressReportTime);
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan DefaultFileDuration = TimeSpan.FromHours(2);
+    private const long DefaultFileMaximumBytes = 2L * 1024 * 1024 * 1024;
 
     private delegate void ProgressFinishedCallback();
 
@@ -198,18 +200,28 @@ internal sealed class ManagedHttpClient : IDisposable {
         Handler.Invoke(this, EventArgs);
     }
 
-    public async Task DownloadFileTaskAsync(Uri uri, string destination, CancellationToken Token) {
+    public Task DownloadFileTaskAsync(Uri uri, string destination, CancellationToken Token) =>
+        DownloadFileTaskAsync(uri, destination, DefaultFileMaximumBytes, DefaultFileDuration, Token);
+
+    public async Task DownloadFileTaskAsync(Uri uri, string destination, long MaximumBytes, TimeSpan MaximumDuration, CancellationToken Token) {
+        if (MaximumBytes <= 0) throw new ArgumentOutOfRangeException(nameof(MaximumBytes));
+        if (MaximumDuration <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(MaximumDuration));
+
+        using CancellationTokenSource Deadline = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        Deadline.CancelAfter(MaximumDuration);
         try {
-            using HttpResponseMessage Response = await DownloadClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, Token);
+            using HttpResponseMessage Response = await DownloadClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, Deadline.Token).ConfigureAwait(false);
 
             if (!Response.IsSuccessStatusCode)
-                throw await GetException(Response, uri, Token);
+                throw await GetException(Response, uri, Deadline.Token).ConfigureAwait(false);
 
             string? ContentEncoding = Response.Content.Headers.ContentEncoding.FirstOrDefault()?.ToLowerInvariant();
+            long ContentLength = Response.Content.Headers.ContentLength ?? 0;
+            if (ContentEncoding is not ("gzip" or "deflate") && ContentLength > MaximumBytes) {
+                throw new InvalidDataException("The download exceeds the permitted file size.");
+            }
             lock (ProgressSync) {
-                CurrentTotalSize = ContentEncoding is "gzip" or "deflate"
-                    ? 0
-                    : Response.Content.Headers.ContentLength ?? 0;
+                CurrentTotalSize = ContentEncoding is "gzip" or "deflate" ? 0 : ContentLength;
             }
 
             using FileStream Destination = new(
@@ -217,29 +229,44 @@ internal sealed class ManagedHttpClient : IDisposable {
                 mode: FileMode.Create,
                 access: FileAccess.ReadWrite,
                 share: FileShare.Read);
-            using Stream ContentStream = await Response.Content.ReadAsStreamAsync();
+            using Stream ContentStream = await Response.Content.ReadAsStreamAsync().ConfigureAwait(false);
 
             switch (ContentEncoding) {
                 case "gzip": {
                     using GZipStream DecompressedStream = new(ContentStream, CompressionMode.Decompress);
-                    await WriteStream(DecompressedStream, Destination, Token);
+                    await WriteStream(DecompressedStream, Destination, Deadline.Token, MaximumBytes).ConfigureAwait(false);
                 } break;
                 case "deflate": {
                     using DeflateStream DecompressedStream = new(ContentStream, CompressionMode.Decompress);
-                    await WriteStream(DecompressedStream, Destination, Token);
+                    await WriteStream(DecompressedStream, Destination, Deadline.Token, MaximumBytes).ConfigureAwait(false);
                 } break;
                 default:
-                    await WriteStream(ContentStream, Destination, Token);
+                    await WriteStream(ContentStream, Destination, Deadline.Token, MaximumBytes).ConfigureAwait(false);
                     break;
             }
-            await Destination.FlushAsync();
-            Destination.Close();
+            await Destination.FlushAsync(Deadline.Token).ConfigureAwait(false);
             FinishedCallback();
+        }
+        catch (Exception ex) when (Deadline.IsCancellationRequested) {
+            TryDeletePartialDownload(destination);
+            Token.ThrowIfCancellationRequested();
+            throw new TimeoutException("The file download did not complete within the permitted time.", ex);
+        }
+        catch {
+            TryDeletePartialDownload(destination);
+            throw;
         }
         finally {
             ProgressReportTimer.Change(Timeout.Infinite, Timeout.Infinite);
             ResetProgress();
         }
+    }
+
+    private static void TryDeletePartialDownload(string destination) {
+        try {
+            if (File.Exists(destination)) File.Delete(destination);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
     public async Task<string> DownloadStringTaskAsync(Uri uri, CancellationToken Token) {
         try {
@@ -276,9 +303,10 @@ internal sealed class ManagedHttpClient : IDisposable {
         }
     }
 
-    private async Task WriteStream(Stream Source, Stream Writer, CancellationToken Token) {
+    private async Task WriteStream(Stream Source, Stream Writer, CancellationToken Token, long MaximumBytes) {
         byte[] buffer = new byte[DefaultBuffer];
         int bytesRead;
+        long Written = 0;
         lock (ProgressSync) {
             EstimateTime = 35;
         }
@@ -300,8 +328,12 @@ internal sealed class ManagedHttpClient : IDisposable {
             if (bytesRead <= 0) {
                 break;
             }
+            if (bytesRead > MaximumBytes - Written) {
+                throw new InvalidDataException("The download exceeded the permitted file size.");
+            }
 
             await Writer.WriteAsync(buffer, 0, bytesRead, Token).ConfigureAwait(false);
+            Written += bytesRead;
             lock (ProgressSync) {
                 CurrentProgress += bytesRead;
                 ByteEstimateBuffer += bytesRead;

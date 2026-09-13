@@ -205,5 +205,6 @@ internal static partial class AuditRegression {
         Test("CURRENT_O017.NormalDiagnosticUrlsAreRedacted", NormalDiagnosticUrlsAreRedacted);
         Test("POLICY_P003.ExecutableTrustRecognizesAuthenticode", ExecutableTrustRecognizesAuthenticode);
         Test("POLICY_P005.RemoteThumbnailAlwaysUsesIsolatedDecoder", RemoteThumbnailAlwaysUsesIsolatedDecoder);
+        RunRepairWave16Tests();
     }
 }

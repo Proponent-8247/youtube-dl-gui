@@ -131,6 +131,17 @@ public static class Language {
     }
     #endregion
 
+    private static string ValidateCompositeFormat(string Value, string Fallback, int ArgumentCount, string Key) {
+        try {
+            _ = string.Format(Value, new object[ArgumentCount]);
+            return Value;
+        }
+        catch (FormatException) {
+            System.Diagnostics.Trace.WriteLine($"Ignoring invalid composite format string for language key \"{Key}\".");
+            return Fallback;
+        }
+    }
+
     public static bool LoadLanguage(string LanguageFile = null) {
         try {
             if (string.IsNullOrWhiteSpace(LanguageFile)) {
@@ -169,7 +180,7 @@ public static class Language {
                                     continue;
 
                                 case nameof(dlgUpdaterUpdatedVersionHashNoMatch):
-                                    dlgUpdaterUpdatedVersionHashNoMatch = ReadValue;
+                                    dlgUpdaterUpdatedVersionHashNoMatch = ValidateCompositeFormat(ReadValue, InternalEnglish.dlgUpdaterUpdatedVersionHashNoMatch, 2, nameof(dlgUpdaterUpdatedVersionHashNoMatch));
                                     continue;
                                 case nameof(dlgUpdaterHashNotGiven):
                                     dlgUpdaterHashNotGiven = ReadValue;

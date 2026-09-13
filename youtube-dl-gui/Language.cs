@@ -2408,6 +2408,17 @@ public static class Language {
     }
     #endregion
 
+    private static string ValidateCompositeFormat(string Value, string Fallback, int ArgumentCount, string Key) {
+        try {
+            _ = string.Format(Value, new object[ArgumentCount]);
+            return Value;
+        }
+        catch (FormatException) {
+            Log.Write($"Ignoring invalid composite format string for language key \"{Key}\".");
+            return Fallback;
+        }
+    }
+
     #region Load Language File
     /// <summary>
     /// Loads the ini file for the Language file, based on the ini structure.
@@ -2568,10 +2579,10 @@ public static class Language {
                                 GenericAborted = ReadValue;
                                 continue;
                             case nameof(GenericError):
-                                GenericError = ReadValue;
+                                GenericError = ValidateCompositeFormat(ReadValue, InternalEnglish.GenericError, 1, nameof(GenericError));
                                 continue;
                             case nameof(GenericAltError):
-                                GenericAltError = ReadValue;
+                                GenericAltError = ValidateCompositeFormat(ReadValue, InternalEnglish.GenericAltError, 1, nameof(GenericAltError));
                                 continue;
                             case nameof(GenericCompleted):
                                 GenericCompleted = ReadValue;
@@ -2681,10 +2692,10 @@ public static class Language {
                                 dlgUpdateFailedToCheck = ReadValue;
                                 continue;
                             case nameof(dlgUpdateNoUpdateAvailable):
-                                dlgUpdateNoUpdateAvailable = ReadValue;
+                                dlgUpdateNoUpdateAvailable = ValidateCompositeFormat(ReadValue, InternalEnglish.dlgUpdateNoUpdateAvailable, 2, nameof(dlgUpdateNoUpdateAvailable));
                                 continue;
                             case nameof(dlgUpdateNoBetaUpdateAvailable):
-                                dlgUpdateNoBetaUpdateAvailable = ReadValue;
+                                dlgUpdateNoBetaUpdateAvailable = ValidateCompositeFormat(ReadValue, InternalEnglish.dlgUpdateNoBetaUpdateAvailable, 2, nameof(dlgUpdateNoBetaUpdateAvailable));
                                 continue;
                             case nameof(dlgUpdateNoValidYoutubeDl):
                                 dlgUpdateNoValidYoutubeDl = ReadValue;
@@ -2693,7 +2704,7 @@ public static class Language {
                                 dlgUpdatedYoutubeDl = ReadValue;
                                 continue;
                             case nameof(dlgUpateYoutubeDlNoUpdateRequired):
-                                dlgUpateYoutubeDlNoUpdateRequired = ReadValue;
+                                dlgUpateYoutubeDlNoUpdateRequired = ValidateCompositeFormat(ReadValue, InternalEnglish.dlgUpateYoutubeDlNoUpdateRequired, 2, nameof(dlgUpateYoutubeDlNoUpdateRequired));
                                 continue;
                             case nameof(dlgUpdaterHashNoMatch):
                                 dlgUpdaterHashNoMatch = ReadValue;
@@ -2730,7 +2741,7 @@ public static class Language {
                                 frmAbout = ReadValue;
                                 continue;
                             case nameof(lbAboutBody):
-                                lbAboutBody = ReadValue;
+                                lbAboutBody = ValidateCompositeFormat(ReadValue, InternalEnglish.lbAboutBody, 2, nameof(lbAboutBody));
                                 continue;
                             case nameof(llbCheckForUpdates):
                                 llbCheckForUpdates = ReadValue;
@@ -2938,7 +2949,7 @@ public static class Language {
 
                             #region frmExtendedDownloader
                             case nameof(frmExtendedDownloaderRetrieving):
-                                frmExtendedDownloaderRetrieving = ReadValue;
+                                frmExtendedDownloaderRetrieving = ValidateCompositeFormat(ReadValue, InternalEnglish.frmExtendedDownloaderRetrieving, 1, nameof(frmExtendedDownloaderRetrieving));
                                 continue;
                             case nameof(lbExtendedDownloaderLink):
                                 lbExtendedDownloaderLink = ReadValue;
@@ -3933,16 +3944,16 @@ public static class Language {
                                 lbUpdateAvailableHeader = ReadValue;
                                 continue;
                             case nameof(lbUpdateAvailableUpdateVersion):
-                                lbUpdateAvailableUpdateVersion = ReadValue;
+                                lbUpdateAvailableUpdateVersion = ValidateCompositeFormat(ReadValue, InternalEnglish.lbUpdateAvailableUpdateVersion, 1, nameof(lbUpdateAvailableUpdateVersion));
                                 continue;
                             case nameof(lbUpdateAvailableCurrentVersion):
-                                lbUpdateAvailableCurrentVersion = ReadValue;
+                                lbUpdateAvailableCurrentVersion = ValidateCompositeFormat(ReadValue, InternalEnglish.lbUpdateAvailableCurrentVersion, 1, nameof(lbUpdateAvailableCurrentVersion));
                                 continue;
                             case nameof(lbUpdateAvailableChangelog):
                                 lbUpdateAvailableChangelog = ReadValue;
                                 continue;
                             case nameof(lbUpdateSize):
-                                lbUpdateSize = ReadValue;
+                                lbUpdateSize = ValidateCompositeFormat(ReadValue, InternalEnglish.lbUpdateSize, 1, nameof(lbUpdateSize));
                                 continue;
                             case nameof(btnUpdateAvailableSkipVersion):
                                 btnUpdateAvailableSkipVersion = ReadValue;

@@ -82,13 +82,22 @@ public sealed class TimePicker : UserControl {
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public TimeSpan TimeSpan {
         get {
-            return new TimeSpan(0, Hours > 24 ? 0 : Hours, Minutes, Seconds, Milliseconds);
+            return new System.TimeSpan(0, Hours, Minutes, Seconds, Milliseconds);
         }
         set {
-            Hours = value.Hours;
+            if (value < System.TimeSpan.Zero) {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            Hours = checked(value.Days * 24 + value.Hours);
+            if (DateBasedTime && Hours > 24) {
+                Hours = 24;
+            }
             Minutes = value.Minutes;
             Seconds = value.Seconds;
             Milliseconds = value.Milliseconds;
+            UpdateHourSeparator();
+            UpdateDisplay();
         }
     }
 
@@ -101,6 +110,8 @@ public sealed class TimePicker : UserControl {
             Minutes = value.Minutes;
             Seconds = value.Seconds;
             Milliseconds = value.Milliseconds;
+            UpdateHourSeparator();
+            UpdateDisplay();
         }
     }
 
@@ -144,20 +155,31 @@ public sealed class TimePicker : UserControl {
         }
     }
     public void SetValue(int Hour, int Minute, int Second, int Millisecond) {
-        this.Hours = Hour >= 24 && DateBasedTime ? 24 : Hours < 0 ? 0 : Hours;
+        this.Hours = Hour >= 24 && DateBasedTime ? 24 : Hour < 0 ? 0 : Hour;
         this.Minutes = Minute >= 59 ? 59 : Minute < 0 ? 0 : Minute;
         this.Seconds = Second >= 59 ? 59 : Second < 0 ? 0 : Second;
         this.Milliseconds = Millisecond >= 999 ? 999 : Millisecond < 0 ? 0 : Millisecond;
+        UpdateHourSeparator();
         UpdateDisplay();
     }
     private void UpdateControl() {
         string[] Parts = TimeDisplay.Text.Trim().Split(":".ToCharArray());
+        if (Parts.Length != 3) {
+            SpecifyingNumbers = false;
+            UpdateDisplay();
+            return;
+        }
 
         this.Hours = !int.TryParse(Parts[0], out int ParseHours) || ParseHours < 0 ? 0 : ParseHours >= 25 && DateBasedTime ? 24 : ParseHours;
         this.Minutes = !int.TryParse(Parts[1], out int ParseMinutes) || ParseMinutes < 0 ? 0 : ParseMinutes >= 59 ? 59 : ParseMinutes;
 
         if (ShowMilliseconds) {
             string[] SecondParts = Parts[2].Split(".".ToCharArray());
+            if (SecondParts.Length != 2) {
+                SpecifyingNumbers = false;
+                UpdateDisplay();
+                return;
+            }
             this.Seconds = !int.TryParse(SecondParts[0], out int ParseSeconds) || ParseSeconds < 0 ? 0 : ParseSeconds >= 59 ? 59 : ParseSeconds;
             this.Milliseconds = !int.TryParse(SecondParts[1], out int ParseMilliseconds) || ParseMilliseconds < 0 ? 0 : ParseMilliseconds >= 999 ? 999 : ParseMilliseconds;
         }
@@ -231,8 +253,11 @@ public sealed class TimePicker : UserControl {
                         if (DateBasedTime && Hours >= 24) {
                             Hours = 0;
                         }
-                        else {
+                        else if (Hours < int.MaxValue) {
                             Hours++;
+                        }
+                        else {
+                            System.Media.SystemSounds.Exclamation.Play();
                         }
 
                         UpdateHourSeparator();
@@ -267,8 +292,11 @@ public sealed class TimePicker : UserControl {
                         if (DateBasedTime && Hours >= 24) {
                             Hours = 0;
                         }
-                        else {
+                        else if (Hours < int.MaxValue) {
                             Hours++;
+                        }
+                        else {
+                            System.Media.SystemSounds.Exclamation.Play();
                         }
 
                         UpdateHourSeparator();
@@ -711,10 +739,11 @@ public struct Time : IEquatable<Time> {
         }
 
         if (Milliseconds > 0) {
-            if (buf.Length > 0) {
-                buf.Append(".");
+            if (buf.Length == 0) {
+                buf.Append('0');
             }
-            buf.Append(Milliseconds.ToString());
+            buf.Append('.');
+            buf.Append(Milliseconds.ToString("D3", System.Globalization.CultureInfo.InvariantCulture));
         }
 
         return buf.ToString();
@@ -738,7 +767,8 @@ public struct TimeOffset : IEquatable<TimeOffset> {
     }
 
     public TimeOffset(Time StartingTime, Time EndingTime) {
-        if (EndingTime >= StartingTime) {
+        // Equal endpoints are permitted; reversed intervals are not.
+        if (EndingTime < StartingTime) {
             throw new ArgumentOutOfRangeException(nameof(EndingTime));
         }
         this.StartingTime = StartingTime;
@@ -748,5 +778,11 @@ public struct TimeOffset : IEquatable<TimeOffset> {
     public readonly bool HasStartingTime => StartingTime != Time.Empty;
     public readonly bool HasEndingTime => EndingTime != Time.Empty;
 
-    public readonly bool Equals(TimeOffset other) => throw new NotImplementedException();
+    public readonly bool Equals(TimeOffset other) =>
+        StartingTime == other.StartingTime && EndingTime == other.EndingTime;
+    public override readonly bool Equals(object? obj) => obj is TimeOffset other && Equals(other);
+    public override readonly int GetHashCode() =>
+        unchecked((StartingTime.GetHashCode() * 397) ^ EndingTime.GetHashCode());
+    public static bool operator ==(TimeOffset a, TimeOffset b) => a.Equals(b);
+    public static bool operator !=(TimeOffset a, TimeOffset b) => !a.Equals(b);
 }

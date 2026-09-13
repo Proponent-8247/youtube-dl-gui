@@ -131,6 +131,17 @@ public static class Language {
     }
     #endregion
 
+    private static string ValidateCompositeFormat(string Value, string Fallback, int ArgumentCount, string Key) {
+        try {
+            _ = string.Format(Value, new object[ArgumentCount]);
+            return Value;
+        }
+        catch (FormatException) {
+            System.Diagnostics.Trace.WriteLine($"Ignoring invalid composite format string for language key \"{Key}\".");
+            return Fallback;
+        }
+    }
+
     public static bool LoadLanguage(string LanguageFile = null) {
         try {
             if (string.IsNullOrWhiteSpace(LanguageFile)) {
@@ -138,6 +149,7 @@ public static class Language {
                 return true;
             }
             else {
+                LoadInternalEnglish();
                 if (!LanguageFile.EndsWith(".ini")) { LanguageFile += ".ini"; }
 
                 if (File.Exists(LanguageFile)) {
@@ -168,7 +180,7 @@ public static class Language {
                                     continue;
 
                                 case nameof(dlgUpdaterUpdatedVersionHashNoMatch):
-                                    dlgUpdaterUpdatedVersionHashNoMatch = ReadValue;
+                                    dlgUpdaterUpdatedVersionHashNoMatch = ValidateCompositeFormat(ReadValue, InternalEnglish.dlgUpdaterUpdatedVersionHashNoMatch, 2, nameof(dlgUpdaterUpdatedVersionHashNoMatch));
                                     continue;
                                 case nameof(dlgUpdaterHashNotGiven):
                                     dlgUpdaterHashNotGiven = ReadValue;
@@ -272,7 +284,10 @@ public static class Language {
             }
         }
         catch (Exception ex) {
-            Log.ReportLanguageException(ex, true);
+            if (Log.ReportLanguageException(ex, true) == System.Windows.Forms.DialogResult.Retry) {
+                return LoadLanguage(LanguageFile);
+            }
+            LoadInternalEnglish();
             return false;
         }
     }
@@ -294,17 +309,27 @@ public static class Language {
     /// <param name="Name">The output of the Name of the control to be named, as lowercase.</param>
     /// <param name="Value">The vlaue of the control.</param>
     private static void GetControlInfo(string Input, out string Name, out string Value) {
-        switch (Input.Split('=').Length) {
-            case -1: case 0: {
-                Name = null;
-                Value = null;
-            } return;
-
-            default: {
-                Input = Input.Contains("//") ? Input.Substring(0, Input.IndexOf("//")) : Input;
-                Name = Input.Split('=')[0].ToLower().Trim();
-                Value = Input.Substring(Input.IndexOf('=') + 1).Trim();
-            } break;
+        bool Quoted = false;
+        for (int i = 0; i + 1 < Input.Length; i++) {
+            if (Input[i] == '"') {
+                int Backslashes = 0;
+                for (int j = i - 1; j >= 0 && Input[j] == '\\'; j--) {
+                    Backslashes++;
+                }
+                if (Backslashes % 2 == 0) {
+                    Quoted = !Quoted;
+                }
+            }
+            if (!Quoted && Input[i] == '/' && Input[i + 1] == '/'
+            && (i == 0 || char.IsWhiteSpace(Input[i - 1]))) {
+                Input = Input[..i];
+                break;
+            }
         }
+
+        int Separator = Input.IndexOf('=');
+        Name = (Separator < 0 ? Input : Input[..Separator]).Trim();
+        Value = Separator < 0 ? string.Empty :
+            Input[(Separator + 1)..].Trim().Replace("\\n", "\n").Replace("\\r", "\r");
     }
 }

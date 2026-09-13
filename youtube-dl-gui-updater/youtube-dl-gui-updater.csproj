@@ -113,7 +113,7 @@
   </ItemGroup>
   <Import Project="..\Controls\Controls.projitems" Label="Shared" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>if $(ConfigurationName) == Release copy "$(TargetPath)" "$(SolutionDir)youtube-dl-gui\Resources"</PostBuildEvent>
-  </PropertyGroup>
+  <Target Name="CopyUpdaterToMainResources" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(MSBuildProjectDirectory)\..\youtube-dl-gui\Resources\youtube-dl-gui-updater.exe" />
+  </Target>
 </Project>

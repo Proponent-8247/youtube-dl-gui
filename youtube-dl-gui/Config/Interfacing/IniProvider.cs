@@ -19,7 +19,9 @@ internal static class IniProvider {
         return Value is not null;
     }
     private static string InternalWriteString(string Key, string Value, string? Section = null) {
-        NativeMethods.WritePrivateProfileString(Section ?? Language.ApplicationName, Key, Value, IniPath);
+        if (NativeMethods.WritePrivateProfileString(Section ?? Language.ApplicationName, Key, Value, IniPath) == 0) {
+            throw new System.IO.IOException($"Unable to write INI key {Key} to {IniPath}.");
+        }
         return Value;
     }
 
@@ -31,9 +33,10 @@ internal static class IniProvider {
     }
     public static bool Read(bool Value, bool Default, string? Section = null, [CallerArgumentExpression(nameof(Value))] string Key = null!) {
         if (InternalKeyExists(Key, out string? Data, Section ?? Language.ApplicationName)) {
-            return Data.ToLower() switch {
+            return Data.Trim().ToLowerInvariant() switch {
                 "true" or "on" or "1" => true,
-                _ => false
+                "false" or "off" or "0" => false,
+                _ => Default
             };
         }
 

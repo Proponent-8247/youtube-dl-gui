@@ -8,12 +8,51 @@ public partial class frmDownloadLanguage : LocalizedForm {
 
     public string? FileName { get; private set; }
 
-    public frmDownloadLanguage() {
-        InitializeComponent();
+    private static bool IsReservedWindowsFileName(string FileName) {
+        string Stem = System.IO.Path.GetFileNameWithoutExtension(FileName).TrimEnd(' ', '.');
+        if (Stem.Equals("CON", StringComparison.OrdinalIgnoreCase) ||
+            Stem.Equals("PRN", StringComparison.OrdinalIgnoreCase) ||
+            Stem.Equals("AUX", StringComparison.OrdinalIgnoreCase) ||
+            Stem.Equals("NUL", StringComparison.OrdinalIgnoreCase)) {
+            return true;
+        }
+
+        return Stem.Length == 4 &&
+            (Stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase) || Stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)) &&
+            Stem[3] >= '1' && Stem[3] <= '9';
+    }
+
+    private static bool TryGetLanguageOutputPath(string? FileName, out string Output) {
+        Output = string.Empty;
+        if (FileName.IsNullEmptyWhitespace() ||
+            !FileName!.EndsWith(".ini", StringComparison.OrdinalIgnoreCase) ||
+            FileName.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) >= 0 ||
+            FileName.IndexOf('\\') >= 0 || FileName.IndexOf('/') >= 0 ||
+            IsReservedWindowsFileName(FileName)) {
+            return false;
+        }
 
         try {
-            EnumeratedLanguages = Updater.GetAvailableLanguages()
-                .Where(x => !x.name.IsNullEmptyWhitespace() && !x.download_url.IsNullEmptyWhitespace())
+            string LanguageDirectory = System.IO.Path.GetFullPath(System.IO.Path.Combine(Environment.CurrentDirectory, "lang"));
+            string Candidate = System.IO.Path.GetFullPath(System.IO.Path.Combine(LanguageDirectory, FileName));
+            if (!string.Equals(System.IO.Path.GetDirectoryName(Candidate), LanguageDirectory, StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+            Output = Candidate;
+            return true;
+        }
+        catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is System.IO.PathTooLongException) {
+            return false;
+        }
+    }
+
+    public frmDownloadLanguage(GithubRepoContent[] AvailableLanguages) {
+        InitializeComponent();
+        LoadLanguage();
+
+        try {
+            EnumeratedLanguages = AvailableLanguages
+                .Where(x => !x.download_url.IsNullEmptyWhitespace() && TryGetLanguageOutputPath(x.name, out _))
                 .ToArray();
 
             if (EnumeratedLanguages.Length > 0) {
@@ -54,34 +93,53 @@ public partial class frmDownloadLanguage : LocalizedForm {
         }
     }
 
-    private void DownloadSelectedLanguageFile() {
+    private bool DownloadSelectedLanguageFile() {
         var lang = EnumeratedLanguages[lvAvailableLanguages.SelectedIndices[0]];
 
         Log.Write($"Downloading language file {lang.name}.");
-        if (!System.IO.Directory.Exists(Environment.CurrentDirectory + "\\lang")) {
-            System.IO.Directory.CreateDirectory(Environment.CurrentDirectory + "\\lang");
+        if (!TryGetLanguageOutputPath(lang.name, out string Output)) {
+            Log.Write($"Rejected unsafe language file name {lang.name}.");
+            return false;
+        }
+        string LanguageDirectory = System.IO.Path.GetDirectoryName(Output)!;
+        if (!System.IO.Directory.Exists(LanguageDirectory)) {
+            System.IO.Directory.CreateDirectory(LanguageDirectory);
         }
         string URL = lang.download_url!;
-        string Output = Environment.CurrentDirectory + "\\lang\\" + lang.name;
-        using frmGenericDownloadProgress Downloader = new(URL, Output);
-        if (Downloader.ShowDialog() == DialogResult.OK) {
-            Log.Write($"Finished downloading language file {lang.name}");
-            System.Media.SystemSounds.Asterisk.Play();
-            btnOk_Click(this, EventArgs.Empty);
+        if (lang.sha.IsNullEmptyWhitespace()) {
+            Log.Write($"Rejected language file {lang.name}: GitHub did not provide an object identity.");
+            Log.MessageBox(Language.dlgLanguageHashNoMatch, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            System.Media.SystemSounds.Hand.Play();
+            return false;
         }
-        else {
+        string StagedOutput = Output + ".download." + Guid.NewGuid().ToString("N") + ".tmp";
+        try {
+            using frmGenericDownloadProgress Downloader = new(URL, StagedOutput);
+            if (Downloader.ShowDialog() == DialogResult.OK) {
+                if (!Updater.CommitVerifiedGithubBlob(StagedOutput, Output, lang.sha!)) {
+                    Log.Write($"Rejected language file {lang.name}: downloaded content did not match GitHub object {lang.sha}.");
+                    Log.MessageBox(Language.dlgLanguageHashNoMatch, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    System.Media.SystemSounds.Hand.Play();
+                    return false;
+                }
+                Log.Write($"Finished downloading and verifying language file {lang.name}");
+                System.Media.SystemSounds.Asterisk.Play();
+                return true;
+            }
+
             Log.Write($"Could not download language file {lang.name}.");
             System.Media.SystemSounds.Hand.Play();
+            return false;
         }
-
-        // The SHA on github doesn't match what I can calculate here.
-        //if (Program.CalculateSha1Hash(Output).ToLower() != EnumeratedLanguages[listView1.SelectedIndices[0]].Sha.ToLower()) {
-        //    Log.MessageBox(Language.dlgLanguageHashNoMatch, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        //}
+        finally {
+            try { if (System.IO.File.Exists(StagedOutput)) System.IO.File.Delete(StagedOutput); } catch { }
+        }
     }
 
     private void btnDownloadSelected_Click(object sender, EventArgs e) {
-        DownloadSelectedLanguageFile();
+        if (DownloadSelectedLanguageFile()) {
+            SetSelectedLanguageResult();
+        }
     }
 
     private void btnCancel_Click(object sender, EventArgs e) {
@@ -89,17 +147,22 @@ public partial class frmDownloadLanguage : LocalizedForm {
     }
 
     private void btnOk_Click(object sender, EventArgs e) {
-        if (lvAvailableLanguages.SelectedIndices.Count > 0) {
-            DownloadSelectedLanguageFile();
-            FileName = EnumeratedLanguages[lvAvailableLanguages.SelectedIndices[0]].name!;
-            if (FileName.EndsWith(".ini")) {
-                FileName = FileName[..^4];
-            }
-            this.DialogResult = DialogResult.OK;
+        if (lvAvailableLanguages.SelectedIndices.Count > 0 && DownloadSelectedLanguageFile()) {
+            SetSelectedLanguageResult();
             return;
         }
-        FileName = null;
-        this.DialogResult = DialogResult.Cancel;
+        if (lvAvailableLanguages.SelectedIndices.Count < 1) {
+            FileName = null;
+            this.DialogResult = DialogResult.Cancel;
+        }
+    }
+
+    private void SetSelectedLanguageResult() {
+        FileName = EnumeratedLanguages[lvAvailableLanguages.SelectedIndices[0]].name!;
+        if (FileName.EndsWith(".ini")) {
+            FileName = FileName[..^4];
+        }
+        this.DialogResult = DialogResult.OK;
     }
 
     private void lvAvailableLanguages_SelectedIndexChanged(object sender, EventArgs e) {

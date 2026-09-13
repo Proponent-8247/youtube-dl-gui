@@ -21,17 +21,23 @@ internal static class Extensions {
         if (limit < 0)
             throw new ArgumentOutOfRangeException(nameof(limit));
         if (str is null)
-            throw new NullReferenceException(nameof(str));
-        if (joiner.IsNullEmptyWhitespace())
-            throw new NullReferenceException($"{nameof(joiner)} is null, empty, or whitespace.");
+            throw new ArgumentNullException(nameof(str));
+        if (joiner is null)
+            throw new ArgumentNullException(nameof(joiner));
 
-        StringBuilder Builder = new(limit);
+        StringBuilder Builder = new(Math.Min(limit, 1024));
         for (int i = 0; i < str.Length; i++) {
-            if (Builder.Length + str[i].Length <= limit)
-                Builder.Append(str[i]);
-            else break;
+            string Value = str[i] ?? string.Empty;
+            int SeparatorLength = i == 0 ? 0 : joiner.Length;
+            int Remaining = limit - Builder.Length;
+            if (SeparatorLength > Remaining || Value.Length > Remaining - SeparatorLength) {
+                break;
+            }
+            if (i > 0) {
+                Builder.Append(joiner);
+            }
+            Builder.Append(Value);
         }
-
         return Builder.ToString();
     }
     public static bool ForIf<T>(this T[] items, Func<T, bool> act) {

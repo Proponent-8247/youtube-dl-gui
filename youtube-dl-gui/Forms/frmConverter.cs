@@ -8,17 +8,62 @@ public partial class frmConverter : LocalizedProcessingForm {
 
     private Thread? ConverterThread;    // The thread of the process for youtube-dl.
     private Process? ConverterProcess;  // The process of youtube-dl which we'll redirect.
+    private volatile bool CancellationRequested;
     private bool AbortBatch;            // Determines if the rest of the batch downloads should be cancelled.
 
     public frmConverter(ConvertInfo Info) {
         InitializeComponent();
-        LoadLanguage();
         this.CurrentConversion = Info;
+        Disposed += (sender, args) => CancellationRequested = true;
+        LoadLanguage();
     }
+
+    private void TerminateConverterProcess() {
+        Process? process = ConverterProcess;
+        if (process is null) {
+            return;
+        }
+
+        if (process.StartInfo.RedirectStandardError) {
+            try {
+                process.CancelErrorRead();
+            }
+            catch (Exception ex) {
+                Log.Write($"Failed to cancel converter stderr read: {ex.Message}");
+            }
+        }
+        if (process.StartInfo.RedirectStandardOutput) {
+            try {
+                process.CancelOutputRead();
+            }
+            catch (Exception ex) {
+                Log.Write($"Failed to cancel converter stdout read: {ex.Message}");
+            }
+        }
+
+        try {
+            if (!process.HasExited) {
+                Program.KillProcessTree((uint)process.Id);
+                process.Kill();
+            }
+        }
+        catch (Exception ex) {
+            Log.Write($"Failed to terminate converter process: {ex.Message}");
+        }
+    }
+
     private void frmConverter_Shown(object sender, EventArgs e) {
         BeginConversion();
     }
     private void frmConverter_FormClosing(object sender, FormClosingEventArgs e) {
+        if (DeferCloseForWorkers(ConverterThread)) {
+            if (CurrentConversion.Status != ConversionStatus.Finished &&
+                CurrentConversion.Status != ConversionStatus.FfmpegError && CurrentConversion.Status != ConversionStatus.ProgramError) {
+                RequestCancellation();
+            }
+            e.Cancel = true;
+            return;
+        }
         DialogResult Finish = DialogResult.None;
         switch (CurrentConversion.Status) {
             case ConversionStatus.Aborted:
@@ -48,7 +93,8 @@ public partial class frmConverter : LocalizedProcessingForm {
                 break;
             default:
                 if (ConverterThread?.IsAlive == true) {
-                    ConverterThread.Abort();
+                    CurrentConversion.Status = ConversionStatus.Aborted;
+                    RequestCancellation();
                     e.Cancel = true;
                 }
                 break;
@@ -57,6 +103,8 @@ public partial class frmConverter : LocalizedProcessingForm {
             Converts.CloseAfterFinish = chkConverterCloseAfterConversion.Checked;
 
             this.DialogResult = Finish;
+            ConverterProcess?.Dispose();
+            ConverterProcess = null;
             this.Dispose();
         }
     }
@@ -92,17 +140,30 @@ public partial class frmConverter : LocalizedProcessingForm {
             case ConversionStatus.FfmpegError:
             case ConversionStatus.ProgramError: {
                 this.Text = Language.frmConverterError;
-                btnConverterAbortBatchConversions.Text = Language.GenericRetry;
+                btnConverterAbortBatchConversions.Text = CurrentConversion.BatchConversion ? Language.btnConverterAbortBatchConversions : Language.GenericRetry;
                 btnConverterCancelExit.Text = Language.GenericExit;
             } break;
         }
     }
 
+    private void RequestCancellation() {
+        CancellationRequested = true;
+        CurrentConversion.Status = ConversionStatus.Aborted;
+    }
+
     public void Abort() {
+        if (CancellationRequested && ConverterThread?.IsAlive == true) return;
         switch (CurrentConversion.Status) {
             case ConversionStatus.FfmpegError:
             case ConversionStatus.ProgramError:
             case ConversionStatus.Aborted:
+                if (CurrentConversion.BatchConversion) {
+                    AbortBatch = true;
+                    CurrentConversion.Status = ConversionStatus.Aborted;
+                    this.Close();
+                    break;
+                }
+
                 btnConverterAbortBatchConversions.Visible = false;
                 btnConverterAbortBatchConversions.Enabled = false;
                 this.Text = Language.frmConverter + " ";
@@ -121,12 +182,11 @@ public partial class frmConverter : LocalizedProcessingForm {
                         btnConverterAbortBatchConversions.Visible = false;
                         break;
                     default:
+                        CurrentConversion.Status = ConversionStatus.Aborted;
                         if (ConverterThread?.IsAlive == true) {
-                            ConverterThread.Abort();
+                            RequestCancellation();
                         }
                         rtbConsoleOutput.AppendLine("Additionally, the batch conversion has been cancelled.");
-                        CurrentConversion.Status = ConversionStatus.Aborted;
-                        this.Close();
                         break;
                 }
                 break;
@@ -134,17 +194,42 @@ public partial class frmConverter : LocalizedProcessingForm {
     }
 
     private void BeginConversion() {
-        if (CurrentConversion.InputFile.IsNullEmptyWhitespace()) {
+        if (WorkerClosePending || ConverterThread?.IsAlive == true) return;
+        CancellationRequested = false;
+        ConverterProcess?.Dispose();
+        ConverterProcess = null;
+        if (!CurrentConversion.FullCustomArguments && CurrentConversion.InputFile.IsNullEmptyWhitespace()) {
             rtbConsoleOutput.AppendText("The input file is null or empty. Cannot continue converting.");
             CurrentConversion.Status = ConversionStatus.ProgramError;
             Log.Write("Conversion cannot conintue.");
             return;
         }
-        if (CurrentConversion.OutputFile.IsNullEmptyWhitespace()) {
+        if (!CurrentConversion.FullCustomArguments && CurrentConversion.OutputFile.IsNullEmptyWhitespace()) {
             rtbConsoleOutput.AppendText("The output file is null or empty. Cannot continue converting.");
             CurrentConversion.Status = ConversionStatus.ProgramError;
             Log.Write("Conversion cannot conintue.");
             return;
+        }
+        if (!CurrentConversion.FullCustomArguments) {
+            string InputPath;
+            string OutputPath;
+            try {
+                InputPath = System.IO.Path.GetFullPath(CurrentConversion.InputFile);
+                OutputPath = System.IO.Path.GetFullPath(CurrentConversion.OutputFile!);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or System.IO.PathTooLongException or System.Security.SecurityException) {
+                rtbConsoleOutput.AppendText("The input or output path is invalid: " + ex.Message);
+                CurrentConversion.Status = ConversionStatus.ProgramError;
+                Log.Write("Conversion cannot continue because an input or output path is invalid.");
+                return;
+            }
+
+            if (string.Equals(InputPath, OutputPath, StringComparison.OrdinalIgnoreCase)) {
+                rtbConsoleOutput.AppendText("The output file cannot be the same as the input file.");
+                CurrentConversion.Status = ConversionStatus.ProgramError;
+                Log.Write("Conversion cannot overwrite its input file.");
+                return;
+            }
         }
 
         Log.Write($"Starting conversion for \"{CurrentConversion.InputFile}\" -> \"{CurrentConversion.OutputFile}\".");
@@ -163,7 +248,7 @@ public partial class frmConverter : LocalizedProcessingForm {
         CurrentConversion.Status = ConversionStatus.Preparing;
 
         ArgumentList ArgumentsBuffer = new(CurrentConversion.FullCustomArguments ?
-            CurrentConversion.CustomArguments : "-i \"" + CurrentConversion.InputFile + "\"");
+            CurrentConversion.CustomArguments : "-y -i \"" + CurrentConversion.InputFile + "\"");
 
         #region ffmpeg path
         if (!Verification.FfmpegAvailable) {
@@ -196,12 +281,12 @@ public partial class frmConverter : LocalizedProcessingForm {
                         ArgumentsBuffer.Add($"-crf {CurrentConversion.VideoCRF}");
                     }
 
-                    if (!CurrentConversion.OutputFile.EndsWith(".wmv") && CurrentConversion.VideoUseProfile) {
+                    if (!CurrentConversion.OutputFile.EndsWith(".wmv", StringComparison.OrdinalIgnoreCase) && CurrentConversion.VideoUseProfile) {
                         ArgumentsBuffer.Add($"-profile:v {ConvertHelper.GetVideoProfile(CurrentConversion.VideoProfile)}");
                     }
 
                     if (CurrentConversion.VideoFastStart) {
-                        ArgumentsBuffer.Add("-faststart");
+                        ArgumentsBuffer.Add("-movflags +faststart");
                     }
                     break;
 
@@ -241,6 +326,7 @@ public partial class frmConverter : LocalizedProcessingForm {
                 ConverterProcess = new Process() {
                     StartInfo = new(Verification.FFmpegPath) {
                         UseShellExecute = false,
+                        RedirectStandardInput = true,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         CreateNoWindow = true,
@@ -248,57 +334,86 @@ public partial class frmConverter : LocalizedProcessingForm {
                     },
                     EnableRaisingEvents = true
                 };
-                ConverterProcess.OutputDataReceived += (s, e) => {
-                    if (e.Data?.Length > 0) {
-                        rtbConsoleOutput.BeginInvoke(() => rtbConsoleOutput.AppendLine(e.Data));
+                using murrty.controls.BoundedProcessOutput Output = new(ConverterProcess);
+                using murrty.controls.ProcessOwnership Ownership = new(ConverterProcess);
+                Output.OutputDataReceived += (s, e) => {
+                    if (e.Data?.Length > 0 && !this.IsDisposed && this.IsHandleCreated) {
+                        try {
+                            rtbConsoleOutput.Invoke(() => rtbConsoleOutput.AppendLine(e.Data));
+                        }
+                        catch (InvalidOperationException) {
+                            // The form can close while asynchronous stdout is being marshalled to the UI.
+                        }
                     }
                 };
-                ConverterProcess.ErrorDataReceived += (s, e) => {
-                    if (e.Data?.Length > 0) {
-                        rtbConsoleOutput.BeginInvoke(() => rtbConsoleOutput.AppendLine($"Error: {e.Data}"));
+                Output.ErrorDataReceived += (s, e) => {
+                    if (e.Data?.Length > 0 && !this.IsDisposed && this.IsHandleCreated) {
+                        try {
+                            rtbConsoleOutput.Invoke(() => rtbConsoleOutput.AppendLine($"Error: {e.Data}"));
+                        }
+                        catch (InvalidOperationException) {
+                            // The form can close while asynchronous stderr is being marshalled to the UI.
+                        }
                     }
                 };
-                ConverterProcess.Exited += (s, e) => {
-                    if (ConverterProcess.ExitCode == 0) {
-                        CurrentConversion.Status = ConversionStatus.Finished;
-                    }
-                    else if (CurrentConversion.Status != ConversionStatus.Aborted) {
-                        CurrentConversion.Status = ConversionStatus.FfmpegError;
-                    }
-                };
-
-                if (CurrentConversion.Status != ConversionStatus.Aborted) {
+                if (!CancellationRequested && CurrentConversion.Status != ConversionStatus.Aborted) {
                     ConverterProcess.Start();
 
                     ArgumentsBuffer.Clear();
                     ArgumentsBuffer = null!;
 
-                    ConverterProcess.BeginOutputReadLine();
-                    ConverterProcess.BeginErrorReadLine();
+                    Ownership.Attach();
+                    ConverterProcess.StandardInput.Close();
+                    Output.Start();
+                    while (!ConverterProcess.WaitForExit(100)) {
+                        Output.ThrowIfFaulted();
+                        if (CancellationRequested) {
+                            Ownership.Dispose();
+                            break;
+                        }
+                    }
+                    Output.Drain(5000);
 
-                    while (!ConverterProcess.HasExited) {
-                        Thread.Sleep(1000);
+                    if (CancellationRequested) {
+                        CurrentConversion.Status = ConversionStatus.Aborted;
+                    }
+                    else if (ConverterProcess.ExitCode == 0) {
+                        CurrentConversion.Status = ConversionStatus.Finished;
+                    }
+                    else if (CurrentConversion.Status != ConversionStatus.Aborted) {
+                        CurrentConversion.Status = ConversionStatus.FfmpegError;
                     }
                 }
             }
             catch (ThreadAbortException) {
-                if (ConverterProcess is not null) {
-                    ConverterProcess.CancelErrorRead();
-                    ConverterProcess.CancelOutputRead();
-                    Program.KillProcessTree((uint)ConverterProcess.Id);
-                    ConverterProcess.Kill();
+                TerminateConverterProcess();
+                if (!this.IsDisposed && this.IsHandleCreated) {
+                    try {
+                        this.Invoke((Action)delegate {
+                            rtbConsoleOutput.AppendLine("Conversion was aborted by the user.");
+                        });
+                    }
+                    catch (InvalidOperationException) {
+                        // The form can close while the abort message is being marshalled to the UI.
+                    }
                 }
-                this.Invoke((Action)delegate {
-                    rtbConsoleOutput.AppendLine("Conversion was aborted by the user.");
-                });
             }
             catch (Exception ex) {
                 Log.ReportException(ex);
-                CurrentConversion.Status = ConversionStatus.ProgramError;
+                CurrentConversion.Status = CancellationRequested ? ConversionStatus.Aborted : ConversionStatus.ProgramError;
+                TerminateConverterProcess();
             }
             finally {
-                if ((this.IsHandleCreated && CurrentConversion.Status != ConversionStatus.Aborted) || CurrentConversion.BatchConversion) {
-                    this.BeginInvoke(() => ConversionFinished());
+                Thread CompletedWorker = Thread.CurrentThread;
+                if (!this.IsDisposed && this.IsHandleCreated) {
+                    try {
+                        this.BeginInvoke(() => {
+                            if (ReferenceEquals(ConverterThread, CompletedWorker)) ConversionFinished();
+                        });
+                    }
+                    catch (InvalidOperationException) {
+                        // The form can close between the handle check and BeginInvoke.
+                    }
                 }
             }
         });
@@ -309,6 +424,7 @@ public partial class frmConverter : LocalizedProcessingForm {
     }
 
     private void ConversionFinished() {
+        if (CancellationRequested) CurrentConversion.Status = ConversionStatus.Aborted;
         tmrTitleActivity.Stop();
         this.Text = this.Text.Trim('.');
         btnConverterCancelExit.Text = Language.GenericExit;
@@ -389,13 +505,15 @@ public partial class frmConverter : LocalizedProcessingForm {
         switch (CurrentConversion.Status) {
             case ConversionStatus.Finished:
             case ConversionStatus.FfmpegError:
+            case ConversionStatus.ProgramError:
             case ConversionStatus.Aborted:
                 this.Close();
                 break;
             default:
                 Log.Write("Aborting conversion finished.");
+                CurrentConversion.Status = ConversionStatus.Aborted;
                 if (ConverterThread?.IsAlive == true) {
-                    ConverterThread.Abort();
+                    RequestCancellation();
                 }
                 break;
         }

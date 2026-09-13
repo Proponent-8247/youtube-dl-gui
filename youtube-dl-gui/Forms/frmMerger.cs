@@ -4,23 +4,36 @@ using System.IO;
 using System.Windows.Forms;
 public partial class frmMerger : LocalizedForm {
     private List<FfprobeData> LoadedMediaFiles { get; } = [];
+    private bool AddingFiles;
+    private readonly System.Threading.CancellationTokenSource ProbeCancellation = new();
 
     public frmMerger() {
         InitializeComponent();
+        Disposed += (s, e) => {
+            ProbeCancellation.Cancel();
+            ProbeCancellation.Dispose();
+        };
         LoadLanguage();
 
         tvSelectedSources.HandleCreated += (s, e) => murrty.controls.natives.NativeMethods.SetWindowTheme(tvSelectedSources.Handle, "Explorer", null);
         tvSelectedStreams.HandleCreated += (s, e) => murrty.controls.natives.NativeMethods.SetWindowTheme(tvSelectedStreams.Handle, "Explorer", null);
     }
     private void frmMerger_DragEnter(object sender, DragEventArgs e) {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop)) {
-            string[] Files = (string[])e.Data.GetData(DataFormats.FileDrop);
+        if (e.Data.GetDataPresent(DataFormats.FileDrop)
+        && e.Data.GetData(DataFormats.FileDrop) is string[] Files
+        && Files.Length > 0) {
             e.Effect = File.Exists(Files[0]) ? DragDropEffects.Copy : DragDropEffects.None;
+            return;
         }
+        e.Effect = DragDropEffects.None;
     }
-    private void frmMerger_DragDrop(object sender, DragEventArgs e) {
-        string[] Files = (string[])e.Data.GetData(DataFormats.FileDrop);
-        AddFiles(Files);
+    private async void frmMerger_DragDrop(object sender, DragEventArgs e) {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)
+        || e.Data.GetData(DataFormats.FileDrop) is not string[] Files
+        || Files.Length == 0) {
+            return;
+        }
+        await AddFilesAsync(Files);
     }
 
     public override void LoadLanguage() {
@@ -51,10 +64,14 @@ public partial class frmMerger : LocalizedForm {
             if (RootNode.Nodes.Count > 0) {
                 for (int i = 0; i < RootNode.Nodes.Count; i++) {
                     CurrentFile = (FfprobeNodeTag)RootNode.Nodes[i].Tag;
-                    FileIndex = Files.IndexOf(CurrentFile.ParentFile.Format!.filename!);
+                    string InputPath = CurrentFile.ParentFile.FilePath;
+                    if (InputPath.IsNullEmptyWhitespace()) {
+                        continue;
+                    }
+                    FileIndex = Files.IndexOf(InputPath);
                     if (FileIndex == -1) {
-                        Files.Add(CurrentFile.ParentFile.Format!.filename!);
-                        InputArgument.Append("-i \"").Append(CurrentFile.ParentFile.Format.filename).Append("\" ");
+                        Files.Add(InputPath);
+                        InputArgument.Append("-i \"").Append(InputPath).Append("\" ");
                         FileIndex = Files.Count - 1;
                     }
                     MapArgument.Append("-map ").Append(FileIndex).Append(':').Append(CurrentFile.Stream.index).Append(' ');
@@ -64,12 +81,18 @@ public partial class frmMerger : LocalizedForm {
 
         return Files.Count > 0 ? $"{InputArgument}{MapArgument.ToString().Trim()}" : null;
     }
-    private bool AddFile(string FilePath) {
+    private async System.Threading.Tasks.Task<bool> AddFileAsync(string FilePath) {
         string? ffdata = string.Empty;
         try {
-            FfprobeData? NewData = FfprobeData.GenerateData(FilePath, out ffdata);
+            (FfprobeData? Data, string? Output) ProbeResult = await System.Threading.Tasks.Task.Run(() => {
+                FfprobeData? Data = FfprobeData.GenerateData(FilePath, ProbeCancellation.Token, out string? Output);
+                return (Data, Output);
+            });
+            FfprobeData? NewData = ProbeResult.Data;
+            ffdata = ProbeResult.Output;
 
-            if (NewData is null || NewData.MediaStreams is null || NewData.MediaStreams.Length < 1) {
+            if (this.IsDisposed || !this.IsHandleCreated
+            || NewData is null || NewData.MediaStreams is null || NewData.MediaStreams.Length < 1) {
                 return false;
             }
 
@@ -91,21 +114,39 @@ public partial class frmMerger : LocalizedForm {
             return true;
         }
         catch (Exception ex) {
-            Log.ReportException(ex, ffdata);
+            if (!this.IsDisposed) {
+                Log.ReportException(ex, ffdata);
+            }
         }
         return false;
     }
-    private void AddFiles(string[] Files) {
-        int Failures = 0;
-        for (int i = 0; i < Files.Length; i++) {
-            if (!AddFile(Files[i]))
-                Failures++;
+    private async System.Threading.Tasks.Task AddFilesAsync(string[] Files) {
+        if (AddingFiles) {
+            return;
         }
-        if (Failures > 0)
-            System.Media.SystemSounds.Exclamation.Play();
+
+        AddingFiles = true;
+        btnAddFiles.Enabled = false;
+        try {
+            int Failures = 0;
+            for (int i = 0; i < Files.Length && !this.IsDisposed; i++) {
+                if (!await AddFileAsync(Files[i])) {
+                    Failures++;
+                }
+            }
+            if (Failures > 0 && !this.IsDisposed) {
+                System.Media.SystemSounds.Exclamation.Play();
+            }
+        }
+        finally {
+            AddingFiles = false;
+            if (!this.IsDisposed && this.IsHandleCreated) {
+                btnAddFiles.Enabled = true;
+            }
+        }
     }
 
-    private void btnAddFiles_Click(object sender, EventArgs e) {
+    private async void btnAddFiles_Click(object sender, EventArgs e) {
         using OpenFileDialog ofd = new() {
             Title = "Select media sources to add to the merge",
             Multiselect = true
@@ -114,7 +155,7 @@ public partial class frmMerger : LocalizedForm {
         if (ofd.ShowDialog() != DialogResult.OK)
             return;
 
-        AddFiles(ofd.FileNames);
+        await AddFilesAsync(ofd.FileNames);
     }
     private void btnRemoveFiles_Click(object sender, EventArgs e) {
         if (lbFileSources.SelectedItems.Count > 0) {
@@ -146,7 +187,15 @@ public partial class frmMerger : LocalizedForm {
         using SaveFileDialog sfd = new();
         sfd.Title = "Select a place to save the merged file to";
         if (sfd.ShowDialog() == DialogResult.OK) {
-            ConvertInfo MergerInfo = new(Argument + $" \"{sfd.FileName}\"");
+            string OutputPath = Path.GetFullPath(sfd.FileName);
+            if (LoadedMediaFiles.Any(Media =>
+                !Media.FilePath.IsNullEmptyWhitespace()
+                && string.Equals(Path.GetFullPath(Media.FilePath), OutputPath, StringComparison.OrdinalIgnoreCase))) {
+                Log.MessageBox("The merge output cannot overwrite one of its input files.");
+                return;
+            }
+
+            ConvertInfo MergerInfo = new("-y " + Argument + $" \"{sfd.FileName}\"");
             frmConverter Merger = new(MergerInfo);
             Merger.Show();
         }
@@ -185,6 +234,8 @@ public partial class frmMerger : LocalizedForm {
                         tvSelectedSources.Nodes[3].Nodes.Add(Streams[i].Node);
                     } break;
 
+                    case "attachments":
+                    case "attachment":
                     case "attatchments":
                     case "attatchment": {
                         tvSelectedSources.Nodes[4].Nodes.Add(Streams[i].Node);
@@ -206,25 +257,37 @@ public partial class frmMerger : LocalizedForm {
         if (e.Node.Parent is null) {
             if (tvSelectedSources.Nodes[1].Nodes.Count > 0) {
                 for (int i = 0; i < tvSelectedSources.Nodes[1].Nodes.Count; i++) {
-                    tvSelectedStreams.Nodes[0].Nodes.Add(((FfprobeNodeTag)tvSelectedSources.Nodes[1].Nodes[i].Tag).Stream.QueuedNode);
+                    TreeNode? QueuedNode = ((FfprobeNodeTag)tvSelectedSources.Nodes[1].Nodes[i].Tag).Stream.QueuedNode;
+                    if (QueuedNode is not null && !tvSelectedStreams.Nodes[0].Nodes.Contains(QueuedNode)) {
+                        tvSelectedStreams.Nodes[0].Nodes.Add(QueuedNode);
+                    }
                 }
             }
 
             if (tvSelectedSources.Nodes[2].Nodes.Count > 0) {
                 for (int i = 0; i < tvSelectedSources.Nodes[2].Nodes.Count; i++) {
-                    tvSelectedStreams.Nodes[1].Nodes.Add(((FfprobeNodeTag)tvSelectedSources.Nodes[2].Nodes[i].Tag).Stream.QueuedNode);
+                    TreeNode? QueuedNode = ((FfprobeNodeTag)tvSelectedSources.Nodes[2].Nodes[i].Tag).Stream.QueuedNode;
+                    if (QueuedNode is not null && !tvSelectedStreams.Nodes[1].Nodes.Contains(QueuedNode)) {
+                        tvSelectedStreams.Nodes[1].Nodes.Add(QueuedNode);
+                    }
                 }
             }
 
             if (tvSelectedSources.Nodes[3].Nodes.Count > 0) {
                 for (int i = 0; i < tvSelectedSources.Nodes[3].Nodes.Count; i++) {
-                    tvSelectedStreams.Nodes[2].Nodes.Add(((FfprobeNodeTag)tvSelectedSources.Nodes[3].Nodes[i].Tag).Stream.QueuedNode);
+                    TreeNode? QueuedNode = ((FfprobeNodeTag)tvSelectedSources.Nodes[3].Nodes[i].Tag).Stream.QueuedNode;
+                    if (QueuedNode is not null && !tvSelectedStreams.Nodes[2].Nodes.Contains(QueuedNode)) {
+                        tvSelectedStreams.Nodes[2].Nodes.Add(QueuedNode);
+                    }
                 }
             }
 
             if (tvSelectedSources.Nodes[4].Nodes.Count > 0) {
                 for (int i = 0; i < tvSelectedSources.Nodes[4].Nodes.Count; i++) {
-                    tvSelectedStreams.Nodes[3].Nodes.Add(((FfprobeNodeTag)tvSelectedSources.Nodes[4].Nodes[i].Tag).Stream.QueuedNode);
+                    TreeNode? QueuedNode = ((FfprobeNodeTag)tvSelectedSources.Nodes[4].Nodes[i].Tag).Stream.QueuedNode;
+                    if (QueuedNode is not null && !tvSelectedStreams.Nodes[3].Nodes.Contains(QueuedNode)) {
+                        tvSelectedStreams.Nodes[3].Nodes.Add(QueuedNode);
+                    }
                 }
             }
 
@@ -246,6 +309,8 @@ public partial class frmMerger : LocalizedForm {
         //    ((FfprobeNodeTag)tvSelectedSources.SelectedNode.Tag).Stream.QueuedNode);
     }
     private void tvSelectedStreams_NodeMouseDoubleClick(object sender, TreeNodeMouseClickEventArgs e) {
-        tvSelectedStreams.SelectedNode.Remove();
+        if (e.Node.Parent is not null) {
+            e.Node.Remove();
+        }
     }
 }

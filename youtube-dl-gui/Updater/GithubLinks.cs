@@ -32,6 +32,20 @@ internal static class GithubLinks {
     /// </summary>
     public const string GithubAllReleasesJson   = "https://api.github.com/repos/{0}/{1}/releases";
 
+    public const string ApplicationUpdateUser = "Proponent-8247";
+    public const string ApplicationUpdateRepo = "youtube-dl-gui";
+    public const string ApplicationRepositoryUrl = "https://github.com/Proponent-8247/youtube-dl-gui";
+    public const string ApplicationReleasesUrl = ApplicationRepositoryUrl + "/releases";
+    public const string ApplicationIssuesUrl = ApplicationRepositoryUrl + "/issues";
+    public const string ApplicationProtocolDocumentationUrl = ApplicationRepositoryUrl + "/blob/master/ARGUMENTS.md#protocol-support";
+    public const string ApplicationLanguagesApiUrl = "https://api.github.com/repos/Proponent-8247/youtube-dl-gui/contents/Languages";
+
+    // Always enumerate releases for application update checks. Unlike /releases/latest,
+    // the collection endpoint has a valid empty/prerelease-only representation, which
+    // lets the client handle a new fork before its first stable release exists.
+    public static string GetApplicationReleaseMetadataUrl(bool IncludePreReleases) =>
+        GithubAllReleasesJson.Format(ApplicationUpdateUser, ApplicationUpdateRepo);
+
     /// <summary>
     /// A download URL to a piece of github content.
     /// Format with the following args:

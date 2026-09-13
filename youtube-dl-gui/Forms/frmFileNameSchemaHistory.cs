@@ -36,6 +36,10 @@ public partial class frmFileNameSchemaHistory : LocalizedForm {
         }
     }
     private void btnAdd_Click(object sender, EventArgs e) {
+        if (txtSchema.Text.Contains('|')) {
+            System.Media.SystemSounds.Exclamation.Play();
+            return;
+        }
         if (!listHistory.Items.Contains(txtSchema.Text))
             listHistory.Items.Add(txtSchema.Text);
     }
@@ -46,6 +50,10 @@ public partial class frmFileNameSchemaHistory : LocalizedForm {
         }
     }
     private void btnUpdate_Click(object sender, EventArgs e) {
+        if (txtSchema.Text.Contains('|')) {
+            System.Media.SystemSounds.Exclamation.Play();
+            return;
+        }
         if (listHistory.SelectedIndex > -1)
             listHistory.Items[listHistory.SelectedIndex] = txtSchema.Text;
     }

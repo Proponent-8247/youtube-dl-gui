@@ -8,6 +8,15 @@ using System.Runtime.Serialization;
 /// </summary>
 [DataContract]
 public readonly struct GithubAsset(string Content, long Length) {
+    [DataMember(Name = "name")]
+    public string? Name { get; init; }
+
+    [DataMember(Name = "browser_download_url")]
+    public string? DownloadUrl { get; init; }
+
+    [DataMember(Name = "digest")]
+    public string? Digest { get; init; }
+
     /// <summary>
     /// Gets the content type.
     /// </summary>

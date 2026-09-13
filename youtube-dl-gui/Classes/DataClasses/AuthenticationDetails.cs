@@ -82,11 +82,15 @@ public class AuthenticationDetails {
     /// <param name="password">The password that will be encrypted.</param>
     public void SetPassword(string password) {
         byte[] passBytes = Encoding.UTF8.GetBytes(password);
-        Password = ProtectedData.Protect(
-            userData: passBytes,
-            optionalEntropy: null,
-            scope: DataProtectionScope.CurrentUser);
-        Array.Clear(passBytes, 0, passBytes.Length);
+        try {
+            Password = ProtectedData.Protect(
+                userData: passBytes,
+                optionalEntropy: null,
+                scope: DataProtectionScope.CurrentUser);
+        }
+        finally {
+            Array.Clear(passBytes, 0, passBytes.Length);
+        }
     }
 
     /// <summary>
@@ -95,11 +99,15 @@ public class AuthenticationDetails {
     /// <param name="password">The password that will be encrypted.</param>
     public void SetMediaPassword(string password) {
         byte[] passBytes = Encoding.UTF8.GetBytes(password);
-        MediaPassword = ProtectedData.Protect(
-            userData: passBytes,
-            optionalEntropy: null,
-            scope: DataProtectionScope.CurrentUser);
-        Array.Clear(passBytes, 0, passBytes.Length);
+        try {
+            MediaPassword = ProtectedData.Protect(
+                userData: passBytes,
+                optionalEntropy: null,
+                scope: DataProtectionScope.CurrentUser);
+        }
+        finally {
+            Array.Clear(passBytes, 0, passBytes.Length);
+        }
     }
 
     /// <summary>
@@ -108,10 +116,16 @@ public class AuthenticationDetails {
     /// <returns>A decrypted string if there is a password set; otherwise, an empty string.</returns>
     public string GetPassword() {
         if (Password?.Length > 0) {
-            return Encoding.UTF8.GetString(ProtectedData.Unprotect(
+            byte[] passBytes = ProtectedData.Unprotect(
                 encryptedData: Password,
                 optionalEntropy: null,
-                scope: DataProtectionScope.CurrentUser));
+                scope: DataProtectionScope.CurrentUser);
+            try {
+                return Encoding.UTF8.GetString(passBytes);
+            }
+            finally {
+                Array.Clear(passBytes, 0, passBytes.Length);
+            }
         }
         return string.Empty;
     }
@@ -122,10 +136,16 @@ public class AuthenticationDetails {
     /// <returns>A decrypted string if there is a password set; otherwise, an empty string.</returns>
     public string GetMediaPassword() {
         if (MediaPassword?.Length > 0) {
-            return Encoding.UTF8.GetString(ProtectedData.Unprotect(
+            byte[] passBytes = ProtectedData.Unprotect(
                 encryptedData: MediaPassword,
                 optionalEntropy: null,
-                scope: DataProtectionScope.CurrentUser));
+                scope: DataProtectionScope.CurrentUser);
+            try {
+                return Encoding.UTF8.GetString(passBytes);
+            }
+            finally {
+                Array.Clear(passBytes, 0, passBytes.Length);
+            }
 
             //nint Address = Marshal.SecureStringToBSTR(MediaPassword);
             //return Marshal.PtrToStringBSTR(Address);

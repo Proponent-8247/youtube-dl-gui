@@ -7,6 +7,7 @@ public partial class MessageHandler : Form {
     public bool AcceptMessages { get; private set;} = false;
     public bool AwaitingExit { get; private set; } = false;
     private bool CanUpdate { get; set; } = false;
+    private nint ExpectedUpdaterWindow { get; set; } = 0;
 
     public MessageHandler() {
         this.AutoScaleMode = AutoScaleMode.Font;
@@ -37,11 +38,32 @@ public partial class MessageHandler : Form {
     }
 
     public void CheckExit() {
-        if (!AwaitingExit || Program.RunningActions.Count > 0)
+        if (this.IsDisposed) {
+            return;
+        }
+        if (this.InvokeRequired) {
+            try {
+                this.BeginInvoke((Action)CheckExit);
+            }
+            catch (InvalidOperationException) { }
+            return;
+        }
+        if (!AwaitingExit || Program.HasRunningActions)
             return;
         AcceptMessages = false;
         AwaitingExit = false;
         this.Dispose();
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(nint WindowHandle, out uint ProcessId);
+
+    private static bool IsExpectedUpdaterWindow(nint WindowHandle) {
+        if (WindowHandle == 0 || GetWindowThreadProcessId(WindowHandle, out uint ProcessId) == 0
+        || ProcessId == 0 || ProcessId > int.MaxValue) {
+            return false;
+        }
+        return Updater.IsExpectedUpdaterProcess((int)ProcessId);
     }
 
     [DebuggerStepThrough]
@@ -70,8 +92,8 @@ public partial class MessageHandler : Form {
                 if (Program.MainForm is not null) {
                     Program.MainForm.Activate();
                 }
-                else if (Program.RunningActions.Count > 0) {
-                    Program.RunningActions[0].Show();
+                else if (Program.RunningActions.TryPeek(out Form RunningForm)) {
+                    RunningForm.Show();
                 }
                 m.Result = IntPtr.Zero;
             } break;
@@ -79,9 +101,15 @@ public partial class MessageHandler : Form {
             // WM_UPDATEDATAREQUEST is a custom message.
             // Only allowed when the updater is launched from youtube-dl-gui.
             case CopyData.WM_UPDATEDATAREQUEST: {
+                if (!IsExpectedUpdaterWindow(m.WParam)) {
+                    m.Result = IntPtr.Zero;
+                    break;
+                }
                 if (Updater.LastChecked is null) {
+                    Updater.ClearExpectedUpdaterProcess();
                     Log.MessageBox("LastChecked is null.");
-                    return;
+                    m.Result = IntPtr.Zero;
+                    break;
                 }
                 UpdateData Data = new() {
                     FileName = AppDomain.CurrentDomain.FriendlyName,
@@ -91,26 +119,49 @@ public partial class MessageHandler : Form {
                 CopyDataStruct DataStruct = new();
                 nint CopyDataBuffer = 0;
                 nint DataBuffer = 0;
+                ExpectedUpdaterWindow = m.WParam;
                 try {
                     DataBuffer = CopyData.NintAlloc(Data);
                     DataStruct.cbData = Marshal.SizeOf(Data);
                     DataStruct.dwData = 1;
                     DataStruct.lpData = DataBuffer;
                     CopyDataBuffer = CopyData.NintAlloc(DataStruct);
-                    CopyData.SendMessage(m.WParam, CopyData.WM_COPYDATA, Handle, CopyDataBuffer);
+#if DEBUG
+                    if (Program.AuditUpdaterIpcMode) {
+                        CopyDataStruct Malformed = DataStruct;
+                        Malformed.cbData = Math.Max(1, DataStruct.cbData - 1);
+                        nint MalformedBuffer = CopyData.NintAlloc(Malformed);
+                        try {
+                            CopyData.SendMessage(m.WParam, CopyData.WM_COPYDATA, Handle, MalformedBuffer);
+                            Program.WriteAuditUpdaterIpcResult("malformed-sent=1");
+                        }
+                        finally { CopyData.NintFree(ref MalformedBuffer); }
+                    }
+#endif
+                    // SendMessage is synchronous: the updater can acknowledge inside this call.
                     CanUpdate = true;
+                    CopyData.SendMessage(m.WParam, CopyData.WM_COPYDATA, Handle, CopyDataBuffer);
                 }
                 finally {
+                    CanUpdate = false;
+                    ExpectedUpdaterWindow = 0;
+                    Updater.ClearExpectedUpdaterProcess();
                     CopyData.NintFree(ref CopyDataBuffer);
                     CopyData.NintFree(ref DataBuffer);
                 }
+                m.Result = IntPtr.Zero;
             } break;
 
             // WM_UPDATERREADY is a custom message.
             // Only ran when WM_UPDATEDATAREQUEST has been called at least once.
             // Other cases, this is not a valid request.
-            case CopyData.WM_UPDATERREADY when CanUpdate: {
-                Program.KillForUpdate();
+            case CopyData.WM_UPDATERREADY: {
+                if (CanUpdate && m.WParam == ExpectedUpdaterWindow) {
+                    CanUpdate = false;
+                    Updater.ClearExpectedUpdaterProcess();
+                    Program.KillForUpdate();
+                }
+                m.Result = IntPtr.Zero;
             } break;
 
             default: {

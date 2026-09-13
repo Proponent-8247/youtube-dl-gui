@@ -2,6 +2,7 @@
 #define ALLOWUNHANDLEDCATCHING
 namespace murrty.logging;
 using System.Diagnostics;
+using System.IO;
 using System.Diagnostics.CodeAnalysis;
 using System.Management;
 using System.Threading;
@@ -17,6 +18,11 @@ internal static class Log {
     /// The log form that is used globally to log data.
     /// </summary>
     private static volatile frmLog? LogForm;
+    private static readonly object SessionHistorySync = new();
+    private static readonly string SessionHistoryFilePath = Path.Combine(
+        Path.GetTempPath(), $"youtube-dl-gui-session-{Process.GetCurrentProcess().Id}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}.log");
+
+    internal static string SessionHistoryPath => SessionHistoryFilePath;
 
     /// <summary>
     /// Gets the computer versioning information, such as the running operating system, language, etc.
@@ -59,6 +65,15 @@ internal static class Log {
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
 #endif
 
+            InitializeSessionHistory();
+            murrty.controls.BoundedProcessOutput.RawHistorySink = WriteRawProviderHistory;
+            AppDomain.CurrentDomain.ProcessExit += (sender, args) => {
+                lock (SessionHistorySync) {
+                    try { File.Delete(SessionHistoryFilePath); }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+            };
             EnableLogging();
 
 #if RELEASE || ALLOWUNHANDLEDCATCHING
@@ -96,7 +111,8 @@ internal static class Log {
 
         // Build up a string containing relevant information about the computer.
         Write("Creating ComputerVersionInformation for exceptions.");
-        ManagementObjectSearcher MgtSearcher = new("SELECT * FROM Win32_OperatingSystem");
+        try {
+            ManagementObjectSearcher MgtSearcher = new("SELECT * FROM Win32_OperatingSystem");
         ManagementObject? MgtInfo = MgtSearcher?.Get().Cast<ManagementObject>().FirstOrDefault();
 
         ComputerVersionInformation = $$"""
@@ -108,6 +124,10 @@ internal static class Log {
             Service Pack Major: {{MgtInfo.Properties["ServicePackMajorVersion"].Value ?? "couldn't query"}}
             Service Pack Minor: {{MgtInfo.Properties["ServicePackMinorVersion"].Value ?? "couldn't query"}}
             """);
+        }
+        catch (Exception ex) {
+            ComputerVersionInformation = $"Current Version: {Program.CurrentVersion}\nCurrent Culture: {Thread.CurrentThread.CurrentCulture.EnglishName}\nOS information unavailable: {ex.GetType().Name}: {ex.Message}";
+        }
     }
 
     /// <summary>
@@ -134,9 +154,11 @@ internal static class Log {
     //[DebuggerStepThrough]
     public static void DisableLogging() {
         if (LogFormEnabled) {
-            if (LogForm?.IsDisposed == false && (LogForm.WindowState == FormWindowState.Minimized || LogForm.WindowState == FormWindowState.Maximized)) {
-                LogForm.Opacity = 0;
-                LogForm.WindowState = FormWindowState.Normal;
+            if (LogForm?.IsDisposed == false) {
+                if (LogForm.WindowState == FormWindowState.Minimized || LogForm.WindowState == FormWindowState.Maximized) {
+                    LogForm.Opacity = 0;
+                    LogForm.WindowState = FormWindowState.Normal;
+                }
 
                 Saved.LogLocation = LogForm.Location;
                 Saved.LogSize = LogForm.Size;
@@ -168,12 +190,118 @@ internal static class Log {
         }
     }
 
+    internal const string RawProviderDiagnosticWarning =
+        "WARNING: Raw provider diagnostics below are not redacted and may contain URLs, cookies, tokens, or credentials. Review them before sharing.";
+
+    private static void InitializeSessionHistory() {
+        lock (SessionHistorySync) {
+            try {
+                File.WriteAllText(SessionHistoryFilePath,
+                    $"youtube-dl-gui session history started {DateTime.Now:O}{Environment.NewLine}{RawProviderDiagnosticWarning}{Environment.NewLine}",
+                    new UTF8Encoding(false));
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    internal static void WriteSessionHistory(string Channel, string Message) {
+        if (Message is null) return;
+        lock (SessionHistorySync) {
+            try {
+                File.AppendAllText(SessionHistoryFilePath,
+                    $"[{DateTime.Now:yyyy/MM/dd HH:mm:ss.fff}] [{Channel}] {Message}{Environment.NewLine}",
+                    new UTF8Encoding(false));
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    internal static void WriteRawProviderHistory(bool StandardOutput, string Data) {
+        if (string.IsNullOrEmpty(Data)) return;
+        WriteSessionHistory(StandardOutput ? "RAW-PROVIDER-STDOUT" : "RAW-PROVIDER-STDERR", Data);
+    }
+
+    internal static void WriteQueueHistory(string Action, string Value) {
+        WriteSessionHistory("QUEUE", $"{Action}: {RedactDiagnosticValue(Value ?? string.Empty)}");
+    }
+
+    internal static bool ExportSessionHistory(string DestinationPath) {
+        if (DestinationPath.IsNullEmptyWhitespace()) return false;
+        lock (SessionHistorySync) {
+            try {
+                string Source = Path.GetFullPath(SessionHistoryFilePath);
+                string Destination = Path.GetFullPath(DestinationPath);
+                if (Source.Equals(Destination, StringComparison.OrdinalIgnoreCase)) return true;
+                File.Copy(Source, Destination, true);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Security.SecurityException) {
+                return false;
+            }
+        }
+    }
+
+    internal static string RedactDiagnosticValue(string Value) {
+        if (string.IsNullOrWhiteSpace(Value)
+        || !Uri.TryCreate(Value, UriKind.Absolute, out Uri Parsed)
+        || (Parsed.Scheme != Uri.UriSchemeHttp && Parsed.Scheme != Uri.UriSchemeHttps)) {
+            return Value;
+        }
+
+        StringBuilder Result = new();
+        Result.Append(Parsed.Scheme).Append("://");
+        if (Parsed.HostNameType == UriHostNameType.IPv6) Result.Append('[').Append(Parsed.Host).Append(']');
+        else Result.Append(Parsed.Host);
+        if (!Parsed.IsDefaultPort) Result.Append(':').Append(Parsed.Port);
+        Result.Append(Parsed.AbsolutePath);
+
+        string Query = Parsed.Query.TrimStart('?');
+        if (Query.Length > 0) {
+            Result.Append('?');
+            string[] Parts = Query.Split('&');
+            for (int i = 0; i < Parts.Length; i++) {
+                if (i > 0) Result.Append('&');
+                string Part = Parts[i];
+                int EqualsIndex = Part.IndexOf('=');
+                string EncodedKey = EqualsIndex >= 0 ? Part[..EqualsIndex] : Part;
+                string Key;
+                try { Key = Uri.UnescapeDataString(EncodedKey.Replace("+", " ")); }
+                catch (UriFormatException) { Key = EncodedKey; }
+                if (IsSensitiveDiagnosticKey(Key)) {
+                    Result.Append(EncodedKey).Append("=[REDACTED]");
+                }
+                else {
+                    Result.Append(Part);
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(Parsed.Fragment)) Result.Append("#[REDACTED]");
+        if (!string.IsNullOrEmpty(Parsed.UserInfo)) Result.Append(" [authority-credentials=[REDACTED]]");
+        return Result.ToString();
+    }
+
+    private static bool IsSensitiveDiagnosticKey(string Key) {
+        string Normalized = new(Key.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+        return Normalized is "token" or "accesstoken" or "refreshtoken"
+            or "apikey" or "key" or "auth" or "authorization"
+            or "sig" or "signature" or "password" or "passwd"
+            or "pass" or "secret" or "session" or "sessionid"
+            or "cookie" or "credential" or "credentials"
+            || Normalized.EndsWith("token", StringComparison.Ordinal)
+            || Normalized.EndsWith("secret", StringComparison.Ordinal)
+            || Normalized.EndsWith("signature", StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Writes a message to the log.
     /// </summary>
     /// <param name="message">The message to be sent to the log.</param>
     //[DebuggerStepThrough]
     public static void Write(string message) {
+        WriteSessionHistory("LOG", message);
         Debug.Print(message);
         if (LogFormUsable) {
             LogForm.Append(message);
@@ -186,6 +314,7 @@ internal static class Log {
     /// <param name="message">The message to be sent to the log.</param>
     [DebuggerStepThrough]
     public static void WriteNoDate(string message) {
+        WriteSessionHistory("LOG", message);
         Debug.Print(message);
         if (LogFormUsable) {
             LogForm.AppendNoDate(message);
@@ -198,6 +327,7 @@ internal static class Log {
     /// <param name="message">The message to be sent to the console.</param>
     [DebuggerStepThrough]
     public static void WriteToConsole(string message) {
+        WriteSessionHistory("CONSOLE", message);
         Console.WriteLine(message);
     }
     #endregion
@@ -317,7 +447,7 @@ internal static class Log {
             CustomDescription = null,
             ExceptionTime = ExceptionTime,
             ExtraMessage = null,
-            FromLanguage = false,
+            FromLanguage = true,
             SkipDwmComposition = false,
             ExceptionType = ExceptionType.Caught
         };
@@ -343,7 +473,7 @@ internal static class Log {
             CustomDescription = null,
             ExceptionTime = ExceptionTime,
             ExtraMessage = null,
-            FromLanguage = false,
+            FromLanguage = true,
             SkipDwmComposition = false,
             ExceptionType = ExceptionType.Caught
         };
@@ -400,7 +530,8 @@ internal static class Log {
             do {
                 try {
                     System.IO.File.WriteAllText(
-                        $"\\ex_{ReceivedException.ExceptionTime:yyyy-MM-dd_HH-mm-ss.fff}.log", ReceivedException.Exception.ToString());
+                        System.IO.Path.Combine(Environment.CurrentDirectory, $"ex_{ReceivedException.ExceptionTime:yyyy-MM-dd_HH-mm-ss.fff}.log"), ReceivedException.Exception.ToString());
+                    return;
                 }
                 catch (Exception SaveException) {
                     if (DisplayException(new(SaveException) { AllowRetry = true }, false) != DialogResult.Retry) {

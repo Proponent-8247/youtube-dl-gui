@@ -6,25 +6,70 @@ using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 public partial class frmExtendedDownloader : LocalizedProcessingForm {
+    private readonly CancellationTokenSource RetrievalCancellation = new();
     private bool Debug { get; }
     public bool BatchDownload { get; }
     private bool SwitchingQueuedItem { get; set; }
     private bool FailedInfoRetrieval { get; set; }
+    private ArgumentType InitialArgumentType { get; } = ArgumentType.NoArguments;
 
     private Thread? ProcessingThread { get; set; }
+    private Thread? ThumbnailThread { get; set; }
+    private Thread? QueueResolverThread { get; set; }
     private Process? DownloadProcess { get; set; }
     private ExtendedMediaDetails? MediaDetails { get; set; }
+    private bool MediaOptionsLoaded { get; set; }
     private List<ExtendedMediaDetails>? QueueList { get; }
-    private DownloadStatus Status { get; set; } = DownloadStatus.None;
+    private readonly object QueueSync = new();
+    private bool QueueResolverRunning;
+    private volatile bool CancellationRequested;
+    private readonly object StatusSync = new();
+    private DownloadStatus StatusValue = DownloadStatus.None;
+    private DownloadStatus Status {
+        get {
+            lock (StatusSync) {
+                return CancellationRequested && StatusValue != DownloadStatus.AbortForClose ?
+                    DownloadStatus.Aborted : StatusValue;
+            }
+        }
+        set {
+            lock (StatusSync) {
+                if (CancellationRequested) {
+                    if (StatusValue == DownloadStatus.AbortForClose) return;
+                    if (value != DownloadStatus.AbortForClose) value = DownloadStatus.Aborted;
+                }
+                StatusValue = value;
+            }
+        }
+    }
 
     private bool ClipboardScannerActive;    // Whether the clipboard scanner is active.
     private string? ClipboardData;          // Clipboard data buffer.
+
+    private bool TryInvokeProgress(Action Update) {
+        if (Update is null) throw new ArgumentNullException(nameof(Update));
+        try {
+            pbStatus.Invoke(Update);
+            return true;
+        }
+        catch (InvalidOperationException) {
+            return false;
+        }
+    }
 
     public frmExtendedDownloader() : this (true) { }
     private frmExtendedDownloader(bool BatchDownload) {
         this.BatchDownload = BatchDownload;
 
         InitializeComponent();
+        void DisposeRetrieval(object? sender, EventArgs args) {
+            Disposed -= DisposeRetrieval;
+            CancellationRequested = true;
+            RetrievalCancellation.Cancel();
+            RetrievalCancellation.Dispose();
+        }
+        Disposed += DisposeRetrieval;
+        tpStartTime.DateBasedTime = false;
         LoadLanguage();
 
         if (!Program.DebugMode) {
@@ -78,17 +123,23 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
     public frmExtendedDownloader(string URL, bool Archived) : this(false) {
         MediaDetails = new(URL) {
-            Archived = Archived
+            Archived = Archived,
+            FileNameSchema = cbSchema.Text,
+            FileNameSchemaIndex = cbSchema.SelectedIndex
         };
 
         llbLink.Text = (Archived ? URL.Split(':')[1] : URL);
     }
     public frmExtendedDownloader(string URL, string? CustomArguments, bool Archived) : this(URL, Archived) {
-        txtCustomArguments.Text = CustomArguments.IsNullEmptyWhitespace() ? string.Empty : CustomArguments;
+        string InitialCustomArguments = CustomArguments.IsNullEmptyWhitespace() ? string.Empty : CustomArguments;
+        txtCustomArguments.Text = InitialCustomArguments;
+        MediaDetails!.CustomArguments = InitialCustomArguments;
         pnBatchDownload.Enabled = pnBatchDownload.Visible = false;
     }
-    public frmExtendedDownloader(string URL, string? CustomArguments, bool Archived, AuthenticationDetails? Auth) : this(URL, CustomArguments, Archived) {
+    public frmExtendedDownloader(string URL, string? CustomArguments, bool Archived, AuthenticationDetails? Auth) : this(URL, CustomArguments, Archived, Auth, ArgumentType.NoArguments) { }
+    internal frmExtendedDownloader(string URL, string? CustomArguments, bool Archived, AuthenticationDetails? Auth, ArgumentType InitialArgumentType) : this(URL, CustomArguments, Archived) {
         MediaDetails!.Authentication = Auth;
+        this.InitialArgumentType = InitialArgumentType;
     }
 
     public override void LoadLanguage() {
@@ -309,14 +360,42 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         llbLink.MaximumSize = new(this.Width - 32, llbLink.Height);
     }
     private void frmExtendedDownloader_FormClosing(object sender, FormClosingEventArgs e) {
+        if (DeferCloseForWorkers(ProcessingThread, QueueResolverThread, ThumbnailThread)) {
+            CancellationRequested = true;
+            RetrievalCancellation.Cancel();
+            Status = DownloadStatus.AbortForClose;
+            e.Cancel = true;
+            return;
+        }
         switch (Status) {
-            case DownloadStatus.Downloading: {
+            case DownloadStatus.Downloading:
+            case DownloadStatus.MergingFiles:
+            case DownloadStatus.Converting:
+            case DownloadStatus.ExtractingAudio:
+            case DownloadStatus.FfmpegPostProcessing:
+            case DownloadStatus.EmbeddingSubtitles:
+            case DownloadStatus.EmbeddingMetadata: {
+                CancellationRequested = true;
                 Status = DownloadStatus.Aborted;
                 e.Cancel = true;
             } break;
             default: {
                 if (ProcessingThread?.IsAlive == true) {
+                    if (CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
+                        e.Cancel = true;
+                        return;
+                    }
                     ProcessingThread.Abort();
+                }
+
+                if (QueueResolverThread?.IsAlive == true) {
+                    QueueResolverThread.Abort();
+                }
+
+                if (ClipboardScannerActive) {
+                    NativeMethods.RemoveClipboardFormatListener(this.Handle);
+                    Application.ApplicationExit -= ApplicationExit;
+                    ClipboardScannerActive = false;
                 }
 
                 Downloads.CloseExtendedDownloaderAfterFinish = chkDownloaderCloseAfterDownload.Checked;
@@ -337,7 +416,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     MediaDetails?.Dispose();
                 }
 
-                this.Dispose();
+                // Form.Close owns disposal after FormClosing completes.
             } break;
         }
     }
@@ -346,13 +425,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     protected override void WndProc(ref Message m) {
         switch (m.Msg) {
             case NativeMethods.WM_CLIPBOARDUPDATE: {
-                if (Clipboard.ContainsText()) {
-                    ClipboardData = Clipboard.GetText();
+                if (TryGetClipboardText(out string Text)) {
+                    ClipboardData = Text;
                     if (!mEnqueueClipboardScannerVerifyLinks.Checked || DownloadHelper.SupportedDownloadLink(ClipboardData)) {
                         QueueNewItem(ClipboardData, false, false, false, MediaDetails);
                     }
-                    ClipboardData = null;
                 }
+                ClipboardData = null;
             } break;
         }
         base.WndProc(ref m);
@@ -364,7 +443,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
 
     private void DownloadInfo() {
-        if (MediaDetails is null) {
+        if (MediaDetails is null || this.IsDisposed || ProcessingThread?.IsAlive == true) {
             return;
         }
 
@@ -374,21 +453,55 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     throw new DownloadException(MediaDetails.URL, "The media you are trying to access was not entered in correctly.");
                 }
 
-                MediaDetails.GetMediaDetails();
+                MediaDetails.GetMediaDetails(RetrievalCancellation.Token);
+                DownloadType InitialDownloadType = InitialArgumentType switch {
+                    ArgumentType.DownloadVideo or ArgumentType.DownloadAuthenticateVideo or ArgumentType.DownloadVideoNoSound or ArgumentType.DownloadAuthenticateVideoNoSound => DownloadType.Video,
+                    ArgumentType.DownloadAudio or ArgumentType.DownloadAuthenticateAudio => DownloadType.Audio,
+                    ArgumentType.DownloadCustom or ArgumentType.DownloadAuthenticateCustom => DownloadType.Custom,
+                    _ => DownloadType.None,
+                };
+                if (InitialArgumentType is ArgumentType.DownloadVideoNoSound or ArgumentType.DownloadAuthenticateVideoNoSound) {
+                    MediaDetails.VideoDownloadAudio = false;
+                }
+                if (InitialDownloadType != DownloadType.None && MediaDetails.SelectedType != InitialDownloadType) {
+                    if ((InitialDownloadType == DownloadType.Video && MediaDetails.VideoFormats.Count < 1)
+                    || (InitialDownloadType == DownloadType.Audio && MediaDetails.AudioFormats.Count < 1)) {
+                        throw new DownloadException(MediaDetails.URL, $"The requested {InitialDownloadType.ToString().ToLowerInvariant()} format is not available for this media.");
+                    }
+                    MediaDetails.ChangeMediaType(InitialDownloadType);
+                }
                 this.Invoke(() => SelectedMediaChanged(MediaDetails));
             }
             catch (ThreadAbortException) { }
+            catch (OperationCanceledException) when (RetrievalCancellation.IsCancellationRequested) { }
             catch (DownloadException dex) {
-                this.Invoke(() => {
-                    sbtnDownload.Enabled = true;
-                    sbtnDownload.Text = Language.GenericRetry;
-                    txtExtendedDownloaderMediaTitle.Text = "Failed to retrieve download info";
-                    rtbVerbose.AppendText(dex.Message);
-                });
                 FailedInfoRetrieval = true;
+                if (!this.IsDisposed && this.IsHandleCreated) {
+                    try {
+                        this.Invoke(() => {
+                            sbtnDownload.Enabled = true;
+                            sbtnDownload.Text = Language.GenericRetry;
+                            txtExtendedDownloaderMediaTitle.Text = "Failed to retrieve download info";
+                            rtbVerbose.AppendText(dex.Message);
+                        });
+                    }
+                    catch (InvalidOperationException) { }
+                }
             }
             catch (Exception ex) {
-                this.Invoke(() => Log.ReportException(ex));
+                FailedInfoRetrieval = true;
+                if (!this.IsDisposed && this.IsHandleCreated) {
+                    try {
+                        this.Invoke(() => {
+                            Log.ReportException(ex);
+                            sbtnDownload.Enabled = true;
+                            sbtnDownload.Text = Language.GenericRetry;
+                            txtExtendedDownloaderMediaTitle.Text = "Failed to retrieve download info";
+                            rtbVerbose.AppendText(ex.Message);
+                        });
+                    }
+                    catch (InvalidOperationException) { }
+                }
             }
         }) {
             Name = $"InfoThread {MediaDetails.URL}",
@@ -399,39 +512,57 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         rtbVerbose.AppendLine(Verification.GetYoutubeDlProvider(false) + " as the download provider.");
         ProcessingThread.Start();
     }
-    private void ProcessThumbnail() {
-        if (MediaDetails is null) {
-            return;
-        }
+    private void ProcessThumbnail(ExtendedMediaDetails Media, CancellationToken Cancellation) {
 
         try {
-            Image? Thumb = MediaDetails.DownloadThumbnail();
+            Image? Thumb = Media.DownloadThumbnail(false, Cancellation);
             if (Thumb is null) {
-                this.Invoke(() => {
-                    btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = true;
-                    lbExtendedDownloaderDownloadingThumbnail.Text = Language.lbExtendedDownloaderDownloadingThumbnailFailed;
-                });
+                if (!this.IsDisposed && this.IsHandleCreated) {
+                    try {
+                        this.Invoke(() => {
+                            btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = true;
+                            lbExtendedDownloaderDownloadingThumbnail.Text = Language.lbExtendedDownloaderDownloadingThumbnailFailed;
+                        });
+                    }
+                    catch (InvalidOperationException) { }
+                }
                 return;
             }
 
-            this.Invoke(() => {
-                pbThumbnail.Image = Thumb;
-                lbExtendedDownloaderDownloadingThumbnail.Visible = false;
-                btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = false;
-            });
+            if (!this.IsDisposed && this.IsHandleCreated) {
+                try {
+                    this.Invoke(() => {
+                        if (WorkerClosePending || !ReferenceEquals(MediaDetails, Media)) return;
+                        pbThumbnail.Image = Thumb;
+                        lbExtendedDownloaderDownloadingThumbnail.Visible = false;
+                        btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = false;
+                    });
+                }
+                catch (InvalidOperationException) { }
+            }
+            // The media model owns the cached image, including when it is not displayed.
+            // Form closure waits for this worker before disposing that model.
         }
+        catch (OperationCanceledException) when (Cancellation.IsCancellationRequested) { }
         catch (ThreadAbortException) { throw; }
-        catch (Exception) {
-            this.Invoke(() => {
-                btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = true;
-                lbExtendedDownloaderDownloadingThumbnail.Text = Language.lbExtendedDownloaderDownloadingThumbnailFailed;
-            });
-            throw;
+        catch (Exception ex) {
+            if (!this.IsDisposed && this.IsHandleCreated) {
+                try {
+                    this.Invoke(() => {
+                        btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = true;
+                        lbExtendedDownloaderDownloadingThumbnail.Text = Language.lbExtendedDownloaderDownloadingThumbnailFailed;
+                    });
+                }
+                catch (InvalidOperationException) { }
+            }
+            Log.Write($"Thumbnail processing failed for \"{Log.RedactDiagnosticValue(Media.URL)}\": {ex}");
         }
     }
     private void DownloadThumbnail() {
-        if (ProcessingThread?.IsAlive != true && MediaDetails is not null) {
-            ProcessingThread = new(ProcessThumbnail) {
+        if (!WorkerClosePending && ThumbnailThread?.IsAlive != true && MediaDetails is not null) {
+            ExtendedMediaDetails Media = MediaDetails;
+            CancellationToken Cancellation = RetrievalCancellation.Token;
+            ThumbnailThread = new(() => ProcessThumbnail(Media, Cancellation)) {
                 Name = $"ThumbThread {MediaDetails.URL}",
                 IsBackground = true,
                 Priority = ThreadPriority.BelowNormal
@@ -439,11 +570,15 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             lbExtendedDownloaderDownloadingThumbnail.Visible = true;
             btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = false;
             lbExtendedDownloaderDownloadingThumbnail.Text = Language.lbExtendedDownloaderDownloadingThumbnail;
-            ProcessingThread.Start();
+            ThumbnailThread.Start();
         }
     }
 
     private void BeginDownload(bool Auth) {
+        if (WorkerClosePending || this.IsDisposed || this.Disposing || ProcessingThread?.IsAlive == true || QueueResolverRunning) {
+            return;
+        }
+        CancellationRequested = false;
         if (BatchDownload) {
             BeginBatchDownload();
             return;
@@ -458,7 +593,11 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         if (!Verification.YoutubeDlAvailable) {
             Verification.RefreshYoutubeDlLocation();
             if (!Verification.YoutubeDlAvailable) {
-                throw new NullReferenceException("Youtube-dl path is invalid and cannot be used.");
+                Status = DownloadStatus.ProgramError;
+                rtbVerbose.AppendLine("Youtube-dl could not be found.");
+                Log.Write("Youtube-dl could not be found.");
+                LoadLanguage();
+                return;
             }
         }
 
@@ -481,39 +620,60 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         }
 
         txtGeneratedArguments.Text = MediaDetails.ArgumentsCensored;
+        rtbVerbose.AppendLine(Log.RawProviderDiagnosticWarning);
         mDownload.Enabled = mDownloadWithAuthentication.Enabled = false;
         sbtnDownload.Text = Language.GenericCancel;
         pbStatus.ShowInTaskbar = true;
         pbStatus.Value = 0;
         pbStatus.ProgressState = murrty.controls.ProgressState.Normal;
         pbStatus.Text = "Beginning download";
+        Status = DownloadStatus.Downloading;
         ProcessingThread = new(() => {
+            try {
             Status = DownloadStatus.Downloading;
             string? Msg = null;
+            object MsgSync = new();
+            void ClearMessage(string CurrentMessage) {
+                lock (MsgSync) {
+                    if (ReferenceEquals(Msg, CurrentMessage)) {
+                        Msg = null;
+                    }
+                }
+            }
             int MsgIndex = -1;
 
             DownloadProcess = new() {
                 StartInfo = new(Verification.YoutubeDlPath) {
                     Arguments = MediaDetails.Arguments,
                     CreateNoWindow = true,
+                    RedirectStandardInput = true,
                     RedirectStandardError = true,
                     RedirectStandardOutput = true,
                     UseShellExecute = false,
                     WindowStyle = ProcessWindowStyle.Hidden,
                 }
             };
-            DownloadProcess.OutputDataReceived += (s, e) => {
+            using murrty.controls.BoundedProcessOutput Output = new(DownloadProcess);
+            using murrty.controls.ProcessOwnership Ownership = new(DownloadProcess);
+            Output.OutputDataReceived += (s, e) => {
                 if (e.Data?.Length > 0) {
+                    if (e.Data.Length < 8) {
+                        rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data));
+                        return;
+                    }
+
                     switch (e.Data[..8].ToLowerInvariant()) {
                         case "[downloa": case "[ffmpeg]":
                         case "[embedsu": case "[metadat": {
-                            Msg = e.Data;
+                            lock (MsgSync) {
+                                Msg = e.Data;
+                            }
                         } break;
 
                         default: {
-                            Msg = e.Data.ToLowerInvariant();
-                            if ((MsgIndex = Msg.IndexOf(']')) > -1) {
-                                switch (Msg[..(MsgIndex + 1)]) {
+                            string OutputMessage = e.Data.ToLowerInvariant();
+                            if ((MsgIndex = OutputMessage.IndexOf(']')) > -1) {
+                                switch (OutputMessage[..(MsgIndex + 1)]) {
                                     case "[merger]": {
                                         Status = DownloadStatus.MergingFiles;
                                         pbStatus.Invoke(() => {
@@ -541,72 +701,107 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                 }
                             }
                             else {
-                                if (pbStatus.Style != ProgressBarStyle.Blocks) {
-                                    pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);
-                                }
-                                if (pbStatus.Text != ".  .  .") {
-                                    pbStatus.Invoke(() => pbStatus.Text = ".  .  .");
-                                }
-                                if (pbStatus.Value != 0) {
-                                    pbStatus.Invoke(() => pbStatus.Value = 0);
-                                }
+                                _ = TryInvokeProgress(() => {
+                                    if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;
+                                    if (pbStatus.Text != ".  .  .") pbStatus.Text = ".  .  .";
+                                    if (pbStatus.Value != 0) pbStatus.Value = 0;
+                                });
                             }
-                            Msg = null;
                             rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data));
                         } break;
                     }
                 }
             };
-            DownloadProcess.ErrorDataReceived += (s, e) => {
+            Output.ErrorDataReceived += (s, e) => {
                 if (e.Data?.Length > 0) {
                     rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data.Trim()));
                 }
             };
-            DownloadProcess.Start();
-            DownloadProcess.BeginOutputReadLine();
-            DownloadProcess.BeginErrorReadLine();
+            try {
+                DownloadProcess.Start();
+                Ownership.Attach();
+                DownloadProcess.StandardInput.Close();
+                Output.Start();
+            }
+            catch (Exception ex) {
+                Log.ReportException(ex);
+                Status = DownloadStatus.ProgramError;
+                try {
+                    if (!DownloadProcess.HasExited) {
+                        Program.KillProcessTree((uint)DownloadProcess.Id);
+                        DownloadProcess.Kill();
+                    }
+                }
+                catch (Exception cleanupEx) {
+                    Log.Write($"Failed to terminate the partially started download process: {cleanupEx.Message}");
+                }
+                DownloadProcess.Dispose();
+                DownloadProcess = null;
+                if (this.IsHandleCreated && !this.IsDisposed) {
+                    this.BeginInvoke(() => {
+                        pbStatus.Style = ProgressBarStyle.Continuous;
+                        pbStatus.ShowInTaskbar = false;
+                        pbStatus.ProgressState = murrty.controls.ProgressState.Error;
+                        mDownload.Enabled = mDownloadWithAuthentication.Enabled = true;
+                        tcVideoData.SelectedTab = tabExtendedDownloaderVerbose;
+                        LoadLanguage();
+                    });
+                }
+                return;
+            }
 
             float Percentage = 0;
             string ETA = "Unknown";
 
             while (!DownloadProcess.HasExited) {
-                if (Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
+                Output.ThrowIfFaulted();
+                if (CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
                     if (!DownloadProcess.HasExited) {
-                        Program.KillProcessTree((uint)DownloadProcess.Id);
-                        DownloadProcess.Kill();
+                        Ownership.Dispose();
                     }
                     break;
                 }
 
-                if (Msg is not null) {
-                    string Line = Msg.ReplaceWhitespace();
+                string? CurrentMsg;
+                lock (MsgSync) {
+                    CurrentMsg = Msg;
+                }
+                if (CurrentMsg is not null) {
+                    string Line = CurrentMsg.ReplaceWhitespace();
+                    if (Line.Length < 5) {
+                        ClearMessage(CurrentMsg);
+                        continue;
+                    }
+
                     string[] LineParts = Line.Split(' ');
                     switch (Line[..5].ToLowerInvariant()) {
                         case "[down": {
                             Status = DownloadStatus.Downloading;
+                            if (LineParts.Length < 2 || LineParts[1].Length == 0) {
+                                break;
+                            }
+
                             switch (LineParts[1][0]) {
                                 case '1': case '2': case '3':
                                 case '4': case '5': case '6':
                                 case '7': case '8': case '9':
                                 case '0': {
-                                    if (!LineParts[1].Contains('%') || !this.IsHandleCreated) {
+                                    if (!LineParts[1].Contains('%')) {
                                         break;
                                     }
 
-                                    if (pbStatus.Style != ProgressBarStyle.Blocks) {
-                                        pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);
-                                    }
-
-                                    this.Invoke(() => {
+                                    if (!TryInvokeProgress(() => {
+                                        if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;
                                         pbStatus.Text = DownloadHelper.GetTransferData(
                                             LineParts: LineParts,
                                             Percentage: ref Percentage,
                                             Eta: ref ETA);
 
                                         pbStatus.Value = (int)Math.Floor(Percentage);
-
                                         this.Text = $"ETA: {ETA} - {MediaDetails.ProgressMediaName}";
-                                    });
+                                    })) {
+                                        break;
+                                    }
                                 } break;
                             }
                         } break;
@@ -618,7 +813,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                 pbStatus.Text = Language.pbDownloadProgressFfmpegPostProcessing;
                                 pbStatus.Value = 100;
                             });
-                            Msg = null;
+                            ClearMessage(CurrentMsg);
                         } break;
                         case "[embe": {
                             Status = DownloadStatus.EmbeddingSubtitles;
@@ -628,7 +823,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                 pbStatus.Text = Language.pbDownloadProgressEmbeddingSubtitles;
                                 pbStatus.Value = 100;
                             });
-                            Msg = null;
+                            ClearMessage(CurrentMsg);
                         } break;
                         case "[meta": {
                             Status = DownloadStatus.EmbeddingMetadata;
@@ -638,7 +833,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                 pbStatus.Text = Language.pbDownloadProgressEmbeddingMetadata;
                                 pbStatus.Value = 100;
                             });
-                            Msg = null;
+                            ClearMessage(CurrentMsg);
                         } break;
                     }
                 }
@@ -646,8 +841,15 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 Thread.Sleep(250);
             }
 
-            if (Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
-                Status = DownloadProcess.ExitCode == 0 ? DownloadStatus.Finished : DownloadStatus.YtdlError;
+            Output.Drain(5000);
+            int ExitCode = DownloadProcess.ExitCode;
+            Ownership.Dispose();
+            Output.Dispose();
+            DownloadProcess.Dispose();
+            DownloadProcess = null;
+
+            if (!CancellationRequested && Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
+                Status = ExitCode == 0 ? DownloadStatus.Finished : DownloadStatus.YtdlError;
             }
 
             this.Invoke(() => {
@@ -686,15 +888,47 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     } break;
                 }
             });
+            }
+            catch (Exception ex) {
+                Log.ReportException(ex);
+                if (!CancellationRequested) {
+                    Status = DownloadStatus.ProgramError;
+                }
+                try {
+                    if (DownloadProcess?.HasExited == false) {
+                        Program.KillProcessTree((uint)DownloadProcess.Id);
+                        DownloadProcess.Kill();
+                    }
+                }
+                catch (Exception cleanupEx) {
+                    Log.Write($"Failed to terminate extended download process after an error: {cleanupEx.Message}");
+                }
+                if (this.IsHandleCreated && !this.IsDisposed) {
+                    this.BeginInvoke(() => {
+                        pbStatus.Style = ProgressBarStyle.Continuous;
+                        pbStatus.ShowInTaskbar = false;
+                        pbStatus.ProgressState = murrty.controls.ProgressState.Error;
+                        mDownload.Enabled = mDownloadWithAuthentication.Enabled = true;
+                        tcVideoData.SelectedTab = tabExtendedDownloaderVerbose;
+                        LoadLanguage();
+                    });
+                }
+            }
+            finally {
+                DownloadProcess?.Dispose();
+                DownloadProcess = null;
+                MediaDetails?.DisposeAuthenticationConfig();
+            }
         }) {
             Name = $"Download {MediaDetails.URL}",
             IsBackground = true,
             Priority = ThreadPriority.BelowNormal
         };
-        ProcessingThread.Start();
+        try { ProcessingThread.Start(); }
+        catch { MediaDetails.DisposeAuthenticationConfig(); throw; }
     }
     private void BeginBatchDownload() {
-        if (lvQueuedMedia.Items.Count < 1) {
+        if (WorkerClosePending || ProcessingThread?.IsAlive == true || QueueResolverRunning || lvQueuedMedia.Items.Count < 1) {
             return;
         }
 
@@ -703,7 +937,11 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         if (!Verification.YoutubeDlAvailable) {
             Verification.RefreshYoutubeDlLocation();
             if (!Verification.YoutubeDlAvailable) {
-                throw new NullReferenceException("Youtube-dl path is invalid and cannot be used.");
+                Status = DownloadStatus.ProgramError;
+                rtbVerbose.AppendLine("Youtube-dl could not be found.");
+                Log.Write("Youtube-dl could not be found.");
+                LoadLanguage();
+                return;
             }
         }
 
@@ -715,6 +953,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         }
 
         SaveMediaOptions();
+        rtbVerbose.AppendLine(Log.RawProviderDiagnosticWarning);
 
         mDownload.Enabled = mDownloadWithAuthentication.Enabled = false;
         sbtnDownload.Text = Language.GenericCancel;
@@ -725,111 +964,179 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         Status = DownloadStatus.Downloading;
 
         ProcessingThread = new(() => {
+            ExtendedMediaDetails? ActiveBatchMedia = null;
+            try {
             string? args = null;
             string? Msg = null;
+            object MsgSync = new();
+            void ClearMessage(string CurrentMessage) {
+                lock (MsgSync) {
+                    if (ReferenceEquals(Msg, CurrentMessage)) {
+                        Msg = null;
+                    }
+                }
+            }
             float Percentage = 0;
             string ETA = "Unknown";
             ExtendedMediaDetails MediaDetails;
             string BatchTime = BatchHelper.CurrentTime;
+            bool BatchHadErrors = false;
 
-            for (int i = 0; i < lvQueuedMedia.Items.Count; i++) {
+            for (int i = 0; i < (int)lvQueuedMedia.Invoke(() => lvQueuedMedia.Items.Count); i++) {
                 if ((bool)lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].Tag is not ExtendedMediaDetails)) {
                     lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Errored);
+                    BatchHadErrors = true;
                     continue;
                 }
                 else {
                     MediaDetails = (ExtendedMediaDetails)lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].Tag);
                 }
 
+                if (!MediaDetails.InfoRetrieved) {
+                    lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Errored);
+                    BatchHadErrors = true;
+                    continue;
+                }
+
                 lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Processing);
 
                 MediaDetails.BatchDownloadTime = BatchTime;
+                ActiveBatchMedia = MediaDetails;
+                Log.WriteQueueHistory("PROCESS", MediaDetails.URL);
+                if (!MediaDetails.GenerateArguments()) {
+                    MediaDetails.DisposeAuthenticationConfig();
+                    ActiveBatchMedia = null;
+                    lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Errored);
+                    BatchHadErrors = true;
+                    continue;
+                }
                 args = MediaDetails.Arguments;
 
                 DownloadProcess = new() {
                     StartInfo = new(Verification.YoutubeDlPath) {
                         Arguments = args,
                         CreateNoWindow = true,
+                        RedirectStandardInput = true,
                         RedirectStandardError = true,
                         RedirectStandardOutput = true,
                         UseShellExecute = false,
                         WindowStyle = ProcessWindowStyle.Hidden,
                     }
                 };
-                DownloadProcess.OutputDataReceived += (s, e) => {
+                using murrty.controls.BoundedProcessOutput Output = new(DownloadProcess);
+                using murrty.controls.ProcessOwnership Ownership = new(DownloadProcess);
+                Output.OutputDataReceived += (s, e) => {
                     if (e.Data?.Length > 0) {
+                        if (e.Data.Length < 8) {
+                            rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data));
+                            return;
+                        }
+
                         switch (e.Data[..8].ToLower()) {
                             case "[downloa": case "[ffmpeg]":
                             case "[embedsu": case "[metadat": {
-                                Msg = e.Data;
+                                lock (MsgSync) {
+                                    Msg = e.Data;
+                                }
                             } break;
 
                             default: {
-                                Msg = e.Data.ToLower();
-                                if (Msg.StartsWith("[merger]")) {
+                                string OutputMessage = e.Data.ToLower();
+                                if (OutputMessage.StartsWith("[merger]")) {
                                     pbStatus.Invoke(() => {
                                         pbStatus.Style = ProgressBarStyle.Marquee;
                                         pbStatus.Value = pbStatus.Maximum;
                                         pbStatus.Text = Language.pbDownloadProgressMergingFormats;
                                     });
                                 }
-                                else if (Msg.StartsWith("[videoconvertor]")) { // Converter?
+                                else if (OutputMessage.StartsWith("[videoconvertor]")) { // Converter?
                                     pbStatus.Invoke(() => {
                                         pbStatus.Style = ProgressBarStyle.Marquee;
                                         pbStatus.Value = pbStatus.Maximum;
                                         pbStatus.Text = Language.pbDownloadProgressConverting;
                                     });
                                 }
-                                Msg = null;
                                 rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data));
                             } break;
                         }
                     }
                 };
-                DownloadProcess.ErrorDataReceived += (s, e) => {
+                Output.ErrorDataReceived += (s, e) => {
                     if (e.Data?.Length > 0) {
                         rtbVerbose.Invoke(() => rtbVerbose.AppendLine($"Error: {e.Data.Trim()}"));
                     }
                 };
-                DownloadProcess.Start();
-                DownloadProcess.BeginOutputReadLine();
-                DownloadProcess.BeginErrorReadLine();
-
-                args = null;
-                while (!DownloadProcess.HasExited) {
-                    if (Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
+                try {
+                    DownloadProcess.Start();
+                    Ownership.Attach();
+                    DownloadProcess.StandardInput.Close();
+                    Output.Start();
+                }
+                catch (Exception ex) {
+                    Log.ReportException(ex);
+                    try {
                         if (!DownloadProcess.HasExited) {
                             Program.KillProcessTree((uint)DownloadProcess.Id);
                             DownloadProcess.Kill();
                         }
+                    }
+                    catch (Exception cleanupEx) {
+                        Log.Write($"Failed to terminate the partially started download process: {cleanupEx.Message}");
+                    }
+                    DownloadProcess.Dispose();
+                    DownloadProcess = null;
+                    MediaDetails.DisposeAuthenticationConfig();
+                    ActiveBatchMedia = null;
+                    BatchHadErrors = true;
+                    lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Errored);
+                    continue;
+                }
+
+                args = null;
+                while (!DownloadProcess.HasExited) {
+                    Output.ThrowIfFaulted();
+                    if (CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
+                        if (!DownloadProcess.HasExited) {
+                            Ownership.Dispose();
+                        }
                         break;
                     }
 
-                    if (Msg is not null) {
-                        string Line = Msg.ReplaceWhitespace();
+                    string? CurrentMsg;
+                    lock (MsgSync) {
+                        CurrentMsg = Msg;
+                    }
+                    if (CurrentMsg is not null) {
+                        string Line = CurrentMsg.ReplaceWhitespace();
+                        if (Line.Length < 5) {
+                            ClearMessage(CurrentMsg);
+                            continue;
+                        }
+
                         string[] LineParts = Line.Split(' ');
                         switch (Line[..5].ToLower()) {
                             case "[down": {
+                                if (LineParts.Length < 2 || LineParts[1].Length == 0) {
+                                    break;
+                                }
+
                                 switch (LineParts[1][0]) {
                                     case '1': case '2': case '3':
                                     case '4': case '5': case '6':
                                     case '7': case '8': case '9':
                                     case '0': {
                                         if (LineParts[1].Contains('%')) {
-                                            if (pbStatus.Style != ProgressBarStyle.Blocks)
-                                                pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);
+                                            if (!TryInvokeProgress(() => {
+                                                if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;
+                                                pbStatus.Text = DownloadHelper.GetTransferData(
+                                                    LineParts: LineParts,
+                                                    Percentage: ref Percentage,
+                                                    Eta: ref ETA);
 
-                                            if (pbStatus.IsHandleCreated) {
-                                                this.Invoke(() => {
-                                                    pbStatus.Text = DownloadHelper.GetTransferData(
-                                                        LineParts: LineParts,
-                                                        Percentage: ref Percentage,
-                                                        Eta: ref ETA);
-
-                                                    pbStatus.Value = (int)Math.Floor(Percentage);
-
-                                                    this.Text = $"ETA: {ETA} - {MediaDetails.ProgressMediaName}";
-                                                });
+                                                pbStatus.Value = (int)Math.Floor(Percentage);
+                                                this.Text = $"ETA: {ETA} - {MediaDetails.ProgressMediaName}";
+                                            })) {
+                                                break;
                                             }
                                         }
                                     } break;
@@ -842,7 +1149,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                     pbStatus.Text = Language.pbDownloadProgressFfmpegPostProcessing;
                                     pbStatus.Value = 100;
                                 });
-                                Msg = null;
+                                ClearMessage(CurrentMsg);
                             } break;
                             case "[embe": {
                                 rtbVerbose.Invoke(() => rtbVerbose.AppendLine(Line));
@@ -851,7 +1158,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                     pbStatus.Text = Language.pbDownloadProgressEmbeddingSubtitles;
                                     pbStatus.Value = 100;
                                 });
-                                Msg = null;
+                                ClearMessage(CurrentMsg);
                             } break;
                             case "[meta": {
                                 rtbVerbose.Invoke(() => rtbVerbose.AppendLine(Line));
@@ -860,7 +1167,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                                     pbStatus.Text = Language.pbDownloadProgressEmbeddingMetadata;
                                     pbStatus.Value = 100;
                                 });
-                                Msg = null;
+                                ClearMessage(CurrentMsg);
                             } break;
                         }
                     }
@@ -868,8 +1175,22 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     Thread.Sleep(250);
                 }
 
-                if (Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
-                    lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = DownloadProcess.ExitCode == 0 ? StatusIcon.Finished : StatusIcon.Errored);
+                Output.Drain(5000);
+                int ExitCode = DownloadProcess.ExitCode;
+                Ownership.Dispose();
+                Output.Dispose();
+                DownloadProcess.Dispose();
+                DownloadProcess = null;
+                MediaDetails.DisposeAuthenticationConfig();
+                ActiveBatchMedia = null;
+
+                if (!CancellationRequested && Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
+                    bool ItemSucceeded = ExitCode == 0;
+                    if (!ItemSucceeded) {
+                        BatchHadErrors = true;
+                    }
+                    Log.WriteQueueHistory(ItemSucceeded ? "FINISHED" : "ERROR", MediaDetails.URL);
+                    lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = ItemSucceeded ? StatusIcon.Finished : StatusIcon.Errored);
                 }
                 else {
                     lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Waiting);
@@ -884,6 +1205,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             }
 
             this.Invoke(() => {
+                mDownload.Enabled = mDownloadWithAuthentication.Enabled = true;
+                pbStatus.ShowInTaskbar = false;
+
+                if (Status == DownloadStatus.Downloading && BatchHadErrors) {
+                    Status = DownloadStatus.ProgramError;
+                }
+
                 switch (Status) {
                     case DownloadStatus.Aborted: {
                         rtbVerbose.AppendLine("Aborted download");
@@ -911,6 +1239,36 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     } break;
                 }
             });
+            }
+            catch (Exception ex) {
+                Log.ReportException(ex);
+                if (!CancellationRequested) {
+                    Status = DownloadStatus.ProgramError;
+                }
+                try {
+                    if (DownloadProcess?.HasExited == false) {
+                        Program.KillProcessTree((uint)DownloadProcess.Id);
+                        DownloadProcess.Kill();
+                    }
+                }
+                catch (Exception cleanupEx) {
+                    Log.Write($"Failed to terminate extended batch download process after an error: {cleanupEx.Message}");
+                }
+                if (this.IsHandleCreated && !this.IsDisposed) {
+                    this.BeginInvoke(() => {
+                        mDownload.Enabled = mDownloadWithAuthentication.Enabled = true;
+                        pbStatus.ShowInTaskbar = false;
+                        pbStatus.ProgressState = murrty.controls.ProgressState.Error;
+                        tcVideoData.SelectedTab = tabExtendedDownloaderVerbose;
+                        LoadLanguage();
+                    });
+                }
+            }
+            finally {
+                DownloadProcess?.Dispose();
+                DownloadProcess = null;
+                ActiveBatchMedia?.DisposeAuthenticationConfig();
+            }
         }) {
             Name = "Batch download",
             IsBackground = true,
@@ -947,8 +1305,13 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
         Console.WriteLine("Loading media");
         txtCustomArguments.Text = MediaDetails.CustomArguments;
-        cbSchema.Text = MediaDetails.FileNameSchema;
-        cbSchema.SelectedIndex = MediaDetails.FileNameSchemaIndex;
+        if (MediaDetails.FileNameSchemaIndex >= 0 && MediaDetails.FileNameSchemaIndex < cbSchema.Items.Count) {
+            cbSchema.SelectedIndex = MediaDetails.FileNameSchemaIndex;
+        }
+        else {
+            cbSchema.SelectedIndex = -1;
+            cbSchema.Text = MediaDetails.FileNameSchema;
+        }
         numFragmentThreads.Value = MediaDetails.FragmentThreads;
         chkAudioVBR.Checked = MediaDetails.AudioVBR;
         cbVbrQualities.SelectedIndex = MediaDetails.VBRIndex;
@@ -963,9 +1326,17 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         tpEndTime.Value = MediaDetails.EndTime;
     }
     private void SelectedMediaChanged(ExtendedMediaDetails MediaDetails) {
-        if (this.MediaDetails is not null) {
+        if (this.MediaDetails is not null && MediaOptionsLoaded) {
             SaveMediaOptions();
         }
+        MediaOptionsLoaded = false;
+
+        lvVideoFormats.Items.Clear();
+        lvAudioFormats.Items.Clear();
+        lvUnknownFormats.Items.Clear();
+        lbExtendedDownloaderNoVideoFormatsAvailable.Visible = false;
+        lbExtendedDownloaderNoAudioFormatsAvailable.Visible = false;
+        lbExtendedDownloaderNoUnknownFormatsFound.Visible = false;
 
         this.MediaDetails = MediaDetails;
 
@@ -1094,7 +1465,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
                     if (!MediaDetails.MediaData.ThumbnailLink.IsNullEmptyWhitespace()) {
                         if (Downloads.ExtendedDownloaderAutoDownloadThumbnail) {
-                            ProcessThumbnail();
+                            DownloadThumbnail();
                         }
                         else {
                             btnExtendedDownloaderDownloadThumbnail.Enabled = btnExtendedDownloaderDownloadThumbnail.Visible = true;
@@ -1118,6 +1489,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             rbCustom.Enabled = true;
             cbSchema.Enabled = true;
             LoadMediaOptions();
+            MediaOptionsLoaded = true;
         }
     }
 
@@ -1215,11 +1587,17 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
         switch (e.Button) {
             case MouseButtons.Left: {
-                Process.Start(MediaDetails.URL);
+                if (!Program.IsWebUrl(MediaDetails.URL)) {
+                    Log.MessageBox("Only HTTP or HTTPS web addresses can be opened in a browser.");
+                }
+                else if (!Program.TryOpenWebUrl(MediaDetails.URL)) {
+                    Log.MessageBox("The web address could not be opened in the default browser.");
+                }
             } break;
             case MouseButtons.Right: {
-                Clipboard.SetText(MediaDetails.URL);
-                System.Media.SystemSounds.Asterisk.Play();
+                if (TrySetClipboardText(MediaDetails.URL)) {
+                    System.Media.SystemSounds.Asterisk.Play();
+                }
             } break;
         }
     }
@@ -1354,23 +1732,47 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
     private void mDownload_Click(object sender, EventArgs e) {
         switch (Status) {
-            case DownloadStatus.Downloading: {
+            case DownloadStatus.Aborted when ProcessingThread?.IsAlive == true:
+                break;
+
+            case DownloadStatus.Downloading:
+            case DownloadStatus.MergingFiles:
+            case DownloadStatus.Converting:
+            case DownloadStatus.ExtractingAudio:
+            case DownloadStatus.FfmpegPostProcessing:
+            case DownloadStatus.EmbeddingSubtitles:
+            case DownloadStatus.EmbeddingMetadata: {
+                CancellationRequested = true;
                 Status = DownloadStatus.Aborted;
             } break;
 
             default: {
-                BeginDownload(false);
+                if (!QueueResolverRunning) {
+                    BeginDownload(false);
+                }
             } break;
         }
     }
     private void mDownloadWithAuthentication_Click(object sender, EventArgs e) {
         switch (Status) {
-            case DownloadStatus.Downloading: {
+            case DownloadStatus.Aborted when ProcessingThread?.IsAlive == true:
+                break;
+
+            case DownloadStatus.Downloading:
+            case DownloadStatus.MergingFiles:
+            case DownloadStatus.Converting:
+            case DownloadStatus.ExtractingAudio:
+            case DownloadStatus.FfmpegPostProcessing:
+            case DownloadStatus.EmbeddingSubtitles:
+            case DownloadStatus.EmbeddingMetadata: {
+                CancellationRequested = true;
                 Status = DownloadStatus.Aborted;
             } break;
 
             default: {
-                BeginDownload(true);
+                if (!QueueResolverRunning) {
+                    BeginDownload(true);
+                }
             } break;
         }
     }
@@ -1397,12 +1799,15 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     ///     The <see cref="ExtendedMediaDetails"/> that will be copied, if required.
     /// </param>
     private void QueueNewItem(string Link, bool Authenticate, bool CopySelectedAuthentication, bool CopySelectedOptions, ExtendedMediaDetails? CopyFrom) {
+        if (WorkerClosePending) return;
         if (Link.IsNullEmptyWhitespace()) {
             txtQueueLink.Focus();
             System.Media.SystemSounds.Exclamation.Play();
             return;
         }
-        sbtnDownload.Enabled = false;
+        if (ProcessingThread?.IsAlive != true) {
+            sbtnDownload.Enabled = false;
+        }
 
         ListViewItem NewItem = new(Link) {
             ImageIndex = StatusIcon.Waiting,
@@ -1424,7 +1829,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
         if (CopySelectedOptions && CopyFrom is not null) {
             SaveMediaOptions();
-            NewMedia.Authentication = CopyFrom.Authentication;
+            NewMedia.Authentication = CopyFrom.Authentication?.Clone();
             NewMedia.SelectedType = CopyFrom.SelectedType;
             NewMedia.FileNameSchema = CopyFrom.FileNameSchema;
             NewMedia.FileNameSchemaIndex = CopyFrom.FileNameSchemaIndex;
@@ -1445,29 +1850,106 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
         if (Authenticate && !CopySelectedOptions) {
             if (CopySelectedAuthentication && CopyFrom is not null) {
-                NewMedia.Authentication = CopyFrom.Authentication;
+                NewMedia.Authentication = CopyFrom.Authentication?.Clone();
             }
             else {
                 using frmAuthentication Auth = new();
                 if (Auth.ShowDialog() != DialogResult.OK) {
+                    lvQueuedMedia.Items.Remove(NewItem);
+                    NewItem.Tag = null;
+                    NewMedia.Dispose();
+                    if (ProcessingThread?.IsAlive != true) {
+                        sbtnDownload.Enabled = !QueueResolverRunning && lvQueuedMedia.Items.Count > 0;
+                    }
                     return;
                 }
                 NewMedia.Authentication = Auth.Authentication;
             }
         }
 
-        QueueList!.Add(NewMedia);
+        Log.WriteQueueHistory("ADD", Link);
+        bool StartResolver;
+        lock (QueueSync) {
+            QueueList!.Add(NewMedia);
+            StartResolver = !QueueResolverRunning;
+            if (StartResolver) {
+                QueueResolverRunning = true;
+            }
+        }
 
-        if (ProcessingThread?.IsAlive != true) {
-            ProcessingThread = new(() => {
-                Status = DownloadStatus.Preparing;
-                while (QueueList.Count > 0) {
-                    ExtendedMediaDetails CurrentMedia = QueueList[0];
-                    CurrentMedia.GetMediaDetails();
+        if (StartResolver) {
+            QueueResolverThread = new(() => {
+                bool ResolverOwnsStatus = ProcessingThread?.IsAlive != true;
+                if (ResolverOwnsStatus) {
+                    Status = DownloadStatus.Preparing;
+                }
+                while (!RetrievalCancellation.IsCancellationRequested) {
+                    ExtendedMediaDetails? CurrentMedia = null;
+                    lock (QueueSync) {
+                        if (QueueList.Count > 0) {
+                            CurrentMedia = QueueList[0];
+                            QueueList.RemoveAt(0);
+                        }
+                    }
+
+                    if (CurrentMedia is null) {
+                        bool StopResolver = false;
+                        this.Invoke(() => {
+                            lock (QueueSync) {
+                                if (QueueList.Count == 0) {
+                                    QueueResolverRunning = false;
+                                    if (ResolverOwnsStatus && Status == DownloadStatus.Preparing) {
+                                        Status = DownloadStatus.None;
+                                    }
+                                    if (ProcessingThread?.IsAlive != true) {
+                                        sbtnDownload.Enabled = lvQueuedMedia.Items.Count > 0;
+                                    }
+                                    StopResolver = true;
+                                }
+                            }
+                        });
+                        if (StopResolver) {
+                            break;
+                        }
+                        continue;
+                    }
+
+                    try {
+                        CurrentMedia.GetMediaDetails(RetrievalCancellation.Token);
+                    }
+                    catch (OperationCanceledException) when (RetrievalCancellation.IsCancellationRequested) { break; }
+                    catch (DownloadException ex) {
+                        Log.Write($"Unable to retrieve queued media details for \"{CurrentMedia.URL}\": {ex.Message}");
+                        if (!this.IsDisposed && this.IsHandleCreated) {
+                            try {
+                                this.Invoke(() => {
+                                    if (CurrentMedia.QueueItem is not null && lvQueuedMedia.Items.Contains(CurrentMedia.QueueItem)) {
+                                        CurrentMedia.QueueItem.ImageIndex = StatusIcon.Errored;
+                                    }
+                                });
+                            }
+                            catch (InvalidOperationException) { }
+                        }
+                        continue;
+                    }
+                    catch (Exception ex) when (ex is not ThreadAbortException) {
+                        if (!this.IsDisposed && this.IsHandleCreated) {
+                            try {
+                                this.Invoke(() => {
+                                    Log.ReportException(ex);
+                                    if (CurrentMedia.QueueItem is not null && lvQueuedMedia.Items.Contains(CurrentMedia.QueueItem)) {
+                                        CurrentMedia.QueueItem.ImageIndex = StatusIcon.Errored;
+                                    }
+                                });
+                            }
+                            catch (InvalidOperationException) { }
+                        }
+                        continue;
+                    }
 
                     // If the queued list does not have the finished queued item, skip it
-                    if (!lvQueuedMedia.Items.Contains(CurrentMedia.QueueItem) || (CurrentMedia.QueueItem is null || CurrentMedia.MediaData is null)) {
-                        QueueList.RemoveAt(0);
+                    if (CurrentMedia.QueueItem is null || CurrentMedia.MediaData is null
+                    || !(bool)lvQueuedMedia.Invoke(() => lvQueuedMedia.Items.Contains(CurrentMedia.QueueItem))) {
                         continue;
                     }
 
@@ -1485,24 +1967,43 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
 
                         SelectedMediaChanged(CurrentMedia);
                     });
-                    QueueList.RemoveAt(0);
                     Thread.Sleep(100);
                 }
-                Status = DownloadStatus.None;
-                sbtnDownload.Invoke(() => sbtnDownload.Enabled = true);
             }) {
                 Name = "Batch download info queue resolver",
                 IsBackground = true
             };
-            ProcessingThread.Start();
+            QueueResolverThread.Start();
+        }
+    }
+    private static bool TryGetClipboardText(out string Text) {
+        Text = string.Empty;
+        try {
+            if (!Clipboard.ContainsText()) {
+                return false;
+            }
+
+            Text = Clipboard.GetText();
+            return true;
+        }
+        catch (System.Runtime.InteropServices.ExternalException) {
+            return false;
+        }
+    }
+    private static bool TrySetClipboardText(string Text) {
+        try {
+            Clipboard.SetText(Text);
+            return true;
+        }
+        catch (System.Runtime.InteropServices.ExternalException) {
+            return false;
         }
     }
     private string[] GetLinksFromClipboard() {
-        if (!Clipboard.ContainsText()) {
+        if (!TryGetClipboardText(out string ClipboardData)) {
             return [];
         }
-        string ClipboardData = Clipboard.GetText().Replace("\r\n", "\n");
-        return ClipboardData.Split('\n');
+        return ClipboardData.Replace("\r\n", "\n").Split('\n');
     }
     private string[] GetLinksFromFile() {
         using OpenFileDialog OFD = new() {
@@ -1514,13 +2015,25 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             return [];
         }
 
-        FileInfo Info = new(OFD.FileName);
-        if (!Info.Exists || Info.Length < 3) {
+        try {
+            FileInfo Info = new(OFD.FileName);
+            if (!Info.Exists || Info.Length < 3) {
+                return [];
+            }
+
+            string FileData = File.ReadAllText(OFD.FileName);
+            return FileData.Replace("\r\n", "\n").Split('\n');
+        }
+        catch (Exception ex) when (ex is IOException
+                                or UnauthorizedAccessException
+                                or System.Security.SecurityException
+                                or ArgumentException
+                                or NotSupportedException) {
+            string Error = $"Could not import links from '{OFD.FileName}': {ex.Message}";
+            Log.Write(Error);
+            Log.MessageBox(Error);
             return [];
         }
-
-        string FileData = File.ReadAllText(OFD.FileName);
-        return FileData.Replace("\r\n", "\n").Split('\n');
     }
     private void lvQueuedMedia_SelectedIndexChanged(object sender, EventArgs e) {
         ExtendedMediaDetails? Details;
@@ -1633,7 +2146,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 Application.ApplicationExit += ApplicationExit;
                 mEnqueueClipboardScannerVerifyLinks.Enabled = true;
                 ClipboardScannerActive = true;
-                Log.Write("Clipboard scanning for batch download queueing stopped.");
+                Log.Write("Clipboard scanning for batch download queueing started.");
             }
             else {
                 mEnqueueClipboardScanner.Checked = false;
@@ -1645,7 +2158,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     Application.ApplicationExit -= ApplicationExit;
                     mEnqueueClipboardScannerVerifyLinks.Enabled = false;
                     ClipboardScannerActive = false;
-                    Log.Write("Clipboard scanning for batch download queueing started.");
+                    Log.Write("Clipboard scanning for batch download queueing stopped.");
                 }
             }
         }
@@ -1655,17 +2168,30 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
     }
     private void mQueueCopyLink_Click(object sender, EventArgs e) {
         if (MediaDetails is not null) {
-            Clipboard.SetText(MediaDetails.URL);
+            TrySetClipboardText(MediaDetails.URL);
         }
     }
     private void mQueueViewInBrowser_Click(object sender, EventArgs e) {
-        if (MediaDetails is not null) {
-            Process.Start(MediaDetails.URL);
+        if (MediaDetails is null) {
+            return;
+        }
+        if (!Program.IsWebUrl(MediaDetails.URL)) {
+            Log.MessageBox("Only HTTP or HTTPS web addresses can be opened in a browser.");
+        }
+        else if (!Program.TryOpenWebUrl(MediaDetails.URL)) {
+            Log.MessageBox("The web address could not be opened in the default browser.");
         }
     }
     private void mQueueRemoveSelected_Click(object sender, EventArgs e) {
+        if (ProcessingThread?.IsAlive == true) {
+            return;
+        }
+
         if (lvQueuedMedia.SelectedItems.Count > 0) {
-            lvQueuedMedia.Items.RemoveAt(lvQueuedMedia.SelectedItems[0].Index);
+            ListViewItem RemovedItem = lvQueuedMedia.SelectedItems[0];
+            string RemovedValue = RemovedItem.Tag is ExtendedMediaDetails Details ? Details.URL : RemovedItem.Text;
+            Log.WriteQueueHistory("REMOVE", RemovedValue);
+            lvQueuedMedia.Items.RemoveAt(RemovedItem.Index);
         }
 
         if (lvQueuedMedia.Items.Count == 0) {

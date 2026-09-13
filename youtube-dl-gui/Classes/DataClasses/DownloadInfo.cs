@@ -1,6 +1,7 @@
 ﻿#nullable enable
 namespace youtube_dl_gui;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 /// <summary>
 ///     Represents an object that contains information about a media download, with settings for the download.
 /// </summary>
@@ -12,6 +13,7 @@ using System.Diagnostics.CodeAnalysis;
 /// </param>
 internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
     private string? _argsCensored;
+    private ProviderAuthenticationConfig? AuthenticationConfig;
 
     /// <summary>
     /// The URL of the video to download.
@@ -116,6 +118,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
     /// <returns><see langword="true"/> if the arguments generated successfully; otherwise, <see langword="false"/>.</returns>
     public override bool GenerateArguments(Action<string> Verbose) {
         Status = DownloadStatus.Preparing;
+        DisposeAuthenticationConfig();
 
         if (DownloadURL.IsNullEmptyWhitespace()) {
             Verbose("The URL is null or empty. Please enter a URL to download.");
@@ -187,7 +190,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
         }
 
         if (!MostlyCustomArguments) {
-            ArgumentsBuffer.Add($"{DownloadURL} -o {OutputDirectory}");
+            ArgumentsBuffer.Add($"-o {OutputDirectory}");
         }
 
         Verbose("The output was generated and will be used");
@@ -203,7 +206,8 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                     ArgumentsBuffer.Add(Formats.GetVideoQualityArgs(VideoQuality));
                 }
 
-                ArgumentsBuffer.Add(Formats.GetVideoRecodeInfo(VideoFormat));
+                bool SupportsRemux = Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly;
+                ArgumentsBuffer.Add(Formats.GetVideoRecodeInfo(VideoFormat, SupportsRemux));
             } break;
             case DownloadType.Audio: {
                 if (AudioCBRQuality == AudioCBRQualityType.best || AudioVBRQuality == AudioVBRQualityType.q0) {
@@ -211,7 +215,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                 }
                 else {
                     if (UseVBR) {
-                        ArgumentsBuffer.Add($"--extract-audio --audio-quality {AudioVBRQuality}");
+                        ArgumentsBuffer.Add($"--extract-audio --audio-quality {(int)AudioVBRQuality}");
                     }
                     else {
                         ArgumentsBuffer.Add($"--extract-audio --audio-quality {Formats.GetAudioQuality(AudioCBRQuality)}");
@@ -228,7 +232,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
             case DownloadType.Custom: {
                 Verbose("Custom was requested, skipping quality + format");
                 if (MostlyCustomArguments) {
-                    ArgumentsBuffer = new($"{CustomArguments} -o \"{OutputDirectory}\"");
+                    ArgumentsBuffer = new($"{CustomArguments} -o {OutputDirectory}");
                     break;
                 }
 
@@ -257,7 +261,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                     }
 
                     if (PlaylistSelectionIndexEnd > 0) {
-                        ArgumentsBuffer.Add($"--playlist-end {PlaylistSelectionIndexStart + PlaylistSelectionIndexEnd}");
+                        ArgumentsBuffer.Add($"--playlist-end {PlaylistSelectionIndexEnd}");
                     }
                     break;
                 case PlaylistSelectionType.PlaylistItems: // playlist-items
@@ -274,22 +278,19 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                     break;
             }
 
-            if (Downloads.PreferFFmpeg || (DownloadHelper.IsReddit(DownloadURL) && Downloads.fixReddit)) {
-                Verbose("Looking for ffmpeg");
-                bool AddArg = true;
-                if (!Verification.FfmpegAvailable) {
-                    Verbose("WARNING: ffmpeg could not be found; refreshing location");
-                    Verification.RefreshFFmpegLocation();
-                    if (!Verification.FfmpegAvailable) {
-                        Verbose("WARNING: Could not find ffmpeg, it will not be used, downloading may be affected");
-                        AddArg = false;
-                    }
-                }
+            if (!Verification.FfmpegAvailable) {
+                Verification.RefreshFFmpegLocation();
+            }
 
-                if (AddArg) {
+            if (Verification.FfmpegAvailable) {
+                ArgumentsBuffer.Add($"--ffmpeg-location \"{Verification.FFmpegPath}\"");
+                if (Downloads.PreferFFmpeg || (DownloadHelper.IsReddit(DownloadURL) && Downloads.fixReddit)) {
                     Verbose("ffmpeg will be used for HLS");
-                    ArgumentsBuffer.Add($"--ffmpeg-location \"{Verification.FFmpegPath}\" --hls-prefer-ffmpeg");
+                    ArgumentsBuffer.Add("--hls-prefer-ffmpeg");
                 }
+            }
+            else if (Downloads.PreferFFmpeg || (DownloadHelper.IsReddit(DownloadURL) && Downloads.fixReddit)) {
+                Verbose("WARNING: Could not find ffmpeg, it will not be used, downloading may be affected");
             }
 
             if (Downloads.SaveSubtitles) {
@@ -310,7 +311,12 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                 ArgumentsBuffer.Add("--write-description");
             }
             if (Downloads.SaveAnnotations) {
-                ArgumentsBuffer.Add("--write-annotations");
+                if (Downloads.YtdlType == (int)GitID.YoutubeDl || Downloads.YtdlType == (int)GitID.YoutubeDlNightly) {
+                    ArgumentsBuffer.Add("--write-annotations");
+                }
+                else {
+                    Verbose("Annotations are not supported by yt-dlp; skipping --write-annotations.");
+                }
             }
             if (Downloads.SaveThumbnail) {
                 // ArgumentsBuffer += "--write-all-thumbnails "; // Maybe?
@@ -345,21 +351,14 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
             }
 
             if (Downloads.LimitDownloads && Downloads.DownloadLimit > 0) {
-                ArgumentsBuffer.Add($"--limit-rate {Downloads.DownloadLimit}");
-                switch (Downloads.DownloadLimitType) {
-                    case 1: { // mb
-                        ArgumentsBuffer.Add("M");
-                    } break;
-                    case 2: { // gb
-                        ArgumentsBuffer.Add("G");
-                    } break;
-                    default: { // kb default
-                        ArgumentsBuffer.Add("K");
-                    } break;
-                }
+                ArgumentsBuffer.Add($"--limit-rate {Downloads.DownloadLimit}" + Downloads.DownloadLimitType switch {
+                    1 => "M",
+                    2 => "G",
+                    _ => "K"
+                });
             }
 
-            if (Downloads.RetryAttempts != 10 && Downloads.RetryAttempts > 0) {
+            if (Downloads.RetryAttempts != 10 && Downloads.RetryAttempts >= 0) {
                 ArgumentsBuffer.Add($"--retries {Downloads.RetryAttempts}");
             }
 
@@ -370,28 +369,41 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                 ArgumentsBuffer.Add("--force-ipv6");
             }
 
-            if (Downloads.UseProxy && Downloads.ProxyType > -1 && !string.IsNullOrEmpty(Downloads.ProxyIP) && !string.IsNullOrEmpty(Downloads.ProxyPort)) {
+            if (Downloads.UseProxy && Downloads.ProxyType > -1 && Downloads.ProxyType < DownloadHelper.ProxyProtocols.Length && !string.IsNullOrEmpty(Downloads.ProxyIP) && !string.IsNullOrEmpty(Downloads.ProxyPort)) {
                 ArgumentsBuffer.Add($"--proxy {DownloadHelper.ProxyProtocols[Downloads.ProxyType]}{Downloads.ProxyIP}:{Downloads.ProxyPort}/");
             }
 
             if (Downloads.SkipUnavailableFragments) {
+                ArgumentsBuffer.Add("--skip-unavailable-fragments");
+            }
+            else if (Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly) {
+                ArgumentsBuffer.Add("--abort-on-unavailable-fragments");
+            }
+            else {
                 ArgumentsBuffer.Add("--abort-on-unavailable-fragment");
             }
 
-            if (!Downloads.AbortOnError) {
+            if (Downloads.AbortOnError) {
+                ArgumentsBuffer.Add("--abort-on-error");
+            }
+            else if (Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly) {
                 ArgumentsBuffer.Add("--no-abort-on-error");
             }
+            else {
+                ArgumentsBuffer.Add("--ignore-errors");
+            }
 
-            if (Downloads.FragmentThreads > 1) {
+            if (Downloads.FragmentThreads > 1
+            && (Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly)) {
                 ArgumentsBuffer.Add("--concurrent-fragments " + Downloads.FragmentThreads);
             }
 
-            if (!BatchDownload) {
+            if (!BatchDownload && PlaylistSelection == PlaylistSelectionType.None) {
                 ArgumentsBuffer.Add("--no-playlist");
             }
 
             if (!CustomArguments.IsNullEmptyWhitespace()) {
-                CustomArguments = CustomArguments.ReplaceWhitespace().Trim();
+                CustomArguments = CustomArguments.Trim();
                 if (!CustomArguments.IsNullEmptyWhitespace()) {
                     ArgumentsBuffer.Add(CustomArguments);
                 }
@@ -400,51 +412,30 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
         #endregion
 
         #region Authentication
-        // Set the preview arguments to what is present in the arguments buffer.
-        // This is so the arguments buffer can have sensitive information and
-        // the preview arguments won't include it in case anyone creates an issue.
+        // Provider secrets are transported through a private, per-operation config file.
         PreviewArguments = new(ArgumentsBuffer.ToString());
-
-        if (!MostlyCustomArguments) {
-            if (Authentication is not null) {
-                if (!Authentication.Username.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--username {Authentication.Username}");
-                    Authentication.Username = null;
-                    PreviewArguments.Add("--username ***");
+        if (!MostlyCustomArguments && Authentication is not null) {
+            try {
+                AuthenticationConfig = ProviderAuthenticationConfig.Create(Authentication);
+                if (AuthenticationConfig is not null) {
+                    ArgumentsBuffer.Add("--config-location " + ArgumentList.EscapeArgument(AuthenticationConfig.FilePath));
+                    PreviewArguments.Add("--config-location ***");
                 }
-                if (Authentication.Password?.Length > 0) {
-                    ArgumentsBuffer.Add($"--password {Authentication.GetPassword()}");
-                    Array.Clear(Authentication.Password, 0, Authentication.Password.Length);
-                    PreviewArguments.Add("--password ***");
-                }
-                if (!Authentication.TwoFactor.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--twofactor {Authentication.TwoFactor}");
-                    Authentication.TwoFactor = null;
-                    PreviewArguments.Add("--twofactor ***");
-                }
-                if (Authentication.MediaPassword?.Length > 0) {
-                    ArgumentsBuffer.Add($"--video-password {Authentication.GetMediaPassword()}");
-                    Array.Clear(Authentication.MediaPassword, 0, Authentication.MediaPassword.Length);
-                    PreviewArguments.Add("--video-password ***");
-                }
-                if (Authentication.NetRC) {
-                    ArgumentsBuffer.Add("--netrc");
-                    PreviewArguments.Add("--netrc ***");
-                    Authentication.NetRC = false;
-                }
-                if (!Authentication.CookiesFile.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--cookies {Authentication.CookiesFile}");
-                    PreviewArguments.Add("--cookies ***");
-                    Authentication.CookiesFile = null;
-                }
-                if (!Authentication.CookiesFromBrowser.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--cookies-from-browser {Authentication.CookiesFromBrowser}");
-                    PreviewArguments.Add("--cookies-from-browser ***");
-                    Authentication.CookiesFromBrowser = null;
-                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or InvalidOperationException) {
+                Verbose("Could not create a private authentication config for the download provider.");
+                Log.Write($"Could not create provider authentication config: {ex.Message}");
+                Status = DownloadStatus.ProgramError;
+                return false;
             }
         }
         #endregion
+
+        if (!MostlyCustomArguments) {
+            string SourceArgument = "-- " + ArgumentList.EscapeArgument(DownloadURL);
+            ArgumentsBuffer.Add(SourceArgument);
+            PreviewArguments.Add(SourceArgument);
+        }
 
         Verbose("Arguments have been generated");
         base.Arguments = ArgumentsBuffer.ToString();
@@ -453,5 +444,81 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
         ArgumentsBuffer.Clear();
         PreviewArguments.Clear();
         return true;
+    }
+
+    internal void DisposeAuthenticationConfig() {
+        AuthenticationConfig?.Dispose();
+        AuthenticationConfig = null;
+    }
+
+    protected override void Dispose(bool disposing) {
+        if (Disposed) return;
+        DisposeAuthenticationConfig();
+        base.Dispose(disposing);
+    }
+}
+
+internal sealed class ProviderAuthenticationConfig : IDisposable {
+    private readonly string DirectoryPath;
+    private bool Disposed;
+
+    public string FilePath { get; }
+
+    private ProviderAuthenticationConfig(string FilePath, string DirectoryPath) {
+        this.FilePath = FilePath;
+        this.DirectoryPath = DirectoryPath;
+    }
+
+    public static ProviderAuthenticationConfig? Create(AuthenticationDetails Authentication) {
+        if (Authentication is null) throw new ArgumentNullException(nameof(Authentication));
+
+        List<string> Options = [];
+        if (!Authentication.Username.IsNullEmptyWhitespace()) Options.Add("--username " + QuoteConfigValue(Authentication.Username));
+        if (Authentication.Password?.Length > 0) Options.Add("--password " + QuoteConfigValue(Authentication.GetPassword()));
+        if (!Authentication.TwoFactor.IsNullEmptyWhitespace()) Options.Add("--twofactor " + QuoteConfigValue(Authentication.TwoFactor));
+        if (Authentication.MediaPassword?.Length > 0) Options.Add("--video-password " + QuoteConfigValue(Authentication.GetMediaPassword()));
+        if (Authentication.NetRC) Options.Add("--netrc");
+        if (!Authentication.CookiesFile.IsNullEmptyWhitespace()) Options.Add("--cookies " + QuoteConfigValue(Authentication.CookiesFile));
+        if (!Authentication.CookiesFromBrowser.IsNullEmptyWhitespace()) Options.Add("--cookies-from-browser " + QuoteConfigValue(Authentication.CookiesFromBrowser));
+        if (Options.Count == 0) return null;
+
+        System.Security.Principal.SecurityIdentifier CurrentUser = System.Security.Principal.WindowsIdentity.GetCurrent().User
+            ?? throw new InvalidOperationException("The current Windows user has no security identifier.");
+        System.Security.Principal.SecurityIdentifier LocalSystem = new(System.Security.Principal.WellKnownSidType.LocalSystemSid, null);
+
+        System.Security.AccessControl.DirectorySecurity DirectorySecurity = new();
+        DirectorySecurity.SetAccessRuleProtection(true, false);
+        System.Security.AccessControl.InheritanceFlags Inheritance = System.Security.AccessControl.InheritanceFlags.ContainerInherit | System.Security.AccessControl.InheritanceFlags.ObjectInherit;
+        DirectorySecurity.AddAccessRule(new(CurrentUser, System.Security.AccessControl.FileSystemRights.FullControl, Inheritance, System.Security.AccessControl.PropagationFlags.None, System.Security.AccessControl.AccessControlType.Allow));
+        DirectorySecurity.AddAccessRule(new(LocalSystem, System.Security.AccessControl.FileSystemRights.FullControl, Inheritance, System.Security.AccessControl.PropagationFlags.None, System.Security.AccessControl.AccessControlType.Allow));
+
+        string DirectoryPath = Path.Combine(Path.GetTempPath(), "youtube-dl-gui-auth-" + Guid.NewGuid().ToString("N"));
+        string FilePath = Path.Combine(DirectoryPath, "provider.conf");
+        try {
+            Directory.CreateDirectory(DirectoryPath, DirectorySecurity);
+            File.WriteAllText(FilePath, string.Join(Environment.NewLine, Options), new UTF8Encoding(false));
+            System.Security.AccessControl.FileSecurity FileSecurity = new();
+            FileSecurity.SetAccessRuleProtection(true, false);
+            FileSecurity.AddAccessRule(new(CurrentUser, System.Security.AccessControl.FileSystemRights.FullControl, System.Security.AccessControl.AccessControlType.Allow));
+            FileSecurity.AddAccessRule(new(LocalSystem, System.Security.AccessControl.FileSystemRights.FullControl, System.Security.AccessControl.AccessControlType.Allow));
+            File.SetAccessControl(FilePath, FileSecurity);
+            return new ProviderAuthenticationConfig(FilePath, DirectoryPath);
+        }
+        catch {
+            try { if (File.Exists(FilePath)) File.Delete(FilePath); } catch { }
+            try { if (Directory.Exists(DirectoryPath)) Directory.Delete(DirectoryPath, true); } catch { }
+            throw;
+        }
+    }
+
+    private static string QuoteConfigValue(string Value) => "'" + Value.Replace("'", "'\"'\"'") + "'";
+
+    public void Dispose() {
+        if (Disposed) return;
+        Disposed = true;
+        try { if (File.Exists(FilePath)) File.Delete(FilePath); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Write($"Could not remove temporary provider authentication config: {ex.Message}"); }
+        try { if (Directory.Exists(DirectoryPath)) Directory.Delete(DirectoryPath, true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Write($"Could not remove temporary provider authentication directory: {ex.Message}"); }
     }
 }

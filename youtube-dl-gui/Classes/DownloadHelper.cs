@@ -23,7 +23,7 @@ public static class DownloadHelper {
         new(RegexPrefix + @"((www|m)\.)?pornhub\.com\/view_video\.php(\?viewkey=|.*?&viewkey=)ph[a-zA-Z0-9]{1,}", RegexOptions.Compiled),
 
         // lang=regex Reddit
-        new(RegexPrefix + @"([a-zA-Z]{1,}\.)?reddit\.com\/r\/[a-zA-Z0-9-_]{1,}\/(comments\/)?[a-zA-Z0-9]{1,}|(i\.|v\.)?redd\.it\/[a-zA-Z0-9]{1,}", RegexOptions.Compiled),
+        new(RegexPrefix + @"([a-zA-Z]{1,}\.)?reddit\.com\/r\/[a-zA-Z0-9-_]{1,}\/(comments\/)?[a-zA-Z0-9]{1,}|(i\.|v\.)?redd\.it\/[a-zA-Z0-9]{1,}", RegexOptions.Compiled | RegexOptions.IgnoreCase),
 
         // lang=regex Twitter
         new(RegexPrefix + @"(t\.co\/[a-zA-Z0-9]{1,})|(((m|mobile)\.)?twitter\.com\/(i|[a-zA-Z0-9]{1,})\/status\/[0-9]{1,})", RegexOptions.Compiled),
@@ -42,25 +42,25 @@ public static class DownloadHelper {
         //new(RegexPrefix + "", RegexOptions.Compiled),
     ];
 
-    private static readonly Regex BasicUrlRegex = new(@"([^\r\n\t\f\v]){1,}\.([^\r\n\t\f\v]){1,}", RegexOptions.Compiled);
+    private static readonly Regex BasicUrlRegex = new(@"[^\r\n\t\f\v]\.[^\r\n\t\f\v]", RegexOptions.Compiled);
 
     public static bool IsReddit(string Url) => CompiledRegex[2].IsMatch(Url);
 
     public static string GetUrlBase(string Url, bool OverrideSubdomain = false) {
-        if (Url.StartsWith("https://")) {
-            if (Url.StartsWith("https://www."))
+        if (Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
+            if (Url.StartsWith("https://www.", StringComparison.OrdinalIgnoreCase))
                 Url = Url[12..];
             else
                 Url = Url[8..];
         }
-        else if (Url.StartsWith("http://")) {
-            if (Url.StartsWith("http://www."))
+        else if (Url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) {
+            if (Url.StartsWith("http://www.", StringComparison.OrdinalIgnoreCase))
                 Url = Url[11..];
             else
                 Url = Url[7..];
         }
         else {
-            if (Url.StartsWith("www."))
+            if (Url.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
                 Url = Url[4..];
         }
 
@@ -72,27 +72,48 @@ public static class DownloadHelper {
             }
         }
 
-        return Url;
+        char[] InvalidFileNameChars = System.IO.Path.GetInvalidFileNameChars();
+        Url = new string(Url.Select(c => InvalidFileNameChars.Contains(c) ? '_' : c).ToArray()).TrimEnd(' ', '.');
+        return Url.Length > 0 ? Url : "_";
     }
 
     public static bool SupportedDownloadLink(string Url) => BasicUrlRegex.IsMatch(Url);
 
     public static string GetTransferData(string[] LineParts, ref float Percentage, ref string Eta) {
-        if (LineParts[1].Contains('%')) {
-            Percentage = float.Parse(LineParts[1][..LineParts[1].IndexOf('%')],
-                System.Globalization.CultureInfo.InvariantCulture);
-
-            if (LineParts[3] == "~") {
-                Eta = LineParts[8];
-                return $"{LineParts[1]} of ~{LineParts[4]} @ {LineParts[6]}";
-            }
-            else {
-                Eta = LineParts[7];
-                return $"{LineParts[1]} of {LineParts[3]} @ {LineParts[5]}";
-            }
-        }
         Eta = "Unknown";
-        return "Could not parse line";
+        if (LineParts is null || LineParts.Length < 2 || LineParts[1].IsNullEmptyWhitespace()) {
+            return "Could not parse line";
+        }
+
+        int PercentIndex = LineParts[1].IndexOf('%');
+        if (PercentIndex <= 0 || !float.TryParse(
+            LineParts[1][..PercentIndex],
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out float ParsedPercentage)
+            || float.IsNaN(ParsedPercentage)
+            || float.IsInfinity(ParsedPercentage)) {
+            return "Could not parse line";
+        }
+        ParsedPercentage = Math.Max(0f, Math.Min(100f, ParsedPercentage));
+
+        if (LineParts.Length > 3 && LineParts[3] == "~") {
+            if (LineParts.Length <= 8) {
+                return "Could not parse line";
+            }
+
+            Percentage = ParsedPercentage;
+            Eta = LineParts[8];
+            return $"{LineParts[1]} of ~{LineParts[4]} @ {LineParts[6]}";
+        }
+
+        if (LineParts.Length <= 7) {
+            return "Could not parse line";
+        }
+
+        Percentage = ParsedPercentage;
+        Eta = LineParts[7];
+        return $"{LineParts[1]} of {LineParts[3]} @ {LineParts[5]}";
     }
 
     public static bool IsYoutubeKey([NotNullWhen(true)] string? key) {
@@ -102,7 +123,11 @@ public static class DownloadHelper {
         return Regex.IsMatch(key, "^[a-zA-Z0-9-_]{11}$");
     }
 
-    public static bool IsYoutubeLink(string url) => Regex.IsMatch(url, @"(((http|https):\/\/)?(.){0,5}\.(youtube\.com|youtu\.be)\/(watch\?v=)?)?[a-zA-Z0-9-_]{11}");
+    public static bool IsYoutubeLink(string url) =>
+        IsYoutubeKey(url) || Regex.IsMatch(
+            url,
+            @"^(?:(?:https?://)?(?:(?:www|m)\.)?youtube\.com/watch\?v=|(?:https?://)?(?:(?:www|m)\.)?youtu\.be/)[a-zA-Z0-9_-]{11}(?:[?&#].*)?$",
+            RegexOptions.IgnoreCase);
 
     public static string? GetYoutubeVideoKey(string URL) {
         if (URL.StartsWith("http://",  StringComparison.InvariantCultureIgnoreCase)) {
@@ -112,8 +137,8 @@ public static class DownloadHelper {
             URL = URL[8..];
         }
 
-        if (URL.StartsWith("www.", StringComparison.InvariantCultureIgnoreCase)) {
-            URL = URL[4..];
+        if (URL.StartsWith("www.", StringComparison.InvariantCultureIgnoreCase) || URL.StartsWith("m.", StringComparison.InvariantCultureIgnoreCase)) {
+            URL = URL.StartsWith("m.", StringComparison.InvariantCultureIgnoreCase) ? URL[2..] : URL[4..];
         }
 
         if (URL.StartsWith("youtube.com/watch?v=", StringComparison.InvariantCultureIgnoreCase)) {

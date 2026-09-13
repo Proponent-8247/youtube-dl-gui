@@ -199,7 +199,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
     public AudioSampleRates AudioSampleRate { get; set; } = AudioSampleRates.none;
 
     private bool ShouldExtractSubstreams() {
-        return OutputFilePath!.ToLowerInvariant()[OutputFilePath.LastIndexOf('.')..] switch {
+        return System.IO.Path.GetExtension(OutputFilePath).ToLowerInvariant() switch {
             ".webm" => false,
             ".mkv" => false,
             _ => true,
@@ -211,7 +211,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
             throw new ArgumentNullException(nameof(InputFilePath));
         }
 
-        ProbeData = FfprobeData.GenerateData(InputFilePath, out _);
+        ProbeData = FfprobeData.GenerateData(InputFilePath, RetrievalCancellation, out _);
         if (ProbeData is null || ProbeData.MediaStreams is null || ProbeData.MediaStreams.Length < 1) {
             throw new ArgumentException(nameof(InputFilePath));
         }
@@ -268,7 +268,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
 
                     if (!Stream.avg_frame_rate.IsNullEmptyWhitespace()
                     && (Framerate = Stream.avg_frame_rate.Split('/')).Length >= 2
-                    && int.TryParse(Framerate[0], out int A) && int.TryParse(Framerate[1], out int B)) {
+                    && int.TryParse(Framerate[0], out int A) && int.TryParse(Framerate[1], out int B) && B != 0) {
                         if (Display.Length > 0) {
                             Display.Append(" / ");
                         }
@@ -276,7 +276,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
                     }
                     else if (!Stream.r_frame_rate.IsNullEmptyWhitespace()
                     && (Framerate = Stream.r_frame_rate.Split('/')).Length >= 2
-                    && int.TryParse(Framerate[0], out A) && int.TryParse(Framerate[1], out B)) {
+                    && int.TryParse(Framerate[0], out A) && int.TryParse(Framerate[1], out B) && B != 0) {
                         if (Display.Length > 0) {
                             Display.Append(" / ");
                         }
@@ -345,6 +345,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
         }
 
         InfoRetrieved = true;
+        InfoParsed = true;
     }
     public override bool GenerateArguments() {
         if (this.OutputFilePath.IsNullEmptyWhitespace()) {
@@ -366,7 +367,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
         this.EnabledVideoStreams.Clear();
         this.EnabledAudioStreams.Clear();
         this.EnabledSubtitles.Clear();
-        this.EnabledSubtitles.Clear();
+        this.EnabledAttachments.Clear();
         this.EnabledDataFiles.Clear();
         this.TotalEnabledStreams.Clear();
 
@@ -449,6 +450,16 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
                 if (this.EnabledDataFiles.Count > 0) {
                     this.EnabledDataFiles.For((Stream) => Args.Add($"-map 0:{Stream}"));
                 }
+            }
+        }
+        else {
+            this.EnabledVideoStreams.For((Stream) => Args.Add($"-map 0:{Stream}"));
+            this.EnabledAudioStreams.For((Stream) => Args.Add($"-map 0:{Stream}"));
+
+            if (!this.ExtractSubstreams) {
+                this.EnabledSubtitles.For((Stream) => Args.Add($"-map 0:{Stream}"));
+                this.EnabledAttachments.For((Stream) => Args.Add($"-map 0:{Stream}"));
+                this.EnabledDataFiles.For((Stream) => Args.Add($"-map 0:{Stream}"));
             }
         }
         #endregion
@@ -538,8 +549,8 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
             return false;
         }
 
-        bool CopyCodecs = this.CopyCodecs && InputFilePath[InputFilePath.LastIndexOf('.')..].Equals(
-            OutputFilePath[OutputFilePath.LastIndexOf('.')..], StringComparison.InvariantCultureIgnoreCase);
+        bool CopyCodecs = this.CopyCodecs && System.IO.Path.GetExtension(InputFilePath).Equals(
+            System.IO.Path.GetExtension(OutputFilePath), StringComparison.InvariantCultureIgnoreCase);
 
         ArgumentList Args = new($"-i \"{InputFilePath}\"");
         List<int> DisabledVideoStreams = [];
@@ -608,7 +619,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
 
                 if (DisabledSubtitles.Count > 0) {
                     if (DisabledSubtitles.Count == SubtitleItems.Count) {
-                        Args.Add("-map -0:a");
+                        Args.Add("-map -0:s");
                     }
                     else {
                         DisabledSubtitles.For((Stream) => Args.Add($"-map -0:s:{Stream}"));
@@ -625,7 +636,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
 
                 if (DisabledAttachments.Count > 0) {
                     if (DisabledAttachments.Count == AttachmentItems.Count) {
-                        Args.Add("-map -0:a");
+                        Args.Add("-map -0:t");
                     }
                     else {
                         DisabledAttachments.For((Stream) => Args.Add($"-map -0:t:{Stream}"));
@@ -642,7 +653,7 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
 
                 if (DisabledData.Count > 0) {
                     if (DisabledData.Count == DataFileItems.Count) {
-                        Args.Add("-map -0:a");
+                        Args.Add("-map -0:d");
                     }
                     else {
                         DisabledData.For((Stream) => Args.Add($"-map -0:d:{Stream}"));
@@ -681,7 +692,9 @@ internal sealed class ExtendedConversionDetails(string InputFile) : MediaDetails
 
         List<string> Arguments = [];
 
-        string OutputDir = this.OutputFilePath[..this.OutputFilePath.LastIndexOf('.')];
+        string OutputDir = System.IO.Path.Combine(
+            System.IO.Path.GetDirectoryName(this.OutputFilePath) ?? string.Empty,
+            System.IO.Path.GetFileNameWithoutExtension(this.OutputFilePath));
 
         this.EnabledSubtitles.For((Stream) => Arguments.Add($"-i \"{this.InputFilePath}\" -map 0:{Stream} \"{OutputDir}\\subs\\\""));
 

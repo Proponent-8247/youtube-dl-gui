@@ -7,18 +7,12 @@ internal static class SystemRegistry {
     /// </summary>
     /// <returns><see langword="true"/> if the registry for the protocol exists and points to the current application path; otherwise, <see langword="false"/>.</returns>
     public static bool CheckRegistry() {
-        RegistryKey ProtocolKey = Registry.ClassesRoot.OpenSubKey("ytdlgui", false);
+        using RegistryKey? ProtocolKey = Registry.ClassesRoot.OpenSubKey("ytdlgui", false);
+        using RegistryKey? CommandKey = ProtocolKey?.OpenSubKey("shell\\open\\command");
 
-        bool Available = ProtocolKey?.GetValue("URL Protocol") is not null &&
-            ProtocolKey.OpenSubKey("shell\\open\\command").GetValue("").ToString()
-                .Equals($"\"{Program.FullProgramPath}\" \"%1\"", StringComparison.InvariantCultureIgnoreCase);
-
-        if (ProtocolKey is not null) {
-            ProtocolKey.Close();
-            ProtocolKey.Dispose();
-        }
-
-        return Available;
+        string? Command = CommandKey?.GetValue("")?.ToString();
+        return ProtocolKey?.GetValue("URL Protocol") is not null &&
+            Command?.Equals($"\"{Program.FullProgramPath}\" \"%1\"", StringComparison.InvariantCultureIgnoreCase) == true;
     }
     /// <summary>
     /// Creates or modifies the registry to the current application path.
@@ -29,18 +23,16 @@ internal static class SystemRegistry {
             return 2;
 
         try {
-            RegistryKey ProtocolKey = Registry.ClassesRoot.CreateSubKey("ytdlgui", true);
+            using RegistryKey ProtocolKey = Registry.ClassesRoot.CreateSubKey("ytdlgui", true);
             ProtocolKey.SetValue("URL Protocol", "");
 
-            RegistryKey InUseKey = ProtocolKey.CreateSubKey("shell\\open\\command");
-            InUseKey.SetValue("", $"\"{Program.FullProgramPath}\" \"%1\"");
-            InUseKey.Close();
+            using (RegistryKey CommandKey = ProtocolKey.CreateSubKey("shell\\open\\command")) {
+                CommandKey.SetValue("", $"\"{Program.FullProgramPath}\" \"%1\"");
+            }
 
-            InUseKey = ProtocolKey.CreateSubKey("DefaultIcon", true);
-            InUseKey.SetValue("", $"\"{Program.FullProgramPath}\",0");
-            InUseKey.Close();
-
-            InUseKey.Dispose();
+            using (RegistryKey IconKey = ProtocolKey.CreateSubKey("DefaultIcon", true)) {
+                IconKey.SetValue("", $"\"{Program.FullProgramPath}\",0");
+            }
 
             return 0;
         }

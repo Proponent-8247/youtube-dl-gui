@@ -7,6 +7,8 @@ using System.Drawing;
 using System.IO;
 using System.Net;
 using System.Runtime.Serialization;
+using System.Threading;
+using murrty.controls;
 
 /// <summary>
 /// Class used for information relating to the video.
@@ -28,14 +30,21 @@ internal sealed class YoutubeDlData {
         return Generate(URL, "-J", Auth, out RetrievedData);
     }
 
-    private static YoutubeDlData? Generate(string URL, string? GenerateCommand, AuthenticationDetails? Auth, out string? RetrievedData) {
+    public static YoutubeDlData? GenerateData(string URL, AuthenticationDetails? Auth, CancellationToken Cancellation, out string? RetrievedData) {
+        return Generate(URL, "-j --no-playlist", Auth, out RetrievedData, Cancellation);
+    }
+    public static YoutubeDlData? GeneratePlaylist(string URL, AuthenticationDetails? Auth, CancellationToken Cancellation, out string? RetrievedData) {
+        return Generate(URL, "-J", Auth, out RetrievedData, Cancellation);
+    }
+
+    private static YoutubeDlData? Generate(string URL, string? GenerateCommand, AuthenticationDetails? Auth, out string? RetrievedData, CancellationToken Cancellation = default) {
         RetrievedData = null;
 
         if (URL.IsNullEmptyWhitespace()) {
             return null;
         }
 
-        Log.Write($"Gathering data for \"{URL}\".");
+        Log.Write($"Gathering data for \"{Log.RedactDiagnosticValue(URL)}\".");
         if (!Verification.YoutubeDlAvailable) {
             Verification.RefreshYoutubeDlLocation();
             if (!Verification.YoutubeDlAvailable) {
@@ -49,7 +58,7 @@ internal sealed class YoutubeDlData {
             Arguments.Add(GenerateCommand);
         }
 
-        if (Downloads.RetryAttempts != 10 && Downloads.RetryAttempts > 0) {
+        if (Downloads.RetryAttempts != 10 && Downloads.RetryAttempts >= 0) {
             Arguments.Add("--retries " + Downloads.RetryAttempts);
         }
 
@@ -60,73 +69,36 @@ internal sealed class YoutubeDlData {
             Arguments.Add("--force-ipv6");
         }
 
-        if (Downloads.UseProxy && Downloads.ProxyType > -1 && !Downloads.ProxyIP.IsNullEmptyWhitespace() && !Downloads.ProxyPort.IsNullEmptyWhitespace()) {
+        if (Downloads.UseProxy && Downloads.ProxyType > -1 && Downloads.ProxyType < DownloadHelper.ProxyProtocols.Length && !Downloads.ProxyIP.IsNullEmptyWhitespace() && !Downloads.ProxyPort.IsNullEmptyWhitespace()) {
             Arguments.Add($"--proxy {DownloadHelper.ProxyProtocols[Downloads.ProxyType]}{Downloads.ProxyIP}:{Downloads.ProxyPort}/");
         }
 
-        if (Auth is not null) {
-            if (!Auth.Username.IsNullEmptyWhitespace()) {
-                Arguments.Add("--username " + Auth.Username);
-            }
-            if (Auth.Password?.Length > 0) {
-                Arguments.Add("--password " + Auth.GetPassword());
-            }
-            if (!Auth.TwoFactor.IsNullEmptyWhitespace()) {
-                Arguments.Add("--twofactor " + Auth.TwoFactor);
-            }
-            if (Auth.MediaPassword?.Length > 0) {
-                Arguments.Add("--video-password " + Auth.GetMediaPassword());
-            }
-            if (Auth.NetRC) {
-                Arguments.Add("--netrc");
-            }
-            if (!Auth.CookiesFile.IsNullEmptyWhitespace()) {
-                Arguments.Add("--cookies " + Auth.CookiesFile);
-            }
-            if (!Auth.CookiesFromBrowser.IsNullEmptyWhitespace()) {
-                Arguments.Add("--cookies-from-browser " + Auth.CookiesFromBrowser);
-            }
-        }
+        using ProviderAuthenticationConfig? AuthenticationConfig = Auth is null ? null : ProviderAuthenticationConfig.Create(Auth);
+        if (AuthenticationConfig is not null) Arguments.Add("--config-location " + ArgumentList.EscapeArgument(AuthenticationConfig.FilePath));
 
-        Arguments.Add(URL);
+        Arguments.Add("-- " + ArgumentList.EscapeArgument(URL));
 
-        Process Enumeration = new() {
-            StartInfo = new(Verification.YoutubeDlPath) {
-                Arguments = $"--simulate --no-warnings --no-cache-dir {Arguments}",
-                CreateNoWindow = true,
-                RedirectStandardError = true,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                StandardErrorEncoding = Encoding.UTF8, //Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage),
-                StandardOutputEncoding = Encoding.UTF8, //Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage),
-                WindowStyle = ProcessWindowStyle.Hidden,
-            }
+        ProcessStartInfo StartInfo = new(Verification.YoutubeDlPath) {
+            Arguments = $"--simulate --no-warnings --no-cache-dir {Arguments}",
+            WindowStyle = ProcessWindowStyle.Hidden,
         };
-
         Arguments.Clear();
+        OwnedProcess.Result Result = OwnedProcess.Run(StartInfo, Cancellation);
+        StartInfo.Arguments = string.Empty;
 
-        StringBuilder Output = new(string.Empty);
-        StringBuilder Error = new(string.Empty);
-        Enumeration.OutputDataReceived += (s, e) => Output.Append(e.Data);
-        Enumeration.ErrorDataReceived += (s, e) => Error.Append(e.Data);
-        Enumeration.Start();
-        Enumeration.BeginOutputReadLine();
-        Enumeration.BeginErrorReadLine();
-        Enumeration.WaitForExit();
-
-        Enumeration.StartInfo.Arguments = null;
-
-        if (!Error.ToString().IsNullEmptyWhitespace()) {
-            Log.Write($"Downloading info for \"{URL}\" output some errors.");
-            Log.Write(Error.ToString());
+        if (!Result.StandardError.IsNullEmptyWhitespace()) {
+            Log.Write($"Downloading info for \"{Log.RedactDiagnosticValue(URL)}\" output some errors.");
+            Log.Write(Log.RawProviderDiagnosticWarning);
+            Log.Write(Result.StandardError);
         }
-
-        RetrievedData = Output.Length > 0 ? Output.ToString() : null;
+        RetrievedData = Result.StandardOutput.Length > 0 ? Result.StandardOutput : null;
 
         if (!RetrievedData.IsNullEmptyWhitespace()) {
-            Log.Write($"Finished downloading info for \"{URL}\", deserializing the data.");
-            var Data = RetrievedData.JsonDeserialize<YoutubeDlData>();
+            Log.Write($"Finished downloading info for \"{Log.RedactDiagnosticValue(URL)}\", deserializing the data.");
+            YoutubeDlData? Data = RetrievedData.JsonDeserialize<YoutubeDlData>();
+            if (Data is null) {
+                return null;
+            }
             Data.URL = URL;
             return Data;
         }
@@ -134,95 +106,116 @@ internal sealed class YoutubeDlData {
         return null;
     }
 
-    public Image? GetThumbnail() {
+    public Image? GetThumbnail() => GetThumbnail(CancellationToken.None);
+
+    public Image? GetThumbnail(CancellationToken Cancellation) {
+        Cancellation.ThrowIfCancellationRequested();
         if (this.ThumbnailLink.IsNullEmptyWhitespace()) {
             Log.Write("Cannot download thumbnail, thumb url is null/empty/whitespace.");
             return null;
         }
 
-        Log.Write($"Downloading the thumbnail for \"{URL}\".");
+        const int MaximumThumbnailBytes = 16 * 1024 * 1024;
+        Uri ThumbnailUri = new(this.ThumbnailLink);
+        Log.Write($"Downloading the thumbnail for \"{Log.RedactDiagnosticValue(URL ?? ThumbnailLink)}\".");
+        using ManagedHttpClient Client = new();
+        byte[] ThumbBytes = Client.DownloadBytesTaskAsync(ThumbnailUri, Cancellation, MaximumThumbnailBytes).GetAwaiter().GetResult();
 
-        using WebClient wc = new();
-        byte[] thumbBytes = wc.DownloadData(this.ThumbnailLink);
-
-        if (this.ThumbnailLink.Split('?')[0].EndsWith(".webp")) {
-            Log.Write("The thumbnail is a .webp file and must be converted to be viewable.");
-            string ThumbPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + $"\\temp\\{DateTime.Now:yyyyMMddhmmssfffffff}s";
-            File.WriteAllBytes($"{ThumbPath}.webp", thumbBytes);
-            if (!Verification.FfmpegAvailable) {
-                Verification.RefreshFFmpegLocation();
-                if (!Verification.FfmpegAvailable) {
-                    return null;
-                }
-            }
-
-            //-vf \"scale=1920:-1\"
-            Process ffmpegConvert = new() {
-                StartInfo = new(Verification.FFmpegPath) {
-                    Arguments = $"-nostats -hide_banner -i \"{ThumbPath}.webp\" \"{ThumbPath}.jpg\"",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                }
-            };
-            ffmpegConvert.Start();
-            ffmpegConvert.WaitForExit();
-
-            if (!File.Exists(ThumbPath + ".jpg"))
-                return null;
-
-            thumbBytes = File.ReadAllBytes(ThumbPath + ".jpg");
-            File.Delete(ThumbPath + ".webp");
-            File.Delete(ThumbPath + ".jpg");
+        // Remote image bytes are untrusted. Always normalize them in an owned external
+        // decoder process before passing the normalized output to GDI+.
+        if (!Verification.FfmpegAvailable) {
+            Verification.RefreshFFmpegLocation();
+            if (!Verification.FfmpegAvailable) return null;
         }
 
-        using MemoryStream Stream = new(thumbBytes);
-        return Image.FromStream(Stream);
+        string DirectoryPath = Path.Combine(Path.GetTempPath(), "youtube-dl-gui-thumb-" + Guid.NewGuid().ToString("N"));
+        string InputPath = Path.Combine(DirectoryPath, "thumbnail.input");
+        string OutputPath = Path.Combine(DirectoryPath, "thumbnail.png");
+        Directory.CreateDirectory(DirectoryPath);
+        try {
+            Cancellation.ThrowIfCancellationRequested();
+            File.WriteAllBytes(InputPath, ThumbBytes);
+            OwnedProcess.Result Result = OwnedProcess.Run(new ProcessStartInfo(Verification.FFmpegPath) {
+                Arguments = "-nostdin -nostats -hide_banner -y -i " + ArgumentList.EscapeArgument(InputPath)
+                    + " -frames:v 1 " + ArgumentList.EscapeArgument(OutputPath),
+                WindowStyle = ProcessWindowStyle.Hidden,
+            }, Cancellation, 60_000, 1024 * 1024);
+            if (Result.ExitCode != 0 || !File.Exists(OutputPath)) return null;
+            if (new FileInfo(OutputPath).Length > MaximumThumbnailBytes) {
+                throw new InvalidDataException("The normalized thumbnail exceeds the permitted size.");
+            }
+            ThumbBytes = File.ReadAllBytes(OutputPath);
+        }
+        finally {
+            try {
+                if (File.Exists(InputPath)) File.Delete(InputPath);
+                if (File.Exists(OutputPath)) File.Delete(OutputPath);
+                Directory.Delete(DirectoryPath);
+            }
+            catch (IOException ex) { Log.Write($"Could not remove temporary thumbnail files: {ex.Message}"); }
+            catch (UnauthorizedAccessException ex) { Log.Write($"Could not remove temporary thumbnail files: {ex.Message}"); }
+        }
+
+        Cancellation.ThrowIfCancellationRequested();
+        using MemoryStream Stream = new(ThumbBytes);
+        using Image Thumbnail = Image.FromStream(Stream);
+        if ((long)Thumbnail.Width * Thumbnail.Height > 16 * 1024 * 1024) {
+            throw new InvalidDataException("The thumbnail dimensions exceed the permitted preview size.");
+        }
+        Cancellation.ThrowIfCancellationRequested();
+        return new Bitmap(Thumbnail);
     }
 
     public string GetApproximateVideoSize(YoutubeDlSubdata.Format Video) {
         if (DurationTime is null || Video.VideoBitrate is null) {
             return "null";
         }
-        return "~" + (DurationTime.Value * (Video.VideoBitrate.Value / 8) * 1024).SizeToString();
+        try {
+            return "~" + (DurationTime.Value * (Video.VideoBitrate.Value / 8) * 1024).SizeToString();
+        }
+        catch (OverflowException) {
+            return "null";
+        }
     }
     public string GetApproximateAudioSize(YoutubeDlSubdata.Format Audio) {
         if (DurationTime is null || Audio.AudioBitrate is null) {
             return "null";
         }
-        return "~" + (((DurationTime.Value * Audio.AudioBitrate.Value) / 8) * 1024).SizeToString();
+        try {
+            return "~" + (((DurationTime.Value * Audio.AudioBitrate.Value) / 8) * 1024).SizeToString();
+        }
+        catch (OverflowException) {
+            return "null";
+        }
     }
 
     [IgnoreDataMember]
     public string Duration {
         get {
-            int hours = 0;
-            int minutes = 0;
-            decimal seconds = 0;
+            decimal totalSeconds = 0;
 
-            if (DurationTime is not null) {
-                seconds = DurationTime.Value;
-            }
-            else if (IsPlaylist) {
-                for (int i = 0; i < PlaylistVideos.Length; i++) {
-                    if (PlaylistVideos[i].DurationTime is not null) {
-                        seconds += PlaylistVideos[i].DurationTime!.Value;
+            try {
+                if (DurationTime is not null) {
+                    totalSeconds = DurationTime.Value;
+                }
+                else if (IsPlaylist) {
+                    for (int i = 0; i < PlaylistVideos.Length; i++) {
+                        if (PlaylistVideos[i].DurationTime is not null) {
+                            totalSeconds = checked(totalSeconds + PlaylistVideos[i].DurationTime!.Value);
+                        }
                     }
                 }
             }
+            catch (OverflowException) {
+                return DurationString.IsNullEmptyWhitespace() ? "?:??" : DurationString;
+            }
 
-            if (seconds > 0) {
-                while (seconds >= 60) {
-                    minutes++;
-                    seconds -= 60;
-                }
-
-                while (minutes >= 60) {
-                    hours++;
-                    minutes -= 60;
-                }
-
-                return $"{(hours > 0 ? $"{hours:N0}:{minutes:00.##}" : $"{minutes}")}:{Math.Round(seconds, MidpointRounding.ToEven):00.##}";
+            if (totalSeconds > 0) {
+                decimal roundedSeconds = Math.Round(totalSeconds, 0, MidpointRounding.ToEven);
+                decimal hours = decimal.Floor(roundedSeconds / 3600m);
+                decimal minutes = decimal.Floor((roundedSeconds % 3600m) / 60m);
+                decimal seconds = roundedSeconds % 60m;
+                return $"{(hours > 0 ? $"{hours:N0}:{minutes:00}" : $"{minutes:0}")}:{seconds:00}";
             }
 
             return DurationString.IsNullEmptyWhitespace() ? "?:??" : DurationString;

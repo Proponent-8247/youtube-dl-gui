@@ -136,5 +136,6 @@ internal static partial class AuditRegression {
         Test("CURRENT_O011.UpdaterCloseCancelsEveryPhase", UpdaterCloseCancelsEveryPhase);
         Test("CURRENT_O021.UpdaterUpdateDataIsOneShotAndTargetIsFrozen", UpdaterUpdateDataIsOneShotAndTargetIsFrozen);
         Test("CURRENT_O021.UpdaterRejectsPathLikeAndWrongProcessPackets", UpdaterRejectsPathLikeAndWrongProcessPackets);
+        RunRepairWave15Tests();
     }
 }

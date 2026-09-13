@@ -65,6 +65,12 @@ internal static class ThumbnailFixture {
         if (string.IsNullOrEmpty(pid) || string.IsNullOrEmpty(record) || input == 0 || input >= args.Length) return 2;
         File.WriteAllText(record, args[input]);
         File.WriteAllText(pid, Process.GetCurrentProcess().Id.ToString());
+        if (Environment.GetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE") == "thumbnail-normalize") {
+            if (args.Length < 2) return 3;
+            string output = args[args.Length - 1];
+            File.Copy(args[input], output, true);
+            return 0;
+        }
         Thread.Sleep(Timeout.Infinite);
         return 0;
     }

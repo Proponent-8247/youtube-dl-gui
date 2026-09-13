@@ -13,6 +13,8 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
     public string TempFile { get; private set; }
     public string BackupFile { get; private set; }
 
+    private readonly string LegacyTempFile;
+    private readonly string LegacyBackupFile;
     private readonly ManagedHttpClient DownloadClient;
     private readonly CancellationTokenSource CancelToken;
     private bool Cancelled;
@@ -25,8 +27,11 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
         LoadLanguage();
         this.URL = URL;
         this.Output = Output;
-        this.TempFile = Output + ".tmp";
-        this.BackupFile = Output + ".bck";
+        LegacyTempFile = Output + ".tmp";
+        LegacyBackupFile = Output + ".bck";
+        string SidecarId = ".ytdlgui." + Guid.NewGuid().ToString("N");
+        this.TempFile = Output + SidecarId + ".tmp";
+        this.BackupFile = Output + SidecarId + ".bck";
         CancelToken = new();
         Log.Write($"Using generic downloader to display progress for '{URL}'.");
 
@@ -62,6 +67,14 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
 
         while (CanRetry) {
             try {
+                // Recover deterministic sidecars left by older versions before using
+                // operation-owned sidecars for this attempt. Existing live output remains authoritative.
+                if (!File.Exists(Output) && File.Exists(LegacyBackupFile))
+                    File.Move(LegacyBackupFile, Output);
+
+                if (File.Exists(LegacyTempFile))
+                    File.Delete(LegacyTempFile);
+
                 if (!File.Exists(Output) && File.Exists(BackupFile))
                     File.Move(BackupFile, Output);
 
@@ -86,6 +99,16 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
                     throw;
                 }
 
+                // The unique backup is transactional, not durable user data. Once
+                // the replacement is committed it is safe to remove it without sharing a name
+                // with another in-flight operation.
+                try {
+                    if (File.Exists(BackupFile)) File.Delete(BackupFile);
+                }
+                catch (Exception cleanupEx) when (cleanupEx is IOException or UnauthorizedAccessException) {
+                    Log.Write($"Could not remove generic-download backup sidecar: {cleanupEx.Message}");
+                }
+
                 CanRetry = false;
                 Downloaded = true;
             }
@@ -102,6 +125,13 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
                     CanRetry = false;
                 }
             }
+        }
+
+        try {
+            if (File.Exists(TempFile)) File.Delete(TempFile);
+        }
+        catch (Exception cleanupEx) when (cleanupEx is IOException or UnauthorizedAccessException) {
+            Log.Write($"Could not remove generic-download temporary sidecar: {cleanupEx.Message}");
         }
 
         Finished = true;

@@ -1,0 +1,168 @@
+{
+  "version": 2,
+  "base_sha": "0fd24de2e08f4e0bfe918e2a2b63b1479755c1e1",
+  "expected_failures": [
+    "CURRENT_O019.FfmpegArchiveRequiresVerifiedDigest",
+    "CURRENT_O020.ProviderReleaseRequiresAuthoritativeDigest",
+    "CURRENT_O024.RedditUserscriptTargetsPermalinksSafely",
+    "CURRENT_O027.FileDownloadsEnforceByteAndDurationBounds",
+    "CURRENT_O030.SavedWindowLocationRequiresCurrentScreen",
+    "CURRENT_O031.LanguageBlobRequiresGitObjectIdentity",
+    "CURRENT_O037.FfmpegZipExtractionIsBounded"
+  ],
+  "remaining_failures": [
+    "CURRENT_O024.RedditUserscriptTargetsPermalinksSafely",
+    "CURRENT_O030.SavedWindowLocationRequiresCurrentScreen",
+    "CURRENT_O037.FfmpegZipExtractionIsBounded"
+  ],
+  "repairs": [
+    {
+      "id": "O020-provider-release-integrity",
+      "message": "fix: verify provider release executable before replacement",
+      "resolves": ["CURRENT_O020.ProviderReleaseRequiresAuthoritativeDigest"],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Updater/Github/GithubAsset.cs",
+          "edits": [
+            {
+              "old": "[DataContract]\npublic readonly struct GithubAsset(string Content, long Length) {\n    /// <summary>\n    /// Gets the content type.\n    /// </summary>\n    [DataMember(Name = \"content_type\")]\n    public string Content { get; init; } = Content;\n\n    /// <summary>\n    /// Gets the size of the file.\n    /// </summary>\n    [DataMember(Name = \"size\")]\n    public long Length { get; init; } = Length;\n\n    /// <summary>\n    /// Initializes an empty asset.\n    /// </summary>\n    public GithubAsset() : this(string.Empty, 0) { }\n}",
+              "new": "[DataContract]\npublic readonly struct GithubAsset(string Content, long Length) {\n    [DataMember(Name = \"name\")]\n    public string? Name { get; init; }\n\n    [DataMember(Name = \"browser_download_url\")]\n    public string? DownloadUrl { get; init; }\n\n    [DataMember(Name = \"digest\")]\n    public string? Digest { get; init; }\n\n    /// <summary>\n    /// Gets the content type.\n    /// </summary>\n    [DataMember(Name = \"content_type\")]\n    public string Content { get; init; } = Content;\n\n    /// <summary>\n    /// Gets the size of the file.\n    /// </summary>\n    [DataMember(Name = \"size\")]\n    public long Length { get; init; } = Length;\n\n    /// <summary>\n    /// Initializes an empty asset.\n    /// </summary>\n    public GithubAsset() : this(string.Empty, 0) { }\n}",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmGenericDownloadProgress.cs",
+          "edits": [
+            {
+              "old": "    private readonly ManagedHttpClient DownloadClient;\n    private readonly CancellationTokenSource CancelToken;\n",
+              "new": "    private readonly ManagedHttpClient DownloadClient;\n    private readonly CancellationTokenSource CancelToken;\n    private readonly Func<string, bool>? Validator;\n",
+              "count": 1
+            },
+            {
+              "old": "    public frmGenericDownloadProgress(string URL, string Output) : this(URL, Output, null) { }\n    public frmGenericDownloadProgress(string URL, string Output, Point? Location) {\n        InitializeComponent();\n",
+              "new": "    public frmGenericDownloadProgress(string URL, string Output) : this(URL, Output, null, null) { }\n    public frmGenericDownloadProgress(string URL, string Output, Point? Location) : this(URL, Output, Location, null) { }\n    internal frmGenericDownloadProgress(string URL, string Output, Point? Location, Func<string, bool>? Validator) {\n        InitializeComponent();\n",
+              "count": 1
+            },
+            {
+              "old": "        CancelToken = new();\n        Log.Write($\"Using generic downloader to display progress for '{Log.RedactDiagnosticValue(URL)}'.\");\n",
+              "new": "        CancelToken = new();\n        this.Validator = Validator;\n        Log.Write($\"Using generic downloader to display progress for '{Log.RedactDiagnosticValue(URL)}'.\");\n",
+              "count": 1
+            },
+            {
+              "old": "                await DownloadClient.DownloadFileTaskAsync(new Uri(URL, UriKind.Absolute), TempFile, CancelToken.Token);\n\n                if (File.Exists(BackupFile) && File.Exists(Output))\n",
+              "new": "                await DownloadClient.DownloadFileTaskAsync(new Uri(URL, UriKind.Absolute), TempFile, CancelToken.Token);\n                if (Validator is not null && !Validator(TempFile)) {\n                    throw new InvalidDataException(\"The downloaded file failed its integrity or authenticity check.\");\n                }\n\n                if (File.Exists(BackupFile) && File.Exists(Output))\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Updater/Updater.cs",
+          "edits": [
+            {
+              "old": "    private static bool CanUseProviderSelfUpdater() => false;\n\n    private static void BeginUpdate() {\n",
+              "new": "    private static bool CanUseProviderSelfUpdater() => false;\n\n    private static bool TryGetProviderAsset(GithubData Release, string FileName, out string? DownloadUrl, out string? Digest, out string? ChecksumUrl, out long Length) {\n        DownloadUrl = null;\n        Digest = null;\n        ChecksumUrl = null;\n        Length = 0;\n        if (Release.Files is null || FileName.IsNullEmptyWhitespace()) return false;\n\n        GithubAsset? Executable = null;\n        GithubAsset? Checksums = null;\n        for (int i = 0; i < Release.Files.Length; i++) {\n            GithubAsset Asset = Release.Files[i];\n            if (Asset.Name?.Equals(FileName, StringComparison.Ordinal) == true) Executable = Asset;\n            else if (Asset.Name?.Equals(\"SHA2-256SUMS\", StringComparison.Ordinal) == true) Checksums = Asset;\n        }\n        if (Executable is null || Executable.Value.DownloadUrl.IsNullEmptyWhitespace()) return false;\n\n        DownloadUrl = Executable.Value.DownloadUrl;\n        Length = Executable.Value.Length;\n        if (TryParseSha256Digest(Executable.Value.Digest, out string ParsedDigest)) {\n            Digest = ParsedDigest;\n            return true;\n        }\n        if (Checksums is not null && !Checksums.Value.DownloadUrl.IsNullEmptyWhitespace()) {\n            ChecksumUrl = Checksums.Value.DownloadUrl;\n            return true;\n        }\n        DownloadUrl = null;\n        Length = 0;\n        return false;\n    }\n\n    private static bool CommitVerifiedFile(string StagedPath, string DestinationPath, Func<string, bool> Verify) {\n        if (!Verify(StagedPath)) {\n            try { if (File.Exists(StagedPath)) File.Delete(StagedPath); } catch { }\n            return false;\n        }\n\n        string BackupPath = DestinationPath + \".verified.\" + Guid.NewGuid().ToString(\"N\") + \".bck\";\n        bool MovedOld = false;\n        try {\n            if (File.Exists(DestinationPath)) {\n                File.Move(DestinationPath, BackupPath);\n                MovedOld = true;\n            }\n            try {\n                File.Move(StagedPath, DestinationPath);\n            }\n            catch {\n                if (MovedOld && !File.Exists(DestinationPath) && File.Exists(BackupPath)) File.Move(BackupPath, DestinationPath);\n                throw;\n            }\n            try { if (File.Exists(BackupPath)) File.Delete(BackupPath); }\n            catch (Exception cleanupEx) when (cleanupEx is IOException or UnauthorizedAccessException) {\n                Log.Write($\"Could not remove verified replacement backup: {cleanupEx.Message}\");\n            }\n            return true;\n        }\n        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {\n            Log.Write($\"Could not commit verified replacement: {ex.Message}\");\n            try {\n                if (!File.Exists(DestinationPath) && File.Exists(BackupPath)) File.Move(BackupPath, DestinationPath);\n            } catch (Exception rollbackEx) { Log.Write($\"Could not roll back verified replacement: {rollbackEx.Message}\"); }\n            return false;\n        }\n        finally {\n            try { if (File.Exists(StagedPath)) File.Delete(StagedPath); } catch { }\n        }\n    }\n\n    private static bool CommitVerifiedExecutable(string StagedPath, string DestinationPath, string ExpectedHash) =>\n        CommitVerifiedFile(StagedPath, DestinationPath, Path => VerifyDownloadedExecutable(Path, ExpectedHash));\n\n    private static void BeginUpdate() {\n",
+              "count": 1
+            },
+            {
+              "old": "            string DownloadUrl =\n                GithubLinks.ApplicationDownloadUrl.Format(\n                    GithubLinks.ProviderRepos[TypeIndex].User,\n                    GithubLinks.ProviderRepos[TypeIndex].Repo,\n                    GithubLinks.ProviderRepos[TypeIndex].FriendlyName,\n                    LatestYoutubeDl.VersionTag ?? \"0\");\n\n            using frmGenericDownloadProgress Downloader = new(DownloadUrl, Verification.YoutubeDlPath ?? Verification.GetExpectedYoutubeDlPath(), Location);\n",
+              "new": "            string ProviderFileName = GithubLinks.ProviderRepos[TypeIndex].FriendlyName + \".exe\";\n            if (!TryGetProviderAsset(LatestYoutubeDl, ProviderFileName, out string? DownloadUrl, out _, out _, out _) ||\n                DownloadUrl.IsNullEmptyWhitespace() || LatestYoutubeDl.ExecutableHash.IsNullEmptyWhitespace()) {\n                Log.Write(\"The provider release does not expose a verifiable executable asset.\");\n                return false;\n            }\n            string ExpectedHash = LatestYoutubeDl.ExecutableHash!;\n            using frmGenericDownloadProgress Downloader = new(\n                DownloadUrl!,\n                Verification.YoutubeDlPath ?? Verification.GetExpectedYoutubeDlPath(),\n                Location,\n                TempPath => VerifyDownloadedExecutable(TempPath, ExpectedHash));\n",
+              "count": 1
+            },
+            {
+              "old": "        GithubData CurrentRelease = Json.JsonDeserialize<GithubData>()\n            ?? throw new ApiParsingException(\"Could not deserialize provider release metadata.\", Url);\n\n        if (LatestYoutubeDlType == GitID && LatestYoutubeDl is not null && LatestYoutubeDl.VersionTag == CurrentRelease.VersionTag) {\n            return;\n        }\n",
+              "new": "        GithubData CurrentRelease = Json.JsonDeserialize<GithubData>()\n            ?? throw new ApiParsingException(\"Could not deserialize provider release metadata.\", Url);\n\n        string ProviderFileName = GithubLinks.ProviderRepos[GitID].FriendlyName + \".exe\";\n        if (!TryGetProviderAsset(CurrentRelease, ProviderFileName, out _, out string? ProviderDigest, out string? ChecksumUrl, out _)) {\n            throw new ApiParsingException(\"The provider release does not expose an executable with authoritative SHA-256 metadata.\", Url);\n        }\n        if (ProviderDigest is null) {\n            if (ChecksumUrl.IsNullEmptyWhitespace()) throw new ApiParsingException(\"The provider release checksum URL is missing.\", Url);\n            string ChecksumText = await Program.HttpClient.DownloadStringTaskAsync(new Uri(ChecksumUrl!), UpdateToken.Token).ConfigureAwait(true);\n            if (!TryParseSha256Checksum(ChecksumText, ProviderFileName, out ProviderDigest)) {\n                throw new ApiParsingException(\"The provider release checksum manifest does not contain the expected executable.\", ChecksumUrl!);\n            }\n        }\n        CurrentRelease.ExecutableHash = ProviderDigest;\n\n        if (LatestYoutubeDlType == GitID && LatestYoutubeDl is not null && LatestYoutubeDl.VersionTag == CurrentRelease.VersionTag &&\n            LatestYoutubeDl.ExecutableHash.Equals(ProviderDigest, StringComparison.OrdinalIgnoreCase)) {\n            return;\n        }\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O019-ffmpeg-archive-integrity",
+      "message": "fix: verify ffmpeg archive against published digest",
+      "resolves": ["CURRENT_O019.FfmpegArchiveRequiresVerifiedDigest"],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Updater/Updater.cs",
+          "edits": [
+            {
+              "old": "    private const string FfmpegDownloadLink = \"https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip\";\n",
+              "new": "    private const string FfmpegDownloadLink = \"https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip\";\n    private const string FfmpegChecksumLink = FfmpegDownloadLink + \".sha256\";\n",
+              "count": 1
+            },
+            {
+              "old": "    private static bool TryDeleteFfmpegArchive(string FilePath) {\n",
+              "new": "    private static bool VerifyFfmpegArchive(string FilePath, string ExpectedHash) =>\n        FileMatchesSha256(FilePath, ExpectedHash);\n\n    private static bool TryDeleteFfmpegArchive(string FilePath) {\n",
+              "count": 1
+            },
+            {
+              "old": "    public static async Task<bool> UpdateFfmpeg(System.Drawing.Point? Location) {\n        Log.Write(\"Downloading the latest ffmpeg release.\");\n        string FfmpegZipPath = Environment.CurrentDirectory + \"\\\\ffmpeg.zip\";\n\n        using frmGenericDownloadProgress Downloader = new(FfmpegDownloadLink, FfmpegZipPath, Location);\n        if (Downloader.ShowDialog() != DialogResult.OK) {\n            return false;\n        }\n\n        bool CanRetry = true;\n",
+              "new": "    public static async Task<bool> UpdateFfmpeg(System.Drawing.Point? Location) {\n        Log.Write(\"Downloading the latest ffmpeg release.\");\n        string FfmpegZipPath = Environment.CurrentDirectory + \"\\\\ffmpeg.zip\";\n        string ChecksumText;\n        try {\n            ChecksumText = await Program.HttpClient.DownloadStringTaskAsync(new Uri(FfmpegChecksumLink), CancellationToken.None).ConfigureAwait(true);\n        }\n        catch (Exception ex) {\n            Log.Write($\"Could not retrieve the published FFmpeg checksum: {ex.Message}\");\n            return false;\n        }\n        if (!TryParseSha256Digest(ChecksumText, out string ExpectedArchiveHash)) {\n            Log.Write(\"The published FFmpeg checksum is not a valid SHA-256 digest.\");\n            return false;\n        }\n\n        using frmGenericDownloadProgress Downloader = new(FfmpegDownloadLink, FfmpegZipPath, Location);\n        if (Downloader.ShowDialog() != DialogResult.OK) {\n            return false;\n        }\n        if (!VerifyFfmpegArchive(FfmpegZipPath, ExpectedArchiveHash)) {\n            Log.Write(\"The downloaded FFmpeg archive failed its published SHA-256 integrity check.\");\n            _ = TryDeleteFfmpegArchive(FfmpegZipPath);\n            return false;\n        }\n\n        bool CanRetry = true;\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O031-language-git-identity",
+      "message": "fix: validate language payload by git object identity",
+      "resolves": ["CURRENT_O031.LanguageBlobRequiresGitObjectIdentity"],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Updater/Updater.cs",
+          "edits": [
+            {
+              "old": "    private static bool VerifyFfmpegArchive(string FilePath, string ExpectedHash) =>\n        FileMatchesSha256(FilePath, ExpectedHash);\n\n    private static bool TryDeleteFfmpegArchive(string FilePath) {\n",
+              "new": "    private static bool VerifyFfmpegArchive(string FilePath, string ExpectedHash) =>\n        FileMatchesSha256(FilePath, ExpectedHash);\n\n    private static bool GithubBlobMatches(string FilePath, string ExpectedObjectId) {\n        if (ExpectedObjectId.IsNullEmptyWhitespace() || ExpectedObjectId.Length != 40 ||\n            !ExpectedObjectId.All(Uri.IsHexDigit) || !File.Exists(FilePath)) return false;\n        try {\n            long Length = new FileInfo(FilePath).Length;\n            byte[] Header = Encoding.ASCII.GetBytes($\"blob {Length}\\0\");\n            using SHA1 Hasher = SHA1.Create();\n            using CryptoStream HashStream = new(Stream.Null, Hasher, CryptoStreamMode.Write);\n            HashStream.Write(Header, 0, Header.Length);\n            using (FileStream Input = File.OpenRead(FilePath)) Input.CopyTo(HashStream);\n            HashStream.FlushFinalBlock();\n            string Actual = BitConverter.ToString(Hasher.Hash!).Replace(\"-\", string.Empty).ToLowerInvariant();\n            return Actual.Equals(ExpectedObjectId, StringComparison.OrdinalIgnoreCase);\n        }\n        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException) {\n            return false;\n        }\n    }\n\n    private static bool CommitVerifiedGithubBlob(string StagedPath, string DestinationPath, string ExpectedObjectId) =>\n        CommitVerifiedFile(StagedPath, DestinationPath, Path => GithubBlobMatches(Path, ExpectedObjectId));\n\n    private static bool TryDeleteFfmpegArchive(string FilePath) {\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmDownloadLanguage.cs",
+          "edits": [
+            {
+              "old": "            EnumeratedLanguages = AvailableLanguages\n                .Where(x => !x.download_url.IsNullEmptyWhitespace() && TryGetLanguageOutputPath(x.name, out _))\n                .ToArray();\n",
+              "new": "            EnumeratedLanguages = AvailableLanguages\n                .Where(x => !x.download_url.IsNullEmptyWhitespace() && !x.sha.IsNullEmptyWhitespace() && TryGetLanguageOutputPath(x.name, out _))\n                .ToArray();\n",
+              "count": 1
+            },
+            {
+              "old": "        using frmGenericDownloadProgress Downloader = new(URL, Output);\n",
+              "new": "        using frmGenericDownloadProgress Downloader = new(URL, Output, null, TempPath => Updater.GithubBlobMatches(TempPath, lang.sha!));\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O027-bounded-file-download",
+      "message": "fix: bound file download size and duration",
+      "resolves": ["CURRENT_O027.FileDownloadsEnforceByteAndDurationBounds"],
+      "files": [
+        {
+          "path": "Controls/ManagedHttpClient.cs",
+          "edits": [
+            {
+              "old": "    public async Task DownloadFileTaskAsync(Uri uri, string destination, CancellationToken Token) {\n        try {\n            using HttpResponseMessage Response = await DownloadClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, Token);\n\n            if (!Response.IsSuccessStatusCode)\n                throw await GetException(Response, uri, Token);\n\n            string? ContentEncoding = Response.Content.Headers.ContentEncoding.FirstOrDefault()?.ToLowerInvariant();\n            lock (ProgressSync) {\n                CurrentTotalSize = ContentEncoding is \"gzip\" or \"deflate\"\n                    ? 0\n                    : Response.Content.Headers.ContentLength ?? 0;\n            }\n\n            using FileStream Destination = new(\n                path: destination,\n                mode: FileMode.Create,\n                access: FileAccess.ReadWrite,\n                share: FileShare.Read);\n            using Stream ContentStream = await Response.Content.ReadAsStreamAsync();\n\n            switch (ContentEncoding) {\n                case \"gzip\": {\n                    using GZipStream DecompressedStream = new(ContentStream, CompressionMode.Decompress);\n                    await WriteStream(DecompressedStream, Destination, Token);\n                } break;\n                case \"deflate\": {\n                    using DeflateStream DecompressedStream = new(ContentStream, CompressionMode.Decompress);\n                    await WriteStream(DecompressedStream, Destination, Token);\n                } break;\n                default:\n                    await WriteStream(ContentStream, Destination, Token);\n                    break;\n            }\n            await Destination.FlushAsync();\n            Destination.Close();\n            FinishedCallback();\n        }\n        finally {\n            ProgressReportTimer.Change(Timeout.Infinite, Timeout.Infinite);\n            ResetProgress();\n        }\n    }\n",
+              "new": "    public Task DownloadFileTaskAsync(Uri uri, string destination, CancellationToken Token) =>\n        DownloadFileTaskAsync(uri, destination, 1024L * 1024 * 1024, TimeSpan.FromHours(1), Token);\n\n    public async Task DownloadFileTaskAsync(Uri uri, string destination, long MaximumBytes, TimeSpan MaximumDuration, CancellationToken Token) {\n        if (MaximumBytes <= 0) throw new ArgumentOutOfRangeException(nameof(MaximumBytes));\n        if (MaximumDuration <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(MaximumDuration));\n        bool Complete = false;\n        using CancellationTokenSource Deadline = CancellationTokenSource.CreateLinkedTokenSource(Token);\n        Deadline.CancelAfter(MaximumDuration);\n        try {\n            using HttpResponseMessage Response = await DownloadClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, Deadline.Token).ConfigureAwait(false);\n\n            if (!Response.IsSuccessStatusCode)\n                throw await GetException(Response, uri, Deadline.Token).ConfigureAwait(false);\n\n            string? ContentEncoding = Response.Content.Headers.ContentEncoding.FirstOrDefault()?.ToLowerInvariant();\n            long ContentLength = ContentEncoding is \"gzip\" or \"deflate\" ? 0 : Response.Content.Headers.ContentLength ?? 0;\n            if (ContentLength > MaximumBytes) throw new InvalidDataException(\"The download exceeds the permitted file size.\");\n            lock (ProgressSync) { CurrentTotalSize = ContentLength; }\n\n            using FileStream Destination = new(\n                path: destination,\n                mode: FileMode.Create,\n                access: FileAccess.ReadWrite,\n                share: FileShare.Read);\n            using Stream ContentStream = await Response.Content.ReadAsStreamAsync().ConfigureAwait(false);\n\n            switch (ContentEncoding) {\n                case \"gzip\": {\n                    using GZipStream DecompressedStream = new(ContentStream, CompressionMode.Decompress);\n                    await WriteStream(DecompressedStream, Destination, Deadline.Token, MaximumBytes).ConfigureAwait(false);\n                } break;\n                case \"deflate\": {\n                    using DeflateStream DecompressedStream = new(ContentStream, CompressionMode.Decompress);\n                    await WriteStream(DecompressedStream, Destination, Deadline.Token, MaximumBytes).ConfigureAwait(false);\n                } break;\n                default:\n                    await WriteStream(ContentStream, Destination, Deadline.Token, MaximumBytes).ConfigureAwait(false);\n                    break;\n            }\n            await Destination.FlushAsync(Deadline.Token).ConfigureAwait(false);\n            Complete = true;\n            FinishedCallback();\n        }\n        catch (Exception ex) when (Deadline.IsCancellationRequested && !Token.IsCancellationRequested) {\n            throw new TimeoutException(\"The file download exceeded its permitted duration.\", ex);\n        }\n        finally {\n            ProgressReportTimer.Change(Timeout.Infinite, Timeout.Infinite);\n            ResetProgress();\n            if (!Complete) {\n                try { if (File.Exists(destination)) File.Delete(destination); } catch (IOException) { } catch (UnauthorizedAccessException) { }\n            }\n        }\n    }\n",
+              "count": 1
+            },
+            {
+              "old": "    private async Task WriteStream(Stream Source, Stream Writer, CancellationToken Token) {\n        byte[] buffer = new byte[DefaultBuffer];\n        int bytesRead;\n",
+              "new": "    private async Task WriteStream(Stream Source, Stream Writer, CancellationToken Token, long MaximumBytes) {\n        byte[] buffer = new byte[DefaultBuffer];\n        int bytesRead;\n        long TotalWritten = 0;\n",
+              "count": 1
+            },
+            {
+              "old": "            await Writer.WriteAsync(buffer, 0, bytesRead, Token).ConfigureAwait(false);\n            lock (ProgressSync) {\n",
+              "new": "            if (bytesRead > MaximumBytes - TotalWritten) throw new InvalidDataException(\"The download exceeded the permitted decompressed file size.\");\n            await Writer.WriteAsync(buffer, 0, bytesRead, Token).ConfigureAwait(false);\n            TotalWritten += bytesRead;\n            lock (ProgressSync) {\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -141,5 +141,6 @@ internal static partial class AuditRegression {
         Test("F_O023.DocumentedArchiveAliasesAreParsed", DocumentedArchiveAliasesAreParsed);
         Test("CURRENT_O008.UpdaterPartialPathsAreUnique", UpdaterPartialPathsAreUnique);
         Test("F_O017.ProtocolInstallerWaitIsBounded", ProtocolInstallerWaitIsBounded);
+        RunRepairWave9Tests();
     }
 }

@@ -6,8 +6,8 @@ import re
 from pathlib import Path, PurePosixPath
 
 ROOT = Path.cwd().resolve()
-ALLOWED_ROOTS = {'Controls', 'Languages', 'tests', 'youtube-dl-gui', 'youtube-dl-gui-updater'}
-ALLOWED_SUFFIXES = {'.cs', '.csproj', '.projitems', '.resx', '.ini'}
+ALLOWED_ROOTS = {'Addons', 'Controls', 'Languages', 'tests', 'youtube-dl-gui', 'youtube-dl-gui-updater'}
+ALLOWED_SUFFIXES = {'.cs', '.csproj', '.js', '.projitems', '.resx', '.ini'}
 
 
 def source_path(name):
@@ -62,7 +62,8 @@ def apply_ini_write_before_cache_assignment(name, data, expected_count):
     unsectioned = re.compile(
         rb'(?m)^(?P<indent>[ \t]+)(?P<field>f[A-Za-z_][A-Za-z0-9_]*) = value;'
         rb'(?P<newline>\r?\n)(?P=indent)IniProvider\.Write\('
-        rb'(?P<property>[A-Za-z_][A-Za-z0-9_]*)\);(?=\r?$)')
+        rb'(?P<property>[A-Za-z_][A-Za-z0-9_]*), null, nameof\('
+        rb'(?P=property)\)\);(?=\r?$)')
 
     def replacement(match, section):
         indent = match.group('indent')

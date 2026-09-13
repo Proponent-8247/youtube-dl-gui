@@ -43,8 +43,9 @@ public partial class frmAbout : LocalizedForm {
 
             switch (UpdateAvailable) {
                 case false: {
+                    string CheckedVersion = Updater.LastChecked?.Version.ToString() ?? Program.CurrentVersion.ToString();
                     Log.MessageBox((Program.CurrentVersion.IsBeta ? Language.dlgUpdateNoBetaUpdateAvailable : Language.dlgUpdateNoUpdateAvailable)
-                        .Format(Program.CurrentVersion, Updater.LastChecked!.Version));
+                        .Format(Program.CurrentVersion, CheckedVersion));
                 } break;
                 case true: {
                     Updater.ShowUpdateForm(false);
@@ -73,8 +74,8 @@ public partial class frmAbout : LocalizedForm {
     }
 
     private void pbIcon_Click(object sender, EventArgs e) =>
-        Program.TryOpenWebUrl("https://github.com/murrty/youtube-dl-gui/");
+        Program.TryOpenWebUrl(GithubLinks.ApplicationRepositoryUrl);
 
     private void llbGithub_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) =>
-        Program.TryOpenWebUrl("https://github.com/murrty/youtube-dl-gui");
+        Program.TryOpenWebUrl(GithubLinks.ApplicationRepositoryUrl);
 }

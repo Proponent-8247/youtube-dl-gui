@@ -784,6 +784,15 @@ internal static class Program {
         }
     }
 
+    private const string UpstreamProjectUrl = "https://github.com/murrty/youtube-dl-gui";
+
+    internal static string NormalizeApplicationProjectUrl(string Value) {
+        if (Value.StartsWith(UpstreamProjectUrl, StringComparison.OrdinalIgnoreCase)) {
+            return GithubLinks.ApplicationRepositoryUrl + Value.Substring(UpstreamProjectUrl.Length);
+        }
+        return Value;
+    }
+
     internal static bool IsWebUrl(string? Value) {
         if (!Uri.TryCreate(Value, UriKind.Absolute, out Uri? ParsedUri)) {
             return false;
@@ -793,11 +802,15 @@ internal static class Program {
     }
 
     internal static bool TryOpenWebUrl(string? Value) {
+        if (Value is null) {
+            return false;
+        }
+        Value = NormalizeApplicationProjectUrl(Value);
         if (!IsWebUrl(Value)) {
             return false;
         }
         try {
-            using Process? Browser = Process.Start(new ProcessStartInfo(Value!) { UseShellExecute = true });
+            using Process? Browser = Process.Start(new ProcessStartInfo(Value) { UseShellExecute = true });
             return Browser is not null;
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception

@@ -23,6 +23,10 @@ internal static partial class AuditRegression {
             return Response.Task;
         }
     }
+    private static string ApplicationReleaseJson(string tag, bool prerelease) {
+        return "{\"name\":\"audit\",\"tag_name\":\"" + tag + "\",\"body\":\"exe sha256: " + new string('a', 64) +
+            "\",\"prerelease\":" + (prerelease ? "true" : "false") + ",\"assets\":[]}";
+    }
     private static void UpdateChannelSnapshot(bool beta) {
         Type updater = T("youtube_dl_gui.Updater"), general = T("youtube_dl_gui.General"), program = T("youtube_dl_gui.Program"), http = T("murrty.controls.ManagedHttpClient");
         object oldBeta = general.GetProperty("DownloadBetaVersions", All).GetValue(null, null);
@@ -41,16 +45,17 @@ internal static partial class AuditRegression {
                 foreach (string name in caches) Set(updater, null, name, null);
                 Task task = (Task)Call(updater, null, "CheckForUpdate", true);
                 Require(deferred.Requested != null, "The release request did not start");
-                Equal(beta, !deferred.Requested.AbsolutePath.EndsWith("/latest", StringComparison.Ordinal));
+                Require(deferred.Requested.AbsolutePath.EndsWith("/releases", StringComparison.Ordinal), "Application updates did not enumerate the fork release feed");
                 Set(general, null, "DownloadBetaVersions", !beta);
-                string release = "{\"name\":\"audit\",\"tag_name\":\"99.0.0\",\"body\":\"exe sha256: " + new string('a', 64) + "\",\"prerelease\":false,\"assets\":[]}";
-                deferred.Response.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(beta ? "[" + release + "]" : release) });
+                string stable = ApplicationReleaseJson("98.0.0", false);
+                string prerelease = ApplicationReleaseJson("99.0.0", true);
+                deferred.Response.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[" + prerelease + "," + stable + "]") });
                 PumpUntil(() => task.IsCompleted, 5000, "Release check did not complete after channel change");
                 task.GetAwaiter().GetResult();
                 object selected = updater.GetProperty("LastChecked", All).GetValue(null, null);
                 object cached = updater.GetProperty(beta ? "LastCheckedAllRelease" : "LastCheckedLatestRelease", All).GetValue(null, null);
                 Require(selected != null && ReferenceEquals(selected, cached), "The release response was assigned to the wrong channel");
-                Equal("99.0.0", Get(selected, "VersionTag"));
+                Equal(beta ? "99.0.0" : "98.0.0", Get(selected, "VersionTag"));
                 Equal(null, updater.GetProperty(beta ? "LastCheckedLatestRelease" : "LastCheckedAllRelease", All).GetValue(null, null));
             }
             finally {
@@ -61,6 +66,54 @@ internal static partial class AuditRegression {
                 if (client != null) ((IDisposable)client).Dispose();
             }
         }
+    }
+    private static void EmptyApplicationReleaseFeedIsNoUpdate(bool beta, string responseJson) {
+        Type updater = T("youtube_dl_gui.Updater"), general = T("youtube_dl_gui.General"), program = T("youtube_dl_gui.Program"), http = T("murrty.controls.ManagedHttpClient");
+        object oldBeta = general.GetProperty("DownloadBetaVersions", All).GetValue(null, null);
+        object oldHttp = program.GetProperty("HttpClient", All).GetValue(null, null);
+        object oldStatic = http.GetProperty("DownloadClientStatic", All).GetValue(null, null);
+        string[] caches = { "LastChecked", "LastCheckedLatestRelease", "LastCheckedAllRelease" };
+        object[] saved = caches.Select(name => updater.GetProperty(name, All).GetValue(null, null)).ToArray();
+        object client = null;
+        using (DeferredRelease deferred = new DeferredRelease())
+        using (HttpClient transport = new HttpClient(deferred)) {
+            try {
+                Set(http, null, "DownloadClientStatic", transport);
+                client = Activator.CreateInstance(T("murrty.controls.ManagedHttpClient"), true);
+                Set(program, null, "HttpClient", client);
+                Set(general, null, "DownloadBetaVersions", beta);
+                foreach (string name in caches) Set(updater, null, name, null);
+                Task<bool?> task = (Task<bool?>)Call(updater, null, "CheckForUpdate", true);
+                Require(deferred.Requested != null && deferred.Requested.AbsolutePath.EndsWith("/releases", StringComparison.Ordinal),
+                    "Empty-feed update check did not use the fork release collection");
+                deferred.Response.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(responseJson) });
+                PumpUntil(() => task.IsCompleted, 5000, "Empty release feed check did not complete");
+                Equal(false, task.GetAwaiter().GetResult());
+                Equal(null, updater.GetProperty("LastChecked", All).GetValue(null, null));
+                Equal(null, updater.GetProperty(beta ? "LastCheckedAllRelease" : "LastCheckedLatestRelease", All).GetValue(null, null));
+            }
+            finally {
+                Set(general, null, "DownloadBetaVersions", oldBeta);
+                Set(program, null, "HttpClient", oldHttp);
+                Set(http, null, "DownloadClientStatic", oldStatic);
+                for (int i = 0; i < caches.Length; i++) Set(updater, null, caches[i], saved[i]);
+                if (client != null) ((IDisposable)client).Dispose();
+            }
+        }
+    }
+    private static void ForkProjectIdentityIsConsistent() {
+        Type links = T("youtube_dl_gui.GithubLinks");
+        Type program = T("youtube_dl_gui.Program");
+        const string fork = "https://github.com/Proponent-8247/youtube-dl-gui";
+        Equal(fork, links.GetField("ApplicationRepositoryUrl", All).GetRawConstantValue());
+        Equal(fork + "/releases", links.GetField("ApplicationReleasesUrl", All).GetRawConstantValue());
+        Equal(fork + "/issues", links.GetField("ApplicationIssuesUrl", All).GetRawConstantValue());
+        Equal("https://api.github.com/repos/Proponent-8247/youtube-dl-gui/contents/Languages", links.GetField("ApplicationLanguagesApiUrl", All).GetRawConstantValue());
+        Equal("https://api.github.com/repos/Proponent-8247/youtube-dl-gui/releases", Call(links, null, "GetApplicationReleaseMetadataUrl", false));
+        Equal("https://api.github.com/repos/Proponent-8247/youtube-dl-gui/releases", Call(links, null, "GetApplicationReleaseMetadataUrl", true));
+        Equal(fork, Call(program, null, "NormalizeApplicationProjectUrl", "https://github.com/murrty/youtube-dl-gui"));
+        Equal(fork + "/issues", Call(program, null, "NormalizeApplicationProjectUrl", "https://github.com/murrty/youtube-dl-gui/issues"));
+        Equal("https://example.invalid/help", Call(program, null, "NormalizeApplicationProjectUrl", "https://example.invalid/help"));
     }
     private static void StaleProviderMetadataIsRejected() {
         Type updater = T("youtube_dl_gui.Updater"), downloads = T("youtube_dl_gui.Downloads"), http = T("murrty.controls.ManagedHttpClient");
@@ -221,6 +274,10 @@ internal static partial class AuditRegression {
         Test("N012.StaleProviderMetadataCannotStartDownload", StaleProviderMetadataIsRejected);
         Test("N011.StableReleaseRequestKeepsItsChannel", () => UpdateChannelSnapshot(false));
         Test("N011.BetaReleaseRequestKeepsItsChannel", () => UpdateChannelSnapshot(true));
+        Test("RELEASE.EmptyBetaFeedIsNoUpdate", () => EmptyApplicationReleaseFeedIsNoUpdate(true, "[]"));
+        Test("RELEASE.EmptyStableFeedIsNoUpdate", () => EmptyApplicationReleaseFeedIsNoUpdate(false, "[]"));
+        Test("RELEASE.PrereleaseOnlyFeedIsNoStableUpdate", () => EmptyApplicationReleaseFeedIsNoUpdate(false, "[" + ApplicationReleaseJson("99.0.0", true) + "]"));
+        Test("RELEASE.ForkProjectIdentityIsConsistent", ForkProjectIdentityIsConsistent);
         Test("C1.ResolverCompletionPreservesActiveDownload", QueueResolverPreservesDownload);
         Test("C5.FirstBindingPreservesNoAudio", () => InitialNoAudioBinding(false));
         Test("C5.FirstAuthenticatedBindingPreservesNoAudio", () => InitialNoAudioBinding(true));

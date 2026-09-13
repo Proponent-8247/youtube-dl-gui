@@ -923,7 +923,7 @@ internal static class Updater {
     /// <exception cref="ArgumentOutOfRangeException"></exception>
     public static async Task<GithubRepoContent[]> GetAvailableLanguages() {
         Log.Write("Enumerating languages available.");
-        const string Url = "https://api.github.com/repos/murrty/youtube-dl-gui/contents/Languages";
+        const string Url = GithubLinks.ApplicationLanguagesApiUrl;
 
         string? JSON = await GetJSON(Url);
 
@@ -997,19 +997,32 @@ internal static class Updater {
             throw new InvalidOperationException("JSON downloaded was empty");
         }
 
-        GithubData CurrentCheck;
+        GithubData[] Releases = Json.JsonDeserialize<GithubData[]>()
+            ?? throw new ApiParsingException("Could not deserialize release metadata.", ReleaseUrl);
+        GithubData[] EligibleReleases = IncludePreReleases
+            ? Releases
+            : Releases.Where(Release => !Release.VersionPreRelease).ToArray();
 
+        if (EligibleReleases.Length == 0) {
+            if (IncludePreReleases) {
+                LastCheckedAllRelease = null;
+                Log.Write("No application releases were found.");
+            }
+            else {
+                LastCheckedLatestRelease = null;
+                Log.Write("No stable application releases were found.");
+            }
+            LastChecked = null;
+            return;
+        }
+
+        GithubData CurrentCheck = GithubData.GetNewestRelease(EligibleReleases);
         if (IncludePreReleases) {
-            GithubData[] Releases = Json.JsonDeserialize<GithubData[]>()
-                ?? throw new ApiParsingException("Could not deserialize release metadata.", ReleaseUrl);
-            CurrentCheck = LastCheckedAllRelease = GithubData.GetNewestRelease(Releases);
+            LastCheckedAllRelease = CurrentCheck;
         }
         else {
-            CurrentCheck = Json.JsonDeserialize<GithubData>()
-                ?? throw new ApiParsingException("Could not deserialize release metadata.", ReleaseUrl);
             LastCheckedLatestRelease = CurrentCheck;
         }
-
         LastChecked = CurrentCheck;
     }
 

@@ -29,7 +29,21 @@ public struct Point {
     /// <summary>
     /// Whether the <see cref="Point"/> can be considered a valid <see cref="Point"/> compared to <see cref="Invalid"/>.
     /// </summary>
-    public readonly bool Valid => this.X != Invalid.X && this.Y != Invalid.Y;
+    public readonly bool Valid {
+        get {
+            if (this.X == Invalid.X || this.Y == Invalid.Y) {
+                return false;
+            }
+
+            System.Drawing.Point Location = new(this.X, this.Y);
+            foreach (System.Windows.Forms.Screen CurrentScreen in System.Windows.Forms.Screen.AllScreens) {
+                if (CurrentScreen.WorkingArea.Contains(Location)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
 
     public Point() {
         X = 0;

@@ -321,6 +321,17 @@ internal static class Updater {
         }
     }
 
+    private static bool TryDeleteFfmpegArchive(string FilePath) {
+        try {
+            File.Delete(FilePath);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+            Log.Write($"Could not remove downloaded FFmpeg archive: {ex.Message}");
+            return false;
+        }
+    }
+
     /// <summary>
     /// Updates ffmpeg.
     /// </summary>
@@ -461,8 +472,8 @@ internal static class Updater {
             }
         } while (CanRetry);
 
-        // Delete the zip file.
-        File.Delete(FfmpegZipPath);
+        // The replacement is already complete; archive cleanup must not turn success into failure.
+        _ = TryDeleteFfmpegArchive(FfmpegZipPath);
         Verification.RefreshFFmpegLocation();
         return true;
     }

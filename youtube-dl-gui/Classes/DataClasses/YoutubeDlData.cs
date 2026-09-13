@@ -73,29 +73,8 @@ internal sealed class YoutubeDlData {
             Arguments.Add($"--proxy {DownloadHelper.ProxyProtocols[Downloads.ProxyType]}{Downloads.ProxyIP}:{Downloads.ProxyPort}/");
         }
 
-        if (Auth is not null) {
-            if (!Auth.Username.IsNullEmptyWhitespace()) {
-                Arguments.Add("--username " + ArgumentList.EscapeArgument(Auth.Username));
-            }
-            if (Auth.Password?.Length > 0) {
-                Arguments.Add("--password " + ArgumentList.EscapeArgument(Auth.GetPassword()));
-            }
-            if (!Auth.TwoFactor.IsNullEmptyWhitespace()) {
-                Arguments.Add("--twofactor " + ArgumentList.EscapeArgument(Auth.TwoFactor));
-            }
-            if (Auth.MediaPassword?.Length > 0) {
-                Arguments.Add("--video-password " + ArgumentList.EscapeArgument(Auth.GetMediaPassword()));
-            }
-            if (Auth.NetRC) {
-                Arguments.Add("--netrc");
-            }
-            if (!Auth.CookiesFile.IsNullEmptyWhitespace()) {
-                Arguments.Add("--cookies " + ArgumentList.EscapeArgument(Auth.CookiesFile));
-            }
-            if (!Auth.CookiesFromBrowser.IsNullEmptyWhitespace()) {
-                Arguments.Add("--cookies-from-browser " + ArgumentList.EscapeArgument(Auth.CookiesFromBrowser));
-            }
-        }
+        using ProviderAuthenticationConfig? AuthenticationConfig = Auth is null ? null : ProviderAuthenticationConfig.Create(Auth);
+        if (AuthenticationConfig is not null) Arguments.Add("--config-location " + ArgumentList.EscapeArgument(AuthenticationConfig.FilePath));
 
         Arguments.Add("-- " + ArgumentList.EscapeArgument(URL));
 

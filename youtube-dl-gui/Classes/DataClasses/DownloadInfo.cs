@@ -1,6 +1,7 @@
 ﻿#nullable enable
 namespace youtube_dl_gui;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 /// <summary>
 ///     Represents an object that contains information about a media download, with settings for the download.
 /// </summary>
@@ -12,6 +13,7 @@ using System.Diagnostics.CodeAnalysis;
 /// </param>
 internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
     private string? _argsCensored;
+    private ProviderAuthenticationConfig? AuthenticationConfig;
 
     /// <summary>
     /// The URL of the video to download.
@@ -116,6 +118,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
     /// <returns><see langword="true"/> if the arguments generated successfully; otherwise, <see langword="false"/>.</returns>
     public override bool GenerateArguments(Action<string> Verbose) {
         Status = DownloadStatus.Preparing;
+        DisposeAuthenticationConfig();
 
         if (DownloadURL.IsNullEmptyWhitespace()) {
             Verbose("The URL is null or empty. Please enter a URL to download.");
@@ -409,41 +412,21 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
         #endregion
 
         #region Authentication
-        // Set the preview arguments to what is present in the arguments buffer.
-        // This is so the arguments buffer can have sensitive information and
-        // the preview arguments won't include it in case anyone creates an issue.
+        // Provider secrets are transported through a private, per-operation config file.
         PreviewArguments = new(ArgumentsBuffer.ToString());
-
-        if (!MostlyCustomArguments) {
-            if (Authentication is not null) {
-                if (!Authentication.Username.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--username {ArgumentList.EscapeArgument(Authentication.Username)}");
-                    PreviewArguments.Add("--username ***");
+        if (!MostlyCustomArguments && Authentication is not null) {
+            try {
+                AuthenticationConfig = ProviderAuthenticationConfig.Create(Authentication);
+                if (AuthenticationConfig is not null) {
+                    ArgumentsBuffer.Add("--config-location " + ArgumentList.EscapeArgument(AuthenticationConfig.FilePath));
+                    PreviewArguments.Add("--config-location ***");
                 }
-                if (Authentication.Password?.Length > 0) {
-                    ArgumentsBuffer.Add($"--password {ArgumentList.EscapeArgument(Authentication.GetPassword())}");
-                    PreviewArguments.Add("--password ***");
-                }
-                if (!Authentication.TwoFactor.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--twofactor {ArgumentList.EscapeArgument(Authentication.TwoFactor)}");
-                    PreviewArguments.Add("--twofactor ***");
-                }
-                if (Authentication.MediaPassword?.Length > 0) {
-                    ArgumentsBuffer.Add($"--video-password {ArgumentList.EscapeArgument(Authentication.GetMediaPassword())}");
-                    PreviewArguments.Add("--video-password ***");
-                }
-                if (Authentication.NetRC) {
-                    ArgumentsBuffer.Add("--netrc");
-                    PreviewArguments.Add("--netrc ***");
-                }
-                if (!Authentication.CookiesFile.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--cookies {ArgumentList.EscapeArgument(Authentication.CookiesFile)}");
-                    PreviewArguments.Add("--cookies ***");
-                }
-                if (!Authentication.CookiesFromBrowser.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--cookies-from-browser {ArgumentList.EscapeArgument(Authentication.CookiesFromBrowser)}");
-                    PreviewArguments.Add("--cookies-from-browser ***");
-                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or InvalidOperationException) {
+                Verbose("Could not create a private authentication config for the download provider.");
+                Log.Write($"Could not create provider authentication config: {ex.Message}");
+                Status = DownloadStatus.ProgramError;
+                return false;
             }
         }
         #endregion
@@ -461,5 +444,81 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
         ArgumentsBuffer.Clear();
         PreviewArguments.Clear();
         return true;
+    }
+
+    internal void DisposeAuthenticationConfig() {
+        AuthenticationConfig?.Dispose();
+        AuthenticationConfig = null;
+    }
+
+    protected override void Dispose(bool disposing) {
+        if (Disposed) return;
+        DisposeAuthenticationConfig();
+        base.Dispose(disposing);
+    }
+}
+
+internal sealed class ProviderAuthenticationConfig : IDisposable {
+    private readonly string DirectoryPath;
+    private bool Disposed;
+
+    public string FilePath { get; }
+
+    private ProviderAuthenticationConfig(string FilePath, string DirectoryPath) {
+        this.FilePath = FilePath;
+        this.DirectoryPath = DirectoryPath;
+    }
+
+    public static ProviderAuthenticationConfig? Create(AuthenticationDetails Authentication) {
+        if (Authentication is null) throw new ArgumentNullException(nameof(Authentication));
+
+        List<string> Options = [];
+        if (!Authentication.Username.IsNullEmptyWhitespace()) Options.Add("--username " + QuoteConfigValue(Authentication.Username));
+        if (Authentication.Password?.Length > 0) Options.Add("--password " + QuoteConfigValue(Authentication.GetPassword()));
+        if (!Authentication.TwoFactor.IsNullEmptyWhitespace()) Options.Add("--twofactor " + QuoteConfigValue(Authentication.TwoFactor));
+        if (Authentication.MediaPassword?.Length > 0) Options.Add("--video-password " + QuoteConfigValue(Authentication.GetMediaPassword()));
+        if (Authentication.NetRC) Options.Add("--netrc");
+        if (!Authentication.CookiesFile.IsNullEmptyWhitespace()) Options.Add("--cookies " + QuoteConfigValue(Authentication.CookiesFile));
+        if (!Authentication.CookiesFromBrowser.IsNullEmptyWhitespace()) Options.Add("--cookies-from-browser " + QuoteConfigValue(Authentication.CookiesFromBrowser));
+        if (Options.Count == 0) return null;
+
+        System.Security.Principal.SecurityIdentifier CurrentUser = System.Security.Principal.WindowsIdentity.GetCurrent().User
+            ?? throw new InvalidOperationException("The current Windows user has no security identifier.");
+        System.Security.Principal.SecurityIdentifier LocalSystem = new(System.Security.Principal.WellKnownSidType.LocalSystemSid, null);
+
+        System.Security.AccessControl.DirectorySecurity DirectorySecurity = new();
+        DirectorySecurity.SetAccessRuleProtection(true, false);
+        System.Security.AccessControl.InheritanceFlags Inheritance = System.Security.AccessControl.InheritanceFlags.ContainerInherit | System.Security.AccessControl.InheritanceFlags.ObjectInherit;
+        DirectorySecurity.AddAccessRule(new(CurrentUser, System.Security.AccessControl.FileSystemRights.FullControl, Inheritance, System.Security.AccessControl.PropagationFlags.None, System.Security.AccessControl.AccessControlType.Allow));
+        DirectorySecurity.AddAccessRule(new(LocalSystem, System.Security.AccessControl.FileSystemRights.FullControl, Inheritance, System.Security.AccessControl.PropagationFlags.None, System.Security.AccessControl.AccessControlType.Allow));
+
+        string DirectoryPath = Path.Combine(Path.GetTempPath(), "youtube-dl-gui-auth-" + Guid.NewGuid().ToString("N"));
+        string FilePath = Path.Combine(DirectoryPath, "provider.conf");
+        try {
+            Directory.CreateDirectory(DirectoryPath, DirectorySecurity);
+            File.WriteAllText(FilePath, string.Join(Environment.NewLine, Options), new UTF8Encoding(false));
+            System.Security.AccessControl.FileSecurity FileSecurity = new();
+            FileSecurity.SetAccessRuleProtection(true, false);
+            FileSecurity.AddAccessRule(new(CurrentUser, System.Security.AccessControl.FileSystemRights.FullControl, System.Security.AccessControl.AccessControlType.Allow));
+            FileSecurity.AddAccessRule(new(LocalSystem, System.Security.AccessControl.FileSystemRights.FullControl, System.Security.AccessControl.AccessControlType.Allow));
+            File.SetAccessControl(FilePath, FileSecurity);
+            return new ProviderAuthenticationConfig(FilePath, DirectoryPath);
+        }
+        catch {
+            try { if (File.Exists(FilePath)) File.Delete(FilePath); } catch { }
+            try { if (Directory.Exists(DirectoryPath)) Directory.Delete(DirectoryPath, true); } catch { }
+            throw;
+        }
+    }
+
+    private static string QuoteConfigValue(string Value) => "'" + Value.Replace("'", "'\"'\"'") + "'";
+
+    public void Dispose() {
+        if (Disposed) return;
+        Disposed = true;
+        try { if (File.Exists(FilePath)) File.Delete(FilePath); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Write($"Could not remove temporary provider authentication config: {ex.Message}"); }
+        try { if (Directory.Exists(DirectoryPath)) Directory.Delete(DirectoryPath, true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Write($"Could not remove temporary provider authentication directory: {ex.Message}"); }
     }
 }

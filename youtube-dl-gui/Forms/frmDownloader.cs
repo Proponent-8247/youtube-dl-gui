@@ -455,6 +455,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                 }
             }
             finally {
+                CurrentDownload.DisposeAuthenticationConfig();
                 Thread CompletedWorker = Thread.CurrentThread;
                 if (!this.IsDisposed && this.IsHandleCreated) {
                     try {
@@ -476,7 +477,8 @@ internal partial class frmDownloader : LocalizedProcessingForm {
             Name = $"Download {CurrentDownload.DownloadURL}"
         };
         rtbVerbose.AppendLine("Created download thread, starting...");
-        DownloadThread.Start();
+        try { DownloadThread.Start(); }
+        catch { CurrentDownload.DisposeAuthenticationConfig(); throw; }
         #endregion
     }
     private void DownloadFinished() {

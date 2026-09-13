@@ -917,13 +917,15 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             finally {
                 DownloadProcess?.Dispose();
                 DownloadProcess = null;
+                MediaDetails?.DisposeAuthenticationConfig();
             }
         }) {
             Name = $"Download {MediaDetails.URL}",
             IsBackground = true,
             Priority = ThreadPriority.BelowNormal
         };
-        ProcessingThread.Start();
+        try { ProcessingThread.Start(); }
+        catch { MediaDetails.DisposeAuthenticationConfig(); throw; }
     }
     private void BeginBatchDownload() {
         if (WorkerClosePending || ProcessingThread?.IsAlive == true || QueueResolverRunning || lvQueuedMedia.Items.Count < 1) {
@@ -962,6 +964,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         Status = DownloadStatus.Downloading;
 
         ProcessingThread = new(() => {
+            ExtendedMediaDetails? ActiveBatchMedia = null;
             try {
             string? args = null;
             string? Msg = null;
@@ -998,7 +1001,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Processing);
 
                 MediaDetails.BatchDownloadTime = BatchTime;
+                ActiveBatchMedia = MediaDetails;
                 if (!MediaDetails.GenerateArguments()) {
+                    MediaDetails.DisposeAuthenticationConfig();
+                    ActiveBatchMedia = null;
                     lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Errored);
                     BatchHadErrors = true;
                     continue;
@@ -1078,6 +1084,8 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     }
                     DownloadProcess.Dispose();
                     DownloadProcess = null;
+                    MediaDetails.DisposeAuthenticationConfig();
+                    ActiveBatchMedia = null;
                     BatchHadErrors = true;
                     lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Errored);
                     continue;
@@ -1172,6 +1180,8 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 Output.Dispose();
                 DownloadProcess.Dispose();
                 DownloadProcess = null;
+                MediaDetails.DisposeAuthenticationConfig();
+                ActiveBatchMedia = null;
 
                 if (!CancellationRequested && Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
                     bool ItemSucceeded = ExitCode == 0;
@@ -1255,6 +1265,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             finally {
                 DownloadProcess?.Dispose();
                 DownloadProcess = null;
+                ActiveBatchMedia?.DisposeAuthenticationConfig();
             }
         }) {
             Name = "Batch download",

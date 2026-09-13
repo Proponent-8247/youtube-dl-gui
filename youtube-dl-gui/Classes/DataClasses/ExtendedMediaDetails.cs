@@ -1,6 +1,7 @@
 ﻿#nullable enable
 namespace youtube_dl_gui;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 using murrty.controls;
 
@@ -111,6 +112,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
     /// Gets or sets the Authentication details used for this instance.
     /// </summary>
     public AuthenticationDetails? Authentication {get; set; }
+    private ProviderAuthenticationConfig? AuthenticationConfig;
 
     // Download settings
     /// <summary>
@@ -497,6 +499,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
         InfoParsed = true;
     }
     public override bool GenerateArguments() {
+        DisposeAuthenticationConfig();
         ArgumentList ArgumentBuffer = [];
 
         #region Outuput path
@@ -775,33 +778,19 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
         #region Authentication
         StringBuilder ProtectedArguments = new(ArgumentBuffer.ToString());
         if (Authentication is not null) {
-            if (!Authentication.Username.IsNullEmptyWhitespace()) {
-                ArgumentBuffer.Add("--username " + ArgumentList.EscapeArgument(Authentication.Username));
-                ProtectedArguments.Append(" --username ***");
+            try {
+                AuthenticationConfig = ProviderAuthenticationConfig.Create(Authentication);
+                if (AuthenticationConfig is not null) {
+                    ArgumentBuffer.Add("--config-location " + ArgumentList.EscapeArgument(AuthenticationConfig.FilePath));
+                    ProtectedArguments.Append(" --config-location ***");
+                }
             }
-            if (Authentication.Password?.Length > 0) {
-                ArgumentBuffer.Add("--password " + ArgumentList.EscapeArgument(Authentication.GetPassword()));
-                ProtectedArguments.Append(" --password ***");
-            }
-            if (!Authentication.TwoFactor.IsNullEmptyWhitespace()) {
-                ArgumentBuffer.Add("--twofactor " + ArgumentList.EscapeArgument(Authentication.TwoFactor));
-                ProtectedArguments.Append(" --twofactor ***");
-            }
-            if (Authentication.MediaPassword?.Length > 0) {
-                ArgumentBuffer.Add("--video-password " + ArgumentList.EscapeArgument(Authentication.GetMediaPassword()));
-                ProtectedArguments.Append(" --video-password ***");
-            }
-            if (Authentication.NetRC) {
-                ArgumentBuffer.Add("--netrc");
-                ProtectedArguments.Append(" --netrc");
-            }
-            if (!Authentication.CookiesFile.IsNullEmptyWhitespace()) {
-                ArgumentBuffer.Add("--cookies " + ArgumentList.EscapeArgument(Authentication.CookiesFile));
-                ProtectedArguments.Append(" --cookies ***");
-            }
-            if (!Authentication.CookiesFromBrowser.IsNullEmptyWhitespace()) {
-                ArgumentBuffer.Add("--cookies-from-browser " + ArgumentList.EscapeArgument(Authentication.CookiesFromBrowser));
-                ProtectedArguments.Append(" --cookies-from-browser ***");
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or InvalidOperationException) {
+                Log.Write($"Could not create provider authentication config: {ex.Message}");
+                DisposeAuthenticationConfig();
+                base.Arguments = null;
+                ArgumentsCensored = string.Empty;
+                return false;
             }
         }
         #endregion
@@ -813,6 +802,11 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
         base.Arguments = ArgumentBuffer.ToString();
         this.ArgumentsCensored = ProtectedArguments.ToString();
         return true;
+    }
+
+    internal void DisposeAuthenticationConfig() {
+        AuthenticationConfig?.Dispose();
+        AuthenticationConfig = null;
     }
 
     private DownloadException InvalidType => new(URL, $"The SelectedType {SelectedType} is not valid.");
@@ -828,6 +822,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
     }
 
     private void ClearData() {
+        DisposeAuthenticationConfig();
         if (Authentication is null) {
             return;
         }

@@ -1,0 +1,71 @@
+{
+  "version": 2,
+  "base_sha": "70379bc5c5215c8ba5024113400c849d6c27b6ea",
+  "expected_failures": [
+    "CURRENT_O034.DownloaderLiveOutputUsesUiMarshal",
+    "CURRENT_O034.ExtendedDownloaderLiveOutputUsesUiMarshal"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "O034_PROGRESS_UI_MARSHAL",
+      "message": "fix: marshal live progress access to ui thread",
+      "resolves": [
+        "CURRENT_O034.DownloaderLiveOutputUsesUiMarshal",
+        "CURRENT_O034.ExtendedDownloaderLiveOutputUsesUiMarshal"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Forms/frmDownloader.cs",
+          "edits": [
+            {
+              "old": "    private void RequestCancellation() {\n        CancellationRequested = true;\n        CurrentDownload.Status = DownloadStatus.Aborted;\n    }\n",
+              "new": "    private void RequestCancellation() {\n        CancellationRequested = true;\n        CurrentDownload.Status = DownloadStatus.Aborted;\n    }\n\n    private bool TryInvokeProgress(Action Update) {\n        if (Update is null) throw new ArgumentNullException(nameof(Update));\n        try {\n            pbStatus.Invoke(Update);\n            return true;\n        }\n        catch (InvalidOperationException) {\n            return false;\n        }\n    }\n",
+              "count": 1
+            },
+            {
+              "old": "                                            if (pbStatus.Style != ProgressBarStyle.Blocks) {\n                                                pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);\n                                            }\n                                            if (pbStatus.Text != \".  .  .\") {\n                                                pbStatus.Invoke(() => pbStatus.Text = \".  .  .\");\n                                            }\n                                            if (pbStatus.Value != 0) {\n                                                pbStatus.Invoke(() => pbStatus.Value = 0);\n                                            }\n",
+              "new": "                                            _ = TryInvokeProgress(() => {\n                                                if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;\n                                                if (pbStatus.Text != \".  .  .\") pbStatus.Text = \".  .  .\";\n                                                if (pbStatus.Value != 0) pbStatus.Value = 0;\n                                            });\n",
+              "count": 1
+            },
+            {
+              "old": "                                    if (pbStatus.Style != ProgressBarStyle.Blocks) {\n                                        pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);\n                                    }\n                                    if (pbStatus.Text != \".  .  .\") {\n                                        pbStatus.Invoke(() => pbStatus.Text = \".  .  .\");\n                                    }\n                                    if (pbStatus.Value != 0) {\n                                        pbStatus.Invoke(() => pbStatus.Value = 0);\n                                    }\n",
+              "new": "                                    _ = TryInvokeProgress(() => {\n                                        if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;\n                                        if (pbStatus.Text != \".  .  .\") pbStatus.Text = \".  .  .\";\n                                        if (pbStatus.Value != 0) pbStatus.Value = 0;\n                                    });\n",
+              "count": 1
+            },
+            {
+              "old": "                                        if (!LineParts[1].Contains('%') || !pbStatus.IsHandleCreated) {\n                                            break;\n                                        }\n\n                                        if (pbStatus.Style != ProgressBarStyle.Blocks) {\n                                            pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);\n                                        }\n\n                                        pbStatus.Invoke(() => {\n                                            pbStatus.Text =\n                                                $\"{DownloadHelper.GetTransferData(LineParts, ref Percentage, ref Eta) } ETA {Eta}\";\n                                            pbStatus.Value = (int)Math.Floor(Percentage);\n                                        });\n",
+              "new": "                                        if (!LineParts[1].Contains('%')) {\n                                            break;\n                                        }\n\n                                        if (!TryInvokeProgress(() => {\n                                            if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;\n                                            pbStatus.Text =\n                                                $\"{DownloadHelper.GetTransferData(LineParts, ref Percentage, ref Eta) } ETA {Eta}\";\n                                            pbStatus.Value = (int)Math.Floor(Percentage);\n                                        })) {\n                                            break;\n                                        }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmExtendedDownloader.cs",
+          "edits": [
+            {
+              "old": "    private bool ClipboardScannerActive;    // Whether the clipboard scanner is active.\n    private string? ClipboardData;          // Clipboard data buffer.\n\n    public frmExtendedDownloader() : this (true) { }\n",
+              "new": "    private bool ClipboardScannerActive;    // Whether the clipboard scanner is active.\n    private string? ClipboardData;          // Clipboard data buffer.\n\n    private bool TryInvokeProgress(Action Update) {\n        if (Update is null) throw new ArgumentNullException(nameof(Update));\n        try {\n            pbStatus.Invoke(Update);\n            return true;\n        }\n        catch (InvalidOperationException) {\n            return false;\n        }\n    }\n\n    public frmExtendedDownloader() : this (true) { }\n",
+              "count": 1
+            },
+            {
+              "old": "                                if (pbStatus.Style != ProgressBarStyle.Blocks) {\n                                    pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);\n                                }\n                                if (pbStatus.Text != \".  .  .\") {\n                                    pbStatus.Invoke(() => pbStatus.Text = \".  .  .\");\n                                }\n                                if (pbStatus.Value != 0) {\n                                    pbStatus.Invoke(() => pbStatus.Value = 0);\n                                }\n",
+              "new": "                                _ = TryInvokeProgress(() => {\n                                    if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;\n                                    if (pbStatus.Text != \".  .  .\") pbStatus.Text = \".  .  .\";\n                                    if (pbStatus.Value != 0) pbStatus.Value = 0;\n                                });\n",
+              "count": 1
+            },
+            {
+              "old": "                                    if (!LineParts[1].Contains('%') || !this.IsHandleCreated) {\n                                        break;\n                                    }\n\n                                    if (pbStatus.Style != ProgressBarStyle.Blocks) {\n                                        pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);\n                                    }\n\n                                    this.Invoke(() => {\n                                        pbStatus.Text = DownloadHelper.GetTransferData(\n                                            LineParts: LineParts,\n                                            Percentage: ref Percentage,\n                                            Eta: ref ETA);\n\n                                        pbStatus.Value = (int)Math.Floor(Percentage);\n\n                                        this.Text = $\"ETA: {ETA} - {MediaDetails.ProgressMediaName}\";\n                                    });\n",
+              "new": "                                    if (!LineParts[1].Contains('%')) {\n                                        break;\n                                    }\n\n                                    if (!TryInvokeProgress(() => {\n                                        if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;\n                                        pbStatus.Text = DownloadHelper.GetTransferData(\n                                            LineParts: LineParts,\n                                            Percentage: ref Percentage,\n                                            Eta: ref ETA);\n\n                                        pbStatus.Value = (int)Math.Floor(Percentage);\n                                        this.Text = $\"ETA: {ETA} - {MediaDetails.ProgressMediaName}\";\n                                    })) {\n                                        break;\n                                    }\n",
+              "count": 1
+            },
+            {
+              "old": "                                        if (LineParts[1].Contains('%')) {\n                                            if (pbStatus.Style != ProgressBarStyle.Blocks)\n                                                pbStatus.Invoke(() => pbStatus.Style = ProgressBarStyle.Blocks);\n\n                                            if (pbStatus.IsHandleCreated) {\n                                                this.Invoke(() => {\n                                                    pbStatus.Text = DownloadHelper.GetTransferData(\n                                                        LineParts: LineParts,\n                                                        Percentage: ref Percentage,\n                                                        Eta: ref ETA);\n\n                                                    pbStatus.Value = (int)Math.Floor(Percentage);\n\n                                                    this.Text = $\"ETA: {ETA} - {MediaDetails.ProgressMediaName}\";\n                                                });\n                                            }\n                                        }\n",
+              "new": "                                        if (LineParts[1].Contains('%')) {\n                                            if (!TryInvokeProgress(() => {\n                                                if (pbStatus.Style != ProgressBarStyle.Blocks) pbStatus.Style = ProgressBarStyle.Blocks;\n                                                pbStatus.Text = DownloadHelper.GetTransferData(\n                                                    LineParts: LineParts,\n                                                    Percentage: ref Percentage,\n                                                    Eta: ref ETA);\n\n                                                pbStatus.Value = (int)Math.Floor(Percentage);\n                                                this.Text = $\"ETA: {ETA} - {MediaDetails.ProgressMediaName}\";\n                                            })) {\n                                                break;\n                                            }\n                                        }\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -17,12 +17,14 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
     private readonly string LegacyBackupFile;
     private readonly ManagedHttpClient DownloadClient;
     private readonly CancellationTokenSource CancelToken;
+    private readonly Func<string, bool>? Validator;
     private bool Cancelled;
     private bool Finished;
     private bool Downloaded;
 
-    public frmGenericDownloadProgress(string URL, string Output) : this(URL, Output, null) { }
-    public frmGenericDownloadProgress(string URL, string Output, Point? Location) {
+    public frmGenericDownloadProgress(string URL, string Output) : this(URL, Output, null, null) { }
+    public frmGenericDownloadProgress(string URL, string Output, Point? Location) : this(URL, Output, Location, null) { }
+    internal frmGenericDownloadProgress(string URL, string Output, Point? Location, Func<string, bool>? Validator) {
         InitializeComponent();
         LoadLanguage();
         this.URL = URL;
@@ -33,6 +35,7 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
         this.TempFile = Output + SidecarId + ".tmp";
         this.BackupFile = Output + SidecarId + ".bck";
         CancelToken = new();
+        this.Validator = Validator;
         Log.Write($"Using generic downloader to display progress for '{Log.RedactDiagnosticValue(URL)}'.");
 
         DownloadClient = new();
@@ -83,6 +86,9 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
 
                 //await Task.Delay(5000000, CancelToken.Token);
                 await DownloadClient.DownloadFileTaskAsync(new Uri(URL, UriKind.Absolute), TempFile, CancelToken.Token);
+                if (Validator is not null && !Validator(TempFile)) {
+                    throw new InvalidDataException("The downloaded file failed its integrity or authenticity check.");
+                }
 
                 if (File.Exists(BackupFile) && File.Exists(Output))
                     File.Delete(BackupFile);

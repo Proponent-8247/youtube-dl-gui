@@ -406,6 +406,76 @@ internal static class Updater {
 
     private static bool CanUseProviderSelfUpdater() => false;
 
+    private static bool TryGetProviderAsset(GithubData Release, string FileName, out string? DownloadUrl, out string? Digest, out string? ChecksumUrl, out long Length) {
+        DownloadUrl = null;
+        Digest = null;
+        ChecksumUrl = null;
+        Length = 0;
+        if (Release.Files is null || FileName.IsNullEmptyWhitespace()) return false;
+
+        GithubAsset? Executable = null;
+        GithubAsset? Checksums = null;
+        for (int i = 0; i < Release.Files.Length; i++) {
+            GithubAsset Asset = Release.Files[i];
+            if (Asset.Name?.Equals(FileName, StringComparison.Ordinal) == true) Executable = Asset;
+            else if (Asset.Name?.Equals("SHA2-256SUMS", StringComparison.Ordinal) == true) Checksums = Asset;
+        }
+        if (Executable is null || Executable.Value.DownloadUrl.IsNullEmptyWhitespace()) return false;
+
+        DownloadUrl = Executable.Value.DownloadUrl;
+        Length = Executable.Value.Length;
+        if (TryParseSha256Digest(Executable.Value.Digest, out string ParsedDigest)) {
+            Digest = ParsedDigest;
+            return true;
+        }
+        if (Checksums is not null && !Checksums.Value.DownloadUrl.IsNullEmptyWhitespace()) {
+            ChecksumUrl = Checksums.Value.DownloadUrl;
+            return true;
+        }
+        DownloadUrl = null;
+        Length = 0;
+        return false;
+    }
+
+    private static bool CommitVerifiedFile(string StagedPath, string DestinationPath, Func<string, bool> Verify) {
+        if (!Verify(StagedPath)) {
+            try { if (File.Exists(StagedPath)) File.Delete(StagedPath); } catch { }
+            return false;
+        }
+
+        string BackupPath = DestinationPath + ".verified." + Guid.NewGuid().ToString("N") + ".bck";
+        bool MovedOld = false;
+        try {
+            if (File.Exists(DestinationPath)) {
+                File.Move(DestinationPath, BackupPath);
+                MovedOld = true;
+            }
+            try {
+                File.Move(StagedPath, DestinationPath);
+            }
+            catch {
+                if (MovedOld && !File.Exists(DestinationPath) && File.Exists(BackupPath)) File.Move(BackupPath, DestinationPath);
+                throw;
+            }
+            try { if (File.Exists(BackupPath)) File.Delete(BackupPath); }
+            catch (Exception cleanupEx) when (cleanupEx is IOException or UnauthorizedAccessException) {
+                Log.Write($"Could not remove verified replacement backup: {cleanupEx.Message}");
+            }
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+            Log.Write($"Could not commit verified replacement: {ex.Message}");
+            try {
+                if (!File.Exists(DestinationPath) && File.Exists(BackupPath)) File.Move(BackupPath, DestinationPath);
+            } catch (Exception rollbackEx) { Log.Write($"Could not roll back verified replacement: {rollbackEx.Message}"); }
+            return false;
+        }
+        finally { try { if (File.Exists(StagedPath)) File.Delete(StagedPath); } catch { } }
+    }
+
+    private static bool CommitVerifiedExecutable(string StagedPath, string DestinationPath, string ExpectedHash) =>
+        CommitVerifiedFile(StagedPath, DestinationPath, Path => VerifyDownloadedExecutable(Path, ExpectedHash));
+
     private static void BeginUpdate() {
         ExpectedUpdaterProcessId = 0;
         if (LastChecked?.ExecutableHash.IsNullEmptyWhitespace() != false) {
@@ -548,14 +618,18 @@ internal static class Updater {
 
             Log.Write($"Downloading youtube-dl version {LatestYoutubeDl.VersionTag}.");
 
-            string DownloadUrl =
-                GithubLinks.ApplicationDownloadUrl.Format(
-                    GithubLinks.ProviderRepos[TypeIndex].User,
-                    GithubLinks.ProviderRepos[TypeIndex].Repo,
-                    GithubLinks.ProviderRepos[TypeIndex].FriendlyName,
-                    LatestYoutubeDl.VersionTag ?? "0");
-
-            using frmGenericDownloadProgress Downloader = new(DownloadUrl, Verification.YoutubeDlPath ?? Verification.GetExpectedYoutubeDlPath(), Location);
+            string ProviderFileName = GithubLinks.ProviderRepos[TypeIndex].FriendlyName + ".exe";
+            if (!TryGetProviderAsset(LatestYoutubeDl, ProviderFileName, out string? DownloadUrl, out _, out _, out _) ||
+                DownloadUrl.IsNullEmptyWhitespace() || LatestYoutubeDl.ExecutableHash.IsNullEmptyWhitespace()) {
+                Log.Write("The provider release does not expose a verifiable executable asset.");
+                return false;
+            }
+            string ExpectedHash = LatestYoutubeDl.ExecutableHash!;
+            using frmGenericDownloadProgress Downloader = new(
+                DownloadUrl!,
+                Verification.YoutubeDlPath ?? Verification.GetExpectedYoutubeDlPath(),
+                Location,
+                TempPath => VerifyDownloadedExecutable(TempPath, ExpectedHash));
             if (Downloader.ShowDialog() != DialogResult.OK) {
                 return false;
             }
@@ -839,7 +913,21 @@ internal static class Updater {
         GithubData CurrentRelease = Json.JsonDeserialize<GithubData>()
             ?? throw new ApiParsingException("Could not deserialize provider release metadata.", Url);
 
-        if (LatestYoutubeDlType == GitID && LatestYoutubeDl is not null && LatestYoutubeDl.VersionTag == CurrentRelease.VersionTag) {
+        string ProviderFileName = GithubLinks.ProviderRepos[GitID].FriendlyName + ".exe";
+        if (!TryGetProviderAsset(CurrentRelease, ProviderFileName, out _, out string? ProviderDigest, out string? ChecksumUrl, out _)) {
+            throw new ApiParsingException("The provider release does not expose an executable with authoritative SHA-256 metadata.", Url);
+        }
+        if (ProviderDigest is null) {
+            if (ChecksumUrl.IsNullEmptyWhitespace()) throw new ApiParsingException("The provider release checksum URL is missing.", Url);
+            string ChecksumText = await Program.HttpClient.DownloadStringTaskAsync(new Uri(ChecksumUrl!), UpdateToken.Token).ConfigureAwait(true);
+            if (!TryParseSha256Checksum(ChecksumText, ProviderFileName, out ProviderDigest)) {
+                throw new ApiParsingException("The provider release checksum manifest does not contain the expected executable.", ChecksumUrl!);
+            }
+        }
+        CurrentRelease.ExecutableHash = ProviderDigest;
+
+        if (LatestYoutubeDlType == GitID && LatestYoutubeDl is not null && LatestYoutubeDl.VersionTag == CurrentRelease.VersionTag &&
+            string.Equals(LatestYoutubeDl.ExecutableHash, ProviderDigest, StringComparison.OrdinalIgnoreCase)) {
             return;
         }
 

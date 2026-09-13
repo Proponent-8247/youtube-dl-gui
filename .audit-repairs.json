@@ -1,0 +1,69 @@
+{
+  "version": 2,
+  "base_sha": "f57c6e6cc3638cdc53feca10460c8212f4651013",
+  "expected_failures": [
+    "CURRENT_O019.FfmpegArchiveRequiresVerifiedDigest",
+    "CURRENT_O020.ProviderReleaseRequiresAuthoritativeDigest",
+    "CURRENT_O024.RedditUserscriptTargetsPermalinksSafely",
+    "CURRENT_O027.FileDownloadsEnforceByteAndDurationBounds",
+    "CURRENT_O030.SavedWindowLocationRequiresCurrentScreen",
+    "CURRENT_O031.LanguageBlobRequiresGitObjectIdentity",
+    "CURRENT_O037.FfmpegZipExtractionIsBounded"
+  ],
+  "remaining_failures": [
+    "CURRENT_O019.FfmpegArchiveRequiresVerifiedDigest",
+    "CURRENT_O024.RedditUserscriptTargetsPermalinksSafely",
+    "CURRENT_O027.FileDownloadsEnforceByteAndDurationBounds",
+    "CURRENT_O030.SavedWindowLocationRequiresCurrentScreen",
+    "CURRENT_O031.LanguageBlobRequiresGitObjectIdentity",
+    "CURRENT_O037.FfmpegZipExtractionIsBounded"
+  ],
+  "repairs": [
+    {
+      "id": "O020-provider-release-integrity",
+      "message": "fix: verify provider release executable before replacement",
+      "resolves": ["CURRENT_O020.ProviderReleaseRequiresAuthoritativeDigest"],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Updater/Github/GithubAsset.cs",
+          "edits": [
+            {
+              "old": "[DataContract]\npublic readonly struct GithubAsset(string Content, long Length) {\n    /// <summary>\n    /// Gets the content type.\n    /// </summary>\n    [DataMember(Name = \"content_type\")]\n    public string Content { get; init; } = Content;\n\n    /// <summary>\n    /// Gets the size of the file.\n    /// </summary>\n    [DataMember(Name = \"size\")]\n    public long Length { get; init; } = Length;\n\n    /// <summary>\n    /// Initializes an empty asset.\n    /// </summary>\n    public GithubAsset() : this(string.Empty, 0) { }\n}",
+              "new": "[DataContract]\npublic readonly struct GithubAsset(string Content, long Length) {\n    [DataMember(Name = \"name\")]\n    public string? Name { get; init; }\n\n    [DataMember(Name = \"browser_download_url\")]\n    public string? DownloadUrl { get; init; }\n\n    [DataMember(Name = \"digest\")]\n    public string? Digest { get; init; }\n\n    /// <summary>\n    /// Gets the content type.\n    /// </summary>\n    [DataMember(Name = \"content_type\")]\n    public string Content { get; init; } = Content;\n\n    /// <summary>\n    /// Gets the size of the file.\n    /// </summary>\n    [DataMember(Name = \"size\")]\n    public long Length { get; init; } = Length;\n\n    /// <summary>\n    /// Initializes an empty asset.\n    /// </summary>\n    public GithubAsset() : this(string.Empty, 0) { }\n}",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmGenericDownloadProgress.cs",
+          "edits": [
+            {"old":"    private readonly ManagedHttpClient DownloadClient;\n    private readonly CancellationTokenSource CancelToken;\n","new":"    private readonly ManagedHttpClient DownloadClient;\n    private readonly CancellationTokenSource CancelToken;\n    private readonly Func<string, bool>? Validator;\n","count":1},
+            {"old":"    public frmGenericDownloadProgress(string URL, string Output) : this(URL, Output, null) { }\n    public frmGenericDownloadProgress(string URL, string Output, Point? Location) {\n        InitializeComponent();\n","new":"    public frmGenericDownloadProgress(string URL, string Output) : this(URL, Output, null, null) { }\n    public frmGenericDownloadProgress(string URL, string Output, Point? Location) : this(URL, Output, Location, null) { }\n    internal frmGenericDownloadProgress(string URL, string Output, Point? Location, Func<string, bool>? Validator) {\n        InitializeComponent();\n","count":1},
+            {"old":"        CancelToken = new();\n        Log.Write($\"Using generic downloader to display progress for '{Log.RedactDiagnosticValue(URL)}'.\");\n","new":"        CancelToken = new();\n        this.Validator = Validator;\n        Log.Write($\"Using generic downloader to display progress for '{Log.RedactDiagnosticValue(URL)}'.\");\n","count":1},
+            {"old":"                await DownloadClient.DownloadFileTaskAsync(new Uri(URL, UriKind.Absolute), TempFile, CancelToken.Token);\n\n                if (File.Exists(BackupFile) && File.Exists(Output))\n","new":"                await DownloadClient.DownloadFileTaskAsync(new Uri(URL, UriKind.Absolute), TempFile, CancelToken.Token);\n                if (Validator is not null && !Validator(TempFile)) {\n                    throw new InvalidDataException(\"The downloaded file failed its integrity or authenticity check.\");\n                }\n\n                if (File.Exists(BackupFile) && File.Exists(Output))\n","count":1}
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Updater/Updater.cs",
+          "edits": [
+            {
+              "old": "    private static bool CanUseProviderSelfUpdater() => false;\n\n    private static void BeginUpdate() {\n",
+              "new": "    private static bool CanUseProviderSelfUpdater() => false;\n\n    private static bool TryGetProviderAsset(GithubData Release, string FileName, out string? DownloadUrl, out string? Digest, out string? ChecksumUrl, out long Length) {\n        DownloadUrl = null;\n        Digest = null;\n        ChecksumUrl = null;\n        Length = 0;\n        if (Release.Files is null || FileName.IsNullEmptyWhitespace()) return false;\n\n        GithubAsset? Executable = null;\n        GithubAsset? Checksums = null;\n        for (int i = 0; i < Release.Files.Length; i++) {\n            GithubAsset Asset = Release.Files[i];\n            if (Asset.Name?.Equals(FileName, StringComparison.Ordinal) == true) Executable = Asset;\n            else if (Asset.Name?.Equals(\"SHA2-256SUMS\", StringComparison.Ordinal) == true) Checksums = Asset;\n        }\n        if (Executable is null || Executable.Value.DownloadUrl.IsNullEmptyWhitespace()) return false;\n\n        DownloadUrl = Executable.Value.DownloadUrl;\n        Length = Executable.Value.Length;\n        if (TryParseSha256Digest(Executable.Value.Digest, out string ParsedDigest)) {\n            Digest = ParsedDigest;\n            return true;\n        }\n        if (Checksums is not null && !Checksums.Value.DownloadUrl.IsNullEmptyWhitespace()) {\n            ChecksumUrl = Checksums.Value.DownloadUrl;\n            return true;\n        }\n        DownloadUrl = null;\n        Length = 0;\n        return false;\n    }\n\n    private static bool CommitVerifiedFile(string StagedPath, string DestinationPath, Func<string, bool> Verify) {\n        if (!Verify(StagedPath)) {\n            try { if (File.Exists(StagedPath)) File.Delete(StagedPath); } catch { }\n            return false;\n        }\n\n        string BackupPath = DestinationPath + \".verified.\" + Guid.NewGuid().ToString(\"N\") + \".bck\";\n        bool MovedOld = false;\n        try {\n            if (File.Exists(DestinationPath)) {\n                File.Move(DestinationPath, BackupPath);\n                MovedOld = true;\n            }\n            try {\n                File.Move(StagedPath, DestinationPath);\n            }\n            catch {\n                if (MovedOld && !File.Exists(DestinationPath) && File.Exists(BackupPath)) File.Move(BackupPath, DestinationPath);\n                throw;\n            }\n            try { if (File.Exists(BackupPath)) File.Delete(BackupPath); }\n            catch (Exception cleanupEx) when (cleanupEx is IOException or UnauthorizedAccessException) {\n                Log.Write($\"Could not remove verified replacement backup: {cleanupEx.Message}\");\n            }\n            return true;\n        }\n        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {\n            Log.Write($\"Could not commit verified replacement: {ex.Message}\");\n            try {\n                if (!File.Exists(DestinationPath) && File.Exists(BackupPath)) File.Move(BackupPath, DestinationPath);\n            } catch (Exception rollbackEx) { Log.Write($\"Could not roll back verified replacement: {rollbackEx.Message}\"); }\n            return false;\n        }\n        finally { try { if (File.Exists(StagedPath)) File.Delete(StagedPath); } catch { } }\n    }\n\n    private static bool CommitVerifiedExecutable(string StagedPath, string DestinationPath, string ExpectedHash) =>\n        CommitVerifiedFile(StagedPath, DestinationPath, Path => VerifyDownloadedExecutable(Path, ExpectedHash));\n\n    private static void BeginUpdate() {\n",
+              "count": 1
+            },
+            {
+              "old": "            string DownloadUrl =\n                GithubLinks.ApplicationDownloadUrl.Format(\n                    GithubLinks.ProviderRepos[TypeIndex].User,\n                    GithubLinks.ProviderRepos[TypeIndex].Repo,\n                    GithubLinks.ProviderRepos[TypeIndex].FriendlyName,\n                    LatestYoutubeDl.VersionTag ?? \"0\");\n\n            using frmGenericDownloadProgress Downloader = new(DownloadUrl, Verification.YoutubeDlPath ?? Verification.GetExpectedYoutubeDlPath(), Location);\n",
+              "new": "            string ProviderFileName = GithubLinks.ProviderRepos[TypeIndex].FriendlyName + \".exe\";\n            if (!TryGetProviderAsset(LatestYoutubeDl, ProviderFileName, out string? DownloadUrl, out _, out _, out _) ||\n                DownloadUrl.IsNullEmptyWhitespace() || LatestYoutubeDl.ExecutableHash.IsNullEmptyWhitespace()) {\n                Log.Write(\"The provider release does not expose a verifiable executable asset.\");\n                return false;\n            }\n            string ExpectedHash = LatestYoutubeDl.ExecutableHash!;\n            using frmGenericDownloadProgress Downloader = new(\n                DownloadUrl!,\n                Verification.YoutubeDlPath ?? Verification.GetExpectedYoutubeDlPath(),\n                Location,\n                TempPath => VerifyDownloadedExecutable(TempPath, ExpectedHash));\n",
+              "count": 1
+            },
+            {
+              "old": "        GithubData CurrentRelease = Json.JsonDeserialize<GithubData>()\n            ?? throw new ApiParsingException(\"Could not deserialize provider release metadata.\", Url);\n\n        if (LatestYoutubeDlType == GitID && LatestYoutubeDl is not null && LatestYoutubeDl.VersionTag == CurrentRelease.VersionTag) {\n            return;\n        }\n",
+              "new": "        GithubData CurrentRelease = Json.JsonDeserialize<GithubData>()\n            ?? throw new ApiParsingException(\"Could not deserialize provider release metadata.\", Url);\n\n        string ProviderFileName = GithubLinks.ProviderRepos[GitID].FriendlyName + \".exe\";\n        if (!TryGetProviderAsset(CurrentRelease, ProviderFileName, out _, out string? ProviderDigest, out string? ChecksumUrl, out _)) {\n            throw new ApiParsingException(\"The provider release does not expose an executable with authoritative SHA-256 metadata.\", Url);\n        }\n        if (ProviderDigest is null) {\n            if (ChecksumUrl.IsNullEmptyWhitespace()) throw new ApiParsingException(\"The provider release checksum URL is missing.\", Url);\n            string ChecksumText = await Program.HttpClient.DownloadStringTaskAsync(new Uri(ChecksumUrl!), UpdateToken.Token).ConfigureAwait(true);\n            if (!TryParseSha256Checksum(ChecksumText, ProviderFileName, out ProviderDigest)) {\n                throw new ApiParsingException(\"The provider release checksum manifest does not contain the expected executable.\", ChecksumUrl!);\n            }\n        }\n        CurrentRelease.ExecutableHash = ProviderDigest;\n\n        if (LatestYoutubeDlType == GitID && LatestYoutubeDl is not null && LatestYoutubeDl.VersionTag == CurrentRelease.VersionTag &&\n            string.Equals(LatestYoutubeDl.ExecutableHash, ProviderDigest, StringComparison.OrdinalIgnoreCase)) {\n            return;\n        }\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -9,6 +9,7 @@ Set-StrictMode -Version Latest
 
 $Root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $EvidenceDirectory = [IO.Path]::GetFullPath($EvidenceDirectory)
+$AuditedBase = '7283444431e1243d83b86bf54838d22e3048cae9'
 
 function Get-ProgramVersion {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -56,6 +57,18 @@ function Assert-AssemblyMetadata {
 
 Push-Location $Root
 try {
+    $HeadCommit = (git rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($HeadCommit)) {
+        throw 'Could not determine the candidate commit.'
+    }
+    if (![string]::IsNullOrWhiteSpace($env:GITHUB_SHA) -and $env:GITHUB_SHA -cne $HeadCommit) {
+        throw "Checked-out commit '$HeadCommit' does not match GITHUB_SHA '$env:GITHUB_SHA'."
+    }
+    git merge-base --is-ancestor $AuditedBase HEAD
+    if ($LASTEXITCODE -ne 0) {
+        throw "Audited base $AuditedBase is not an ancestor of release candidate $HeadCommit."
+    }
+
     $AppVersion = Get-ProgramVersion 'youtube-dl-gui\Program.cs'
     $UpdaterVersion = Get-ProgramVersion 'youtube-dl-gui-updater\Program.cs'
 
@@ -77,6 +90,9 @@ try {
     $ExpectedHeading = '^#\s+youtube-dl-gui\s+' + [regex]::Escape($AppVersion.Tag) + '\s*$'
     if ($ReleaseNotes -notmatch "(?m)$ExpectedHeading") {
         throw "Release notes do not begin with the expected $($AppVersion.Tag) heading."
+    }
+    if ($ReleaseNotes -match '(?im)^(?:exe|zip)\s+sha(?:[- ]?)256\s*:') {
+        throw 'Static release notes must not contain hash lines; CI appends the authoritative hashes exactly once.'
     }
 
     if (Test-Path $EvidenceDirectory) { Remove-Item $EvidenceDirectory -Recurse -Force }
@@ -133,13 +149,28 @@ try {
     $ExePath = Join-Path $ReleaseRoot 'youtube-dl-gui.exe'
     $ZipPath = Join-Path $ReleaseRoot 'youtube-dl-gui.zip'
     $HashesPath = Join-Path $ReleaseRoot 'Release-hashes.md'
-    foreach ($Path in @($ExePath, $ZipPath, $HashesPath)) {
+    $UpdaterPath = Join-Path $Root 'youtube-dl-gui-updater\bin\Release\youtube-dl-gui-updater.exe'
+    foreach ($Path in @($ExePath, $ZipPath, $HashesPath, $UpdaterPath)) {
         if (!(Test-Path $Path)) { throw "Release output is missing: $Path" }
+    }
+
+    $AppVersionInfo = (Get-Item $ExePath).VersionInfo
+    if ($AppVersionInfo.FileVersion -cne $AppVersion.FileVersion) {
+        throw "Built application file version '$($AppVersionInfo.FileVersion)' does not match '$($AppVersion.FileVersion)'."
+    }
+    if ($AppVersionInfo.ProductVersion -cne $AppVersion.Tag) {
+        throw "Built application product version '$($AppVersionInfo.ProductVersion)' does not match '$($AppVersion.Tag)'."
+    }
+    $UpdaterVersionInfo = (Get-Item $UpdaterPath).VersionInfo
+    if ($UpdaterVersionInfo.FileVersion -cne $UpdaterVersion.FileVersion) {
+        throw "Built updater file version '$($UpdaterVersionInfo.FileVersion)' does not match '$($UpdaterVersion.FileVersion)'."
+    }
+    if ($UpdaterVersionInfo.ProductVersion -cne $UpdaterVersion.Tag) {
+        throw "Built updater product version '$($UpdaterVersionInfo.ProductVersion)' does not match '$($UpdaterVersion.Tag)'."
     }
 
     $ExeHash = (Get-FileHash $ExePath -Algorithm SHA256).Hash.ToLowerInvariant()
     $ZipHash = (Get-FileHash $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    $UpdaterPath = Join-Path $Root 'youtube-dl-gui-updater\bin\Release\youtube-dl-gui-updater.exe'
     $UpdaterHash = (Get-FileHash $UpdaterPath -Algorithm SHA256).Hash.ToLowerInvariant()
     $HashesText = Get-Content $HashesPath -Raw
     $ExeHashMatch = [regex]::Match($HashesText, '(?im)^exe sha256:\s*([0-9a-f]{64})\s*$')
@@ -159,27 +190,31 @@ try {
     $ReleaseBodyPath = Join-Path $ReleaseRoot 'Release-body.md'
     $ReleaseBody = $ReleaseNotes.TrimEnd() + "`r`n`r`nexe sha256: $ExeHash`r`nzip sha256: $ZipHash`r`n"
     Set-Content -Path $ReleaseBodyPath -Value $ReleaseBody -Encoding utf8 -NoNewline
-    if ((Get-Content $ReleaseBodyPath -Raw) -notmatch ('(?im)^exe sha256:\s*' + [regex]::Escape($ExeHash) + '\s*$')) {
+    $GeneratedBody = Get-Content $ReleaseBodyPath -Raw
+    $BodyExeHashes = [regex]::Matches($GeneratedBody, '(?im)^exe sha256:\s*[0-9a-f]{64}\s*$')
+    $BodyZipHashes = [regex]::Matches($GeneratedBody, '(?im)^zip sha256:\s*[0-9a-f]{64}\s*$')
+    if ($BodyExeHashes.Count -ne 1 -or $BodyZipHashes.Count -ne 1) {
+        throw 'Generated release body must contain exactly one executable hash line and one ZIP hash line.'
+    }
+    if ($GeneratedBody -notmatch ('(?im)^exe sha256:\s*' + [regex]::Escape($ExeHash) + '\s*$')) {
         throw 'Generated release body does not expose the executable SHA-256 in updater-compatible form.'
+    }
+    if ($GeneratedBody -notmatch ('(?im)^zip sha256:\s*' + [regex]::Escape($ZipHash) + '\s*$')) {
+        throw 'Generated release body does not expose the ZIP SHA-256 in publication-compatible form.'
     }
 
     Copy-Item $ReleaseNotesPath (Join-Path $ReleaseRoot "Release-notes-$($AppVersion.Tag).md") -Force
 
-    $Commit = if (![string]::IsNullOrWhiteSpace($env:GITHUB_SHA)) {
-        $env:GITHUB_SHA
-    } else {
-        (git rev-parse HEAD).Trim()
-    }
-    if ($LASTEXITCODE -ne 0) { throw 'Could not determine the candidate commit.' }
-
     $Manifest = [ordered]@{
         version = $AppVersion.Tag
         prerelease = ($AppVersion.Beta -gt 0)
-        commit = $Commit
-        audited_base = '7283444431e1243d83b86bf54838d22e3048cae9'
-        application_file_version = $AppVersion.FileVersion
+        commit = $HeadCommit
+        audited_base = $AuditedBase
+        application_file_version = $AppVersionInfo.FileVersion
+        application_product_version = $AppVersionInfo.ProductVersion
         updater_version = $UpdaterVersion.Tag
-        updater_file_version = $UpdaterVersion.FileVersion
+        updater_file_version = $UpdaterVersionInfo.FileVersion
+        updater_product_version = $UpdaterVersionInfo.ProductVersion
         target_framework = 'net472'
         tests_per_pass = $AfterNames.Count
         regression_passes = 3

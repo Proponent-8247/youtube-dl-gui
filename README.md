@@ -49,7 +49,7 @@ Additionally, if you do include custom arguments on non-custom downloads, they w
 Each fork may have differences in compatible sites. It's recommended to do your own research. Or just try it, and see if it works. The worst that can happen is you blow up.
 
 # Compiling
-The project is built with any compiler that supports using C# 11 (Preview), .NET Framework 4.7.2, and WinForms.
+The project is built with any compiler that supports C# 12, .NET Framework 4.7.2, and WinForms.
 
 The `Debug` configuration may disable certain actions from working. But it's the debug config, what do you expect?
 

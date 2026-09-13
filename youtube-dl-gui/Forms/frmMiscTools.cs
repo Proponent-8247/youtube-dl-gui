@@ -6,6 +6,8 @@ using System.IO;
 using System.Windows.Forms;
 
 public partial class frmMiscTools : LocalizedForm {
+    private readonly System.Threading.CancellationTokenSource MiscOperationCancellation = new();
+
     private static IEnumerable<string> GetExecutableSearchDirectories() {
         yield return Environment.CurrentDirectory;
 
@@ -22,11 +24,12 @@ public partial class frmMiscTools : LocalizedForm {
         }
     }
 
-    private static string? ResolveImageMagick() {
+    private static string? ResolveImageMagick(System.Threading.CancellationToken Cancellation) {
         string WindowsConvert = Path.GetFullPath(Path.Combine(Environment.SystemDirectory, "convert.exe"));
 
         foreach (string ExecutableName in new[] { "magick.exe", "convert.exe" }) {
             foreach (string DirectoryPath in GetExecutableSearchDirectories().Distinct(StringComparer.OrdinalIgnoreCase)) {
+                Cancellation.ThrowIfCancellationRequested();
                 string Candidate;
                 try {
                     Candidate = Path.GetFullPath(Path.Combine(DirectoryPath, ExecutableName));
@@ -42,7 +45,7 @@ public partial class frmMiscTools : LocalizedForm {
                 && Candidate.Equals(WindowsConvert, StringComparison.OrdinalIgnoreCase)) {
                     continue;
                 }
-                if (IsImageMagick(Candidate)) {
+                if (IsImageMagick(Candidate, Cancellation)) {
                     return Candidate;
                 }
             }
@@ -51,17 +54,52 @@ public partial class frmMiscTools : LocalizedForm {
         return null;
     }
 
-    private static bool IsImageMagick(string ExecutablePath) {
+    private static bool IsImageMagick(string ExecutablePath) =>
+        IsImageMagick(ExecutablePath, System.Threading.CancellationToken.None);
+
+    private static bool IsImageMagick(string ExecutablePath, System.Threading.CancellationToken Cancellation) {
         try {
             murrty.controls.OwnedProcess.Result VersionCheck = murrty.controls.OwnedProcess.Run(
                 new ProcessStartInfo(ExecutablePath) { Arguments = "-version" },
-                System.Threading.CancellationToken.None, 5_000, 65_536);
+                Cancellation, 5_000, 65_536);
             string VersionOutput = VersionCheck.StandardOutput + VersionCheck.StandardError;
             return VersionCheck.ExitCode == 0
                 && VersionOutput.IndexOf("ImageMagick", StringComparison.OrdinalIgnoreCase) >= 0;
         }
+        catch (OperationCanceledException) {
+            throw;
+        }
         catch {
             return false;
+        }
+    }
+
+    private static async System.Threading.Tasks.Task<int?> RunOwnedProcessAsync(ProcessStartInfo StartInfo, System.Threading.CancellationToken Cancellation) {
+        if (StartInfo is null) throw new ArgumentNullException(nameof(StartInfo));
+        Cancellation.ThrowIfCancellationRequested();
+
+        using Process Child = new() { StartInfo = StartInfo };
+        using murrty.controls.ProcessOwnership Ownership = new(Child);
+        try {
+            if (!Child.Start()) {
+                Log.Write($"Failed to start {StartInfo.FileName}.");
+                return null;
+            }
+            Ownership.Attach();
+            await System.Threading.Tasks.Task.Run(() => {
+                while (!Child.WaitForExit(100)) {
+                    Cancellation.ThrowIfCancellationRequested();
+                }
+                Cancellation.ThrowIfCancellationRequested();
+            }).ConfigureAwait(false);
+            return Child.ExitCode;
+        }
+        catch (OperationCanceledException) {
+            throw;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) {
+            Log.Write($"Failed to start or monitor {StartInfo.FileName}: {ex.Message}");
+            return null;
         }
     }
 
@@ -78,133 +116,117 @@ public partial class frmMiscTools : LocalizedForm {
     }
 
     private void frmTools_FormClosing(object sender, FormClosingEventArgs e) {
+        MiscOperationCancellation.Cancel();
         this.Dispose();
     }
 
-    private void btnMiscToolsRemoveAudio_Click(object sender, EventArgs e) {
+    private async void btnMiscToolsRemoveAudio_Click(object sender, EventArgs e) {
         using OpenFileDialog ofd = new();
         ofd.Title = "Select a file to remove the audio from";
         ofd.Filter = Formats.VideoFormats;
         ofd.FilterIndex = 0;
-        if (ofd.ShowDialog() == DialogResult.OK) {
-            string newFile = Path.GetDirectoryName(ofd.FileName) + "\\" + Path.GetFileNameWithoutExtension(ofd.FileName) + "-noaudio" + Path.GetExtension(ofd.FileName);
-            if (newFile.Length > 250) {
-                newFile = Path.Combine(Path.GetDirectoryName(ofd.FileName) ?? Environment.CurrentDirectory, "output" + Path.GetExtension(ofd.FileName)); // Rare case, file is a lorge name
-            }
+        if (ofd.ShowDialog() != DialogResult.OK) return;
 
-            using Process ffmpeg = new() {
-                StartInfo = new(Verification.FFmpegPath ?? "ffmpeg") {
-                    UseShellExecute = false,
-                    //RedirectStandardInput = true,
-                    //RedirectStandardOutput = true,
-                    //CreateNoWindow = true,
-                    Arguments = "-i " + ArgumentList.EscapeArgument(ofd.FileName) + " -c copy -an " + ArgumentList.EscapeArgument(newFile),
-                }
-            };
-            ffmpeg.Start();
+        string newFile = Path.GetDirectoryName(ofd.FileName) + "\\" + Path.GetFileNameWithoutExtension(ofd.FileName) + "-noaudio" + Path.GetExtension(ofd.FileName);
+        if (newFile.Length > 250) {
+            newFile = Path.Combine(Path.GetDirectoryName(ofd.FileName) ?? Environment.CurrentDirectory, "output" + Path.GetExtension(ofd.FileName)); // Rare case, file is a lorge name
+        }
+
+        try {
+            int? ExitCode = await RunOwnedProcessAsync(new(Verification.FFmpegPath ?? "ffmpeg") {
+                UseShellExecute = false,
+                Arguments = "-i " + ArgumentList.EscapeArgument(ofd.FileName) + " -c copy -an " + ArgumentList.EscapeArgument(newFile),
+            }, MiscOperationCancellation.Token);
+            if (ExitCode is int Code && Code != 0) {
+                Log.Write($"FFmpeg remove-audio operation exited with code {Code}.");
+            }
+        }
+        catch (OperationCanceledException) when (MiscOperationCancellation.IsCancellationRequested) { }
+        catch (Exception ex) {
+            Log.ReportException(ex);
         }
     }
 
-    private void btnMiscToolsExtractAudio_Click(object sender, EventArgs e) {
+    private async void btnMiscToolsExtractAudio_Click(object sender, EventArgs e) {
         using OpenFileDialog ofd = new();
         ofd.Title = "Select a file to extract the audio from";
         ofd.Filter = Formats.VideoFormats;
         ofd.FilterIndex = 0;
-        if (ofd.ShowDialog() == DialogResult.OK) {
-            using SaveFileDialog sfd = new();
-            sfd.Title = "Save audio as...";
-            sfd.Filter = Formats.AudioFormats;
-            sfd.FileName = Path.GetFileNameWithoutExtension(ofd.FileName);
-            sfd.FilterIndex = 5;
-            if (sfd.ShowDialog() == DialogResult.OK) {
-                string newFile = sfd.FileName;
+        if (ofd.ShowDialog() != DialogResult.OK) return;
 
-                using Process ffmpeg = new() {
-                    StartInfo = new(Verification.FFmpegPath ?? "ffmpeg") {
-                        UseShellExecute = false,
-                        //RedirectStandardInput = true,
-                        //RedirectStandardOutput = true,
-                        //CreateNoWindow = true,
-                        Arguments = "-i " + ArgumentList.EscapeArgument(ofd.FileName) + " " + ArgumentList.EscapeArgument(newFile),
-                    }
-                };
-                ffmpeg.Start();
+        using SaveFileDialog sfd = new();
+        sfd.Title = "Save audio as...";
+        sfd.Filter = Formats.AudioFormats;
+        sfd.FileName = Path.GetFileNameWithoutExtension(ofd.FileName);
+        sfd.FilterIndex = 5;
+        if (sfd.ShowDialog() != DialogResult.OK) return;
+
+        try {
+            int? ExitCode = await RunOwnedProcessAsync(new(Verification.FFmpegPath ?? "ffmpeg") {
+                UseShellExecute = false,
+                Arguments = "-i " + ArgumentList.EscapeArgument(ofd.FileName) + " " + ArgumentList.EscapeArgument(sfd.FileName),
+            }, MiscOperationCancellation.Token);
+            if (ExitCode is int Code && Code != 0) {
+                Log.Write($"FFmpeg extract-audio operation exited with code {Code}.");
             }
+        }
+        catch (OperationCanceledException) when (MiscOperationCancellation.IsCancellationRequested) { }
+        catch (Exception ex) {
+            Log.ReportException(ex);
         }
     }
 
     private async void btnMiscToolsVideoToGif_Click(object sender, EventArgs e) {
         using OpenFileDialog ofd = new();
-        if (ofd.ShowDialog() == DialogResult.OK) {
-            string OutputDirectory = Path.GetDirectoryName(ofd.FileName) ?? Environment.CurrentDirectory;
-            string FrameDirectory = Path.Combine(Path.GetTempPath(), "youtube-dl-gui", Path.GetRandomFileName());
+        if (ofd.ShowDialog() != DialogResult.OK) return;
+
+        string OutputDirectory = Path.GetDirectoryName(ofd.FileName) ?? Environment.CurrentDirectory;
+        string FrameDirectory = Path.Combine(Path.GetTempPath(), "youtube-dl-gui", Path.GetRandomFileName());
+        btnMiscToolsVideoToGif.Enabled = false;
+
+        try {
             Directory.CreateDirectory(FrameDirectory);
-            btnMiscToolsVideoToGif.Enabled = false;
+            int? FfmpegExitCode = await RunOwnedProcessAsync(new(Verification.FFmpegPath ?? "ffmpeg") {
+                UseShellExecute = false,
+                WorkingDirectory = FrameDirectory,
+                Arguments = "-i " + ArgumentList.EscapeArgument(ofd.FileName) + " -vf scale=320:-1:flags=lanczos,fps=10 outframes%03d.png",
+            }, MiscOperationCancellation.Token);
+            if (FfmpegExitCode is null) return;
+            if (FfmpegExitCode.Value != 0) {
+                Log.Write($"FFmpeg GIF frame extraction exited with code {FfmpegExitCode.Value}.");
+                return;
+            }
 
+            string? ImageMagickPath = ResolveImageMagick(MiscOperationCancellation.Token);
+            if (ImageMagickPath is null) {
+                Log.MessageBox("ImageMagick could not be found. Install ImageMagick and ensure magick.exe is available in PATH.");
+                return;
+            }
+
+            string GifPath = Path.Combine(OutputDirectory, Path.GetFileNameWithoutExtension(ofd.FileName) + ".gif");
+            int? ImageMagickExitCode = await RunOwnedProcessAsync(new(ImageMagickPath) {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WorkingDirectory = FrameDirectory,
+                Arguments = "-delay 10 -loop 0 outframes*.png " + ArgumentList.EscapeArgument(GifPath),
+            }, MiscOperationCancellation.Token);
+            if (ImageMagickExitCode is int Code && Code != 0) {
+                Log.Write($"ImageMagick GIF conversion exited with code {Code}.");
+            }
+        }
+        catch (OperationCanceledException) when (MiscOperationCancellation.IsCancellationRequested) { }
+        catch (Exception ex) {
+            Log.ReportException(ex);
+        }
+        finally {
             try {
-                using Process ffmpeg = new() {
-                    StartInfo = new(Verification.FFmpegPath ?? "ffmpeg") {
-                        UseShellExecute = false,
-                        WorkingDirectory = FrameDirectory,
-                        Arguments = "-i " + ArgumentList.EscapeArgument(ofd.FileName) + " -vf scale=320:-1:flags=lanczos,fps=10 outframes%03d.png",
-                    }
-                };
-                ffmpeg.Start();
-                await System.Threading.Tasks.Task.Run(() => ffmpeg.WaitForExit());
-                if (ffmpeg.ExitCode != 0) {
-                    Directory.Delete(FrameDirectory, true);
-                    return;
-                }
-
-                string? ImageMagickPath = ResolveImageMagick();
-                if (ImageMagickPath is null) {
-                    Log.MessageBox("ImageMagick could not be found. Install ImageMagick and ensure magick.exe is available in PATH.");
-                    Directory.Delete(FrameDirectory, true);
-                    return;
-                }
-
-                string GifPath = Path.Combine(OutputDirectory, Path.GetFileNameWithoutExtension(ofd.FileName) + ".gif");
-                Process imageMagick = new() {
-                    EnableRaisingEvents = true,
-                    StartInfo = new(ImageMagickPath) {
-                        UseShellExecute = false,
-                        CreateNoWindow = true,
-                        WorkingDirectory = FrameDirectory,
-                        Arguments = "-delay 10 -loop 0 outframes*.png " + ArgumentList.EscapeArgument(GifPath),
-                    }
-                };
-                imageMagick.Exited += (s, args) => {
-                    int ExitCode = imageMagick.ExitCode;
-                    try {
-                        Directory.Delete(FrameDirectory, true);
-                    }
-                    catch {
-                        // Best-effort cleanup after ImageMagick releases the frame files.
-                    }
-                    if (ExitCode != 0) {
-                        Log.Write($"ImageMagick GIF conversion exited with code {ExitCode}.");
-                    }
-                    imageMagick.Dispose();
-                };
-
-                try {
-                    imageMagick.Start();
-                }
-                catch {
-                    imageMagick.Dispose();
-                    throw;
-                }
+                if (Directory.Exists(FrameDirectory)) Directory.Delete(FrameDirectory, true);
             }
-            catch {
-                if (Directory.Exists(FrameDirectory)) {
-                    Directory.Delete(FrameDirectory, true);
-                }
-                throw;
+            catch (Exception ex) {
+                Log.Write($"Could not remove temporary GIF frames: {ex.Message}");
             }
-            finally {
-                if (!this.IsDisposed && this.IsHandleCreated) {
-                    btnMiscToolsVideoToGif.Enabled = true;
-                }
+            if (!this.IsDisposed && this.IsHandleCreated) {
+                btnMiscToolsVideoToGif.Enabled = true;
             }
         }
     }

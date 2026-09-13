@@ -29,8 +29,8 @@ internal static class General {
         get => fUseStaticYtdl;
         set {
             if (fUseStaticYtdl != value) {
+                IniProvider.Write(value, ConfigName, nameof(UseStaticYtdl));
                 fUseStaticYtdl = value;
-                IniProvider.Write(UseStaticYtdl, ConfigName);
             }
         }
     }
@@ -40,8 +40,8 @@ internal static class General {
         get => fytdlPath;
         set {
             if (fytdlPath != value) {
+                IniProvider.Write(value, ConfigName, nameof(ytdlPath));
                 fytdlPath = value;
-                IniProvider.Write(ytdlPath, ConfigName);
             }
         }
     }
@@ -51,8 +51,8 @@ internal static class General {
         get => fUseStaticFFmpeg;
         set {
             if (fUseStaticFFmpeg != value) {
+                IniProvider.Write(value, ConfigName, nameof(UseStaticFFmpeg));
                 fUseStaticFFmpeg = value;
-                IniProvider.Write(UseStaticFFmpeg, ConfigName);
             }
         }
     }
@@ -62,8 +62,8 @@ internal static class General {
         get => fffmpegPath;
         set {
             if (fffmpegPath != value) {
+                IniProvider.Write(value, ConfigName, nameof(ffmpegPath));
                 fffmpegPath = value;
-                IniProvider.Write(ffmpegPath, ConfigName);
             }
         }
     }
@@ -73,8 +73,8 @@ internal static class General {
         get => fCheckForUpdatesOnLaunch;
         set {
             if (fCheckForUpdatesOnLaunch != value) {
+                IniProvider.Write(value, ConfigName, nameof(CheckForUpdatesOnLaunch));
                 fCheckForUpdatesOnLaunch = value;
-                IniProvider.Write(CheckForUpdatesOnLaunch, ConfigName);
             }
         }
     }
@@ -84,8 +84,8 @@ internal static class General {
         get => fDownloadBetaVersions;
         set {
             if (fDownloadBetaVersions != value) {
+                IniProvider.Write(value, ConfigName, nameof(DownloadBetaVersions));
                 fDownloadBetaVersions = value;
-                IniProvider.Write(DownloadBetaVersions, ConfigName);
             }
         }
     }
@@ -95,8 +95,8 @@ internal static class General {
         get => fHoverOverURLTextBoxToPaste;
         set {
             if (fHoverOverURLTextBoxToPaste != value) {
+                IniProvider.Write(value, ConfigName, nameof(HoverOverURLTextBoxToPaste));
                 fHoverOverURLTextBoxToPaste = value;
-                IniProvider.Write(HoverOverURLTextBoxToPaste, ConfigName);
             }
         }
     }
@@ -106,8 +106,8 @@ internal static class General {
         get => fClearURLOnDownload;
         set {
             if (fClearURLOnDownload != value) {
+                IniProvider.Write(value, ConfigName, nameof(ClearURLOnDownload));
                 fClearURLOnDownload = value;
-                IniProvider.Write(ClearURLOnDownload, ConfigName);
             }
         }
     }
@@ -117,8 +117,8 @@ internal static class General {
         get => fSaveCustomArgs;
         set {
             if (fSaveCustomArgs != value) {
+                IniProvider.Write(value, ConfigName, nameof(SaveCustomArgs));
                 fSaveCustomArgs = value;
-                IniProvider.Write(SaveCustomArgs, ConfigName);
             }
         }
     }
@@ -128,8 +128,8 @@ internal static class General {
         get => fClearClipboardOnDownload;
         set {
             if (fClearClipboardOnDownload != value) {
+                IniProvider.Write(value, ConfigName, nameof(ClearClipboardOnDownload));
                 fClearClipboardOnDownload = value;
-                IniProvider.Write(ClearClipboardOnDownload, ConfigName);
             }
         }
     }
@@ -139,8 +139,8 @@ internal static class General {
         get => fextensionsName;
         set {
             if (fextensionsName != value) {
+                IniProvider.Write(value, ConfigName, nameof(extensionsName));
                 fextensionsName = value;
-                IniProvider.Write(extensionsName, ConfigName);
             }
         }
     }
@@ -150,8 +150,8 @@ internal static class General {
         get => fextensionsShort;
         set {
             if (fextensionsShort != value) {
+                IniProvider.Write(value, ConfigName, nameof(extensionsShort));
                 fextensionsShort = value;
-                IniProvider.Write(extensionsShort, ConfigName);
             }
         }
     }
@@ -161,8 +161,8 @@ internal static class General {
         get => fDeleteUpdaterOnStartup;
         set {
             if (fDeleteUpdaterOnStartup != value) {
+                IniProvider.Write(value, ConfigName, nameof(DeleteUpdaterOnStartup));
                 fDeleteUpdaterOnStartup = value;
-                IniProvider.Write(DeleteUpdaterOnStartup, ConfigName);
             }
         }
     }
@@ -172,8 +172,8 @@ internal static class General {
         get => fDeleteBackupOnStartup;
         set {
             if (fDeleteBackupOnStartup != value) {
+                IniProvider.Write(value, ConfigName, nameof(DeleteBackupOnStartup));
                 fDeleteBackupOnStartup = value;
-                IniProvider.Write(DeleteBackupOnStartup, ConfigName);
             }
         }
     }
@@ -183,8 +183,8 @@ internal static class General {
         get => fClipboardAutoDownloadNoticeRead;
         set {
             if (fClipboardAutoDownloadNoticeRead != value) {
+                IniProvider.Write(value, ConfigName, nameof(ClipboardAutoDownloadNoticeRead));
                 fClipboardAutoDownloadNoticeRead = value;
-                IniProvider.Write(ClipboardAutoDownloadNoticeRead, ConfigName);
             }
         }
     }
@@ -194,8 +194,8 @@ internal static class General {
         get => fClipboardAutoDownloadVerifyLinks;
         set {
             if (fClipboardAutoDownloadVerifyLinks != value) {
+                IniProvider.Write(value, ConfigName, nameof(ClipboardAutoDownloadVerifyLinks));
                 fClipboardAutoDownloadVerifyLinks = value;
-                IniProvider.Write(ClipboardAutoDownloadVerifyLinks, ConfigName);
             }
         }
     }
@@ -205,8 +205,8 @@ internal static class General {
         get => fAutoUpdateYoutubeDl;
         set {
             if (fAutoUpdateYoutubeDl != value) {
+                IniProvider.Write(value, ConfigName, nameof(AutoUpdateYoutubeDl));
                 fAutoUpdateYoutubeDl = value;
-                IniProvider.Write(AutoUpdateYoutubeDl, ConfigName);
             }
         }
     }

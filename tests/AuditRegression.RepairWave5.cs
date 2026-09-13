@@ -41,6 +41,7 @@ internal static partial class AuditRegression {
     private static void ForcedThumbnailReplacementDisposesOldImage() {
         object client = HttpClient();
         ((IDisposable)client).Dispose();
+        using (IDisposable decoder = UseThumbnailNormalizer())
         using (LoopbackResponse firstServer = new LoopbackResponse(200, TinyPng(2, 3), null, false, "/first.png"))
         using (LoopbackResponse secondServer = new LoopbackResponse(200, TinyPng(4, 5), null, false, "/second.png")) {
             object media = New("youtube_dl_gui.ExtendedMediaDetails", "https://example.invalid/media");

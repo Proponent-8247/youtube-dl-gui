@@ -106,21 +106,34 @@ public partial class frmDownloadLanguage : LocalizedForm {
             System.IO.Directory.CreateDirectory(LanguageDirectory);
         }
         string URL = lang.download_url!;
-        using frmGenericDownloadProgress Downloader = new(URL, Output);
-        if (Downloader.ShowDialog() == DialogResult.OK) {
-            Log.Write($"Finished downloading language file {lang.name}");
-            System.Media.SystemSounds.Asterisk.Play();
-            return true;
+        if (lang.sha.IsNullEmptyWhitespace()) {
+            Log.Write($"Rejected language file {lang.name}: GitHub did not provide an object identity.");
+            Log.MessageBox(Language.dlgLanguageHashNoMatch, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            System.Media.SystemSounds.Hand.Play();
+            return false;
         }
+        string StagedOutput = Output + ".download." + Guid.NewGuid().ToString("N") + ".tmp";
+        try {
+            using frmGenericDownloadProgress Downloader = new(URL, StagedOutput);
+            if (Downloader.ShowDialog() == DialogResult.OK) {
+                if (!Updater.CommitVerifiedGithubBlob(StagedOutput, Output, lang.sha!)) {
+                    Log.Write($"Rejected language file {lang.name}: downloaded content did not match GitHub object {lang.sha}.");
+                    Log.MessageBox(Language.dlgLanguageHashNoMatch, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    System.Media.SystemSounds.Hand.Play();
+                    return false;
+                }
+                Log.Write($"Finished downloading and verifying language file {lang.name}");
+                System.Media.SystemSounds.Asterisk.Play();
+                return true;
+            }
 
-        Log.Write($"Could not download language file {lang.name}.");
-        System.Media.SystemSounds.Hand.Play();
-
-        // The SHA on github doesn't match what I can calculate here.
-        //if (Program.CalculateSha1Hash(Output).ToLower() != EnumeratedLanguages[listView1.SelectedIndices[0]].Sha.ToLower()) {
-        //    Log.MessageBox(Language.dlgLanguageHashNoMatch, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        //}
-        return false;
+            Log.Write($"Could not download language file {lang.name}.");
+            System.Media.SystemSounds.Hand.Play();
+            return false;
+        }
+        finally {
+            try { if (System.IO.File.Exists(StagedOutput)) System.IO.File.Delete(StagedOutput); } catch { }
+        }
     }
 
     private void btnDownloadSelected_Click(object sender, EventArgs e) {

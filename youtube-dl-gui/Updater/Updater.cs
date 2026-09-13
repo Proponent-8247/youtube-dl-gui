@@ -506,6 +506,33 @@ internal static class Updater {
     private static bool CommitVerifiedExecutable(string StagedPath, string DestinationPath, string ExpectedHash) =>
         CommitVerifiedFile(StagedPath, DestinationPath, Path => VerifyDownloadedExecutable(Path, ExpectedHash));
 
+    private static bool GithubBlobMatches(string FilePath, string ExpectedObjectId) {
+        if (ExpectedObjectId.IsNullEmptyWhitespace() || ExpectedObjectId.Length != 40 || !ExpectedObjectId.All(Uri.IsHexDigit) || !File.Exists(FilePath)) {
+            return false;
+        }
+        try {
+            using FileStream Input = File.Open(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using SHA1 Hash = SHA1.Create();
+            byte[] Header = System.Text.Encoding.UTF8.GetBytes($"blob {Input.Length}\0");
+            Hash.TransformBlock(Header, 0, Header.Length, Header, 0);
+            byte[] Buffer = new byte[81920];
+            while (true) {
+                int Read = Input.Read(Buffer, 0, Buffer.Length);
+                if (Read <= 0) break;
+                Hash.TransformBlock(Buffer, 0, Read, Buffer, 0);
+            }
+            Hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+            string Actual = BitConverter.ToString(Hash.Hash!).Replace("-", string.Empty).ToLowerInvariant();
+            return Actual.Equals(ExpectedObjectId, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException) {
+            return false;
+        }
+    }
+
+    internal static bool CommitVerifiedGithubBlob(string StagedPath, string DestinationPath, string ExpectedObjectId) =>
+        CommitVerifiedFile(StagedPath, DestinationPath, Path => GithubBlobMatches(Path, ExpectedObjectId));
+
     private static void BeginUpdate() {
         ExpectedUpdaterProcessId = 0;
         if (LastChecked?.ExecutableHash.IsNullEmptyWhitespace() != false) {

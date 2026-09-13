@@ -63,5 +63,6 @@ internal static partial class AuditRegression {
     private static void RunRepairWave10Tests() {
         Test("CURRENT_O006.MiscProcessCloseCancelsOwnedTree", MiscProcessCloseCancelsOwnedTree);
         Test("CURRENT_O036.MiscProcessStartFailureIsContained", MiscProcessStartFailureIsContained);
+        RunRepairWave11Tests();
     }
 }

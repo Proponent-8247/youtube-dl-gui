@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "base_sha": "bb24ff181f8034eaea20e5b69c98f754b24aa8c1",
+  "expected_failures": [
+    "POLICY_P003.ExecutableTrustRecognizesAuthenticode",
+    "POLICY_P005.RemoteThumbnailAlwaysUsesIsolatedDecoder"
+  ],
+  "remaining_failures": [
+    "POLICY_P003.ExecutableTrustRecognizesAuthenticode"
+  ],
+  "repairs": [
+    {
+      "id": "P005_THUMBNAIL_DECODER_ISOLATION",
+      "message": "fix: isolate all remote thumbnail decoding",
+      "resolves": ["POLICY_P005.RemoteThumbnailAlwaysUsesIsolatedDecoder"],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DataClasses/YoutubeDlData.cs",
+          "edits": [
+            {
+              "old": "        using ManagedHttpClient Client = new();\n        byte[] ThumbBytes = Client.DownloadBytesTaskAsync(ThumbnailUri, Cancellation, MaximumThumbnailBytes).GetAwaiter().GetResult();\n        bool Webp = ThumbnailUri.AbsolutePath.EndsWith(\".webp\", StringComparison.OrdinalIgnoreCase)\n            || (ThumbBytes.Length >= 12 && Encoding.ASCII.GetString(ThumbBytes, 0, 4) == \"RIFF\"\n                && Encoding.ASCII.GetString(ThumbBytes, 8, 4) == \"WEBP\");\n        if (Webp) {\n            if (!Verification.FfmpegAvailable) {\n                Verification.RefreshFFmpegLocation();\n                if (!Verification.FfmpegAvailable) return null;\n            }\n\n            string DirectoryPath = Path.Combine(Path.GetTempPath(), \"youtube-dl-gui-thumb-\" + Guid.NewGuid().ToString(\"N\"));\n            string WebpPath = Path.Combine(DirectoryPath, \"thumbnail.webp\");\n            string JpgPath = Path.Combine(DirectoryPath, \"thumbnail.jpg\");\n            Directory.CreateDirectory(DirectoryPath);\n            try {\n                Cancellation.ThrowIfCancellationRequested();\n                File.WriteAllBytes(WebpPath, ThumbBytes);\n                OwnedProcess.Result Result = OwnedProcess.Run(new ProcessStartInfo(Verification.FFmpegPath) {\n                    Arguments = \"-nostdin -nostats -hide_banner -i \" + ArgumentList.EscapeArgument(WebpPath)\n                        + \" -frames:v 1 \" + ArgumentList.EscapeArgument(JpgPath),\n                    WindowStyle = ProcessWindowStyle.Hidden,\n                }, Cancellation, 60_000, 1024 * 1024);\n                if (Result.ExitCode != 0 || !File.Exists(JpgPath)) return null;\n                if (new FileInfo(JpgPath).Length > MaximumThumbnailBytes) {\n                    throw new InvalidDataException(\"The converted thumbnail exceeds the permitted size.\");\n                }\n                ThumbBytes = File.ReadAllBytes(JpgPath);\n            }\n            finally {\n                try {\n                    if (File.Exists(WebpPath)) File.Delete(WebpPath);\n                    if (File.Exists(JpgPath)) File.Delete(JpgPath);\n                    Directory.Delete(DirectoryPath);\n                }\n                catch (IOException ex) { Log.Write($\"Could not remove temporary thumbnail files: {ex.Message}\"); }\n                catch (UnauthorizedAccessException ex) { Log.Write($\"Could not remove temporary thumbnail files: {ex.Message}\"); }\n            }\n        }\n\n        Cancellation.ThrowIfCancellationRequested();\n        using MemoryStream Stream = new(ThumbBytes);\n",
+              "new": "        using ManagedHttpClient Client = new();\n        byte[] ThumbBytes = Client.DownloadBytesTaskAsync(ThumbnailUri, Cancellation, MaximumThumbnailBytes).GetAwaiter().GetResult();\n\n        // Remote image bytes are untrusted. Always normalize them in an owned external\n        // decoder process before passing the normalized output to GDI+.\n        if (!Verification.FfmpegAvailable) {\n            Verification.RefreshFFmpegLocation();\n            if (!Verification.FfmpegAvailable) return null;\n        }\n\n        string DirectoryPath = Path.Combine(Path.GetTempPath(), \"youtube-dl-gui-thumb-\" + Guid.NewGuid().ToString(\"N\"));\n        string InputPath = Path.Combine(DirectoryPath, \"thumbnail.input\");\n        string OutputPath = Path.Combine(DirectoryPath, \"thumbnail.png\");\n        Directory.CreateDirectory(DirectoryPath);\n        try {\n            Cancellation.ThrowIfCancellationRequested();\n            File.WriteAllBytes(InputPath, ThumbBytes);\n            OwnedProcess.Result Result = OwnedProcess.Run(new ProcessStartInfo(Verification.FFmpegPath) {\n                Arguments = \"-nostdin -nostats -hide_banner -y -i \" + ArgumentList.EscapeArgument(InputPath)\n                    + \" -frames:v 1 \" + ArgumentList.EscapeArgument(OutputPath),\n                WindowStyle = ProcessWindowStyle.Hidden,\n            }, Cancellation, 60_000, 1024 * 1024);\n            if (Result.ExitCode != 0 || !File.Exists(OutputPath)) return null;\n            if (new FileInfo(OutputPath).Length > MaximumThumbnailBytes) {\n                throw new InvalidDataException(\"The normalized thumbnail exceeds the permitted size.\");\n            }\n            ThumbBytes = File.ReadAllBytes(OutputPath);\n        }\n        finally {\n            try {\n                if (File.Exists(InputPath)) File.Delete(InputPath);\n                if (File.Exists(OutputPath)) File.Delete(OutputPath);\n                Directory.Delete(DirectoryPath);\n            }\n            catch (IOException ex) { Log.Write($\"Could not remove temporary thumbnail files: {ex.Message}\"); }\n            catch (UnauthorizedAccessException ex) { Log.Write($\"Could not remove temporary thumbnail files: {ex.Message}\"); }\n        }\n\n        Cancellation.ThrowIfCancellationRequested();\n        using MemoryStream Stream = new(ThumbBytes);\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

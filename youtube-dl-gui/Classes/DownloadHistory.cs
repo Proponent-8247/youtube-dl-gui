@@ -57,12 +57,12 @@ internal static class DownloadHistory {
     private static string? PreparedKey;
     private static DownloadHistoryReport LastReportInternal = new() { State = DownloadHistoryState.Disabled };
 
-    private static bool fEnabled = IniProvider.Read(nameof(Enabled), false, ConfigName);
-    private static string fArchivePath = IniProvider.Read(nameof(ArchivePath), string.Empty, ConfigName);
-    private static bool fKeepBackup = IniProvider.Read(nameof(KeepBackup), true, ConfigName);
-    private static bool fFailIfUnavailable = IniProvider.Read(nameof(FailIfUnavailable), true, ConfigName);
-    private static bool fEverEnabled = IniProvider.Read(nameof(EverEnabled), false, ConfigName);
-    private static bool fNeedsReconciliation = IniProvider.Read(nameof(NeedsReconciliation), false, ConfigName);
+    private static bool fEnabled = IniProvider.Read(false, false, ConfigName, nameof(Enabled));
+    private static string fArchivePath = IniProvider.Read(string.Empty, string.Empty, ConfigName, nameof(ArchivePath));
+    private static bool fKeepBackup = IniProvider.Read(false, true, ConfigName, nameof(KeepBackup));
+    private static bool fFailIfUnavailable = IniProvider.Read(false, true, ConfigName, nameof(FailIfUnavailable));
+    private static bool fEverEnabled = IniProvider.Read(false, false, ConfigName, nameof(EverEnabled));
+    private static bool fNeedsReconciliation = IniProvider.Read(false, false, ConfigName, nameof(NeedsReconciliation));
 
     public static bool Enabled {
         get => fEnabled;

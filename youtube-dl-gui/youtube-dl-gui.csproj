@@ -68,6 +68,7 @@
     <Compile Include="Classes\DataClasses\Bases\MediaData.cs" />
     <Compile Include="Classes\DataClasses\YoutubeDlData.cs" />
     <Compile Include="Classes\DownloadHelper.cs" />
+    <Compile Include="Classes\DownloadHistory.cs" />
     <Compile Include="Classes\DataClasses\DownloadInfo.cs" />
     <Compile Include="Classes\QueueList.cs" />
     <Compile Include="Config\Interfacing\CustomArguments.cs" />
@@ -172,6 +173,9 @@
     </Compile>
     <Compile Include="Forms\frmDownloader.Designer.cs">
       <DependentUpon>frmDownloader.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\frmDownloadHistory.cs">
+      <SubType>Form</SubType>
     </Compile>
     <Compile Include="Forms\frmDownloadLanguage.cs">
       <SubType>Form</SubType>

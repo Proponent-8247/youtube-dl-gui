@@ -2,7 +2,9 @@ name: Audit build
 
 on:
   push:
-    branches: [audit-fixes]
+    branches:
+      - audit-fixes
+      - feature/download-history-archive-3.3.0-2
   workflow_dispatch:
 
 permissions:

@@ -14,17 +14,65 @@ ALLOWED_SUFFIXES = {'.cs', '.csproj', '.js', '.projitems', '.resx', '.ini'}
 MAX_PLAN_BYTES = 4 * 1024 * 1024
 
 
-def load_plan():
+PART_PATH = re.compile(r'\.audit-repairs\.parts/part-[0-9]{3}\.txt')
+MAX_REQUEST_PARTS = 32
+MAX_ENCODED_BYTES = 6 * 1024 * 1024
+
+
+def load_wrapper():
     request = Path('.audit-repairs.json').read_bytes()
     if len(request) > MAX_PLAN_BYTES:
         raise ValueError('Repair request is too large')
-    wrapper = json.loads(request.decode('utf-8-sig'))
-    if wrapper.get('encoding') != 'gzip-base64':
-        return wrapper
-    if set(wrapper) != {'encoding', 'payload'} or not isinstance(wrapper.get('payload'), str):
-        raise ValueError('Invalid compressed repair request wrapper')
+    return json.loads(request.decode('utf-8-sig'))
+
+
+def request_part_paths(wrapper):
+    if wrapper.get('encoding') != 'gzip-base64-parts':
+        return []
+    if set(wrapper) != {'encoding', 'parts'} or not isinstance(wrapper.get('parts'), list):
+        raise ValueError('Invalid chunked repair request wrapper')
+    parts = wrapper['parts']
+    if not 1 <= len(parts) <= MAX_REQUEST_PARTS or len(set(parts)) != len(parts):
+        raise ValueError('Invalid repair request part list')
+    for name in parts:
+        if not isinstance(name, str) or PART_PATH.fullmatch(name) is None:
+            raise ValueError('Invalid repair request part path')
+    return parts
+
+
+def compressed_payload(wrapper):
+    encoding = wrapper.get('encoding')
+    if encoding == 'gzip-base64':
+        if set(wrapper) != {'encoding', 'payload'} or not isinstance(wrapper.get('payload'), str):
+            raise ValueError('Invalid compressed repair request wrapper')
+        encoded = wrapper['payload']
+    elif encoding == 'gzip-base64-parts':
+        chunks = []
+        total = 0
+        for name in request_part_paths(wrapper):
+            data = Path(name).read_bytes()
+            total += len(data)
+            if total > MAX_ENCODED_BYTES:
+                raise ValueError('Encoded repair request is too large')
+            try:
+                chunks.append(data.decode('ascii'))
+            except UnicodeDecodeError as ex:
+                raise ValueError('Repair request part is not ASCII') from ex
+        encoded = ''.join(chunks)
+    else:
+        return None
     try:
-        compressed = base64.b64decode(wrapper['payload'], validate=True)
+        return base64.b64decode(encoded, validate=True)
+    except ValueError as ex:
+        raise ValueError('Invalid compressed repair request payload') from ex
+
+
+def load_plan():
+    wrapper = load_wrapper()
+    compressed = compressed_payload(wrapper)
+    if compressed is None:
+        return wrapper
+    try:
         if len(compressed) > MAX_PLAN_BYTES:
             raise ValueError('Compressed repair request is too large')
         with gzip.GzipFile(fileobj=io.BytesIO(compressed), mode='rb') as stream:
@@ -34,6 +82,13 @@ def load_plan():
     if len(decoded) > MAX_PLAN_BYTES:
         raise ValueError('Decoded repair request is too large')
     return json.loads(decoded.decode('utf-8'))
+
+
+def request_files():
+    wrapper = load_wrapper()
+    # Fully decode the plan before returning any cleanup paths.
+    load_plan()
+    return ['.audit-repairs.json'] + request_part_paths(wrapper)
 
 
 def runner_metadata(plan):
@@ -195,7 +250,11 @@ def main():
     parser.add_argument('--preflight', action='store_true')
     parser.add_argument('--apply', type=int)
     parser.add_argument('--runner-metadata', action='store_true')
+    parser.add_argument('--request-files', action='store_true')
     args = parser.parse_args()
+    if args.request_files:
+        print(json.dumps(request_files(), separators=(',', ':')))
+        return
     plan = load_plan()
     version = plan.get('version')
     if version not in (1, 2) or not 1 <= len(plan['repairs']) <= 64:

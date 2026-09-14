@@ -126,6 +126,12 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
             return false;
         }
 
+        if (!DownloadHistory.TryGetArchiveArguments(FileNameSchema, CustomArguments, out string DownloadArchiveArguments, out string DownloadHistoryError)) {
+            Verbose(DownloadHistoryError);
+            Status = DownloadStatus.ProgramError;
+            return false;
+        }
+
         ArgumentList ArgumentsBuffer = [];
         ArgumentList PreviewArguments;
 
@@ -410,6 +416,10 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
             }
         }
         #endregion
+
+        if (!DownloadArchiveArguments.IsNullEmptyWhitespace()) {
+            ArgumentsBuffer.Add(DownloadArchiveArguments);
+        }
 
         #region Authentication
         // Provider secrets are transported through a private, per-operation config file.

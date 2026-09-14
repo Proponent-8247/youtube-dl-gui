@@ -500,6 +500,10 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
     }
     public override bool GenerateArguments() {
         DisposeAuthenticationConfig();
+        if (!DownloadHistory.TryGetArchiveArguments(FileNameSchema, CustomArguments, out string DownloadArchiveArguments, out string DownloadHistoryError)) {
+            Log.Write(DownloadHistoryError);
+            return false;
+        }
         ArgumentList ArgumentBuffer = [];
 
         #region Outuput path
@@ -774,6 +778,10 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
             }
         }
         #endregion
+
+        if (!DownloadArchiveArguments.IsNullEmptyWhitespace()) {
+            ArgumentBuffer.Add(DownloadArchiveArguments);
+        }
 
         #region Authentication
         StringBuilder ProtectedArguments = new(ArgumentBuffer.ToString());

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([Parameter(Mandatory = $true)][string]$EvidenceDirectory)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -6,7 +6,9 @@ $EvidenceDirectory = [IO.Path]::GetFullPath($EvidenceDirectory)
 New-Item -ItemType Directory -Force -Path $EvidenceDirectory | Out-Null
 'Unverified repair request; publication has not completed.' | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
 if (!(Test-Path .audit-repairs.json)) { return }
-$plan = Get-Content .audit-repairs.json -Raw | ConvertFrom-Json
+$planJson = (& python tools/apply-audit-repairs.py --runner-metadata | Out-String)
+if ($LASTEXITCODE -ne 0) { throw 'Repair request metadata could not be decoded safely.' }
+$plan = $planJson | ConvertFrom-Json
 $initialHead = (git rev-parse HEAD).Trim()
 $parent = (git rev-parse HEAD^).Trim()
 if ($parent -ne $plan.base_sha) { throw 'Repair request is not based on the pinned source revision.' }

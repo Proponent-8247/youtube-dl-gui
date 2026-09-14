@@ -1,6 +1,9 @@
 """Apply exact, base-commit-pinned source edits. No commands are accepted from the plan."""
 import argparse
+import base64
+import gzip
 import hashlib
+import io
 import json
 import re
 from pathlib import Path, PurePosixPath
@@ -8,6 +11,44 @@ from pathlib import Path, PurePosixPath
 ROOT = Path.cwd().resolve()
 ALLOWED_ROOTS = {'Addons', 'Controls', 'Languages', 'tests', 'youtube-dl-gui', 'youtube-dl-gui-updater'}
 ALLOWED_SUFFIXES = {'.cs', '.csproj', '.js', '.projitems', '.resx', '.ini'}
+MAX_PLAN_BYTES = 4 * 1024 * 1024
+
+
+def load_plan():
+    request = Path('.audit-repairs.json').read_bytes()
+    if len(request) > MAX_PLAN_BYTES:
+        raise ValueError('Repair request is too large')
+    wrapper = json.loads(request.decode('utf-8-sig'))
+    if wrapper.get('encoding') != 'gzip-base64':
+        return wrapper
+    if set(wrapper) != {'encoding', 'payload'} or not isinstance(wrapper.get('payload'), str):
+        raise ValueError('Invalid compressed repair request wrapper')
+    try:
+        compressed = base64.b64decode(wrapper['payload'], validate=True)
+        if len(compressed) > MAX_PLAN_BYTES:
+            raise ValueError('Compressed repair request is too large')
+        with gzip.GzipFile(fileobj=io.BytesIO(compressed), mode='rb') as stream:
+            decoded = stream.read(MAX_PLAN_BYTES + 1)
+    except (ValueError, OSError) as ex:
+        raise ValueError('Invalid compressed repair request payload') from ex
+    if len(decoded) > MAX_PLAN_BYTES:
+        raise ValueError('Decoded repair request is too large')
+    return json.loads(decoded.decode('utf-8'))
+
+
+def runner_metadata(plan):
+    return {
+        'base_sha': plan['base_sha'],
+        'expected_failures': plan['expected_failures'],
+        'allowed_flaky_failures': plan.get('allowed_flaky_failures', []),
+        'remaining_failures': plan.get('remaining_failures', []),
+        'repairs': [{
+            'id': repair['id'],
+            'message': repair['message'],
+            'resolves': repair['resolves'],
+            'files': [{'path': change['path']} for change in repair['files']],
+        } for repair in plan['repairs']],
+    }
 
 
 def source_path(name):
@@ -153,12 +194,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--preflight', action='store_true')
     parser.add_argument('--apply', type=int)
+    parser.add_argument('--runner-metadata', action='store_true')
     args = parser.parse_args()
-    plan = json.loads(Path('.audit-repairs.json').read_text(encoding='utf-8-sig'))
+    plan = load_plan()
     version = plan.get('version')
     if version not in (1, 2) or not 1 <= len(plan['repairs']) <= 64:
         raise ValueError('Unsupported or empty repair plan')
-    if args.preflight:
+    if args.runner_metadata:
+        print(json.dumps(runner_metadata(plan), separators=(',', ':')))
+    elif args.preflight:
         state = {}
         for repair in plan['repairs']:
             prepare(repair, state, version)

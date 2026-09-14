@@ -1,0 +1,98 @@
+{
+  "version": 2,
+  "base_sha": "46769fc2ff88c5e30311747c541450eac322d47d",
+  "expected_failures": [],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterRollbackRestoresApplication"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "download-history-core",
+      "message": "feat: wire native yt-dlp download history",
+      "resolves": [],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DataClasses/DownloadInfo.cs",
+          "edits": [
+            {
+              "old": "            Log.Write(\"Cannot continue download.\");\n            return false;\n        }\n\n        ArgumentList ArgumentsBuffer = [];\n",
+              "new": "            Log.Write(\"Cannot continue download.\");\n            return false;\n        }\n\n        if (!DownloadHistory.TryGetArchiveArguments(FileNameSchema, CustomArguments, out string DownloadArchiveArguments, out string DownloadHistoryError)) {\n            Verbose(DownloadHistoryError);\n            Status = DownloadStatus.ProgramError;\n            return false;\n        }\n\n        ArgumentList ArgumentsBuffer = [];\n"
+            },
+            {
+              "old": "\n        #region Authentication\n",
+              "new": "\n        if (!DownloadArchiveArguments.IsNullEmptyWhitespace()) {\n            ArgumentsBuffer.Add(DownloadArchiveArguments);\n        }\n\n        #region Authentication\n"
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Classes/DataClasses/ExtendedMediaDetails.cs",
+          "edits": [
+            {
+              "old": "        DisposeAuthenticationConfig();\n        ArgumentList ArgumentBuffer = [];\n",
+              "new": "        DisposeAuthenticationConfig();\n        if (!DownloadHistory.TryGetArchiveArguments(FileNameSchema, CustomArguments, out string DownloadArchiveArguments, out string DownloadHistoryError)) {\n            Log.Write(DownloadHistoryError);\n            return false;\n        }\n        ArgumentList ArgumentBuffer = [];\n"
+            },
+            {
+              "old": "\n        #region Authentication\n",
+              "new": "\n        if (!DownloadArchiveArguments.IsNullEmptyWhitespace()) {\n            ArgumentBuffer.Add(DownloadArchiveArguments);\n        }\n\n        #region Authentication\n"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "download-history-concurrency",
+      "message": "fix: serialize workers sharing download history",
+      "resolves": [],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Forms/frmDownloader.cs",
+          "edits": [
+            {
+              "old": "\n                DownloadProcess.Start();\n                Ownership.Attach();\n",
+              "new": "\n                using DownloadHistoryLease? DownloadLease = DownloadHistory.Enabled ? DownloadHistory.AcquireArchiveLease() : null;\n                DownloadProcess.Start();\n                Ownership.Attach();\n"
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmExtendedDownloader.cs",
+          "edits": [
+            {
+              "old": "            };\n            try {\n                DownloadProcess.Start();\n",
+              "new": "            };\n            using DownloadHistoryLease? DownloadLease = DownloadHistory.Enabled ? DownloadHistory.AcquireArchiveLease() : null;\n            try {\n                DownloadProcess.Start();\n"
+            },
+            {
+              "old": "                };\n                try {\n                    DownloadProcess.Start();\n",
+              "new": "                };\n                using DownloadHistoryLease? DownloadLease = DownloadHistory.Enabled ? DownloadHistory.AcquireArchiveLease() : null;\n                try {\n                    DownloadProcess.Start();\n"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "download-history-settings",
+      "message": "feat: expose download history settings",
+      "resolves": [],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Forms/frmSettings.cs",
+          "edits": [
+            {
+              "old": "        InitializeComponent();\n\n        cbSettingsDownloadsUpdatingYtdlType.Items.Add",
+              "new": "        InitializeComponent();\n        AddDownloadHistorySettingsButton();\n\n        cbSettingsDownloadsUpdatingYtdlType.Items.Add"
+            },
+            {
+              "old": "    }\n    private void frmSettings_Load(object sender, EventArgs e) {\n",
+              "new": "    }\n    private void AddDownloadHistorySettingsButton() {\n        Button button = new() {\n            Text = \"Download History / Duplicate Prevention...\",\n            Dock = DockStyle.Bottom,\n            Height = 30,\n            TabIndex = 1000\n        };\n        button.Click += (_, _) => {\n            using frmDownloadHistory history = new();\n            history.ShowDialog(this);\n            int index = txtSettingsDownloadsFileNameSchema.Items.IndexOf(Downloads.fileNameSchema);\n            if (index < 0) {\n                txtSettingsDownloadsFileNameSchema.Items.Add(Downloads.fileNameSchema);\n                index = txtSettingsDownloadsFileNameSchema.Items.Count - 1;\n            }\n            txtSettingsDownloadsFileNameSchema.SelectedIndex = index;\n        };\n        tabDownloadsGeneral.Controls.Add(button);\n        button.BringToFront();\n    }\n\n    private void frmSettings_Load(object sender, EventArgs e) {\n"
+            },
+            {
+              "old": "    private void btnSettingsSave_Click(object sender, EventArgs e) {\n        SaveSettings();\n",
+              "new": "    private void btnSettingsSave_Click(object sender, EventArgs e) {\n        if (DownloadHistory.Enabled && !DownloadHistory.HasRequiredIdTemplate(txtSettingsDownloadsFileNameSchema.Text)) {\n            MessageBox.Show(this,\n                \"Download History is enabled, so the filename format must contain %(id)s. Disable Download History first if you want to remove media IDs.\",\n                \"Media ID required\", MessageBoxButtons.OK, MessageBoxIcon.Warning);\n            tcMain.SelectedTab = tabSettingsDownloads;\n            txtSettingsDownloadsFileNameSchema.Focus();\n            return;\n        }\n        SaveSettings();\n"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

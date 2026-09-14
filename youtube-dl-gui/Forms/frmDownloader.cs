@@ -315,6 +315,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                     pbStatus.ShowInTaskbar = true;
                 });
 
+                using DownloadHistoryLease? DownloadLease = DownloadHistory.Enabled ? DownloadHistory.AcquireArchiveLease() : null;
                 DownloadProcess.Start();
                 Ownership.Attach();
                 DownloadProcess.StandardInput.Close();

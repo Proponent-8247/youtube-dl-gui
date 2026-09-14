@@ -717,6 +717,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data.Trim()));
                 }
             };
+            using DownloadHistoryLease? DownloadLease = DownloadHistory.Enabled ? DownloadHistory.AcquireArchiveLease() : null;
             try {
                 DownloadProcess.Start();
                 Ownership.Attach();
@@ -1066,6 +1067,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                         rtbVerbose.Invoke(() => rtbVerbose.AppendLine($"Error: {e.Data.Trim()}"));
                     }
                 };
+                using DownloadHistoryLease? DownloadLease = DownloadHistory.Enabled ? DownloadHistory.AcquireArchiveLease() : null;
                 try {
                     DownloadProcess.Start();
                     Ownership.Attach();

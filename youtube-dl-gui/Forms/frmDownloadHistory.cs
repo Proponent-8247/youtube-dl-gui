@@ -16,8 +16,10 @@ internal sealed class frmDownloadHistory : Form {
     private readonly Button btnValidate = new();
     private readonly Button btnRebuild = new();
     private readonly Button btnOpen = new();
+    private readonly Button btnReset = new();
     private readonly Button btnSave = new();
     private readonly Button btnCancel = new();
+    private string pendingFileNameSchema = Downloads.fileNameSchema;
 
     public frmDownloadHistory() {
         Text = "Download History / Duplicate Prevention";
@@ -25,7 +27,7 @@ internal sealed class frmDownloadHistory : Form {
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        ClientSize = new(620, 330);
+        ClientSize = new(660, 356);
 
         chkEnabled.Text = "Track previously downloaded media";
         chkEnabled.AutoSize = true;
@@ -34,10 +36,10 @@ internal sealed class frmDownloadHistory : Form {
 
         Label pathLabel = new() { Text = "Download archive:", AutoSize = true, Location = new(18, 58) };
         txtArchive.Location = new(18, 78);
-        txtArchive.Size = new(500, 23);
+        txtArchive.Size = new(540, 23);
         txtArchive.Text = DownloadHistory.ArchivePath.IsNullEmptyWhitespace() ? DownloadHistory.EffectiveArchivePath : DownloadHistory.ArchivePath;
         btnBrowse.Text = "Browse...";
-        btnBrowse.Location = new(526, 76);
+        btnBrowse.Location = new(566, 76);
         btnBrowse.Size = new(76, 27);
         btnBrowse.Click += BrowseArchive;
 
@@ -46,76 +48,98 @@ internal sealed class frmDownloadHistory : Form {
         chkBackup.Location = new(18, 118);
         chkBackup.Checked = DownloadHistory.KeepBackup;
 
-        chkFailUnavailable.Text = "Stop if archive location is inaccessible";
+        chkFailUnavailable.Text = "Stop if archive location is inaccessible (required)";
         chkFailUnavailable.AutoSize = true;
         chkFailUnavailable.Location = new(18, 143);
-        chkFailUnavailable.Checked = DownloadHistory.FailIfUnavailable;
+        chkFailUnavailable.Checked = true;
+        chkFailUnavailable.Enabled = false;
 
         Label recovery = new() {
-            Text = "Recovery uses authoritative .info.json metadata and IDs embedded in completed filenames. IDs are mandatory while protection is enabled.",
+            Text = "Recovery uses authoritative .info.json metadata and media IDs embedded in completed filenames. IDs are mandatory while protection is enabled. Legacy files identified by metadata can be migrated only after approval.",
             AutoSize = false,
-            Location = new(18, 175),
-            Size = new(584, 36)
+            Location = new(18, 173),
+            Size = new(624, 48)
         };
 
-        lbStatus.Location = new(18, 216);
-        lbStatus.Size = new(584, 20);
-        lbCounts.Location = new(18, 239);
-        lbCounts.Size = new(584, 20);
+        lbStatus.Location = new(18, 222);
+        lbStatus.Size = new(624, 38);
+        lbStatus.AutoEllipsis = true;
+        lbCounts.Location = new(18, 261);
+        lbCounts.Size = new(624, 20);
+        lbCounts.AutoEllipsis = true;
 
         btnValidate.Text = "Validate Archive";
-        btnValidate.Location = new(18, 272);
+        btnValidate.Location = new(18, 304);
         btnValidate.Size = new(105, 28);
-        btnValidate.Click += (_, _) => ValidateArchive(false);
+        btnValidate.Click += (_, _) => ValidateArchive();
         btnRebuild.Text = "Rebuild Archive";
-        btnRebuild.Location = new(129, 272);
+        btnRebuild.Location = new(129, 304);
         btnRebuild.Size = new(105, 28);
-        btnRebuild.Click += (_, _) => ValidateArchive(true);
+        btnRebuild.Click += (_, _) => RebuildArchive();
         btnOpen.Text = "Open Location";
-        btnOpen.Location = new(240, 272);
+        btnOpen.Location = new(240, 304);
         btnOpen.Size = new(95, 28);
         btnOpen.Click += OpenLocation;
+        btnReset.Text = "Reset History";
+        btnReset.Location = new(341, 304);
+        btnReset.Size = new(95, 28);
+        btnReset.Click += ResetHistory;
         btnSave.Text = "Save";
-        btnSave.Location = new(424, 272);
+        btnSave.Location = new(472, 304);
         btnSave.Size = new(82, 28);
         btnSave.Click += SaveAndClose;
         btnCancel.Text = "Cancel";
-        btnCancel.Location = new(520, 272);
+        btnCancel.Location = new(560, 304);
         btnCancel.Size = new(82, 28);
         btnCancel.Click += (_, _) => Close();
 
-        Controls.AddRange([chkEnabled, pathLabel, txtArchive, btnBrowse, chkBackup, chkFailUnavailable, recovery, lbStatus, lbCounts, btnValidate, btnRebuild, btnOpen, btnSave, btnCancel]);
+        Controls.AddRange([chkEnabled, pathLabel, txtArchive, btnBrowse, chkBackup, chkFailUnavailable, recovery, lbStatus, lbCounts,
+            btnValidate, btnRebuild, btnOpen, btnReset, btnSave, btnCancel]);
         AcceptButton = btnSave;
         CancelButton = btnCancel;
         RefreshStatus(DownloadHistory.LastReport);
     }
 
     private void BrowseArchive(object? sender, EventArgs e) {
+        string currentPath = txtArchive.Text.IsNullEmptyWhitespace() ? DownloadHistory.EffectiveArchivePath : txtArchive.Text;
+        string? initialDirectory = null;
+        try {
+            string? candidate = Path.GetDirectoryName(Path.GetFullPath(Environment.ExpandEnvironmentVariables(currentPath)));
+            if (candidate is not null && Directory.Exists(candidate)) initialDirectory = candidate;
+        }
+        catch { }
+
+        string fileName = "yt-dlp-archive.txt";
+        try {
+            string candidateName = Path.GetFileName(currentPath);
+            if (!candidateName.IsNullEmptyWhitespace()) fileName = candidateName;
+        }
+        catch { }
+
         using SaveFileDialog dialog = new() {
             Title = "Select yt-dlp download archive",
             Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
-            FileName = Path.GetFileName(txtArchive.Text.IsNullEmptyWhitespace() ? "yt-dlp-archive.txt" : txtArchive.Text),
-            InitialDirectory = Path.GetDirectoryName(txtArchive.Text)
+            FileName = fileName
         };
+        if (initialDirectory is not null) dialog.InitialDirectory = initialDirectory;
         if (dialog.ShowDialog(this) == DialogResult.OK) txtArchive.Text = dialog.FileName;
     }
 
-    private bool ApplySettings(bool showPrompts) {
-        if (chkEnabled.Checked && !DownloadHistory.HasRequiredIdTemplate(Downloads.fileNameSchema)) {
-            if (!showPrompts) return false;
-            DialogResult answer = MessageBox.Show(this,
-                "Cannot enable Download History because the filename format does not contain %(id)s.\r\n\r\n" +
-                "IDs are required so the archive can be validated or reconstructed if it is lost or damaged.\r\n\r\n" +
-                "Update the filename format automatically?",
-                "Download History requires media IDs", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-            if (answer != DialogResult.Yes) return false;
-            Downloads.fileNameSchema = DownloadHistory.AddRequiredIdTemplate(Downloads.fileNameSchema);
-        }
+    private bool TryGetCandidate(bool showPrompts, out string configuredArchivePath) {
+        configuredArchivePath = NormalizeConfiguredPath(txtArchive.Text);
+        if (!chkEnabled.Checked || DownloadHistory.HasRequiredIdTemplate(pendingFileNameSchema)) return true;
+        if (!showPrompts) return false;
 
-        DownloadHistory.ArchivePath = NormalizeConfiguredPath(txtArchive.Text);
-        DownloadHistory.KeepBackup = chkBackup.Checked;
-        DownloadHistory.FailIfUnavailable = chkFailUnavailable.Checked;
-        DownloadHistory.Enabled = chkEnabled.Checked;
+        string recommended = DownloadHistory.AddRequiredIdTemplate(pendingFileNameSchema);
+        DialogResult answer = MessageBox.Show(this,
+            "Cannot enable Download History because the output filename does not contain %(id)s.\r\n\r\n" +
+            "IDs are required so the archive can be validated or reconstructed if it is lost or damaged.\r\n\r\n" +
+            "Current:\r\n" + pendingFileNameSchema + "\r\n\r\n" +
+            "Recommended:\r\n" + recommended + "\r\n\r\n" +
+            "Update the filename format automatically?",
+            "Download History requires media IDs", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+        if (answer != DialogResult.Yes) return false;
+        pendingFileNameSchema = recommended;
         return true;
     }
 
@@ -129,18 +153,50 @@ internal sealed class frmDownloadHistory : Form {
         catch { return value.Trim(); }
     }
 
-    private void ValidateArchive(bool force) {
-        if (!ApplySettings(true)) return;
-        DownloadHistoryReport report = DownloadHistory.ValidateAndReconcile(force);
+    private void ValidateArchive() {
+        if (!TryGetCandidate(false, out string configuredArchivePath)) {
+            RefreshStatus(new DownloadHistoryReport {
+                State = DownloadHistoryState.Unsafe,
+                Message = "The candidate filename format does not contain %(id)s. Save/enable is blocked until the required media ID is added."
+            });
+            return;
+        }
+        DownloadHistoryReport report = DownloadHistory.AnalyzeLibrary(configuredArchivePath);
         RefreshStatus(report);
         if (report.State is DownloadHistoryState.Partial or DownloadHistoryState.Unsafe or DownloadHistoryState.Unavailable or DownloadHistoryState.Invalid) {
             MessageBox.Show(this, report.Message, "Download History validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
+    private void RebuildArchive() {
+        if (!TryGetCandidate(chkEnabled.Checked, out string configuredArchivePath)) return;
+        DownloadHistoryReport analysis = DownloadHistory.AnalyzeLibrary(configuredArchivePath);
+        RefreshStatus(analysis);
+        if (!analysis.CanReconcile) {
+            MessageBox.Show(this, analysis.Message, "Download History cannot be rebuilt safely", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        bool allowMigration = analysis.MigrationCount == 0 || ConfirmMigration(analysis);
+        if (analysis.MigrationCount > 0 && !allowMigration) return;
+        DownloadHistoryReport report = DownloadHistory.RebuildLibrary(configuredArchivePath, chkBackup.Checked, allowMigration);
+        RefreshStatus(report);
+        if (report.State != DownloadHistoryState.Healthy) {
+            MessageBox.Show(this, report.Message, "Download History rebuild", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private bool ConfirmMigration(DownloadHistoryReport report) {
+        return MessageBox.Show(this,
+            $"{report.MigrationCount:N0} completed media file(s) lack the required embedded ID but can be identified authoritatively from adjacent .info.json metadata.\r\n\r\n" +
+            "Migration will rename those media files, and their matching .info.json files, to append the source ID. Media contents are not modified.\r\n\r\n" +
+            "Start this migration?",
+            "Migrate existing library", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;
+    }
+
     private void RefreshStatus(DownloadHistoryReport report) {
         lbStatus.Text = "Status: " + report.State + (report.Message.IsNullEmptyWhitespace() ? string.Empty : " - " + report.Message);
-        lbCounts.Text = $"Archive entries: {report.ArchiveEntries:N0}   Completed media: {report.CompletedMedia:N0}   Identified: {report.IdentifiedMedia:N0}   Unresolved: {report.UnresolvedMedia:N0}";
+        lbCounts.Text = $"Archive: {report.ArchiveEntries:N0}   Media: {report.CompletedMedia:N0}   Metadata: {report.MetadataRecovered:N0}   Filename IDs: {report.FilenameRecovered:N0}   Migrate: {report.MigrationCount:N0}   Unresolved: {report.UnresolvedMedia:N0}";
     }
 
     private void OpenLocation(object? sender, EventArgs e) {
@@ -156,16 +212,86 @@ internal sealed class frmDownloadHistory : Form {
         }
     }
 
-    private void SaveAndClose(object? sender, EventArgs e) {
-        if (!ApplySettings(true)) return;
+    private void ResetHistory(object? sender, EventArgs e) {
         if (DownloadHistory.Enabled) {
-            DownloadHistoryReport report = DownloadHistory.ValidateAndReconcile(true);
-            RefreshStatus(report);
-            if (report.State != DownloadHistoryState.Healthy) {
-                MessageBox.Show(this, report.Message, "Download History not enabled safely", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+            MessageBox.Show(this,
+                "Reset History is separate from disabling protection. Disable Download History and save that change first; then reopen this dialog to reset the preserved archive deliberately.",
+                "Disable before reset", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
         }
+
+        string savedArchive = DownloadHistory.EffectiveArchivePath;
+        string candidateArchive;
+        try {
+            string configured = NormalizeConfiguredPath(txtArchive.Text);
+            candidateArchive = configured.IsNullEmptyWhitespace()
+                ? DownloadHistory.DefaultArchivePath
+                : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configured));
+        }
+        catch { candidateArchive = string.Empty; }
+        if (!string.Equals(candidateArchive, savedArchive, StringComparison.OrdinalIgnoreCase)) {
+            MessageBox.Show(this,
+                "Reset History operates only on the currently saved archive. The archive-path field contains an unsaved change. Save or revert that path before resetting history.\r\n\r\nSaved archive:\r\n" + savedArchive,
+                "Unsaved archive path", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (MessageBox.Show(this,
+            "Reset Download History deletes the saved archive and backup. Existing media files are not deleted.\r\n\r\n" +
+            "Saved archive:\r\n" + savedArchive + "\r\n\r\n" +
+            "If you enable protection again, the existing library must be reconstructed from authoritative IDs/metadata before any protected download can start.\r\n\r\nReset the saved history now?",
+            "Reset Download History", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        try {
+            DownloadHistory.ResetHistory();
+            RefreshStatus(DownloadHistory.LastReport);
+        }
+        catch (Exception ex) {
+            MessageBox.Show(this, ex.Message, "Reset Download History", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void SaveAndClose(object? sender, EventArgs e) {
+        if (!TryGetCandidate(true, out string configuredArchivePath)) return;
+
+        if (!chkEnabled.Checked) {
+            try {
+                DownloadHistory.CommitSettings(false, configuredArchivePath, chkBackup.Checked, null);
+                DialogResult = DialogResult.OK;
+                Close();
+            }
+            catch (Exception ex) {
+                MessageBox.Show(this, ex.Message, "Download History settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return;
+        }
+
+        DownloadHistoryReport analysis = DownloadHistory.AnalyzeLibrary(configuredArchivePath);
+        RefreshStatus(analysis);
+        if (!analysis.CanReconcile) {
+            MessageBox.Show(this, analysis.Message, "Download History cannot be enabled safely", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        bool allowMigration = analysis.MigrationCount == 0 || ConfirmMigration(analysis);
+        if (analysis.MigrationCount > 0 && !allowMigration) return;
+        DownloadHistoryReport report = DownloadHistory.ReconcileLibrary(configuredArchivePath, chkBackup.Checked, allowMigration);
+        RefreshStatus(report);
+        if (report.State != DownloadHistoryState.Healthy) {
+            MessageBox.Show(this, report.Message, "Download History not enabled safely", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        string oldSchema = Downloads.fileNameSchema;
+        try {
+            Downloads.fileNameSchema = pendingFileNameSchema;
+            DownloadHistory.CommitSettings(true, configuredArchivePath, chkBackup.Checked, report);
+        }
+        catch (Exception ex) {
+            Downloads.fileNameSchema = oldSchema;
+            MessageBox.Show(this, ex.Message, "Download History settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
         DialogResult = DialogResult.OK;
         Close();
     }

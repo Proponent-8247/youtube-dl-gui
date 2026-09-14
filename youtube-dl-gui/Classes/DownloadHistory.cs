@@ -11,6 +11,7 @@ internal enum DownloadHistoryState {
     Disabled,
     Dormant,
     Healthy,
+    Migratable,
     Missing,
     Partial,
     Unsafe,
@@ -26,11 +27,15 @@ internal sealed class DownloadHistoryReport {
     public int MetadataRecovered { get; set; }
     public int FilenameRecovered { get; set; }
     public int UnresolvedMedia { get; set; }
+    public int MigrationCount { get; set; }
+    public bool CanReconcile { get; set; }
     public string Message { get; set; } = string.Empty;
 }
 
 internal sealed class DownloadHistoryLease : IDisposable {
     private Mutex? mutex;
+    private FileStream? fileLock;
+    private string? fileLockPath;
 
     internal DownloadHistoryLease(string name) {
         mutex = new Mutex(false, name);
@@ -43,12 +48,87 @@ internal sealed class DownloadHistoryLease : IDisposable {
         }
     }
 
+    internal void AcquireFileLock(string path) {
+        string? parent = Path.GetDirectoryName(path);
+        while (true) {
+            try {
+                fileLock = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                fileLockPath = path;
+                return;
+            }
+            catch (IOException ex) {
+                int nativeError = ex.HResult & 0xFFFF;
+                if (nativeError is not 32 and not 33 || parent.IsNullEmptyWhitespace() || !Directory.Exists(parent)) throw;
+                Thread.Sleep(100);
+            }
+        }
+    }
+
     public void Dispose() {
+        FileStream? lockFile = Interlocked.Exchange(ref fileLock, null);
+        string? lockPath = Interlocked.Exchange(ref fileLockPath, null);
+        lockFile?.Dispose();
+        if (lockPath is not null) {
+            try { File.Delete(lockPath); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+
         Mutex? owned = Interlocked.Exchange(ref mutex, null);
         if (owned is null) return;
         try { owned.ReleaseMutex(); }
         finally { owned.Dispose(); }
     }
+}
+
+internal sealed class DownloadHistoryExecution {
+    internal string ArchivePath { get; }
+    internal bool KeepBackup { get; }
+
+    internal DownloadHistoryExecution(string archivePath, bool keepBackup) {
+        ArchivePath = archivePath;
+        KeepBackup = keepBackup;
+    }
+
+    public DownloadHistoryLease AcquireValidatedLease() => DownloadHistory.AcquireValidatedExecutionLease(ArchivePath);
+
+    // This overload deliberately assumes the execution lease is still held by the caller.
+    public void RefreshBackupAfterRun() => DownloadHistory.RefreshBackupAfterRun(ArchivePath, KeepBackup);
+}
+
+internal sealed class DownloadHistorySettingsSnapshot {
+    internal bool Enabled { get; init; }
+    internal string ArchivePath { get; init; } = string.Empty;
+    internal bool KeepBackup { get; init; }
+    internal bool FailIfUnavailable { get; init; }
+    internal bool EverEnabled { get; init; }
+    internal bool NeedsReconciliation { get; init; }
+    internal string BoundLibraryRoot { get; init; } = string.Empty;
+    internal string BoundArchivePath { get; init; } = string.Empty;
+    internal string? PreparedKey { get; init; }
+    internal DownloadHistoryReport LastReport { get; init; } = new();
+}
+
+internal sealed class DownloadHistoryMigration {
+    internal string MediaSource { get; init; } = string.Empty;
+    internal string MediaTarget { get; init; } = string.Empty;
+    internal string? MetadataSource { get; init; }
+    internal string? MetadataTarget { get; init; }
+}
+
+internal sealed class DownloadHistoryAnalysis {
+    internal DownloadHistoryReport Report { get; } = new();
+    internal string LibraryRoot { get; init; } = string.Empty;
+    internal string ArchivePath { get; init; } = string.Empty;
+    internal bool ArchiveExists { get; set; }
+    internal bool ArchiveValid { get; set; }
+    internal bool ArchiveNeedsRewrite { get; set; }
+    internal bool ArchiveWasInvalid { get; set; }
+    internal bool UsedBackup { get; set; }
+    internal bool RecoverMissingEntries { get; set; }
+    internal HashSet<string> ArchiveEntries { get; } = new(StringComparer.Ordinal);
+    internal HashSet<string> RecoveredEntries { get; } = new(StringComparer.Ordinal);
+    internal List<DownloadHistoryMigration> Migrations { get; } = [];
 }
 
 internal static class DownloadHistory {
@@ -63,6 +143,8 @@ internal static class DownloadHistory {
     private static bool fFailIfUnavailable = IniProvider.Read(false, true, ConfigName, nameof(FailIfUnavailable));
     private static bool fEverEnabled = IniProvider.Read(false, false, ConfigName, nameof(EverEnabled));
     private static bool fNeedsReconciliation = IniProvider.Read(false, false, ConfigName, nameof(NeedsReconciliation));
+    private static string fBoundLibraryRoot = IniProvider.Read(string.Empty, string.Empty, ConfigName, nameof(BoundLibraryRoot));
+    private static string fBoundArchivePath = IniProvider.Read(string.Empty, string.Empty, ConfigName, nameof(BoundArchivePath));
 
     public static bool Enabled {
         get => fEnabled;
@@ -73,9 +155,7 @@ internal static class DownloadHistory {
             }
             fEnabled = value;
             IniProvider.Write(value, ConfigName, nameof(Enabled));
-            if (value) {
-                EverEnabled = true;
-            }
+            if (value) EverEnabled = true;
             PreparedKey = null;
         }
     }
@@ -128,7 +208,119 @@ internal static class DownloadHistory {
         }
     }
 
+    public static string BoundLibraryRoot {
+        get => fBoundLibraryRoot;
+        private set {
+            value ??= string.Empty;
+            if (string.Equals(fBoundLibraryRoot, value, StringComparison.Ordinal)) return;
+            fBoundLibraryRoot = value;
+            IniProvider.Write(value, ConfigName, nameof(BoundLibraryRoot));
+        }
+    }
+
+    public static string BoundArchivePath {
+        get => fBoundArchivePath;
+        private set {
+            value ??= string.Empty;
+            if (string.Equals(fBoundArchivePath, value, StringComparison.Ordinal)) return;
+            fBoundArchivePath = value;
+            IniProvider.Write(value, ConfigName, nameof(BoundArchivePath));
+        }
+    }
+
     public static DownloadHistoryReport LastReport => LastReportInternal;
+
+    public static DownloadHistorySettingsSnapshot CaptureSettings() => new() {
+        Enabled = fEnabled,
+        ArchivePath = fArchivePath,
+        KeepBackup = fKeepBackup,
+        FailIfUnavailable = fFailIfUnavailable,
+        EverEnabled = fEverEnabled,
+        NeedsReconciliation = fNeedsReconciliation,
+        BoundLibraryRoot = fBoundLibraryRoot,
+        BoundArchivePath = fBoundArchivePath,
+        PreparedKey = PreparedKey,
+        LastReport = LastReportInternal
+    };
+
+    public static void RestoreSettings(DownloadHistorySettingsSnapshot snapshot) {
+        fEnabled = snapshot.Enabled;
+        fArchivePath = snapshot.ArchivePath;
+        fKeepBackup = snapshot.KeepBackup;
+        fFailIfUnavailable = snapshot.FailIfUnavailable;
+        fEverEnabled = snapshot.EverEnabled;
+        fNeedsReconciliation = snapshot.NeedsReconciliation;
+        fBoundLibraryRoot = snapshot.BoundLibraryRoot;
+        fBoundArchivePath = snapshot.BoundArchivePath;
+        PreparedKey = snapshot.PreparedKey;
+        LastReportInternal = snapshot.LastReport;
+        IniProvider.Write(fEnabled, ConfigName, nameof(Enabled));
+        IniProvider.Write(fArchivePath, ConfigName, nameof(ArchivePath));
+        IniProvider.Write(fKeepBackup, ConfigName, nameof(KeepBackup));
+        IniProvider.Write(fFailIfUnavailable, ConfigName, nameof(FailIfUnavailable));
+        IniProvider.Write(fEverEnabled, ConfigName, nameof(EverEnabled));
+        IniProvider.Write(fNeedsReconciliation, ConfigName, nameof(NeedsReconciliation));
+        IniProvider.Write(fBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));
+        IniProvider.Write(fBoundArchivePath, ConfigName, nameof(BoundArchivePath));
+    }
+
+    public static void ResetHistory() {
+        if (Enabled) throw new InvalidOperationException("Disable Download History before resetting it.");
+        string archive = EffectiveArchivePath;
+        string? parent = Path.GetDirectoryName(archive);
+        if (parent.IsNullEmptyWhitespace() || !Directory.Exists(parent)) {
+            throw new InvalidOperationException("Download History cannot be reset because the archive storage is unavailable.");
+        }
+
+        using DownloadHistoryLease lease = AcquireArchiveLease(archive);
+        foreach (string path in new[] { archive, archive + ".bak", archive + ".tmp", archive + ".bak.tmp" }) {
+            if (File.Exists(path)) File.Delete(path);
+        }
+        EverEnabled = false;
+        BoundLibraryRoot = string.Empty;
+        BoundArchivePath = string.Empty;
+        NeedsReconciliation = true;
+        PreparedKey = null;
+        LastReportInternal = new DownloadHistoryReport {
+            State = DownloadHistoryState.Dormant,
+            CanReconcile = true,
+            Message = "Download History was reset. Existing media must be reconciled before protection can be enabled again."
+        };
+    }
+
+    public static void RefreshBackupAfterRun() {
+        if (!Enabled) return;
+        string archive = EffectiveArchivePath;
+        using DownloadHistoryLease lease = AcquireArchiveLease(archive);
+        RefreshBackupAfterRun(archive, KeepBackup);
+    }
+
+    internal static void RefreshBackupAfterRun(string archive, bool keepBackup) {
+        if (!keepBackup) return;
+        try {
+            HashSet<string> entries = new(StringComparer.Ordinal);
+            if (!TryReadArchive(archive, entries, out string error)) {
+                if (!error.IsNullEmptyWhitespace()) {
+                    Log.Write("Download History did not refresh its backup because the primary archive failed validation: " + error);
+                }
+                PreparedKey = null;
+                return;
+            }
+            CopyArchiveToBackupAtomically(archive);
+        }
+        catch (Exception ex) {
+            PreparedKey = null;
+            Log.Write("Download History could not refresh its backup after the provider exited: " + ex.Message);
+        }
+    }
+
+    public static bool IsCurrentLibraryPath(string? candidateDownloadPath) {
+        try {
+            string candidate = candidateDownloadPath.IsNullEmptyWhitespace() ? Downloads.DefaultDownloadPath : candidateDownloadPath!;
+            return PathEquals(GetLibraryRoot(), ResolveLibraryRoot(candidate));
+        }
+        catch { return false; }
+    }
 
     public static string DefaultArchivePath => Path.Combine(GetLibraryRoot(), "yt-dlp-archive.txt");
 
@@ -141,8 +333,11 @@ internal static class DownloadHistory {
         }
     }
 
-    public static bool HasRequiredIdTemplate(string? schema) =>
-        !schema.IsNullEmptyWhitespace() && schema!.IndexOf("%(id)s", StringComparison.OrdinalIgnoreCase) >= 0;
+    public static bool HasRequiredIdTemplate(string? schema) {
+        if (schema.IsNullEmptyWhitespace()) return false;
+        string fileTemplate = GetSchemaFileTemplate(schema!);
+        return !fileTemplate.IsNullEmptyWhitespace() && fileTemplate.IndexOf("%(id)s", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
 
     public static string AddRequiredIdTemplate(string? schema) {
         string value = schema.IsNullEmptyWhitespace() ? "%(title)s.%(ext)s" : schema!;
@@ -152,63 +347,341 @@ internal static class DownloadHistory {
         return index >= 0 ? value.Insert(index, "-%(id)s") : value + "-%(id)s.%(ext)s";
     }
 
-    public static bool TryGetArchiveArguments(string fileNameSchema, string? customArguments, out string archiveArguments, out string error) {
-        archiveArguments = string.Empty;
-        error = string.Empty;
-        if (!Enabled) {
-            LastReportInternal = new DownloadHistoryReport {
-                State = EverEnabled ? DownloadHistoryState.Dormant : DownloadHistoryState.Disabled,
-                Message = EverEnabled ? "Download History is disabled. The preserved archive may be stale." : "Download History has never been enabled."
-            };
+    public static bool TryGetArchiveArguments(string fileNameSchema, string? customArguments, out string archiveArguments, out string error) =>
+        TryGetArchiveArguments(fileNameSchema, customArguments, out archiveArguments, out error, out _);
+
+    public static bool TryGetArchiveArguments(string fileNameSchema, string? customArguments, out string archiveArguments, out string error, out DownloadHistoryExecution? execution) {
+        lock (Sync) {
+            archiveArguments = string.Empty;
+            error = string.Empty;
+            execution = null;
+            if (!Enabled) {
+                LastReportInternal = DisabledReport();
+                return true;
+            }
+
+            if (Downloads.YtdlType is not ((int)GitID.YtDlp) and not ((int)GitID.YtDlpNightly)) {
+                LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "Download History requires yt-dlp or yt-dlp nightly." };
+                error = "Download History uses yt-dlp archive semantics and is not enabled for the selected youtube-dl provider. Select yt-dlp/yt-dlp-nightly or disable Download History.";
+                return false;
+            }
+
+            if (!HasRequiredIdTemplate(fileNameSchema)) {
+                LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "The filename format does not contain %(id)s in the output filename." };
+                error = "Download History requires %(id)s in the output filename so the library can be validated or reconstructed.";
+                return false;
+            }
+
+            if (ContainsOption(customArguments, "--download-archive")) {
+                error = "Download History is enabled and owns --download-archive. Remove the custom --download-archive argument or disable Download History.";
+                return false;
+            }
+            if (ContainsOption(customArguments, "--break-on-existing") || ContainsOption(customArguments, "--break-per-input")) {
+                error = "--break-on-existing and --break-per-input are not allowed while Download History protection is enabled because they can stop collection traversal before new media is discovered.";
+                return false;
+            }
+
+            if (!EnsureReady(out error)) return false;
+            string preparedArchive = EffectiveArchivePath;
+            execution = new DownloadHistoryExecution(preparedArchive, KeepBackup);
+            archiveArguments = $"--download-archive \"{preparedArchive}\" --no-break-on-existing";
             return true;
         }
-
-        if (Downloads.YtdlType is not ((int)GitID.YtDlp) and not ((int)GitID.YtDlpNightly)) {
-            LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "Download History requires yt-dlp or yt-dlp nightly." };
-            error = "Download History uses yt-dlp archive semantics and is not enabled for the selected youtube-dl provider. Select yt-dlp/yt-dlp-nightly or disable Download History.";
-            return false;
-        }
-
-        if (!HasRequiredIdTemplate(fileNameSchema)) {
-            LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "The filename format does not contain %(id)s." };
-            error = "Download History requires %(id)s in the filename format so the library can be validated or reconstructed.";
-            return false;
-        }
-
-        if (ContainsOption(customArguments, "--download-archive")) {
-            error = "Download History is enabled and owns --download-archive. Remove the custom --download-archive argument or disable Download History.";
-            return false;
-        }
-        if (ContainsOption(customArguments, "--break-on-existing") || ContainsOption(customArguments, "--break-per-input")) {
-            error = "--break-on-existing and --break-per-input are not allowed while Download History protection is enabled because they can stop collection traversal before new media is discovered.";
-            return false;
-        }
-
-        if (!EnsureReady(out error)) return false;
-        archiveArguments = $"--download-archive \"{EffectiveArchivePath}\" --no-break-on-existing";
-        return true;
     }
 
-    public static DownloadHistoryLease AcquireArchiveLease() => new(GetArchiveMutexName());
+    public static DownloadHistoryLease AcquireArchiveLease() => AcquireArchiveLease(EffectiveArchivePath);
 
-    public static DownloadHistoryReport ValidateAndReconcile(bool force) {
+    private static DownloadHistoryLease AcquireArchiveLease(string archivePath) {
+        DownloadHistoryLease lease = new(GetArchiveMutexName(archivePath));
+        try {
+            string? parent = Path.GetDirectoryName(archivePath);
+            if (!parent.IsNullEmptyWhitespace() && Directory.Exists(parent)) {
+                lease.AcquireFileLock(archivePath + ".lock");
+            }
+            return lease;
+        }
+        catch {
+            lease.Dispose();
+            throw;
+        }
+    }
+
+    internal static DownloadHistoryLease AcquireValidatedExecutionLease(string archivePath) {
+        DownloadHistoryLease lease = AcquireArchiveLease(archivePath);
+        try {
+            if (!File.Exists(archivePath)) {
+                throw new InvalidOperationException("The prepared Download History archive is no longer available. Regenerate the download command after validating Download History.");
+            }
+            HashSet<string> entries = new(StringComparer.Ordinal);
+            if (!TryReadArchive(archivePath, entries, out string error)) {
+                throw new InvalidOperationException("The prepared Download History archive is no longer valid: " + error);
+            }
+            if (!CanWriteArchiveLocation(archivePath, out string writeError)) {
+                throw new InvalidOperationException("The prepared Download History archive is no longer writable: " + writeError);
+            }
+            return lease;
+        }
+        catch {
+            lease.Dispose();
+            throw;
+        }
+    }
+
+    public static DownloadHistoryReport AnalyzeLibrary() {
+        if (!Enabled) {
+            LastReportInternal = DisabledReport();
+            return LastReportInternal;
+        }
+        DownloadHistoryReport report = AnalyzeLibrary(ArchivePath);
+        LastReportInternal = report;
+        return report;
+    }
+
+    public static DownloadHistoryReport AnalyzeLibrary(string configuredArchivePath) {
         lock (Sync) {
-            string key = GetLibraryRoot() + "|" + EffectiveArchivePath;
+            if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {
+                return pathError!;
+            }
+            if (!TryValidateLibraryBinding(libraryRoot, archive, out DownloadHistoryReport? bindingError)) return bindingError!;
+            using DownloadHistoryLease lease = AcquireArchiveLease(archive);
+            return AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive)).Report;
+        }
+    }
+
+    public static DownloadHistoryReport ReconcileLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration) {
+        lock (Sync) {
+            if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {
+                return pathError!;
+            }
+            if (!TryValidateLibraryBinding(libraryRoot, archive, out DownloadHistoryReport? bindingError)) return bindingError!;
+            using DownloadHistoryLease lease = AcquireArchiveLease(archive);
+            if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease, out DownloadHistoryReport? initializeError)) return initializeError!;
+            DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));
+            return ReconcileAnalysis(analysis, keepBackup, allowMigration);
+        }
+    }
+
+    public static DownloadHistoryReport RebuildLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration) {
+        lock (Sync) {
+            if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {
+                return pathError!;
+            }
+            if (!TryValidateLibraryBinding(libraryRoot, archive, out DownloadHistoryReport? bindingError)) return bindingError!;
+            using DownloadHistoryLease lease = AcquireArchiveLease(archive);
+            if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease, out DownloadHistoryReport? initializeError)) return initializeError!;
+            // An explicit rebuild repairs a missing/corrupt/stale ledger. A current valid ledger
+            // remains the completion authority so a failed final-looking file is not promoted.
+            DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));
+            return ReconcileAnalysis(analysis, keepBackup, allowMigration);
+        }
+    }
+
+    public static void CommitSettings(bool enabled, string configuredArchivePath, bool keepBackup, DownloadHistoryReport? preparedReport) {
+        lock (Sync) {
+            configuredArchivePath ??= string.Empty;
+            string? preparedKey = null;
+            if (enabled) {
+                if (Downloads.YtdlType is not ((int)GitID.YtDlp) and not ((int)GitID.YtDlpNightly)) {
+                    throw new InvalidOperationException("Download History requires yt-dlp or yt-dlp nightly.");
+                }
+                if (!HasRequiredIdTemplate(Downloads.fileNameSchema)) {
+                    throw new InvalidOperationException("Download History cannot be enabled until the output filename contains %(id)s.");
+                }
+                if (preparedReport?.State != DownloadHistoryState.Healthy) {
+                    throw new InvalidOperationException("Download History settings cannot be enabled until the candidate library state is healthy.");
+                }
+                if (!TryResolvePaths(configuredArchivePath, out string preparedLibraryRoot, out string preparedArchive, out DownloadHistoryReport? pathError)) {
+                    throw new InvalidOperationException(pathError?.Message ?? "Download History path is invalid.");
+                }
+                if (!TryValidateLibraryBinding(preparedLibraryRoot, preparedArchive, out DownloadHistoryReport? bindingError)) {
+                    throw new InvalidOperationException(bindingError?.Message ?? "Download History archive is bound to a different media library.");
+                }
+
+                using DownloadHistoryLease? previousLease = ShouldWaitForPreviousArchive(preparedArchive) ? AcquireArchiveLease(BoundArchivePath) : null;
+                using DownloadHistoryLease lease = AcquireArchiveLease(preparedArchive);
+                HashSet<string> entries = new(StringComparer.Ordinal);
+                if (!TryReadArchive(preparedArchive, entries, out string archiveError)) {
+                    throw new InvalidOperationException("Download History settings were not saved because the prepared archive is no longer valid: " + archiveError);
+                }
+                if (!CanWriteArchiveLocation(preparedArchive, out string writeError)) {
+                    throw new InvalidOperationException("Download History settings were not saved because the prepared archive is no longer writable: " + writeError);
+                }
+                DownloadHistoryAnalysis finalAnalysis = AnalyzeCore(preparedLibraryRoot, preparedArchive, CandidateRequiresLibraryRecovery(preparedLibraryRoot, preparedArchive));
+                if (finalAnalysis.Report.State != DownloadHistoryState.Healthy) {
+                    throw new InvalidOperationException("Download History settings were not saved because the library changed after preparation: " + finalAnalysis.Report.Message);
+                }
+                if (keepBackup) CopyArchiveToBackupAtomically(preparedArchive);
+                preparedReport = finalAnalysis.Report;
+                preparedKey = preparedLibraryRoot + "|" + preparedArchive;
+            }
+
+            bool oldEnabled = fEnabled;
+            string oldArchivePath = fArchivePath;
+            bool oldKeepBackup = fKeepBackup;
+            bool oldFailIfUnavailable = fFailIfUnavailable;
+            bool oldEverEnabled = fEverEnabled;
+            bool oldNeedsReconciliation = fNeedsReconciliation;
+            string oldBoundLibraryRoot = fBoundLibraryRoot;
+            string oldBoundArchivePath = fBoundArchivePath;
+            bool pathChanged = !string.Equals(oldArchivePath, configuredArchivePath, StringComparison.Ordinal);
+            bool nextEverEnabled = enabled || oldEverEnabled;
+            string nextBoundLibraryRoot = enabled ? GetLibraryRoot() : oldBoundLibraryRoot;
+            string nextBoundArchivePath = enabled
+                ? (configuredArchivePath.IsNullEmptyWhitespace() ? Path.Combine(nextBoundLibraryRoot, "yt-dlp-archive.txt") : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configuredArchivePath)))
+                : oldBoundArchivePath;
+            bool nextNeedsReconciliation = enabled
+                ? false
+                : oldNeedsReconciliation || oldEnabled || oldEverEnabled || pathChanged;
+
+            try {
+                IniProvider.Write(configuredArchivePath, ConfigName, nameof(ArchivePath));
+                IniProvider.Write(keepBackup, ConfigName, nameof(KeepBackup));
+                IniProvider.Write(true, ConfigName, nameof(FailIfUnavailable));
+                IniProvider.Write(enabled, ConfigName, nameof(Enabled));
+                IniProvider.Write(nextEverEnabled, ConfigName, nameof(EverEnabled));
+                IniProvider.Write(nextNeedsReconciliation, ConfigName, nameof(NeedsReconciliation));
+                IniProvider.Write(nextBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));
+                IniProvider.Write(nextBoundArchivePath, ConfigName, nameof(BoundArchivePath));
+            }
+            catch {
+                try {
+                    IniProvider.Write(oldArchivePath, ConfigName, nameof(ArchivePath));
+                    IniProvider.Write(oldKeepBackup, ConfigName, nameof(KeepBackup));
+                    IniProvider.Write(oldFailIfUnavailable, ConfigName, nameof(FailIfUnavailable));
+                    IniProvider.Write(oldEnabled, ConfigName, nameof(Enabled));
+                    IniProvider.Write(oldEverEnabled, ConfigName, nameof(EverEnabled));
+                    IniProvider.Write(oldNeedsReconciliation, ConfigName, nameof(NeedsReconciliation));
+                    IniProvider.Write(oldBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));
+                    IniProvider.Write(oldBoundArchivePath, ConfigName, nameof(BoundArchivePath));
+                }
+                catch { }
+                throw;
+            }
+
+            fArchivePath = configuredArchivePath;
+            fKeepBackup = keepBackup;
+            fFailIfUnavailable = true;
+            fEnabled = enabled;
+            fEverEnabled = nextEverEnabled;
+            fNeedsReconciliation = nextNeedsReconciliation;
+            fBoundLibraryRoot = nextBoundLibraryRoot;
+            fBoundArchivePath = nextBoundArchivePath;
+            if (enabled) {
+                PreparedKey = preparedKey;
+                LastReportInternal = preparedReport!;
+            }
+            else {
+                PreparedKey = null;
+                LastReportInternal = DisabledReport();
+            }
+        }
+    }
+
+    public static DownloadHistoryReport ValidateAndReconcile(bool force, bool allowMigration = false) {
+        lock (Sync) {
+            if (!Enabled) {
+                LastReportInternal = DisabledReport();
+                return LastReportInternal;
+            }
+            if (!TryResolvePaths(ArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {
+                LastReportInternal = pathError!;
+                return LastReportInternal;
+            }
+            if (!TryValidateLibraryBinding(libraryRoot, archive, out DownloadHistoryReport? bindingError)) {
+                LastReportInternal = bindingError!;
+                return LastReportInternal;
+            }
+
+            string key = libraryRoot + "|" + archive;
             if (!force && !NeedsReconciliation && PreparedKey == key && LastReportInternal.State == DownloadHistoryState.Healthy) {
                 return LastReportInternal;
             }
-            using DownloadHistoryLease lease = AcquireArchiveLease();
-            LastReportInternal = ReconcileCore();
-            if (LastReportInternal.State == DownloadHistoryState.Healthy) {
+
+            using DownloadHistoryLease lease = AcquireArchiveLease(archive);
+            DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));
+            DownloadHistoryReport report = ReconcileAnalysis(analysis, KeepBackup, allowMigration);
+            LastReportInternal = report;
+            if (report.State == DownloadHistoryState.Healthy) {
                 PreparedKey = key;
                 NeedsReconciliation = false;
+                EverEnabled = true;
+                BoundLibraryRoot = libraryRoot;
+                BoundArchivePath = archive;
             }
-            return LastReportInternal;
+            return report;
         }
     }
 
+    private static DownloadHistoryReport ReconcileAnalysis(DownloadHistoryAnalysis analysis, bool keepBackup, bool allowMigration) {
+        DownloadHistoryReport report = analysis.Report;
+        if (!report.CanReconcile) return report;
+        if (analysis.Migrations.Count > 0 && !allowMigration) {
+            report.State = DownloadHistoryState.Migratable;
+            report.Message = $"{analysis.Migrations.Count:N0} completed media file(s) can be safely migrated using authoritative .info.json metadata. Migration must be explicitly approved before Download History can be enabled.";
+            return report;
+        }
+
+        bool migrationsApplied = false;
+        if (analysis.Migrations.Count > 0) {
+            try {
+                ApplyMigrations(analysis.Migrations);
+                migrationsApplied = true;
+            }
+            catch (Exception ex) {
+                report.State = DownloadHistoryState.Unsafe;
+                report.CanReconcile = false;
+                report.Message = "Download History could not safely normalize legacy filenames: " + ex.Message;
+                return report;
+            }
+        }
+
+        bool changed = analysis.ArchiveNeedsRewrite || !analysis.ArchiveExists;
+        if (analysis.RecoverMissingEntries) {
+            foreach (string entry in analysis.RecoveredEntries) {
+                if (analysis.ArchiveEntries.Add(entry)) changed = true;
+            }
+        }
+
+        if (changed) {
+            try {
+                WriteArchiveAtomically(analysis.ArchivePath, analysis.ArchiveEntries);
+            }
+            catch (Exception ex) {
+                string rollbackError = string.Empty;
+                bool rollbackOk = !migrationsApplied || TryRollbackMigrations(analysis.Migrations, out rollbackError);
+                report.State = rollbackOk ? DownloadHistoryState.Unavailable : DownloadHistoryState.Unsafe;
+                report.CanReconcile = false;
+                report.Message = rollbackOk
+                    ? "Download archive could not be written safely; legacy filename changes were rolled back: " + ex.Message
+                    : "Download archive write failed and legacy filename rollback was incomplete. Manual review is required. Archive error: " + ex.Message + " Rollback error: " + rollbackError;
+                return report;
+            }
+        }
+
+        if (keepBackup) {
+            try {
+                CopyArchiveToBackupAtomically(analysis.ArchivePath);
+            }
+            catch (Exception ex) {
+                // The primary archive is already valid. Do not undo successful archive/media work;
+                // block enablement until the requested backup can be refreshed safely.
+                report.State = DownloadHistoryState.Unavailable;
+                report.CanReconcile = true;
+                report.ArchiveEntries = analysis.ArchiveEntries.Count;
+                report.Message = "The primary Download History archive is valid, but its backup could not be refreshed: " + ex.Message;
+                return report;
+            }
+        }
+
+        report.ArchiveEntries = analysis.ArchiveEntries.Count;
+        report.State = DownloadHistoryState.Healthy;
+        report.CanReconcile = true;
+        report.Message = $"Download History is healthy. {report.ArchiveEntries:N0} archive entr{(report.ArchiveEntries == 1 ? "y" : "ies")} validated; {report.MigrationCount:N0} legacy filename(s) normalized.";
+        return report;
+    }
+
     private static bool EnsureReady(out string error) {
-        DownloadHistoryReport report = ValidateAndReconcile(false);
+        DownloadHistoryReport report = ValidateAndReconcile(false, false);
         if (report.State == DownloadHistoryState.Healthy) {
             error = string.Empty;
             return true;
@@ -217,148 +690,283 @@ internal static class DownloadHistory {
         return false;
     }
 
-    private static DownloadHistoryReport ReconcileCore() {
-        DownloadHistoryReport report = new();
-        if (!Enabled) {
-            report.State = EverEnabled ? DownloadHistoryState.Dormant : DownloadHistoryState.Disabled;
-            report.Message = EverEnabled ? "Download History is disabled; archive preserved and potentially stale." : "Download History is disabled.";
-            return report;
-        }
+    private static DownloadHistoryReport DisabledReport() => new() {
+        State = EverEnabled ? DownloadHistoryState.Dormant : DownloadHistoryState.Disabled,
+        CanReconcile = true,
+        Message = EverEnabled ? "Download History is disabled; archive preserved and potentially stale." : "Download History is disabled."
+    };
 
-        string libraryRoot;
-        string archive;
+    private static bool CandidateRequiresLibraryRecovery(string libraryRoot, string candidateArchive) {
+        if (!Enabled || !EverEnabled || NeedsReconciliation) return true;
+        if (BoundLibraryRoot.IsNullEmptyWhitespace() || BoundArchivePath.IsNullEmptyWhitespace()) return true;
+        return !PathEquals(libraryRoot, BoundLibraryRoot) || !PathEquals(candidateArchive, BoundArchivePath);
+    }
+
+    private static bool IsPreviouslyInitializedNamespace(string libraryRoot, string archive) {
+        if (!EverEnabled) return false;
+        if (BoundArchivePath.IsNullEmptyWhitespace()) return true;
+        if (!PathEquals(archive, BoundArchivePath)) return false;
+        return BoundLibraryRoot.IsNullEmptyWhitespace() || PathEquals(libraryRoot, BoundLibraryRoot);
+    }
+
+    private static bool IsDefaultArchiveForLibrary(string libraryRoot, string archive) =>
+        PathEquals(archive, Path.Combine(libraryRoot, "yt-dlp-archive.txt"));
+
+    private static bool CanInitializeNewDefaultLibrary(string libraryRoot, string archive) {
+        if (!IsDefaultArchiveForLibrary(libraryRoot, archive) || IsPreviouslyInitializedNamespace(libraryRoot, archive)) return false;
+        string? root = Path.GetPathRoot(libraryRoot);
+        return !root.IsNullEmptyWhitespace() && Directory.Exists(root);
+    }
+
+    private static bool TryInitializeNewDefaultLibrary(string libraryRoot, string archive, DownloadHistoryLease lease, out DownloadHistoryReport? error) {
+        error = null;
+        if (Directory.Exists(libraryRoot)) return true;
+        if (!CanInitializeNewDefaultLibrary(libraryRoot, archive)) {
+            error = new DownloadHistoryReport { State = DownloadHistoryState.Unavailable, CanReconcile = false, Message = "Media library path is unavailable: " + libraryRoot };
+            return false;
+        }
+        try {
+            Directory.CreateDirectory(libraryRoot);
+            lease.AcquireFileLock(archive + ".lock");
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+            error = new DownloadHistoryReport { State = DownloadHistoryState.Unavailable, CanReconcile = false, Message = "The new media library directory could not be initialized safely: " + ex.Message };
+            return false;
+        }
+    }
+
+    private static bool TryValidateLibraryBinding(string libraryRoot, string archive, out DownloadHistoryReport? error) {
+        error = null;
+        if (!EverEnabled || BoundLibraryRoot.IsNullEmptyWhitespace() || BoundArchivePath.IsNullEmptyWhitespace()) return true;
+        if (PathEquals(libraryRoot, BoundLibraryRoot) || !PathEquals(archive, BoundArchivePath)) return true;
+        error = new DownloadHistoryReport {
+            State = DownloadHistoryState.Unsafe,
+            CanReconcile = false,
+            Message = "This Download History archive is bound to a different media library. Choose a different archive for the current library, restore the original library path, or disable and Reset History before intentionally reusing this archive namespace."
+        };
+        return false;
+    }
+
+    private static bool ShouldWaitForPreviousArchive(string preparedArchive) =>
+        !BoundArchivePath.IsNullEmptyWhitespace() && !PathEquals(preparedArchive, BoundArchivePath);
+
+    private static bool PathEquals(string left, string right) {
+        try {
+            return string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
+    }
+
+    private static bool TryResolvePaths(string configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? error) {
+        libraryRoot = string.Empty;
+        archive = string.Empty;
+        error = null;
         try {
             libraryRoot = GetLibraryRoot();
-            archive = EffectiveArchivePath;
+            archive = configuredArchivePath.IsNullEmptyWhitespace()
+                ? Path.Combine(libraryRoot, "yt-dlp-archive.txt")
+                : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configuredArchivePath));
+            return true;
         }
         catch (Exception ex) {
-            report.State = DownloadHistoryState.Invalid;
-            report.Message = "Download History path is invalid: " + ex.Message;
-            return report;
+            error = new DownloadHistoryReport {
+                State = DownloadHistoryState.Invalid,
+                CanReconcile = false,
+                Message = "Download History path is invalid: " + ex.Message
+            };
+            return false;
+        }
+    }
+
+    private static DownloadHistoryAnalysis AnalyzeCore(string libraryRoot, string archive, bool recoverMissingEntries) {
+        DownloadHistoryAnalysis analysis = new() { LibraryRoot = libraryRoot, ArchivePath = archive };
+        DownloadHistoryReport report = analysis.Report;
+
+        if (!Directory.Exists(libraryRoot)) {
+            if (CanInitializeNewDefaultLibrary(libraryRoot, archive)) {
+                analysis.RecoverMissingEntries = true;
+                report.State = DownloadHistoryState.Missing;
+                report.CanReconcile = true;
+                report.Message = "This is a new media library. Its download directory and initial Download History archive can be created safely.";
+                return analysis;
+            }
+            report.State = DownloadHistoryState.Unavailable;
+            report.CanReconcile = false;
+            report.Message = "Media library path is unavailable: " + libraryRoot;
+            return analysis;
         }
 
         string? parent = Path.GetDirectoryName(archive);
         if (parent.IsNullEmptyWhitespace()) {
             report.State = DownloadHistoryState.Invalid;
+            report.CanReconcile = false;
             report.Message = "Download archive location does not have a valid parent directory.";
-            return report;
+            return analysis;
         }
         string? root = Path.GetPathRoot(parent!);
         if (!root.IsNullEmptyWhitespace() && !Directory.Exists(root)) {
             report.State = DownloadHistoryState.Unavailable;
+            report.CanReconcile = false;
             report.Message = "Download archive storage is unavailable: " + root;
-            return report;
+            return analysis;
         }
-
-        try {
-            if (!Directory.Exists(libraryRoot)) Directory.CreateDirectory(libraryRoot);
-            if (!Directory.Exists(parent)) {
-                if (!ArchivePath.IsNullEmptyWhitespace() && FailIfUnavailable) {
-                    report.State = DownloadHistoryState.Unavailable;
-                    report.Message = "Configured download archive directory is unavailable: " + parent;
-                    return report;
-                }
-                Directory.CreateDirectory(parent!);
-            }
-        }
-        catch (Exception ex) {
+        if (!Directory.Exists(parent)) {
             report.State = DownloadHistoryState.Unavailable;
-            report.Message = "Download archive storage cannot be accessed: " + ex.Message;
-            return report;
+            report.CanReconcile = false;
+            report.Message = "Configured download archive directory is unavailable: " + parent;
+            return analysis;
+        }
+        if (!CanWriteArchiveLocation(archive, out string writeError)) {
+            report.State = DownloadHistoryState.Unavailable;
+            report.CanReconcile = false;
+            report.Message = "Download archive location is not writable: " + writeError;
+            return analysis;
         }
 
-        HashSet<string> archiveEntries = new(StringComparer.Ordinal);
-        bool archiveExists = File.Exists(archive);
-        bool archiveNeedsRewrite = false;
+        analysis.ArchiveExists = File.Exists(archive);
         string backup = archive + ".bak";
-        if (archiveExists) {
-            if (!TryReadArchive(archive, archiveEntries, out string archiveError)) {
-                archiveEntries.Clear();
-                if (!TryReadArchive(backup, archiveEntries, out _)) {
-                    archiveNeedsRewrite = true;
-                    Log.Write("Download History archive is damaged and no valid backup is available: " + archiveError);
-                }
-                else {
-                    archiveNeedsRewrite = true;
-                    Log.Write("Download History recovered identities from the backup archive after the primary archive failed validation.");
-                }
-            }
-        }
-        else if (TryReadArchive(backup, archiveEntries, out _)) {
-            archiveNeedsRewrite = true;
-            Log.Write("Download History recovered identities from the backup archive after the primary archive was missing.");
-        }
-
-        List<string> mediaFiles;
-        try {
-            mediaFiles = EnumerateCompletedMedia(libraryRoot).ToList();
-        }
-        catch (Exception ex) {
-            report.State = DownloadHistoryState.Unavailable;
-            report.Message = "Media library cannot be scanned safely: " + ex.Message;
-            return report;
-        }
-
-        report.CompletedMedia = mediaFiles.Count;
-        HashSet<string> recovered = new(StringComparer.Ordinal);
-        foreach (string media in mediaFiles) {
-            string? entry = TryRecoverFromInfoJson(media);
-            if (entry is not null) {
-                report.MetadataRecovered++;
+        if (analysis.ArchiveExists) {
+            if (TryReadArchive(archive, analysis.ArchiveEntries, out string archiveError)) {
+                analysis.ArchiveValid = true;
             }
             else {
-                entry = TryRecoverYoutubeFromFilename(media);
-                if (entry is not null) report.FilenameRecovered++;
+                analysis.ArchiveWasInvalid = true;
+                analysis.ArchiveEntries.Clear();
+                if (TryReadArchive(backup, analysis.ArchiveEntries, out _)) {
+                    analysis.UsedBackup = true;
+                    analysis.ArchiveNeedsRewrite = true;
+                }
+                else {
+                    analysis.ArchiveNeedsRewrite = true;
+                    Log.Write("Download History archive is damaged and no valid backup is available: " + archiveError);
+                }
+            }
+        }
+        else if (TryReadArchive(backup, analysis.ArchiveEntries, out _)) {
+            analysis.UsedBackup = true;
+            analysis.ArchiveNeedsRewrite = true;
+        }
+
+        analysis.RecoverMissingEntries = recoverMissingEntries || !analysis.ArchiveExists || analysis.ArchiveWasInvalid || analysis.UsedBackup;
+
+        List<string> mediaFiles;
+        try { mediaFiles = EnumerateCompletedMedia(libraryRoot).ToList(); }
+        catch (Exception ex) {
+            report.State = DownloadHistoryState.Unavailable;
+            report.CanReconcile = false;
+            report.Message = "Media library cannot be scanned safely: " + ex.Message;
+            return analysis;
+        }
+
+        HashSet<string> plannedTargets = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string media in mediaFiles) {
+            string? entry = TryRecoverFromInfoJson(media, out string? sourceId, out string? infoPath);
+            bool fromMetadata = entry is not null;
+            if (entry is null) entry = TryRecoverFromFilename(media, analysis.ArchiveEntries);
+
+            // A current valid native archive is the success marker. An unarchived final-looking
+            // file may be residue from a failed provider run and must remain eligible for retry.
+            // Recovery states deliberately trust authoritative physical-library identities instead.
+            if (!analysis.RecoverMissingEntries && analysis.ArchiveValid && entry is not null && !analysis.ArchiveEntries.Contains(entry)) {
+                continue;
             }
 
+            report.CompletedMedia++;
             if (entry is null) {
                 report.UnresolvedMedia++;
                 continue;
             }
+
+            if (fromMetadata) {
+                report.MetadataRecovered++;
+                if (sourceId is not null && !FileNameContainsRecoverableSourceId(media, sourceId, entry, analysis.ArchiveEntries)) {
+                    if (!TryPlanMigration(media, infoPath, sourceId, plannedTargets, out DownloadHistoryMigration? migration)) {
+                        report.UnresolvedMedia++;
+                        continue;
+                    }
+                    analysis.Migrations.Add(migration!);
+                }
+            }
+            else {
+                report.FilenameRecovered++;
+            }
+
             report.IdentifiedMedia++;
-            recovered.Add(entry);
+            analysis.RecoveredEntries.Add(entry);
         }
+        report.MigrationCount = analysis.Migrations.Count;
+        report.ArchiveEntries = analysis.ArchiveEntries.Count;
 
         if (report.UnresolvedMedia > 0) {
-            report.ArchiveEntries = archiveEntries.Count;
             report.State = report.IdentifiedMedia > 0 ? DownloadHistoryState.Partial : DownloadHistoryState.Unsafe;
-            report.Message = $"Download History cannot safely enable protection: {report.UnresolvedMedia:N0} completed media file(s) have no authoritative recoverable source identity. No archive changes were written.";
-            return report;
+            report.CanReconcile = false;
+            report.Message = $"Download History cannot safely enable protection: {report.UnresolvedMedia:N0} completed media file(s) have no authoritative recoverable source identity. No archive or media changes were written.";
+            return analysis;
         }
 
-        bool changed = archiveNeedsRewrite;
-        foreach (string entry in recovered) {
-            if (archiveEntries.Add(entry)) changed = true;
+        if (analysis.Migrations.Count > 0) {
+            report.State = DownloadHistoryState.Migratable;
+            report.CanReconcile = true;
+            report.Message = $"Existing library is migratable: {analysis.Migrations.Count:N0} completed media file(s) can be renamed to embed authoritative source IDs from .info.json metadata.";
+            return analysis;
         }
 
-        if (!archiveExists || changed) {
-            try {
-                WriteArchiveAtomically(archive, archiveEntries);
-            }
-            catch (Exception ex) {
-                report.State = DownloadHistoryState.Unavailable;
-                report.Message = "Download archive could not be written safely: " + ex.Message;
-                return report;
+        if (analysis.RecoverMissingEntries) {
+            foreach (string entry in analysis.RecoveredEntries) {
+                if (!analysis.ArchiveEntries.Contains(entry)) analysis.ArchiveNeedsRewrite = true;
             }
         }
 
-        report.ArchiveEntries = archiveEntries.Count;
-        report.State = DownloadHistoryState.Healthy;
-        report.Message = archiveExists
-            ? $"Download History is healthy. {report.ArchiveEntries:N0} archive entr{(report.ArchiveEntries == 1 ? "y" : "ies")} reconciled."
-            : $"Download History archive created and validated with {report.ArchiveEntries:N0} entr{(report.ArchiveEntries == 1 ? "y" : "ies")}.";
-        return report;
+        if (!analysis.ArchiveExists && !analysis.UsedBackup && report.CompletedMedia == 0 && IsPreviouslyInitializedNamespace(libraryRoot, archive)) {
+            report.State = DownloadHistoryState.Missing;
+            report.CanReconcile = false;
+            report.Message = "The previously initialized Download History archive and its backup are missing, and the library contains no completed media from which history can be reconstructed. Reset History explicitly to start over.";
+            return analysis;
+        }
+        if (analysis.ArchiveWasInvalid && !analysis.UsedBackup && report.CompletedMedia == 0) {
+            report.State = DownloadHistoryState.Invalid;
+            report.CanReconcile = false;
+            report.Message = "The Download History archive is invalid, no valid backup exists, and the library contains no completed media from which history can be reconstructed.";
+            return analysis;
+        }
+
+        report.CanReconcile = true;
+        if (analysis.ArchiveWasInvalid) {
+            report.State = DownloadHistoryState.Invalid;
+            report.Message = analysis.UsedBackup
+                ? "The primary archive is invalid but a valid backup can be restored and cross-checked against the library."
+                : "The primary archive is invalid but the existing library can safely reconstruct it.";
+        }
+        else if (!analysis.ArchiveExists) {
+            report.State = DownloadHistoryState.Missing;
+            report.Message = analysis.UsedBackup
+                ? "The primary archive is missing but a valid backup can be restored and cross-checked against the library."
+                : report.CompletedMedia == 0
+                    ? "This is a new empty library. Download History can initialize a new archive."
+                    : "The archive is missing, but all completed media identities are recoverable and the archive can be rebuilt safely.";
+        }
+        else if (analysis.ArchiveNeedsRewrite) {
+            report.State = DownloadHistoryState.Missing;
+            report.Message = "The archive is incomplete relative to the existing library and can be reconciled safely before downloading.";
+        }
+        else {
+            report.State = DownloadHistoryState.Healthy;
+            report.Message = $"Download History is healthy. {report.ArchiveEntries:N0} archive entr{(report.ArchiveEntries == 1 ? "y" : "ies")} validated against {report.CompletedMedia:N0} trusted completed media file(s).";
+        }
+        return analysis;
     }
 
-    private static string GetArchiveMutexName() {
-        string normalized = EffectiveArchivePath.ToUpperInvariant();
+    private static string GetArchiveMutexName(string archivePath) {
+        string normalized = Path.GetFullPath(archivePath).ToUpperInvariant();
         using SHA256 sha = SHA256.Create();
         byte[] digest = sha.ComputeHash(Encoding.UTF8.GetBytes(normalized));
         return @"Local\youtube-dl-gui-download-history-" + string.Concat(digest.Take(12).Select(value => value.ToString("x2")));
     }
 
-    private static string GetLibraryRoot() {
-        string path = Downloads.downloadPath;
+    private static string GetLibraryRoot() => ResolveLibraryRoot(Downloads.downloadPath);
+
+    private static string ResolveLibraryRoot(string path) {
         if (path.StartsWith("./") || path.StartsWith(".\\")) {
             path = Path.Combine(Program.ProgramPath, path.Substring(2));
         }
@@ -377,44 +985,204 @@ internal static class DownloadHistory {
                 ext is ".json" or ".jpg" or ".jpeg" or ".png" or ".webp" or ".gif" or ".srt" or ".vtt" or ".ass" or ".lrc" or ".description" or ".txt") {
                 continue;
             }
-            if (ext is ".mp4" or ".mkv" or ".webm" or ".mov" or ".avi" or ".flv" or ".m4v" or ".mp3" or ".m4a" or ".aac" or ".opus" or ".ogg" or ".wav" or ".flac" or ".wma") {
+            if (ext is ".mp4" or ".mkv" or ".webm" or ".mov" or ".avi" or ".flv" or ".m4v" or ".3gp" or ".3g2" or
+                ".ts" or ".m2ts" or ".mts" or ".vob" or ".wmv" or ".asf" or ".mpg" or ".mpeg" or ".mpe" or ".mpv" or ".m2v" or
+                ".mp3" or ".m4a" or ".m4b" or ".aac" or ".opus" or ".ogg" or ".oga" or ".wav" or ".flac" or ".wma" or ".mka" or
+                ".ape" or ".alac" or ".aiff" or ".aif" or ".ac3" or ".eac3" or ".dts") {
                 yield return file;
             }
         }
     }
 
-    private static string? TryRecoverFromInfoJson(string mediaPath) {
+    private static string? TryRecoverFromInfoJson(string mediaPath, out string? sourceId, out string? infoPath) {
+        sourceId = null;
+        infoPath = null;
         string directory = Path.GetDirectoryName(mediaPath) ?? string.Empty;
         string stem = Path.Combine(directory, Path.GetFileNameWithoutExtension(mediaPath));
-        string[] candidates = [stem + ".info.json"];
-        foreach (string candidate in candidates) {
-            if (!File.Exists(candidate)) continue;
-            try {
-                string json = File.ReadAllText(candidate);
-                Match id = Regex.Match(json, "\\\"id\\\"\\s*:\\s*\\\"(?<v>[^\\\"]+)\\\"", RegexOptions.CultureInvariant);
-                Match extractor = Regex.Match(json, "\\\"(?:extractor_key|extractor)\\\"\\s*:\\s*\\\"(?<v>[^\\\"]+)\\\"", RegexOptions.CultureInvariant);
-                if (!id.Success || !extractor.Success) continue;
-                string ex = extractor.Groups["v"].Value.Trim().ToLowerInvariant();
-                string sourceId = id.Groups["v"].Value.Trim();
-                if (ex.Length == 0 || sourceId.Length == 0) continue;
-                if (ex == "youtube") ex = "youtube";
-                return ex + " " + sourceId;
-            }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+        string candidate = stem + ".info.json";
+        if (!File.Exists(candidate)) return null;
+        try {
+            string json = File.ReadAllText(candidate);
+            string? recoveredId = JsonStringValue(json, "id");
+            string? extractor = JsonStringValue(json, "extractor_key") ?? JsonStringValue(json, "ie_key") ?? JsonStringValue(json, "extractor");
+            if (recoveredId.IsNullEmptyWhitespace() || extractor.IsNullEmptyWhitespace()) return null;
+            sourceId = recoveredId!.Trim();
+            infoPath = candidate;
+            return extractor!.Trim().ToLowerInvariant() + " " + sourceId;
         }
-        return null;
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
     }
 
-    private static string? TryRecoverYoutubeFromFilename(string mediaPath) {
+    private static string? JsonStringValue(string json, string property) {
+        Match match = Regex.Match(json, "\"" + Regex.Escape(property) + "\"\\s*:\\s*\"(?<v>[^\"]+)\"", RegexOptions.CultureInvariant);
+        return match.Success ? match.Groups["v"].Value : null;
+    }
+
+    private static bool FileNameContainsRecoverableSourceId(string mediaPath, string sourceId, string archiveEntry, HashSet<string> archiveEntries) {
+        if (SchemaFileNameContainsSourceId(mediaPath, sourceId)) return true;
         string name = Path.GetFileNameWithoutExtension(mediaPath);
-        Match match = Regex.Match(name, "-(?<id>[A-Za-z0-9_-]{11})(?:_[A-Za-z0-9_-]+)?$", RegexOptions.CultureInvariant);
-        return match.Success ? "youtube " + match.Groups["id"].Value : null;
+        if (Regex.IsMatch(name, Regex.Escape("-" + sourceId) + "(?:_[A-Za-z0-9_-]+)?$", RegexOptions.CultureInvariant)) return true;
+        string? recovered = TryRecoverFromFilename(mediaPath, archiveEntries.Count == 0
+            ? new HashSet<string>(new[] { archiveEntry }, StringComparer.Ordinal)
+            : archiveEntries);
+        return string.Equals(recovered, archiveEntry, StringComparison.Ordinal);
+    }
+
+    private static string? TryRecoverFromFilename(string mediaPath, HashSet<string> archiveEntries) {
+        string name = Path.GetFileNameWithoutExtension(mediaPath);
+        if (TryExtractYoutubeIdFromSchema(mediaPath, out string? youtubeId)) return "youtube " + youtubeId;
+
+        Match youtube = Regex.Match(name, "-(?<id>[A-Za-z0-9_-]{11})(?:_[A-Za-z0-9_-]+)?$", RegexOptions.CultureInvariant);
+        if (youtube.Success) return "youtube " + youtube.Groups["id"].Value;
+
+        string? match = null;
+        foreach (string entry in archiveEntries) {
+            int separator = entry.IndexOf(' ');
+            if (separator <= 0 || separator == entry.Length - 1) continue;
+            string id = entry.Substring(separator + 1);
+            bool idMatches = SchemaFileNameContainsSourceId(mediaPath, id) ||
+                Regex.IsMatch(name, Regex.Escape("-" + id) + "(?:_[A-Za-z0-9_-]+)?$", RegexOptions.CultureInvariant);
+            if (!idMatches) continue;
+            if (match is not null && !string.Equals(match, entry, StringComparison.Ordinal)) return null;
+            match = entry;
+        }
+        return match;
+    }
+
+    private static bool TryExtractYoutubeIdFromSchema(string mediaPath, out string? sourceId) {
+        sourceId = null;
+        string template = GetSchemaFileTemplate(Downloads.fileNameSchema);
+        if (template.IsNullEmptyWhitespace() || template.IndexOf("%(id)s", StringComparison.OrdinalIgnoreCase) < 0) return false;
+        string pattern = BuildSchemaRegex(template, "(?<id>[A-Za-z0-9_-]{11})");
+        Match match = Regex.Match(Path.GetFileName(mediaPath), pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        if (!match.Success || !match.Groups["id"].Success) return false;
+        sourceId = match.Groups["id"].Value;
+        return sourceId.Length == 11;
+    }
+
+    private static bool SchemaFileNameContainsSourceId(string mediaPath, string sourceId) {
+        string template = GetSchemaFileTemplate(Downloads.fileNameSchema);
+        if (template.IsNullEmptyWhitespace() || template.IndexOf("%(id)s", StringComparison.OrdinalIgnoreCase) < 0) return false;
+        string pattern = BuildSchemaRegex(template, Regex.Escape(sourceId));
+        return Regex.IsMatch(Path.GetFileName(mediaPath), pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    }
+
+    private static string GetSchemaFileTemplate(string schema) {
+        string normalized = schema.Replace('\\', '/');
+        int separator = normalized.LastIndexOf('/');
+        return separator >= 0 ? normalized.Substring(separator + 1) : normalized;
+    }
+
+    private static string BuildSchemaRegex(string template, string idPattern) {
+        const string idToken = "%(id)s";
+        StringBuilder pattern = new("^");
+        int position = 0;
+        while (position < template.Length) {
+            int tokenStart = template.IndexOf("%(", position, StringComparison.Ordinal);
+            if (tokenStart < 0) {
+                pattern.Append(Regex.Escape(template.Substring(position)));
+                break;
+            }
+            pattern.Append(Regex.Escape(template.Substring(position, tokenStart - position)));
+            int tokenEnd = template.IndexOf(")s", tokenStart, StringComparison.Ordinal);
+            if (tokenEnd < 0) {
+                pattern.Append(Regex.Escape(template.Substring(tokenStart)));
+                break;
+            }
+            string token = template.Substring(tokenStart, tokenEnd + 2 - tokenStart);
+            pattern.Append(string.Equals(token, idToken, StringComparison.OrdinalIgnoreCase) ? idPattern : ".*?");
+            position = tokenEnd + 2;
+        }
+        pattern.Append('$');
+        return pattern.ToString();
+    }
+
+    private static bool TryPlanMigration(string mediaPath, string? infoPath, string sourceId, HashSet<string> plannedTargets, out DownloadHistoryMigration? migration) {
+        migration = null;
+        if (sourceId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || sourceId.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0) return false;
+        string directory = Path.GetDirectoryName(mediaPath) ?? string.Empty;
+        string targetStem = Path.GetFileNameWithoutExtension(mediaPath) + "-" + sourceId;
+        string mediaTarget = Path.Combine(directory, targetStem + Path.GetExtension(mediaPath));
+        string? metadataTarget = infoPath is null ? null : Path.Combine(directory, targetStem + ".info.json");
+        if (File.Exists(mediaTarget) || (metadataTarget is not null && File.Exists(metadataTarget))) return false;
+        if (!plannedTargets.Add(mediaTarget) || (metadataTarget is not null && !plannedTargets.Add(metadataTarget))) return false;
+        migration = new DownloadHistoryMigration {
+            MediaSource = mediaPath,
+            MediaTarget = mediaTarget,
+            MetadataSource = infoPath,
+            MetadataTarget = metadataTarget
+        };
+        return true;
+    }
+
+    private static void ApplyMigrations(List<DownloadHistoryMigration> migrations) {
+        List<DownloadHistoryMigration> applied = [];
+        try {
+            foreach (DownloadHistoryMigration migration in migrations) {
+                File.Move(migration.MediaSource, migration.MediaTarget);
+                applied.Add(migration);
+                if (migration.MetadataSource is not null && migration.MetadataTarget is not null) {
+                    File.Move(migration.MetadataSource, migration.MetadataTarget);
+                }
+            }
+        }
+        catch (Exception ex) {
+            if (!TryRollbackMigrations(applied, out string rollbackError)) {
+                throw new IOException("Legacy filename migration failed and rollback was incomplete. Migration error: " + ex.Message + " Rollback error: " + rollbackError, ex);
+            }
+            throw;
+        }
+    }
+
+    private static bool TryRollbackMigrations(IEnumerable<DownloadHistoryMigration> migrations, out string error) {
+        error = string.Empty;
+        List<string> failures = [];
+        foreach (DownloadHistoryMigration migration in migrations.Reverse()) {
+            try {
+                if (migration.MetadataSource is not null && migration.MetadataTarget is not null && File.Exists(migration.MetadataTarget)) {
+                    if (File.Exists(migration.MetadataSource)) throw new IOException("Original metadata path already exists: " + migration.MetadataSource);
+                    File.Move(migration.MetadataTarget, migration.MetadataSource);
+                }
+                if (File.Exists(migration.MediaTarget)) {
+                    if (File.Exists(migration.MediaSource)) throw new IOException("Original media path already exists: " + migration.MediaSource);
+                    File.Move(migration.MediaTarget, migration.MediaSource);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+                failures.Add(ex.Message);
+            }
+        }
+        if (failures.Count == 0) return true;
+        error = string.Join(" | ", failures);
+        return false;
+    }
+
+    private static bool CanWriteArchiveLocation(string archive, out string error) {
+        error = string.Empty;
+        try {
+            if (File.Exists(archive)) {
+                using FileStream stream = new(archive, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+                return true;
+            }
+            string parent = Path.GetDirectoryName(archive)!;
+            string probe = Path.Combine(parent, ".youtube-dl-gui-history-" + Guid.NewGuid().ToString("N") + ".tmp");
+            try {
+                using (new FileStream(probe, FileMode.CreateNew, FileAccess.Write, FileShare.None)) { }
+            }
+            finally { if (File.Exists(probe)) File.Delete(probe); }
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+            error = ex.Message;
+            return false;
+        }
     }
 
     private static bool TryReadArchive(string path, HashSet<string> entries, out string error) {
         error = string.Empty;
         if (!File.Exists(path)) return false;
+        HashSet<string> parsed = new(StringComparer.Ordinal);
         try {
             foreach (string line in File.ReadAllLines(path)) {
                 string entry = line.Trim();
@@ -424,8 +1192,9 @@ internal static class DownloadHistory {
                     error = "Invalid archive entry: " + entry;
                     return false;
                 }
-                entries.Add(entry);
+                parsed.Add(entry);
             }
+            foreach (string entry in parsed) entries.Add(entry);
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
@@ -436,17 +1205,26 @@ internal static class DownloadHistory {
 
     private static void WriteArchiveAtomically(string path, HashSet<string> entries) {
         string temp = path + ".tmp";
-        string backup = path + ".bak";
         string content = string.Join(Environment.NewLine, entries.OrderBy(x => x, StringComparer.Ordinal));
         if (content.Length > 0) content += Environment.NewLine;
         File.WriteAllText(temp, content, new UTF8Encoding(false));
         try {
-            if (File.Exists(path)) {
-                File.Replace(temp, path, KeepBackup ? backup : null, true);
-            }
-            else {
-                File.Move(temp, path);
-            }
+            if (File.Exists(path)) File.Replace(temp, path, null, true);
+            else File.Move(temp, path);
+        }
+        finally {
+            if (File.Exists(temp)) File.Delete(temp);
+        }
+    }
+
+    private static void CopyArchiveToBackupAtomically(string archive) {
+        if (!File.Exists(archive)) return;
+        string backup = archive + ".bak";
+        string temp = backup + ".tmp";
+        File.Copy(archive, temp, true);
+        try {
+            if (File.Exists(backup)) File.Replace(temp, backup, null, true);
+            else File.Move(temp, backup);
         }
         finally {
             if (File.Exists(temp)) File.Delete(temp);
@@ -455,6 +1233,51 @@ internal static class DownloadHistory {
 
     private static bool ContainsOption(string? arguments, string option) {
         if (arguments.IsNullEmptyWhitespace()) return false;
-        return Regex.IsMatch(arguments!, "(^|\\s)" + Regex.Escape(option) + "(?:=|\\s|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        foreach (string token in TokenizeArguments(arguments!)) {
+            if (token.Equals(option, StringComparison.OrdinalIgnoreCase) ||
+                token.StartsWith(option + "=", StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static IEnumerable<string> TokenizeArguments(string arguments) {
+        StringBuilder current = new();
+        bool inQuotes = false;
+
+        for (int i = 0; i < arguments.Length;) {
+            if (!inQuotes && char.IsWhiteSpace(arguments[i])) {
+                if (current.Length > 0) {
+                    yield return current.ToString();
+                    current.Clear();
+                }
+                i++;
+                continue;
+            }
+
+            int slashStart = i;
+            while (i < arguments.Length && arguments[i] == '\\') i++;
+            int slashes = i - slashStart;
+            if (i < arguments.Length && arguments[i] == '"') {
+                current.Append('\\', slashes / 2);
+                if ((slashes & 1) == 0) inQuotes = !inQuotes;
+                else current.Append('"');
+                i++;
+                continue;
+            }
+
+            current.Append('\\', slashes);
+            if (i >= arguments.Length) break;
+            if (arguments[i] == '"') {
+                inQuotes = !inQuotes;
+                i++;
+                continue;
+            }
+            current.Append(arguments[i]);
+            i++;
+        }
+
+        if (current.Length > 0) yield return current.ToString();
     }
 }

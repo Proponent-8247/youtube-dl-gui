@@ -48,8 +48,19 @@ public partial class frmSettings : LocalizedForm {
             TabIndex = 1000
         };
         button.Click += (_, _) => {
+            bool unsavedLibrary = !DownloadHistory.IsCurrentLibraryPath(txtSettingsDownloadsSavePath.Text);
+            bool unsavedSchema = !string.Equals(txtSettingsDownloadsFileNameSchema.Text, Downloads.fileNameSchema, StringComparison.Ordinal);
+            if (unsavedLibrary || unsavedSchema) {
+                string changed = unsavedLibrary && unsavedSchema ? "the download folder and filename format"
+                    : unsavedLibrary ? "the download folder" : "the filename format";
+                DialogResult answer = MessageBox.Show(this,
+                    "The Settings form has unsaved changes to " + changed + ". Download History uses the currently saved media library and filename format.\r\n\r\n" +
+                    "Continue using the currently saved settings? Choose Cancel if you want to save these changes first.",
+                    "Unsaved download settings", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning);
+                if (answer != DialogResult.OK) return;
+            }
             using frmDownloadHistory history = new();
-            history.ShowDialog(this);
+            if (history.ShowDialog(this) != DialogResult.OK) return;
             int index = txtSettingsDownloadsFileNameSchema.Items.IndexOf(Downloads.fileNameSchema);
             if (index < 0) {
                 txtSettingsDownloadsFileNameSchema.Items.Add(Downloads.fileNameSchema);
@@ -665,6 +676,14 @@ public partial class frmSettings : LocalizedForm {
     }
 
     private void btnSettingsSave_Click(object sender, EventArgs e) {
+        if (DownloadHistory.Enabled && !DownloadHistory.IsCurrentLibraryPath(txtSettingsDownloadsSavePath.Text)) {
+            MessageBox.Show(this,
+                "Download History is enabled and bound to the current media library. Disable Download History first, save the new download folder, then re-enable Download History so the new library can be reconciled safely.",
+                "Disable Download History before changing libraries", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            tcMain.SelectedTab = tabSettingsDownloads;
+            txtSettingsDownloadsSavePath.Focus();
+            return;
+        }
         if (DownloadHistory.Enabled && !DownloadHistory.HasRequiredIdTemplate(txtSettingsDownloadsFileNameSchema.Text)) {
             MessageBox.Show(this,
                 "Download History is enabled, so the filename format must contain %(id)s. Disable Download History first if you want to remove media IDs.",
@@ -672,6 +691,18 @@ public partial class frmSettings : LocalizedForm {
             tcMain.SelectedTab = tabSettingsDownloads;
             txtSettingsDownloadsFileNameSchema.Focus();
             return;
+        }
+        if (!DownloadHistory.Enabled && DownloadHistory.EverEnabled
+            && DownloadHistory.HasRequiredIdTemplate(Downloads.fileNameSchema)
+            && !DownloadHistory.HasRequiredIdTemplate(txtSettingsDownloadsFileNameSchema.Text)) {
+            DialogResult answer = MessageBox.Show(this,
+                "Download History is currently disabled. Files downloaded without %(id)s may not be safely identifiable if you enable Download History again later. Keeping media IDs in filenames is strongly recommended.\r\n\r\nRemove %(id)s anyway?",
+                "Keep media IDs while history is disabled", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (answer != DialogResult.Yes) {
+                tcMain.SelectedTab = tabSettingsDownloads;
+                txtSettingsDownloadsFileNameSchema.Focus();
+                return;
+            }
         }
         SaveSettings();
         SettingsSaved = true;
@@ -939,7 +970,17 @@ public partial class frmSettings : LocalizedForm {
         if (LoadingForm) {
             return;
         }
-        Downloads.YtdlType = cbSettingsDownloadsUpdatingYtdlType.SelectedIndex;
+        int selectedProvider = cbSettingsDownloadsUpdatingYtdlType.SelectedIndex;
+        if (DownloadHistory.Enabled && selectedProvider is not ((int)GitID.YtDlp) and not ((int)GitID.YtDlpNightly)) {
+            MessageBox.Show(this,
+                "Download History requires yt-dlp or yt-dlp nightly. Disable Download History before switching to a youtube-dl provider.",
+                "Download History requires yt-dlp", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            LoadingForm = true;
+            try { cbSettingsDownloadsUpdatingYtdlType.SelectedIndex = Downloads.YtdlType; }
+            finally { LoadingForm = false; }
+            return;
+        }
+        Downloads.YtdlType = selectedProvider;
         Verification.RefreshYoutubeDlLocation();
         if (!Verification.YoutubeDlAvailable)
             txtSettingsGeneralYoutubeDlPath.Text = Verification.GetExpectedYoutubeDlPath();

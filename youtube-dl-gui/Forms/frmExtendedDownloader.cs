@@ -618,6 +618,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
         if (!MediaDetails.GenerateArguments()) {
             return;
         }
+        DownloadHistoryExecution? HistoryExecution = MediaDetails.DownloadHistoryExecution;
 
         txtGeneratedArguments.Text = MediaDetails.ArgumentsCensored;
         rtbVerbose.AppendLine(Log.RawProviderDiagnosticWarning);
@@ -717,9 +718,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data.Trim()));
                 }
             };
-            using DownloadHistoryLease? DownloadLease = DownloadHistory.Enabled ? DownloadHistory.AcquireArchiveLease() : null;
+            using DownloadHistoryLease? DownloadLease = HistoryExecution?.AcquireValidatedLease();
             try {
-                DownloadProcess.Start();
+                try {
+                    DownloadProcess.Start();
                 Ownership.Attach();
                 DownloadProcess.StandardInput.Close();
                 Output.Start();
@@ -849,8 +851,12 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
             DownloadProcess.Dispose();
             DownloadProcess = null;
 
-            if (!CancellationRequested && Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
-                Status = ExitCode == 0 ? DownloadStatus.Finished : DownloadStatus.YtdlError;
+                if (!CancellationRequested && Status != DownloadStatus.Aborted && Status != DownloadStatus.AbortForClose) {
+                    Status = ExitCode == 0 ? DownloadStatus.Finished : DownloadStatus.YtdlError;
+                }
+            }
+            finally {
+                HistoryExecution?.RefreshBackupAfterRun();
             }
 
             this.Invoke(() => {
@@ -1011,6 +1017,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     BatchHadErrors = true;
                     continue;
                 }
+                DownloadHistoryExecution? BatchHistoryExecution = MediaDetails.DownloadHistoryExecution;
                 args = MediaDetails.Arguments;
 
                 DownloadProcess = new() {
@@ -1067,9 +1074,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                         rtbVerbose.Invoke(() => rtbVerbose.AppendLine($"Error: {e.Data.Trim()}"));
                     }
                 };
-                using DownloadHistoryLease? DownloadLease = DownloadHistory.Enabled ? DownloadHistory.AcquireArchiveLease() : null;
+                using DownloadHistoryLease? DownloadLease = BatchHistoryExecution?.AcquireValidatedLease();
                 try {
-                    DownloadProcess.Start();
+                    try {
+                        DownloadProcess.Start();
                     Ownership.Attach();
                     DownloadProcess.StandardInput.Close();
                     Output.Start();
@@ -1199,11 +1207,15 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     break;
                 }
 
-                this.Invoke(() => {
-                    pbStatus.Style = ProgressBarStyle.Continuous;
-                    pbStatus.Value = 0;
-                    pbStatus.Text = "Queueing next download";
-                });
+                    this.Invoke(() => {
+                        pbStatus.Style = ProgressBarStyle.Continuous;
+                        pbStatus.Value = 0;
+                        pbStatus.Text = "Queueing next download";
+                    });
+                }
+                finally {
+                    BatchHistoryExecution?.RefreshBackupAfterRun();
+                }
             }
 
             this.Invoke(() => {

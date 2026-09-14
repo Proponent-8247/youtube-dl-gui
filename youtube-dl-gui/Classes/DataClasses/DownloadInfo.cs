@@ -35,6 +35,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
     /// Custom arguments for youtube-dl.
     /// </summary>
     public string? CustomArguments { get; set; }
+    public DownloadHistoryExecution? DownloadHistoryExecution { get; private set; }
     /// <summary>
     /// The status of the current download
     /// </summary>
@@ -119,6 +120,8 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
     public override bool GenerateArguments(Action<string> Verbose) {
         Status = DownloadStatus.Preparing;
         DisposeAuthenticationConfig();
+        DownloadHistoryExecution = null;
+        string EffectiveFileNameSchema = FileNameSchema.IsNullEmptyWhitespace() ? "%(title)s-%(id)s.%(ext)s" : FileNameSchema;
 
         if (DownloadURL.IsNullEmptyWhitespace()) {
             Verbose("The URL is null or empty. Please enter a URL to download.");
@@ -126,11 +129,12 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
             return false;
         }
 
-        if (!DownloadHistory.TryGetArchiveArguments(FileNameSchema, CustomArguments, out string DownloadArchiveArguments, out string DownloadHistoryError)) {
+        if (!DownloadHistory.TryGetArchiveArguments(EffectiveFileNameSchema, CustomArguments, out string DownloadArchiveArguments, out string DownloadHistoryError, out DownloadHistoryExecution? HistoryExecution)) {
             Verbose(DownloadHistoryError);
             Status = DownloadStatus.ProgramError;
             return false;
         }
+        DownloadHistoryExecution = HistoryExecution;
 
         ArgumentList ArgumentsBuffer = [];
         ArgumentList PreviewArguments;
@@ -189,11 +193,8 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
         }
         if (FileNameSchema.IsNullEmptyWhitespace()) {
             Verbose("The file name schema is not properly set, falling back to the default one. Consider setting it in the settings, or making sure the schema list has a proper schema format on the main form.");
-            OutputDirectory.Append("\\%(title)s-%(id)s.%(ext)s\"");
         }
-        else {
-            OutputDirectory.Append('\\').Append(FileNameSchema).Append('\"');
-        }
+        OutputDirectory.Append('\\').Append(EffectiveFileNameSchema).Append('\"');
 
         if (!MostlyCustomArguments) {
             ArgumentsBuffer.Add($"-o {OutputDirectory}");

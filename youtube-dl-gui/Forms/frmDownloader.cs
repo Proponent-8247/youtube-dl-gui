@@ -179,6 +179,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
             DownloadFinished();
             return;
         }
+        DownloadHistoryExecution? HistoryExecution = CurrentDownload.DownloadHistoryExecution;
 
         rtbVerbose.AppendLine("Arguments have been generated and are readonly in the textbox");
         if (Verification.YtDlpProgressProblem) {
@@ -315,8 +316,9 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                     pbStatus.ShowInTaskbar = true;
                 });
 
-                using DownloadHistoryLease? DownloadLease = DownloadHistory.Enabled ? DownloadHistory.AcquireArchiveLease() : null;
-                DownloadProcess.Start();
+                using DownloadHistoryLease? DownloadLease = HistoryExecution?.AcquireValidatedLease();
+                try {
+                    DownloadProcess.Start();
                 Ownership.Attach();
                 DownloadProcess.StandardInput.Close();
                 Output.Start();
@@ -408,10 +410,14 @@ internal partial class frmDownloader : LocalizedProcessingForm {
 
                 Output.Drain(5000);
 
-                CurrentDownload.Status = CancellationRequested ? DownloadStatus.Aborted : DownloadProcess.ExitCode switch {
-                    0 => DownloadStatus.Finished,
-                    _ => CurrentDownload.Status == DownloadStatus.Aborted ? DownloadStatus.Aborted : DownloadStatus.YtdlError
-                };
+                    CurrentDownload.Status = CancellationRequested ? DownloadStatus.Aborted : DownloadProcess.ExitCode switch {
+                        0 => DownloadStatus.Finished,
+                        _ => CurrentDownload.Status == DownloadStatus.Aborted ? DownloadStatus.Aborted : DownloadStatus.YtdlError
+                    };
+                }
+                finally {
+                    HistoryExecution?.RefreshBackupAfterRun();
+                }
             }
             catch (ThreadAbortException) {
                 if (DownloadProcess is not null) {

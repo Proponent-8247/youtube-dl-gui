@@ -40,6 +40,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
     /// Gets the protected arguments that censors out the Username/Password of accounts.
     /// </summary>
     public string ArgumentsCensored { get; private set; } = string.Empty;
+    public DownloadHistoryExecution? DownloadHistoryExecution { get; private set; }
 
     /// <summary>
     /// Gets or sets the deserialized data associated with this instance.
@@ -500,10 +501,13 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
     }
     public override bool GenerateArguments() {
         DisposeAuthenticationConfig();
-        if (!DownloadHistory.TryGetArchiveArguments(FileNameSchema, CustomArguments, out string DownloadArchiveArguments, out string DownloadHistoryError)) {
+        DownloadHistoryExecution = null;
+        string Schema = FileNameSchema.IsNullEmptyWhitespace() ? "%(title)s-%(id)s.%(ext)s" : FileNameSchema;
+        if (!DownloadHistory.TryGetArchiveArguments(Schema, CustomArguments, out string DownloadArchiveArguments, out string DownloadHistoryError, out DownloadHistoryExecution? HistoryExecution)) {
             Log.Write(DownloadHistoryError);
             return false;
         }
+        DownloadHistoryExecution = HistoryExecution;
         ArgumentList ArgumentBuffer = [];
 
         #region Outuput path
@@ -522,8 +526,6 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
         if (Downloads.separateIntoWebsiteURL) {
             OutputPath.Append(URL.StartsWith("ytarchive:", StringComparison.InvariantCultureIgnoreCase) ? "\\archived.youtube.com" : $"\\{DownloadHelper.GetUrlBase(URL)}");
         }
-
-        string Schema = FileNameSchema.IsNullEmptyWhitespace() ? "%(title)s-%(id)s.%(ext)s" : FileNameSchema;
 
         if (!Schema.EndsWith(".%(ext)s", StringComparison.InvariantCultureIgnoreCase)) {
             Schema += ".%(ext)s";

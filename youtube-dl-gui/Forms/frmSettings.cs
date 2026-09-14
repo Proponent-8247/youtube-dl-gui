@@ -27,6 +27,7 @@ public partial class frmSettings : LocalizedForm {
     public frmSettings() {
         LoadingForm = true;
         InitializeComponent();
+        AddDownloadHistorySettingsButton();
 
         cbSettingsDownloadsUpdatingYtdlType.Items.Add($"{GithubLinks.ProviderRepos[0].User}/{GithubLinks.ProviderRepos[0].Repo} (default)");
         for (int i = 1; i < GithubLinks.ProviderRepos.Length; i++) {
@@ -39,6 +40,27 @@ public partial class frmSettings : LocalizedForm {
         LoadLanguage();
         LoadSettings();
     }
+    private void AddDownloadHistorySettingsButton() {
+        Button button = new() {
+            Text = "Download History / Duplicate Prevention...",
+            Dock = DockStyle.Bottom,
+            Height = 30,
+            TabIndex = 1000
+        };
+        button.Click += (_, _) => {
+            using frmDownloadHistory history = new();
+            history.ShowDialog(this);
+            int index = txtSettingsDownloadsFileNameSchema.Items.IndexOf(Downloads.fileNameSchema);
+            if (index < 0) {
+                txtSettingsDownloadsFileNameSchema.Items.Add(Downloads.fileNameSchema);
+                index = txtSettingsDownloadsFileNameSchema.Items.Count - 1;
+            }
+            txtSettingsDownloadsFileNameSchema.SelectedIndex = index;
+        };
+        tabDownloadsGeneral.Controls.Add(button);
+        button.BringToFront();
+    }
+
     private void frmSettings_Load(object sender, EventArgs e) {
         if (Saved.SettingsFormSize.Valid) {
             this.StartPosition = FormStartPosition.Manual;
@@ -643,6 +665,14 @@ public partial class frmSettings : LocalizedForm {
     }
 
     private void btnSettingsSave_Click(object sender, EventArgs e) {
+        if (DownloadHistory.Enabled && !DownloadHistory.HasRequiredIdTemplate(txtSettingsDownloadsFileNameSchema.Text)) {
+            MessageBox.Show(this,
+                "Download History is enabled, so the filename format must contain %(id)s. Disable Download History first if you want to remove media IDs.",
+                "Media ID required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            tcMain.SelectedTab = tabSettingsDownloads;
+            txtSettingsDownloadsFileNameSchema.Focus();
+            return;
+        }
         SaveSettings();
         SettingsSaved = true;
         this.Dispose();

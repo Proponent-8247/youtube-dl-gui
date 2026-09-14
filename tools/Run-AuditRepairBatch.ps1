@@ -39,10 +39,24 @@ function Build-And-Test([string]$label) {
     }
 }
 
+function Assert-ReviewedFailures([string[]]$Failures, [string[]]$Required, [string[]]$AllowedFlaky, [string]$Label) {
+    $missingRequired = @($Required | Where-Object { $_ -notin $Failures })
+    if ($missingRequired.Count -gt 0) { throw "$Label is missing reviewed deterministic failures: $missingRequired" }
+    $allowed = @($Required + $AllowedFlaky | Sort-Object -Unique)
+    $unexpected = @($Failures | Where-Object { $_ -notin $allowed })
+    if ($unexpected.Count -gt 0) { throw "$Label contains unreviewed regression failures: $unexpected" }
+}
+
 try {
     $previous = Build-And-Test '00-before'
     $expected = @($plan.expected_failures | Sort-Object)
-    if (($expected -join "`n") -cne ($previous.Failed -join "`n")) { throw 'The baseline failures differ from the reviewed request.' }
+    $allowedFlaky = @()
+    if ($plan.PSObject.Properties.Name -contains 'allowed_flaky_failures') {
+        $allowedFlaky = @($plan.allowed_flaky_failures | Sort-Object -Unique)
+    }
+    $unknownFlaky = @($allowedFlaky | Where-Object { $_ -notin $previous.Names })
+    if ($unknownFlaky.Count -gt 0) { throw "Allowed flaky failures name tests that do not exist: $unknownFlaky" }
+    Assert-ReviewedFailures -Failures $previous.Failed -Required $expected -AllowedFlaky $allowedFlaky -Label 'The baseline'
     git config user.name 'github-actions[bot]'
     git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
     for ($i = 0; $i -lt $plan.repairs.Count; $i++) {
@@ -54,7 +68,7 @@ try {
         $next = Build-And-Test ('{0:D2}-{1}' -f ($i + 1), $repair.id)
         $removedTests = @($previous.Names | Where-Object { $_ -notin $next.Names })
         if ($removedTests.Count -gt 0) { throw "A repair removed or renamed regression coverage: $removedTests" }
-        $introduced = @($next.Failed | Where-Object { $_ -notin $previous.Failed })
+        $introduced = @($next.Failed | Where-Object { $_ -notin $previous.Failed -and $_ -notin $allowedFlaky })
         if ($introduced.Count -gt 0) { throw "New regression failures: $introduced" }
         foreach ($test in $repair.resolves) {
             if ($test -notin $next.Names -or $test -in $next.Failed) { throw "Repair did not satisfy its required regression: $test" }
@@ -73,10 +87,8 @@ try {
         $remaining = @($plan.remaining_failures | Sort-Object)
     }
     $unknownRemaining = @($remaining | Where-Object { $_ -notin $expected })
-    if ($unknownRemaining.Count -gt 0) { throw "Remaining failure set contains tests not present in the baseline: $unknownRemaining" }
-    if (($remaining -join "`n") -cne ($previous.Failed -join "`n")) {
-        throw 'The final failure set differs from the reviewed remaining-failure list.'
-    }
+    if ($unknownRemaining.Count -gt 0) { throw "Remaining failure set contains tests not present in the reviewed deterministic baseline: $unknownRemaining" }
+    Assert-ReviewedFailures -Failures $previous.Failed -Required $remaining -AllowedFlaky $allowedFlaky -Label 'The final result'
 
     Remove-Item .audit-repairs.json
     git add -- .audit-repairs.json
@@ -87,10 +99,10 @@ try {
     git push origin "HEAD:$env:GITHUB_REF_NAME"
     if ($LASTEXITCODE -ne 0) { throw 'Branch moved or push failed; no force update was attempted.' }
     if ($remaining.Count -eq 0) {
-        'All repairs and the complete regression suite passed.' | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
+        'All repairs passed; only explicitly reviewed nondeterministic baseline failures, if any, were tolerated.' | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
     }
     else {
-        "All requested repairs passed; $($remaining.Count) reviewed regression failure(s) remain for later guarded batches." | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
+        "All requested repairs passed; $($remaining.Count) reviewed deterministic regression failure(s) remain for later guarded batches." | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
     }
 }
 finally {

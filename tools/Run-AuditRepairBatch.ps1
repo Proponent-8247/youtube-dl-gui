@@ -82,7 +82,9 @@ try {
     git add -- .audit-repairs.json
     git commit -m 'audit: close regression-verified repair batch'
     if ($LASTEXITCODE -ne 0) { throw 'Request cleanup commit failed.' }
-    git push origin HEAD:audit-fixes
+    $allowedBranches = @('audit-fixes', 'feature/download-history-archive-3.3.0-2')
+    if ($env:GITHUB_REF_NAME -notin $allowedBranches) { throw 'Guarded repair push target is not allowed.' }
+    git push origin "HEAD:$env:GITHUB_REF_NAME"
     if ($LASTEXITCODE -ne 0) { throw 'Branch moved or push failed; no force update was attempted.' }
     if ($remaining.Count -eq 0) {
         'All repairs and the complete regression suite passed.' | Set-Content (Join-Path $EvidenceDirectory 'status.txt')

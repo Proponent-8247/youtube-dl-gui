@@ -433,12 +433,16 @@ internal static class DownloadHistory {
                 error = "--no-part and --trim-filenames/--trim-file-names are not allowed while Download History protection is enabled because incomplete or truncated filenames can defeat safe ID-based recovery.";
                 return false;
             }
+            if (ContainsOption(customArguments, "--config-locations") || ContainsOption(customArguments, "--alias")) {
+                error = "Custom yt-dlp config locations and runtime aliases are not allowed while Download History protection is enabled because they can inject options that bypass archive and filename integrity checks. Move compatible options into the app's custom arguments instead.";
+                return false;
+            }
 
             if (!EnsureReady(out error)) return false;
             if (!RememberFileNameSchema(fileNameSchema, out error)) return false;
             string preparedArchive = EffectiveArchivePath;
             execution = new DownloadHistoryExecution(preparedArchive, KeepBackup);
-            archiveArguments = $"--download-archive \"{preparedArchive}\" --no-break-on-existing";
+            archiveArguments = $"--ignore-config --download-archive \"{preparedArchive}\" --no-break-on-existing";
             return true;
         }
     }

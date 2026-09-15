@@ -656,6 +656,7 @@ internal static partial class AuditRegression {
                 if (i > 0) Set(info.GetType(), info, "BatchDownload", true);
                 Require((bool)Call(info.GetType(), info, "GenerateArguments", (Action<string>)(delegate(string ignored) { })), "Standard argument generation failed for archive-aware source " + i);
                 string args = (string)Get(info, "Arguments");
+                Require(args.Contains("--ignore-config"), "Standard protected input did not isolate ambient yt-dlp configuration");
                 Require(args.Contains("--download-archive \"" + fixture.Archive + "\""), "Standard input did not use the shared library archive");
                 Require(args.Contains("--no-break-on-existing"), "Standard collection path did not preserve full traversal");
                 Require(Get(info, "DownloadHistoryExecution") != null, "Standard input did not retain its prepared history context");
@@ -683,6 +684,7 @@ internal static partial class AuditRegression {
             Set(media.GetType(), media, "CustomArguments", "--skip-download");
             Require((bool)Call(media.GetType(), media, "GenerateArguments"), "Extended archive-aware argument generation failed");
             string extendedArgs = (string)Get(media, "Arguments");
+            Require(extendedArgs.Contains("--ignore-config"), "Extended protected input did not isolate ambient yt-dlp configuration");
             Require(extendedArgs.Contains("--download-archive \"" + fixture.Archive + "\""), "Extended input did not use the shared library archive");
             Require(extendedArgs.Contains("--no-break-on-existing"), "Extended collection path did not preserve full traversal");
             Require(extendedArgs.Contains("%(title)s-%(id)s.%(ext)s"), "Extended fallback schema lost the mandatory media ID");
@@ -690,10 +692,37 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryIgnoresAmbientYtDlpConfig() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
+            Require(arguments.Contains("--ignore-config"), "Protected arguments do not isolate downloads from ambient yt-dlp configuration files");
+            Require(arguments.IndexOf("--ignore-config", StringComparison.Ordinal) < arguments.IndexOf("--download-archive", StringComparison.Ordinal), "Ambient-config isolation is not part of the native protected argument prefix");
+
+            string[] bypasses = {
+                "--config-locations custom.conf",
+                "--config-location custom.conf",
+                "--config-loc custom.conf",
+                "--alias unsafe \"--force-write-archive\" --unsafe"
+            };
+            foreach (string custom in bypasses) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(!string.IsNullOrEmpty(error), "Ambient-config bypass was rejected without an explanation: " + custom);
+            }
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", "--config-locations custom.conf --alias unsafe \"--no-part\"", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void RunDownloadHistoryTests() {
         Test("DOWNLOAD_HISTORY.NeverEnabledIsNoOp", DownloadHistoryNeverEnabledIsNoOp);
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
         Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);
+        Test("DOWNLOAD_HISTORY.IgnoresAmbientYtDlpConfig", DownloadHistoryIgnoresAmbientYtDlpConfig);
         Test("DOWNLOAD_HISTORY.RebuildsDeletedArchiveFromIds", DownloadHistoryRebuildsDeletedArchiveFromIds);
         Test("DOWNLOAD_HISTORY.RecoversHistoricalProtectedSchemas", DownloadHistoryRecoversHistoricalProtectedSchemas);
         Test("DOWNLOAD_HISTORY.UnderstandsIdPlacementFromSchema", DownloadHistoryUnderstandsIdPlacementFromSchema);

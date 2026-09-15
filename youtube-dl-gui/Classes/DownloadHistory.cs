@@ -176,6 +176,7 @@ internal static class DownloadHistory {
     private static bool fNeedsReconciliation = IniProvider.Read(false, false, ConfigName, nameof(NeedsReconciliation));
     private static string fBoundLibraryRoot = IniProvider.Read(string.Empty, string.Empty, ConfigName, nameof(BoundLibraryRoot));
     private static string fBoundArchivePath = IniProvider.Read(string.Empty, string.Empty, ConfigName, nameof(BoundArchivePath));
+    private static string fKnownFileNameSchemas = IniProvider.Read(string.Empty, string.Empty, ConfigName, "KnownFileNameSchemas");
 
     public static bool Enabled {
         get => fEnabled;
@@ -434,6 +435,7 @@ internal static class DownloadHistory {
             }
 
             if (!EnsureReady(out error)) return false;
+            if (!RememberFileNameSchema(fileNameSchema, out error)) return false;
             string preparedArchive = EffectiveArchivePath;
             execution = new DownloadHistoryExecution(preparedArchive, KeepBackup);
             archiveArguments = $"--download-archive \"{preparedArchive}\" --no-break-on-existing";
@@ -1164,22 +1166,64 @@ internal static class DownloadHistory {
         return match;
     }
 
+    private static bool RememberFileNameSchema(string schema, out string error) {
+        error = string.Empty;
+        if (!HasRequiredIdTemplate(schema)) return true;
+        string normalized = schema.Trim();
+        string[] known = fKnownFileNameSchemas.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+        if (known.Any(value => string.Equals(value, normalized, StringComparison.OrdinalIgnoreCase))) return true;
+        try {
+            string updated = known.Length == 0 ? normalized : fKnownFileNameSchemas + "|" + normalized;
+            IniProvider.Write(updated, ConfigName, "KnownFileNameSchemas");
+            fKnownFileNameSchemas = updated;
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+            error = "Download History could not persist the protected filename format needed for future archive recovery: " + ex.Message;
+            return false;
+        }
+    }
+
+    private static IEnumerable<string> RecoveryFileNameSchemas() {
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        if (!Downloads.fileNameSchema.IsNullEmptyWhitespace() && seen.Add(Downloads.fileNameSchema)) {
+            yield return Downloads.fileNameSchema;
+        }
+        foreach (string source in new[] { fKnownFileNameSchemas }) {
+            if (source.IsNullEmptyWhitespace()) continue;
+            foreach (string schema in source.Split('|')) {
+                string candidate = schema.Trim();
+                if (candidate.Length > 0 && seen.Add(candidate)) yield return candidate;
+            }
+        }
+    }
+
     private static bool TryExtractYoutubeIdFromSchema(string mediaPath, out string? sourceId) {
         sourceId = null;
-        string template = GetSchemaFileTemplate(Downloads.fileNameSchema);
-        if (template.IsNullEmptyWhitespace() || template.IndexOf("%(id)s", StringComparison.OrdinalIgnoreCase) < 0) return false;
-        string pattern = BuildSchemaRegex(template, "(?<id>[A-Za-z0-9_-]{11})");
-        Match match = Regex.Match(Path.GetFileName(mediaPath), pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        if (!match.Success || !match.Groups["id"].Success) return false;
-        sourceId = match.Groups["id"].Value;
-        return sourceId.Length == 11;
+        foreach (string schema in RecoveryFileNameSchemas()) {
+            string template = GetSchemaFileTemplate(schema);
+            if (template.IsNullEmptyWhitespace() || template.IndexOf("%(id)s", StringComparison.OrdinalIgnoreCase) < 0) continue;
+            string pattern = BuildSchemaRegex(template, "(?<id>[A-Za-z0-9_-]{11})");
+            Match match = Regex.Match(Path.GetFileName(mediaPath), pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (!match.Success || !match.Groups["id"].Success) continue;
+            string candidate = match.Groups["id"].Value;
+            if (sourceId is not null && !string.Equals(sourceId, candidate, StringComparison.Ordinal)) {
+                sourceId = null;
+                return false;
+            }
+            sourceId = candidate;
+        }
+        return sourceId?.Length == 11;
     }
 
     private static bool SchemaFileNameContainsSourceId(string mediaPath, string sourceId) {
-        string template = GetSchemaFileTemplate(Downloads.fileNameSchema);
-        if (template.IsNullEmptyWhitespace() || template.IndexOf("%(id)s", StringComparison.OrdinalIgnoreCase) < 0) return false;
-        string pattern = BuildSchemaRegex(template, Regex.Escape(sourceId));
-        return Regex.IsMatch(Path.GetFileName(mediaPath), pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        foreach (string schema in RecoveryFileNameSchemas()) {
+            string template = GetSchemaFileTemplate(schema);
+            if (template.IsNullEmptyWhitespace() || template.IndexOf("%(id)s", StringComparison.OrdinalIgnoreCase) < 0) continue;
+            string pattern = BuildSchemaRegex(template, Regex.Escape(sourceId));
+            if (Regex.IsMatch(Path.GetFileName(mediaPath), pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) return true;
+        }
+        return false;
     }
 
     private static string GetSchemaFileTemplate(string schema) {

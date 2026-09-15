@@ -15,6 +15,7 @@ internal static partial class AuditRegression {
         private readonly string oldDownloadPath;
         private readonly string oldFileNameSchema;
         private readonly int oldYtdlType;
+        private readonly string oldKnownFileNameSchemas;
         public readonly string Root;
 
         public DownloadHistoryFixture(bool createRoot) {
@@ -24,6 +25,7 @@ internal static partial class AuditRegression {
             oldDownloadPath = (string)downloads.GetProperty("downloadPath", All).GetValue(null, null);
             oldFileNameSchema = (string)downloads.GetProperty("fileNameSchema", All).GetValue(null, null);
             oldYtdlType = (int)downloads.GetProperty("YtdlType", All).GetValue(null, null);
+            oldKnownFileNameSchemas = (string)history.GetField("fKnownFileNameSchemas", All).GetValue(null);
 
             Root = Path.Combine(Environment.CurrentDirectory, "download-history-" + Guid.NewGuid().ToString("N"));
             if (createRoot) Directory.CreateDirectory(Root);
@@ -39,6 +41,7 @@ internal static partial class AuditRegression {
             history.GetField("fNeedsReconciliation", All).SetValue(null, false);
             history.GetField("fBoundLibraryRoot", All).SetValue(null, string.Empty);
             history.GetField("fBoundArchivePath", All).SetValue(null, string.Empty);
+            history.GetField("fKnownFileNameSchemas", All).SetValue(null, string.Empty);
             history.GetField("PreparedKey", All).SetValue(null, null);
         }
 
@@ -51,6 +54,7 @@ internal static partial class AuditRegression {
             try { Set(downloads, null, "downloadPath", oldDownloadPath); } catch { }
             try { Set(downloads, null, "fileNameSchema", oldFileNameSchema); } catch { }
             try { Set(downloads, null, "YtdlType", oldYtdlType); } catch { }
+            try { history.GetField("fKnownFileNameSchemas", All).SetValue(null, oldKnownFileNameSchemas); } catch { }
             try { if (Directory.Exists(Root)) Directory.Delete(Root, true); } catch { }
         }
     }
@@ -209,6 +213,25 @@ internal static partial class AuditRegression {
             object rebuilt = DownloadHistoryReconcile(fixture, string.Empty, true);
             Equal(1, Get(rebuilt, "ArchiveEntries"));
             Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+        }
+    }
+
+    private static void DownloadHistoryRecoversHistoricalProtectedSchemas() {
+        const string id = "9qFjkwAElDs";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            Set(fixture.Downloads, null, "fileNameSchema", "%(id)s--%(title)s.%(ext)s");
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(id)s--%(title)s.%(ext)s", null, out arguments, out error, out execution));
+            DownloadHistoryWriteMedia(fixture.Root, id + "--historical-title.mp4");
+
+            Set(fixture.Downloads, null, "fileNameSchema", "NEW-%(id)s.%(ext)s");
+            File.Delete(fixture.Archive);
+            File.Delete(fixture.Archive + ".bak");
+            object rebuilt = Call(fixture.History, null, "ReconcileLibrary", string.Empty, true, true);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Require(DownloadHistoryArchiveLines(fixture.Archive).Contains("youtube " + id), "Archive loss could not recover a file written with an earlier protected filename schema");
         }
     }
 
@@ -672,6 +695,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
         Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);
         Test("DOWNLOAD_HISTORY.RebuildsDeletedArchiveFromIds", DownloadHistoryRebuildsDeletedArchiveFromIds);
+        Test("DOWNLOAD_HISTORY.RecoversHistoricalProtectedSchemas", DownloadHistoryRecoversHistoricalProtectedSchemas);
         Test("DOWNLOAD_HISTORY.UnderstandsIdPlacementFromSchema", DownloadHistoryUnderstandsIdPlacementFromSchema);
         Test("DOWNLOAD_HISTORY.MigratesLegacyMetadata", DownloadHistoryMigratesLegacyMetadata);
         Test("DOWNLOAD_HISTORY.MigrationFailureRollsBackMedia", DownloadHistoryMigrationFailureRollsBackMedia);

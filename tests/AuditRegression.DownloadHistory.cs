@@ -271,6 +271,23 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryUsesTopLevelInfoJsonIdentity() {
+        const string correctId = "9qFjkwAElDs";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string media = DownloadHistoryWriteMedia(fixture.Root, "Nested Metadata.mp4");
+            string stem = Path.Combine(Path.GetDirectoryName(media), Path.GetFileNameWithoutExtension(media));
+            File.WriteAllText(stem + ".info.json", "{\"formats\":[{\"id\":\"WRONG_ID_01\",\"extractor_key\":\"WrongExtractor\"}],\"id\":\"" + correctId + "\",\"extractor_key\":\"Youtube\"}", Encoding.UTF8);
+
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Migratable", DownloadHistoryStateName(analysis));
+            Equal(1, Get(analysis, "MetadataRecovered"));
+            object migrated = DownloadHistoryReconcile(fixture, string.Empty, true);
+            Equal("youtube " + correctId, DownloadHistoryArchiveLines(fixture.Archive).Single());
+            Require(File.Exists(Path.Combine(fixture.Root, "Nested Metadata-" + correctId + ".mp4")), "Metadata recovery did not use the top-level media identity");
+            Require(!File.Exists(Path.Combine(fixture.Root, "Nested Metadata-WRONG_ID_01.mp4")), "Nested metadata identity was incorrectly trusted as the media identity");
+        }
+    }
+
     private static void DownloadHistoryMigratesLegacyMetadata() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -770,6 +787,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RebuildsDeletedArchiveFromIds", DownloadHistoryRebuildsDeletedArchiveFromIds);
         Test("DOWNLOAD_HISTORY.RecoversHistoricalProtectedSchemas", DownloadHistoryRecoversHistoricalProtectedSchemas);
         Test("DOWNLOAD_HISTORY.UnderstandsIdPlacementFromSchema", DownloadHistoryUnderstandsIdPlacementFromSchema);
+        Test("DOWNLOAD_HISTORY.UsesTopLevelInfoJsonIdentity", DownloadHistoryUsesTopLevelInfoJsonIdentity);
         Test("DOWNLOAD_HISTORY.MigratesLegacyMetadata", DownloadHistoryMigratesLegacyMetadata);
         Test("DOWNLOAD_HISTORY.MigrationFailureRollsBackMedia", DownloadHistoryMigrationFailureRollsBackMedia);
         Test("DOWNLOAD_HISTORY.BlocksPartialAndUnsafeLibraries", DownloadHistoryBlocksPartialAndUnsafeLibraries);

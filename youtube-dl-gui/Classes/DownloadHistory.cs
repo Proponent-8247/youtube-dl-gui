@@ -6,6 +6,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Web.Script.Serialization;
 
 internal enum DownloadHistoryState {
     Disabled,
@@ -1144,8 +1145,19 @@ internal static class DownloadHistory {
         if (!File.Exists(candidate)) return null;
         try {
             string json = File.ReadAllText(candidate);
-            string? recoveredId = JsonStringValue(json, "id");
-            string? extractor = JsonStringValue(json, "extractor_key") ?? JsonStringValue(json, "ie_key") ?? JsonStringValue(json, "extractor");
+            JavaScriptSerializer serializer = new() {
+                MaxJsonLength = Math.Max(2 * 1024 * 1024, json.Length),
+                RecursionLimit = 256
+            };
+            if (serializer.DeserializeObject(json) is not Dictionary<string, object> root) return null;
+            string? recoveredId = root.TryGetValue("id", out object? idValue) ? idValue as string : null;
+            string? extractor = null;
+            foreach (string key in new[] { "extractor_key", "ie_key", "extractor" }) {
+                if (root.TryGetValue(key, out object? value) && value is string text && !text.IsNullEmptyWhitespace()) {
+                    extractor = text;
+                    break;
+                }
+            }
             if (recoveredId.IsNullEmptyWhitespace() || extractor.IsNullEmptyWhitespace()) return null;
             sourceId = recoveredId!.Trim();
             infoPath = candidate;
@@ -1153,11 +1165,8 @@ internal static class DownloadHistory {
         }
         catch (IOException) { return null; }
         catch (UnauthorizedAccessException) { return null; }
-    }
-
-    private static string? JsonStringValue(string json, string property) {
-        Match match = Regex.Match(json, "\"" + Regex.Escape(property) + "\"\\s*:\\s*\"(?<v>[^\"]+)\"", RegexOptions.CultureInvariant);
-        return match.Success ? match.Groups["v"].Value : null;
+        catch (ArgumentException) { return null; }
+        catch (InvalidOperationException) { return null; }
     }
 
     private static bool FileNameContainsRecoverableSourceId(string mediaPath, string sourceId, string archiveEntry, HashSet<string> archiveEntries) {

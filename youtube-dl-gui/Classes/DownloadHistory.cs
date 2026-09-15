@@ -337,6 +337,12 @@ internal static class DownloadHistory {
                 PreparedKey = null;
                 return;
             }
+            HashSet<string> backupEntries = new(StringComparer.Ordinal);
+            if (TryReadArchive(archive + ".bak", backupEntries, out _) && backupEntries.Any(entry => !entries.Contains(entry))) {
+                PreparedKey = null;
+                Log.Write("Download History preserved its previous backup because the primary archive lost existing entries. The next protected operation will reconcile the ledger before downloading.");
+                return;
+            }
             CopyArchiveToBackupAtomically(archive);
         }
         catch (Exception ex) {
@@ -916,6 +922,12 @@ internal static class DownloadHistory {
         if (analysis.ArchiveExists) {
             if (TryReadArchive(archive, analysis.ArchiveEntries, out string archiveError)) {
                 analysis.ArchiveValid = true;
+                HashSet<string> backupEntries = new(StringComparer.Ordinal);
+                if (TryReadArchive(backup, backupEntries, out _)) {
+                    foreach (string entry in backupEntries) {
+                        if (analysis.ArchiveEntries.Add(entry)) analysis.ArchiveNeedsRewrite = true;
+                    }
+                }
             }
             else {
                 analysis.ArchiveWasInvalid = true;

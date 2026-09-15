@@ -301,6 +301,27 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryValidArchiveTruncationPreservesBackup() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            File.WriteAllText(fixture.Archive, "youtube oldEntry001\r\n", Encoding.UTF8);
+            Call(fixture.History, null, "RefreshBackupAfterRun");
+            Require(DownloadHistoryArchiveLines(fixture.Archive + ".bak").Contains("youtube oldEntry001"), "Known-good archive entry was not backed up");
+
+            File.WriteAllText(fixture.Archive, "youtube newEntry002\r\n", Encoding.UTF8);
+            Call(fixture.History, null, "RefreshBackupAfterRun");
+            string[] preserved = DownloadHistoryArchiveLines(fixture.Archive + ".bak");
+            Require(preserved.Contains("youtube oldEntry001") && !preserved.Contains("youtube newEntry002"), "A truncated primary archive overwrote the last good backup");
+
+            object report = Call(fixture.History, null, "ReconcileLibrary", string.Empty, true, true);
+            Equal("Healthy", DownloadHistoryStateName(report));
+            string[] repaired = DownloadHistoryArchiveLines(fixture.Archive);
+            Require(repaired.Contains("youtube oldEntry001") && repaired.Contains("youtube newEntry002"), "Reconciliation did not union the valid primary archive with its last good backup");
+            string[] refreshed = DownloadHistoryArchiveLines(fixture.Archive + ".bak");
+            Require(refreshed.Contains("youtube oldEntry001") && refreshed.Contains("youtube newEntry002"), "Reconciliation did not refresh the backup after repairing archive truncation");
+        }
+    }
+
     private static void DownloadHistoryCorruptArchiveDoesNotTrustPartialLines() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -623,6 +644,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.BlocksPartialAndUnsafeLibraries", DownloadHistoryBlocksPartialAndUnsafeLibraries);
         Test("DOWNLOAD_HISTORY.UnexpectedLossRequiresExplicitReset", DownloadHistoryUnexpectedLossRequiresExplicitReset);
         Test("DOWNLOAD_HISTORY.BackupRefreshRejectsCorruption", DownloadHistoryBackupRefreshRejectsCorruption);
+        Test("DOWNLOAD_HISTORY.ValidArchiveTruncationPreservesBackup", DownloadHistoryValidArchiveTruncationPreservesBackup);
         Test("DOWNLOAD_HISTORY.CorruptArchiveDoesNotTrustPartialLines", DownloadHistoryCorruptArchiveDoesNotTrustPartialLines);
         Test("DOWNLOAD_HISTORY.DisableReenableReconcilesChanges", DownloadHistoryDisableReenableReconcilesChanges);
         Test("DOWNLOAD_HISTORY.ValidArchiveDoesNotPromoteUnarchivedFile", DownloadHistoryValidArchiveDoesNotPromoteUnarchivedFile);

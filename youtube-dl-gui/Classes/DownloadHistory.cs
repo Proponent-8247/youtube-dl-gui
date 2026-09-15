@@ -121,7 +121,7 @@ internal sealed class DownloadHistoryExecution {
         KeepBackup = keepBackup;
     }
 
-    public DownloadHistoryLease AcquireValidatedLease() => DownloadHistory.AcquireValidatedExecutionLease(ArchivePath);
+    public DownloadHistoryLease AcquireValidatedLease() => DownloadHistory.AcquireValidatedExecutionLease(ArchivePath, KeepBackup);
 
     // This overload deliberately assumes the execution lease is still held by the caller.
     public void RefreshBackupAfterRun() => DownloadHistory.RefreshBackupAfterRun(ArchivePath, KeepBackup);
@@ -466,9 +466,23 @@ internal static class DownloadHistory {
         Message = "Download History cannot " + operation + " while another protected download or history operation is using this archive. Try again after the active operation finishes."
     };
 
-    internal static DownloadHistoryLease AcquireValidatedExecutionLease(string archivePath) {
+    private static void ValidatePreparedExecution(string archivePath, bool keepBackup) {
+        if (!fEnabled) {
+            throw new InvalidOperationException("Download History was disabled after this download command was prepared. Regenerate the command before starting the download.");
+        }
+        if (!PathEquals(archivePath, EffectiveArchivePath) ||
+            (!BoundArchivePath.IsNullEmptyWhitespace() && !PathEquals(archivePath, BoundArchivePath)) ||
+            (!BoundLibraryRoot.IsNullEmptyWhitespace() && !PathEquals(GetLibraryRoot(), BoundLibraryRoot)) ||
+            fKeepBackup != keepBackup) {
+            throw new InvalidOperationException("Download History settings changed after this download command was prepared. Regenerate the command before starting the download.");
+        }
+    }
+
+    internal static DownloadHistoryLease AcquireValidatedExecutionLease(string archivePath, bool keepBackup) {
+        lock (Sync) ValidatePreparedExecution(archivePath, keepBackup);
         DownloadHistoryLease lease = AcquireArchiveLease(archivePath);
         try {
+            lock (Sync) ValidatePreparedExecution(archivePath, keepBackup);
             if (!File.Exists(archivePath)) {
                 throw new InvalidOperationException("The prepared Download History archive is no longer available. Regenerate the download command after validating Download History.");
             }

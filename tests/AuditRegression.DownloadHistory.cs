@@ -433,7 +433,7 @@ internal static partial class AuditRegression {
         }
     }
 
-    private static void DownloadHistoryExecutionContextSurvivesDisableButNotReset() {
+    private static void DownloadHistoryExecutionContextRejectsSettingChanges() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
             string arguments, error;
@@ -442,10 +442,23 @@ internal static partial class AuditRegression {
             Require(execution != null, "Protected command did not capture an archive execution context");
 
             Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
-            using (IDisposable lease = (IDisposable)Call(execution.GetType(), execution, "AcquireValidatedLease")) { }
-            Call(fixture.History, null, "ResetHistory");
             Throws<InvalidOperationException>(() => Call(execution.GetType(), execution, "AcquireValidatedLease"));
+
+            DownloadHistoryEnable(fixture, string.Empty);
+            object reboundExecution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out reboundExecution));
+            string otherDirectory = Path.Combine(fixture.Root, "other-ledger");
+            Directory.CreateDirectory(otherDirectory);
+            string otherArchive = Path.Combine(otherDirectory, "history.txt");
+            object reboundReport = DownloadHistoryReconcile(fixture, otherArchive, true);
+            Call(fixture.History, null, "CommitSettings", true, otherArchive, true, reboundReport);
+            Throws<InvalidOperationException>(() => Call(reboundExecution.GetType(), reboundExecution, "AcquireValidatedLease"));
         }
+    }
+
+    // Legacy audit ID retained so guarded repair history never removes existing coverage.
+    private static void DownloadHistoryExecutionContextSurvivesDisableButNotReset() {
+        DownloadHistoryExecutionContextRejectsSettingChanges();
     }
 
     private static void DownloadHistoryLeaseSerializesWorkers() {
@@ -597,6 +610,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.MissingParentHardStopsWithoutPersistence", DownloadHistoryMissingParentHardStopsWithoutPersistence);
         Test("DOWNLOAD_HISTORY.ManagementFailsFastWhenBusy", DownloadHistoryManagementFailsFastWhenBusy);
         Test("DOWNLOAD_HISTORY.ExecutionContextSurvivesDisableButNotReset", DownloadHistoryExecutionContextSurvivesDisableButNotReset);
+        Test("DOWNLOAD_HISTORY.ExecutionContextRejectsSettingChanges", DownloadHistoryExecutionContextRejectsSettingChanges);
         Test("DOWNLOAD_HISTORY.LeaseSerializesWorkers", DownloadHistoryLeaseSerializesWorkers);
         Test("DOWNLOAD_HISTORY.SettingsRejectIdRemovalWhileEnabled", DownloadHistorySettingsRejectIdRemovalWhileEnabled);
         Test("DOWNLOAD_HISTORY.LibraryBindingPreventsCrossLibraryReuse", DownloadHistoryLibraryBindingPreventsCrossLibraryReuse);

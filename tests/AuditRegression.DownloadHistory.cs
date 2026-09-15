@@ -495,6 +495,27 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryCancellationIsRecheckedBeforeProcessStart() {
+        string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
+        string standard = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmDownloader.cs"));
+        string extended = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmExtendedDownloader.cs"));
+
+        int standardLease = standard.IndexOf("using DownloadHistoryLease? DownloadLease = HistoryExecution?.AcquireValidatedLease();", StringComparison.Ordinal);
+        int standardGuard = standard.IndexOf("CancellationRequested || CurrentDownload.Status == DownloadStatus.Aborted || CurrentDownload.Status == DownloadStatus.AbortForClose", standardLease, StringComparison.Ordinal);
+        int standardStart = standard.IndexOf("DownloadProcess.Start();", standardLease, StringComparison.Ordinal);
+        Require(standardLease >= 0 && standardGuard > standardLease && standardStart > standardGuard, "Standard worker can start after cancellation while waiting for the archive lease");
+
+        int normalLease = extended.IndexOf("using DownloadHistoryLease? DownloadLease = HistoryExecution?.AcquireValidatedLease();", StringComparison.Ordinal);
+        int normalGuard = extended.IndexOf("CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose", normalLease, StringComparison.Ordinal);
+        int normalStart = extended.IndexOf("DownloadProcess.Start();", normalLease, StringComparison.Ordinal);
+        Require(normalLease >= 0 && normalGuard > normalLease && normalStart > normalGuard, "Extended worker can start after cancellation while waiting for the archive lease");
+
+        int batchLease = extended.IndexOf("using DownloadHistoryLease? DownloadLease = BatchHistoryExecution?.AcquireValidatedLease();", StringComparison.Ordinal);
+        int batchGuard = extended.IndexOf("CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose", batchLease, StringComparison.Ordinal);
+        int batchStart = extended.IndexOf("DownloadProcess.Start();", batchLease, StringComparison.Ordinal);
+        Require(batchLease >= 0 && batchGuard > batchLease && batchStart > batchGuard, "Extended batch worker can start after cancellation while waiting for the archive lease");
+    }
+
     private static void DownloadHistorySettingsRejectIdRemovalWhileEnabled() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             object report = DownloadHistoryEnable(fixture, string.Empty);
@@ -612,6 +633,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ExecutionContextSurvivesDisableButNotReset", DownloadHistoryExecutionContextSurvivesDisableButNotReset);
         Test("DOWNLOAD_HISTORY.ExecutionContextRejectsSettingChanges", DownloadHistoryExecutionContextRejectsSettingChanges);
         Test("DOWNLOAD_HISTORY.LeaseSerializesWorkers", DownloadHistoryLeaseSerializesWorkers);
+        Test("DOWNLOAD_HISTORY.CancellationIsRecheckedBeforeProcessStart", DownloadHistoryCancellationIsRecheckedBeforeProcessStart);
         Test("DOWNLOAD_HISTORY.SettingsRejectIdRemovalWhileEnabled", DownloadHistorySettingsRejectIdRemovalWhileEnabled);
         Test("DOWNLOAD_HISTORY.LibraryBindingPreventsCrossLibraryReuse", DownloadHistoryLibraryBindingPreventsCrossLibraryReuse);
         Test("DOWNLOAD_HISTORY.WorkersUsePreparedContext", DownloadHistoryWorkersUsePreparedContext);

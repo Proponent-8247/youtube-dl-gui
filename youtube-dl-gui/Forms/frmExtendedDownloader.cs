@@ -719,6 +719,9 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                 }
             };
             using DownloadHistoryLease? DownloadLease = HistoryExecution?.AcquireValidatedLease();
+            if (CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
+                return;
+            }
             try {
                 try {
                     DownloadProcess.Start();
@@ -1075,6 +1078,10 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     }
                 };
                 using DownloadHistoryLease? DownloadLease = BatchHistoryExecution?.AcquireValidatedLease();
+                if (CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
+                    lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Waiting);
+                    break;
+                }
                 try {
                     try {
                         DownloadProcess.Start();

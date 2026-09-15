@@ -159,6 +159,39 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsCustomArgumentsThatBreakProtection() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            string[] unsafeArguments = {
+                "-o custom-%(title)s.%(ext)s",
+                "-ocustom-%(id)s.%(ext)s",
+                "--output=custom-%(id)s.%(ext)s",
+                "-P elsewhere",
+                "-Pelsewhere",
+                "--paths=home:elsewhere",
+                "--force-write-archive",
+                "--force-write-download-archive",
+                "--force-download-archive",
+                "--no-part",
+                "--trim-filenames 80",
+                "--trim-file-names 80",
+                "--break-per-in",
+                "--download-arch legacy.txt"
+            };
+            foreach (string custom in unsafeArguments) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(!string.IsNullOrEmpty(error), "Unsafe custom argument was rejected without an explanation: " + custom);
+            }
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", "--write-info-json --skip-download -p secret -O %(id)s", out arguments, out error, out execution));
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", "-o custom.%(ext)s --no-part --force-write-archive", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryRebuildsDeletedArchiveFromIds() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -637,6 +670,7 @@ internal static partial class AuditRegression {
     private static void RunDownloadHistoryTests() {
         Test("DOWNLOAD_HISTORY.NeverEnabledIsNoOp", DownloadHistoryNeverEnabledIsNoOp);
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
+        Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);
         Test("DOWNLOAD_HISTORY.RebuildsDeletedArchiveFromIds", DownloadHistoryRebuildsDeletedArchiveFromIds);
         Test("DOWNLOAD_HISTORY.UnderstandsIdPlacementFromSchema", DownloadHistoryUnderstandsIdPlacementFromSchema);
         Test("DOWNLOAD_HISTORY.MigratesLegacyMetadata", DownloadHistoryMigratesLegacyMetadata);

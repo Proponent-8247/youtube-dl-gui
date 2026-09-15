@@ -417,6 +417,21 @@ internal static class DownloadHistory {
                 error = "--break-on-existing and --break-per-input are not allowed while Download History protection is enabled because they can stop collection traversal before new media is discovered.";
                 return false;
             }
+            if (ContainsShortOption(customArguments, "-o") || ContainsOption(customArguments, "--output") ||
+                ContainsShortOption(customArguments, "-P") || ContainsOption(customArguments, "--paths")) {
+                error = "Custom output templates or paths are not allowed while Download History protection is enabled because the app must keep %(id)s-bearing media inside the validated library namespace.";
+                return false;
+            }
+            if (ContainsOption(customArguments, "--force-write-archive") ||
+                ContainsOption(customArguments, "--force-write-download-archive") ||
+                ContainsOption(customArguments, "--force-download-archive")) {
+                error = "Forced archive writes are not allowed while Download History protection is enabled because simulated or skipped downloads must not be recorded as completed media.";
+                return false;
+            }
+            if (ContainsOption(customArguments, "--no-part") || ContainsOption(customArguments, "--trim-filenames") || ContainsOption(customArguments, "--trim-file-names")) {
+                error = "--no-part and --trim-filenames/--trim-file-names are not allowed while Download History protection is enabled because incomplete or truncated filenames can defeat safe ID-based recovery.";
+                return false;
+            }
 
             if (!EnsureReady(out error)) return false;
             string preparedArchive = EffectiveArchivePath;
@@ -1333,8 +1348,22 @@ internal static class DownloadHistory {
     private static bool ContainsOption(string? arguments, string option) {
         if (arguments.IsNullEmptyWhitespace()) return false;
         foreach (string token in TokenizeArguments(arguments!)) {
-            if (token.Equals(option, StringComparison.OrdinalIgnoreCase) ||
-                token.StartsWith(option + "=", StringComparison.OrdinalIgnoreCase)) {
+            int equals = token.IndexOf('=');
+            string name = equals >= 0 ? token.Substring(0, equals) : token;
+            if (name.Equals(option, StringComparison.OrdinalIgnoreCase) ||
+                (name.StartsWith("--", StringComparison.Ordinal) && option.StartsWith(name, StringComparison.OrdinalIgnoreCase))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool ContainsShortOption(string? arguments, string option) {
+        if (arguments.IsNullEmptyWhitespace()) return false;
+        foreach (string token in TokenizeArguments(arguments!)) {
+            if (token.Equals(option, StringComparison.Ordinal) ||
+                token.StartsWith(option + "=", StringComparison.Ordinal) ||
+                (token.Length > option.Length && token.StartsWith(option, StringComparison.Ordinal))) {
                 return true;
             }
         }

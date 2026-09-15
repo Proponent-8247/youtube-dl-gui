@@ -182,7 +182,9 @@ internal static partial class AuditRegression {
                 "--trim-filenames 80",
                 "--trim-file-names 80",
                 "--break-per-in",
-                "--download-arch legacy.txt"
+                "--download-arch legacy.txt",
+                "-- https://example.invalid/video",
+                "\"--\" https://example.invalid/video"
             };
             foreach (string custom in unsafeArguments) {
                 Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));

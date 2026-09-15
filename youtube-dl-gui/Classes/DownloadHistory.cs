@@ -437,6 +437,10 @@ internal static class DownloadHistory {
                 error = "Custom yt-dlp config locations and runtime aliases are not allowed while Download History protection is enabled because they can inject options that bypass archive and filename integrity checks. Move compatible options into the app's custom arguments instead.";
                 return false;
             }
+            if (ContainsOption(customArguments, "--")) {
+                error = "A standalone -- option terminator is not allowed while Download History protection is enabled because it would turn the app's native archive protection arguments into positional inputs. Remove the terminator or disable Download History.";
+                return false;
+            }
 
             if (!EnsureReady(out error)) return false;
             if (!RememberFileNameSchema(fileNameSchema, out error)) return false;

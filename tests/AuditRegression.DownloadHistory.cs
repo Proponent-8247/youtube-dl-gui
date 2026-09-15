@@ -531,6 +531,26 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryExecutionLeaseRejectsArchiveTruncation() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            File.WriteAllText(fixture.Archive, "youtube oldEntry001\r\n", Encoding.UTF8);
+            Call(fixture.History, null, "RefreshBackupAfterRun");
+
+            string arguments, error;
+            object execution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
+            File.WriteAllText(fixture.Archive, "youtube newEntry002\r\n", Encoding.UTF8);
+            Throws<InvalidOperationException>(() => Call(execution.GetType(), execution, "AcquireValidatedLease"));
+
+            object repairedExecution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out repairedExecution));
+            string[] repaired = DownloadHistoryArchiveLines(fixture.Archive);
+            Require(repaired.Contains("youtube oldEntry001") && repaired.Contains("youtube newEntry002"), "Regenerating a rejected command did not reconcile the truncated primary archive with its last-good backup");
+            using (IDisposable lease = (IDisposable)Call(repairedExecution.GetType(), repairedExecution, "AcquireValidatedLease")) { }
+        }
+    }
+
     private static void DownloadHistoryExecutionContextRejectsSettingChanges() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -763,6 +783,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ManagementFailsFastWhenBusy", DownloadHistoryManagementFailsFastWhenBusy);
         Test("DOWNLOAD_HISTORY.ExecutionContextSurvivesDisableButNotReset", DownloadHistoryExecutionContextSurvivesDisableButNotReset);
         Test("DOWNLOAD_HISTORY.ExecutionContextRejectsSettingChanges", DownloadHistoryExecutionContextRejectsSettingChanges);
+        Test("DOWNLOAD_HISTORY.ExecutionLeaseRejectsArchiveTruncation", DownloadHistoryExecutionLeaseRejectsArchiveTruncation);
         Test("DOWNLOAD_HISTORY.LeaseSerializesWorkers", DownloadHistoryLeaseSerializesWorkers);
         Test("DOWNLOAD_HISTORY.CancellationIsRecheckedBeforeProcessStart", DownloadHistoryCancellationIsRecheckedBeforeProcessStart);
         Test("DOWNLOAD_HISTORY.SettingsRejectIdRemovalWhileEnabled", DownloadHistorySettingsRejectIdRemovalWhileEnabled);

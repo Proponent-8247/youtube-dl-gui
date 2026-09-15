@@ -1106,9 +1106,11 @@ internal static class DownloadHistory {
                 continue;
             }
             if (ext is ".mp4" or ".mkv" or ".webm" or ".mov" or ".avi" or ".flv" or ".m4v" or ".3gp" or ".3g2" or
+                ".f4v" or ".mk3d" or ".divx" or ".ogv" or ".nut" or ".swf" or
                 ".ts" or ".m2ts" or ".mts" or ".vob" or ".wmv" or ".asf" or ".mpg" or ".mpeg" or ".mpe" or ".mpv" or ".m2v" or
-                ".mp3" or ".m4a" or ".m4b" or ".aac" or ".opus" or ".ogg" or ".oga" or ".wav" or ".flac" or ".wma" or ".mka" or
-                ".ape" or ".alac" or ".aiff" or ".aif" or ".ac3" or ".eac3" or ".dts") {
+                ".mp3" or ".mp2" or ".m4a" or ".m4b" or ".m4r" or ".aac" or ".opus" or ".ogg" or ".oga" or ".ogx" or ".spx" or ".vorbis" or ".weba" or
+                ".wav" or ".flac" or ".wma" or ".mka" or ".ape" or ".alac" or ".aiff" or ".aif" or ".aifc" or ".tta" or
+                ".f4a" or ".f4b" or ".ac3" or ".eac3" or ".dts") {
                 yield return file;
             }
         }

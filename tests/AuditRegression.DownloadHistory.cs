@@ -196,6 +196,27 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRecoversSupportedMediaExtensions() {
+        string[] extensions = { ".f4v", ".mk3d", ".divx", ".ogv", ".f4a", ".f4b", ".m4r", ".ogx", ".spx", ".vorbis", ".weba", ".nut", ".swf", ".mp2", ".tta", ".aifc" };
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string[] ids = new string[extensions.Length];
+            for (int i = 0; i < extensions.Length; i++) {
+                ids[i] = ((char)('A' + i)).ToString() + "1234567890";
+                DownloadHistoryWriteMedia(fixture.Root, "Media-" + ids[i] + extensions[i]);
+            }
+
+            object enabled = DownloadHistoryEnable(fixture, string.Empty);
+            Equal(extensions.Length, Get(enabled, "ArchiveEntries"));
+            File.Delete(fixture.Archive);
+            if (File.Exists(fixture.Archive + ".bak")) File.Delete(fixture.Archive + ".bak");
+
+            object rebuilt = DownloadHistoryReconcile(fixture, string.Empty, true);
+            Equal(extensions.Length, Get(rebuilt, "ArchiveEntries"));
+            string[] archiveLines = DownloadHistoryArchiveLines(fixture.Archive);
+            foreach (string id in ids) Require(archiveLines.Contains("youtube " + id), "Archive rebuild omitted supported media extension for ID " + id);
+        }
+    }
+
     private static void DownloadHistoryRebuildsDeletedArchiveFromIds() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -723,6 +744,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
         Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);
         Test("DOWNLOAD_HISTORY.IgnoresAmbientYtDlpConfig", DownloadHistoryIgnoresAmbientYtDlpConfig);
+        Test("DOWNLOAD_HISTORY.RecoversSupportedMediaExtensions", DownloadHistoryRecoversSupportedMediaExtensions);
         Test("DOWNLOAD_HISTORY.RebuildsDeletedArchiveFromIds", DownloadHistoryRebuildsDeletedArchiveFromIds);
         Test("DOWNLOAD_HISTORY.RecoversHistoricalProtectedSchemas", DownloadHistoryRecoversHistoricalProtectedSchemas);
         Test("DOWNLOAD_HISTORY.UnderstandsIdPlacementFromSchema", DownloadHistoryUnderstandsIdPlacementFromSchema);

@@ -37,6 +37,10 @@ internal sealed class DownloadHistoryLease : IDisposable {
     private FileStream? fileLock;
     private string? fileLockPath;
 
+    private DownloadHistoryLease(Mutex ownedMutex) {
+        mutex = ownedMutex;
+    }
+
     internal DownloadHistoryLease(string name) {
         mutex = new Mutex(false, name);
         try {
@@ -46,6 +50,20 @@ internal sealed class DownloadHistoryLease : IDisposable {
             // The previous owner terminated without releasing the archive lease.
             // Ownership transfers to this process, so protected work can continue safely.
         }
+    }
+
+    internal static bool TryAcquire(string name, out DownloadHistoryLease? lease) {
+        Mutex candidate = new(false, name);
+        bool acquired;
+        try { acquired = candidate.WaitOne(0); }
+        catch (AbandonedMutexException) { acquired = true; }
+        if (!acquired) {
+            candidate.Dispose();
+            lease = null;
+            return false;
+        }
+        lease = new DownloadHistoryLease(candidate);
+        return true;
     }
 
     internal void AcquireFileLock(string path) {
@@ -61,6 +79,19 @@ internal sealed class DownloadHistoryLease : IDisposable {
                 if (nativeError is not 32 and not 33 || parent.IsNullEmptyWhitespace() || !Directory.Exists(parent)) throw;
                 Thread.Sleep(100);
             }
+        }
+    }
+
+    internal bool TryAcquireFileLock(string path) {
+        try {
+            fileLock = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            fileLockPath = path;
+            return true;
+        }
+        catch (IOException ex) {
+            int nativeError = ex.HResult & 0xFFFF;
+            if (nativeError is not 32 and not 33) throw;
+            return false;
         }
     }
 
@@ -272,7 +303,7 @@ internal static class DownloadHistory {
             throw new InvalidOperationException("Download History cannot be reset because the archive storage is unavailable.");
         }
 
-        using DownloadHistoryLease lease = AcquireArchiveLease(archive);
+        using DownloadHistoryLease lease = AcquireManagementLease(archive, "reset");
         foreach (string path in new[] { archive, archive + ".bak", archive + ".tmp", archive + ".bak.tmp" }) {
             if (File.Exists(path)) File.Delete(path);
         }
@@ -406,6 +437,35 @@ internal static class DownloadHistory {
         }
     }
 
+    private static bool TryAcquireArchiveLease(string archivePath, out DownloadHistoryLease? lease) {
+        lease = null;
+        if (!DownloadHistoryLease.TryAcquire(GetArchiveMutexName(archivePath), out DownloadHistoryLease? candidate)) return false;
+        try {
+            string? parent = Path.GetDirectoryName(archivePath);
+            if (!parent.IsNullEmptyWhitespace() && Directory.Exists(parent) && !candidate!.TryAcquireFileLock(archivePath + ".lock")) {
+                candidate.Dispose();
+                return false;
+            }
+            lease = candidate;
+            return true;
+        }
+        catch {
+            candidate?.Dispose();
+            throw;
+        }
+    }
+
+    private static DownloadHistoryLease AcquireManagementLease(string archivePath, string operation) {
+        if (TryAcquireArchiveLease(archivePath, out DownloadHistoryLease? lease)) return lease!;
+        throw new InvalidOperationException("Download History cannot " + operation + " while another protected download or history operation is using this archive. Try again after the active operation finishes.");
+    }
+
+    private static DownloadHistoryReport BusyReport(string operation) => new() {
+        State = DownloadHistoryState.Unavailable,
+        CanReconcile = true,
+        Message = "Download History cannot " + operation + " while another protected download or history operation is using this archive. Try again after the active operation finishes."
+    };
+
     internal static DownloadHistoryLease AcquireValidatedExecutionLease(string archivePath) {
         DownloadHistoryLease lease = AcquireArchiveLease(archivePath);
         try {
@@ -443,8 +503,8 @@ internal static class DownloadHistory {
                 return pathError!;
             }
             if (!TryValidateLibraryBinding(libraryRoot, archive, out DownloadHistoryReport? bindingError)) return bindingError!;
-            using DownloadHistoryLease lease = AcquireArchiveLease(archive);
-            return AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive)).Report;
+            if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport("validate the library");
+            using (lease!) return AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive)).Report;
         }
     }
 
@@ -454,10 +514,12 @@ internal static class DownloadHistory {
                 return pathError!;
             }
             if (!TryValidateLibraryBinding(libraryRoot, archive, out DownloadHistoryReport? bindingError)) return bindingError!;
-            using DownloadHistoryLease lease = AcquireArchiveLease(archive);
-            if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease, out DownloadHistoryReport? initializeError)) return initializeError!;
-            DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));
-            return ReconcileAnalysis(analysis, keepBackup, allowMigration);
+            if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport("reconcile the library");
+            using (lease!) {
+                if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease!, out DownloadHistoryReport? initializeError)) return initializeError!;
+                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));
+                return ReconcileAnalysis(analysis, keepBackup, allowMigration);
+            }
         }
     }
 
@@ -467,12 +529,14 @@ internal static class DownloadHistory {
                 return pathError!;
             }
             if (!TryValidateLibraryBinding(libraryRoot, archive, out DownloadHistoryReport? bindingError)) return bindingError!;
-            using DownloadHistoryLease lease = AcquireArchiveLease(archive);
-            if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease, out DownloadHistoryReport? initializeError)) return initializeError!;
-            // An explicit rebuild repairs a missing/corrupt/stale ledger. A current valid ledger
-            // remains the completion authority so a failed final-looking file is not promoted.
-            DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));
-            return ReconcileAnalysis(analysis, keepBackup, allowMigration);
+            if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport("rebuild the library");
+            using (lease!) {
+                if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease!, out DownloadHistoryReport? initializeError)) return initializeError!;
+                // An explicit rebuild repairs a missing/corrupt/stale ledger. A current valid ledger
+                // remains the completion authority so a failed final-looking file is not promoted.
+                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));
+                return ReconcileAnalysis(analysis, keepBackup, allowMigration);
+            }
         }
     }
 
@@ -497,8 +561,8 @@ internal static class DownloadHistory {
                     throw new InvalidOperationException(bindingError?.Message ?? "Download History archive is bound to a different media library.");
                 }
 
-                using DownloadHistoryLease? previousLease = ShouldWaitForPreviousArchive(preparedArchive) ? AcquireArchiveLease(BoundArchivePath) : null;
-                using DownloadHistoryLease lease = AcquireArchiveLease(preparedArchive);
+                using DownloadHistoryLease? previousLease = ShouldWaitForPreviousArchive(preparedArchive) ? AcquireManagementLease(BoundArchivePath, "change archive settings") : null;
+                using DownloadHistoryLease lease = AcquireManagementLease(preparedArchive, "save settings");
                 HashSet<string> entries = new(StringComparer.Ordinal);
                 if (!TryReadArchive(preparedArchive, entries, out string archiveError)) {
                     throw new InvalidOperationException("Download History settings were not saved because the prepared archive is no longer valid: " + archiveError);
@@ -523,6 +587,9 @@ internal static class DownloadHistory {
             bool oldNeedsReconciliation = fNeedsReconciliation;
             string oldBoundLibraryRoot = fBoundLibraryRoot;
             string oldBoundArchivePath = fBoundArchivePath;
+            using DownloadHistoryLease? disableLease = !enabled && oldEnabled && !oldBoundArchivePath.IsNullEmptyWhitespace()
+                ? AcquireManagementLease(oldBoundArchivePath, "disable protection")
+                : null;
             bool pathChanged = !string.Equals(oldArchivePath, configuredArchivePath, StringComparison.Ordinal);
             bool nextEverEnabled = enabled || oldEverEnabled;
             string nextBoundLibraryRoot = enabled ? GetLibraryRoot() : oldBoundLibraryRoot;
@@ -597,9 +664,15 @@ internal static class DownloadHistory {
                 return LastReportInternal;
             }
 
-            using DownloadHistoryLease lease = AcquireArchiveLease(archive);
-            DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));
-            DownloadHistoryReport report = ReconcileAnalysis(analysis, KeepBackup, allowMigration);
+            if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) {
+                LastReportInternal = BusyReport("validate or reconcile the library");
+                return LastReportInternal;
+            }
+            DownloadHistoryReport report;
+            using (lease!) {
+                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));
+                report = ReconcileAnalysis(analysis, KeepBackup, allowMigration);
+            }
             LastReportInternal = report;
             if (report.State == DownloadHistoryState.Healthy) {
                 PreparedKey = key;

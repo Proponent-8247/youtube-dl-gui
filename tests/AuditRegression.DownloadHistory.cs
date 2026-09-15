@@ -412,6 +412,27 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryManagementFailsFastWhenBusy() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
+            IDisposable active = (IDisposable)Call(execution.GetType(), execution, "AcquireValidatedLease");
+            try {
+                object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+                Equal("Unavailable", DownloadHistoryStateName(analysis));
+                Require(((string)Get(analysis, "Message")).Contains("another protected download"), "Busy validation did not fail fast with an actionable message");
+                Throws<InvalidOperationException>(() => Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null));
+                Equal(true, fixture.History.GetProperty("Enabled", All).GetValue(null, null));
+            }
+            finally { active.Dispose(); }
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(false, fixture.History.GetProperty("Enabled", All).GetValue(null, null));
+        }
+    }
+
     private static void DownloadHistoryExecutionContextSurvivesDisableButNotReset() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -574,6 +595,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.IgnoresFailedAndSidecarFiles", DownloadHistoryIgnoresFailedAndSidecarFiles);
         Test("DOWNLOAD_HISTORY.DisabledIntervalWithoutIdsFailsSafe", DownloadHistoryDisabledIntervalWithoutIdsFailsSafe);
         Test("DOWNLOAD_HISTORY.MissingParentHardStopsWithoutPersistence", DownloadHistoryMissingParentHardStopsWithoutPersistence);
+        Test("DOWNLOAD_HISTORY.ManagementFailsFastWhenBusy", DownloadHistoryManagementFailsFastWhenBusy);
         Test("DOWNLOAD_HISTORY.ExecutionContextSurvivesDisableButNotReset", DownloadHistoryExecutionContextSurvivesDisableButNotReset);
         Test("DOWNLOAD_HISTORY.LeaseSerializesWorkers", DownloadHistoryLeaseSerializesWorkers);
         Test("DOWNLOAD_HISTORY.SettingsRejectIdRemovalWhileEnabled", DownloadHistorySettingsRejectIdRemovalWhileEnabled);

@@ -250,6 +250,32 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsInjectedMetadataArchiveRecords() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string media = DownloadHistoryWriteMedia(fixture.Root, "Injected-legityoutube evil.mp4");
+            string stem = Path.Combine(Path.GetDirectoryName(media), Path.GetFileNameWithoutExtension(media));
+            File.WriteAllText(stem + ".info.json", "{\"id\":\"legit\\nyoutube evil\",\"extractor_key\":\"Youtube\"}", Encoding.UTF8);
+
+            object report = Call(fixture.History, null, "ReconcileLibrary", string.Empty, true, true);
+            Equal("Unsafe", DownloadHistoryStateName(report));
+            Equal(1, Get(report, "UnresolvedMedia"));
+            Require(!File.Exists(fixture.Archive), "Metadata ID containing a record boundary was written into the archive");
+            Require(File.Exists(media), "Rejected metadata identity unexpectedly changed the media path");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string media = DownloadHistoryWriteMedia(fixture.Root, "Injected extractor.mp4");
+            string stem = Path.Combine(Path.GetDirectoryName(media), Path.GetFileNameWithoutExtension(media));
+            File.WriteAllText(stem + ".info.json", "{\"id\":\"evilId\",\"extractor_key\":\"Youtube legitId\\nyoutube\"}", Encoding.UTF8);
+
+            object report = Call(fixture.History, null, "ReconcileLibrary", string.Empty, true, true);
+            Equal("Unsafe", DownloadHistoryStateName(report));
+            Equal(1, Get(report, "UnresolvedMedia"));
+            Require(!File.Exists(fixture.Archive), "Metadata extractor containing a record boundary was written into the archive");
+            Require(File.Exists(media), "Rejected extractor identity unexpectedly changed the media path");
+        }
+    }
+
     private static void DownloadHistoryRecoversSupportedMediaExtensions() {
         string[] extensions = { ".f4v", ".mk3d", ".divx", ".ogv", ".f4a", ".f4b", ".m4r", ".ogx", ".spx", ".vorbis", ".weba", ".nut", ".swf", ".mp2", ".tta", ".aifc" };
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -995,6 +1021,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsMetadataIdentityRewrites", DownloadHistoryRejectsMetadataIdentityRewrites);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryPostprocessorHooks", DownloadHistoryRejectsArbitraryPostprocessorHooks);
         Test("DOWNLOAD_HISTORY.RejectsIdOutputOverride", DownloadHistoryRejectsIdOutputOverride);
+        Test("DOWNLOAD_HISTORY.RejectsInjectedMetadataArchiveRecords", DownloadHistoryRejectsInjectedMetadataArchiveRecords);
         Test("DOWNLOAD_HISTORY.IgnoresAmbientYtDlpConfig", DownloadHistoryIgnoresAmbientYtDlpConfig);
         Test("DOWNLOAD_HISTORY.RecoversSupportedMediaExtensions", DownloadHistoryRecoversSupportedMediaExtensions);
         Test("DOWNLOAD_HISTORY.RebuildsDeletedArchiveFromIds", DownloadHistoryRebuildsDeletedArchiveFromIds);

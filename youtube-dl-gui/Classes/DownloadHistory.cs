@@ -1201,9 +1201,11 @@ internal static class DownloadHistory {
                 }
             }
             if (recoveredId.IsNullEmptyWhitespace() || extractor.IsNullEmptyWhitespace()) return null;
-            sourceId = recoveredId!.Trim();
+            string normalizedId = recoveredId!.Trim();
+            if (!TryCreateArchiveEntry(extractor!, normalizedId, out string archiveEntry)) return null;
+            sourceId = normalizedId;
             infoPath = candidate;
-            return extractor!.Trim().ToLowerInvariant() + " " + sourceId;
+            return archiveEntry;
         }
         catch (IOException) { return null; }
         catch (UnauthorizedAccessException) { return null; }
@@ -1476,6 +1478,24 @@ internal static class DownloadHistory {
         }
     }
 
+    private static bool TryCreateArchiveEntry(string extractor, string sourceId, out string entry) {
+        entry = string.Empty;
+        if (extractor is null || sourceId is null) return false;
+        string normalizedExtractor = extractor.Trim();
+        string normalizedId = sourceId.Trim();
+        if (normalizedExtractor.Length == 0 || normalizedId.Length == 0) return false;
+        if (normalizedExtractor.Any(char.IsWhiteSpace) || normalizedExtractor.Any(char.IsControl) || normalizedId.Any(char.IsControl)) return false;
+        entry = normalizedExtractor.ToLowerInvariant() + " " + normalizedId;
+        return true;
+    }
+
+    private static bool IsValidArchiveEntry(string entry) {
+        int separator = entry.IndexOf(' ');
+        if (separator <= 0 || separator == entry.Length - 1) return false;
+        return TryCreateArchiveEntry(entry.Substring(0, separator), entry.Substring(separator + 1), out string normalized)
+            && string.Equals(entry, normalized, StringComparison.Ordinal);
+    }
+
     private static bool TryReadArchive(string path, HashSet<string> entries, out string error) {
         error = string.Empty;
         if (!File.Exists(path)) return false;
@@ -1484,8 +1504,7 @@ internal static class DownloadHistory {
             foreach (string line in File.ReadAllLines(path)) {
                 string entry = line.Trim();
                 if (entry.Length == 0) continue;
-                int separator = entry.IndexOf(' ');
-                if (separator <= 0 || separator == entry.Length - 1 || entry.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0) {
+                if (!IsValidArchiveEntry(entry)) {
                     error = "Invalid archive entry: " + entry;
                     return false;
                 }
@@ -1501,6 +1520,9 @@ internal static class DownloadHistory {
     }
 
     private static void WriteArchiveAtomically(string path, HashSet<string> entries) {
+        foreach (string entry in entries) {
+            if (!IsValidArchiveEntry(entry)) throw new InvalidDataException("Refusing to write invalid Download History archive entry: " + entry);
+        }
         string temp = path + ".tmp";
         string content = string.Join(Environment.NewLine, entries.OrderBy(x => x, StringComparer.Ordinal));
         if (content.Length > 0) content += Environment.NewLine;

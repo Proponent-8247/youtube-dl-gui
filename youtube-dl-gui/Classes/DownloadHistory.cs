@@ -1210,14 +1210,38 @@ internal static class DownloadHistory {
         return match;
     }
 
+    private const string KnownSchemaEncodingPrefix = "v2:";
+
+    private static string[] DecodeKnownFileNameSchemas(string value) {
+        if (value.IsNullEmptyWhitespace()) return Array.Empty<string>();
+        if (!value.StartsWith(KnownSchemaEncodingPrefix, StringComparison.Ordinal)) {
+            return value.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(candidate => candidate.Trim()).Where(candidate => candidate.Length > 0).ToArray();
+        }
+
+        List<string> decoded = [];
+        foreach (string encoded in value.Substring(KnownSchemaEncodingPrefix.Length).Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries)) {
+            try {
+                string candidate = Encoding.UTF8.GetString(Convert.FromBase64String(encoded)).Trim();
+                if (candidate.Length > 0) decoded.Add(candidate);
+            }
+            catch (FormatException) { }
+        }
+        return decoded.ToArray();
+    }
+
+    private static string EncodeKnownFileNameSchemas(IEnumerable<string> schemas) => KnownSchemaEncodingPrefix + string.Join("|",
+        schemas.Select(schema => Convert.ToBase64String(Encoding.UTF8.GetBytes(schema))));
+
     private static bool RememberFileNameSchema(string schema, out string error) {
         error = string.Empty;
         if (!HasRequiredIdTemplate(schema)) return true;
         string normalized = schema.Trim();
-        string[] known = fKnownFileNameSchemas.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+        List<string> known = DecodeKnownFileNameSchemas(fKnownFileNameSchemas).ToList();
         if (known.Any(value => string.Equals(value, normalized, StringComparison.OrdinalIgnoreCase))) return true;
         try {
-            string updated = known.Length == 0 ? normalized : fKnownFileNameSchemas + "|" + normalized;
+            known.Add(normalized);
+            string updated = EncodeKnownFileNameSchemas(known);
             IniProvider.Write(updated, ConfigName, "KnownFileNameSchemas");
             fKnownFileNameSchemas = updated;
             return true;
@@ -1233,12 +1257,8 @@ internal static class DownloadHistory {
         if (!Downloads.fileNameSchema.IsNullEmptyWhitespace() && seen.Add(Downloads.fileNameSchema)) {
             yield return Downloads.fileNameSchema;
         }
-        foreach (string source in new[] { fKnownFileNameSchemas }) {
-            if (source.IsNullEmptyWhitespace()) continue;
-            foreach (string schema in source.Split('|')) {
-                string candidate = schema.Trim();
-                if (candidate.Length > 0 && seen.Add(candidate)) yield return candidate;
-            }
+        foreach (string schema in DecodeKnownFileNameSchemas(fKnownFileNameSchemas)) {
+            if (seen.Add(schema)) yield return schema;
         }
     }
 

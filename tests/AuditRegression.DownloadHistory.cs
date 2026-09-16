@@ -323,6 +323,27 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryPreservesDelimiterBearingSchemas() {
+        const string id = "aB_Cd-Ef123";
+        const string historical = "%(chapters&has chapters|no chapters)s-%(id)s.%(ext)s";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            Set(fixture.Downloads, null, "fileNameSchema", historical);
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            Equal(true, DownloadHistoryArguments(fixture.History, historical, null, out arguments, out error, out execution));
+            string persisted = (string)fixture.History.GetField("fKnownFileNameSchemas", All).GetValue(null);
+            Require(persisted.StartsWith("v2:", StringComparison.Ordinal), "Protected filename schema history was not migrated to unambiguous encoding");
+
+            DownloadHistoryWriteMedia(fixture.Root, "has chapters-" + id + ".mp4");
+            File.WriteAllText(fixture.Archive, "youtube " + id + "\r\n", Encoding.UTF8);
+            Set(fixture.Downloads, null, "fileNameSchema", "NEW-%(id)s.%(ext)s");
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal(0, Get(analysis, "UnresolvedMedia"));
+            Equal(1, Get(analysis, "FilenameRecovered"));
+        }
+    }
+
     private static void DownloadHistoryUnderstandsIdPlacementFromSchema() {
         const string id = "aB_Cd-Ef123";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -855,6 +876,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RebuildsDeletedArchiveFromIds", DownloadHistoryRebuildsDeletedArchiveFromIds);
         Test("DOWNLOAD_HISTORY.RecoversHistoricalProtectedSchemas", DownloadHistoryRecoversHistoricalProtectedSchemas);
         Test("DOWNLOAD_HISTORY.ParsesFormattedFilenameSchemas", DownloadHistoryParsesFormattedFilenameSchemas);
+        Test("DOWNLOAD_HISTORY.PreservesDelimiterBearingSchemas", DownloadHistoryPreservesDelimiterBearingSchemas);
         Test("DOWNLOAD_HISTORY.UnderstandsIdPlacementFromSchema", DownloadHistoryUnderstandsIdPlacementFromSchema);
         Test("DOWNLOAD_HISTORY.UsesTopLevelInfoJsonIdentity", DownloadHistoryUsesTopLevelInfoJsonIdentity);
         Test("DOWNLOAD_HISTORY.MigratesLegacyMetadata", DownloadHistoryMigratesLegacyMetadata);

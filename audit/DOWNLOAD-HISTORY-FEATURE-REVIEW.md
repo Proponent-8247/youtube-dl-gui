@@ -29,6 +29,8 @@ This is the pre-review baseline, not proof that the feature is defect-free.
 - Existing media and companion files such as `.info.json`, `.description`, thumbnails, and subtitles must remain in place.
 - **No existing library file may be renamed, moved, or rewritten during inventory, reconciliation, archive generation, or validation.**
 - The library scan therefore has to be strictly non-destructive with respect to the user's media tree. Archive/history files maintained by the application are the only files that may be created/updated as part of this feature.
+- The active download destination and the pre-existing media library may be different directories. Download History must be able to inventory both simultaneously into one native yt-dlp archive; existing-library roots are scan-only, while new downloads continue to be written only to the application's active download destination.
+- The design should not require the user to merge, rename, move, or reorganize existing media merely to participate in duplicate prevention.
 
 Representative layout supplied during review:
 
@@ -51,7 +53,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | --- | --- | --- | --- |
 | DH-A001 | High | Verified | Recovered `.info.json` identity is not guaranteed to be exactly one valid archive record; control characters/newlines can corrupt or inject archive entries. |
 | DH-A002 | High | Verified | Existing-library migration can rename/move files, violating the required strictly non-destructive inventory model. |
-| DH-L001 | TBD | Under review | Explicit `Rebuild Archive` semantics may trust an existing valid archive instead of fully rescanning the library, which may conflict with initial large-library inventory/rebuild expectations. |
+| DH-A003 | High | Verified | Explicit `Rebuild Archive` does not force a full physical-library rescan when the current archive is valid, so existing recoverable media absent from that archive can remain undiscovered. |
+| DH-A004 | High | Verified | Download History is hard-bound to `Downloads.downloadPath` as its only library root and cannot inventory a separate existing library plus the active download destination into one archive. |
 | DH-L002 | TBD | Under review | Cross-session/process locking around first-use/default history-directory creation and archive mutation. |
 | DH-L003 | TBD | Under review | yt-dlp custom/config option escape surface may bypass or conflict with application-managed `--download-archive`. |
 | DH-L004 | TBD | Under review | UI save/cancel and partial-failure transaction boundaries may allow settings/history state to become inconsistent. |
@@ -70,6 +73,7 @@ The review is covering the complete feature delta and its interactions, includin
 - standard and extended downloader argument generation/execution
 - settings integration and provider/library/schema transitions
 - non-destructive recursive inventory/recovery behavior and on-disk archive integrity
+- separate active-download and existing-library roots sharing one history archive
 - concurrency/lease behavior
 - custom-argument escape/bypass paths
 - dedicated Download History regression coverage
@@ -117,6 +121,44 @@ Review remains in progress. Findings are appended only after they survive source
 4. Reconciliation/validation/archive rebuild must only modify application-owned history/archive state, never the media tree.
 5. Add regression coverage proving that representative media families (`.mp4`, `.info.json`, `.description`, thumbnail, subtitles) and nested directory layouts are byte/path unchanged before and after inventory/reconciliation.
 6. Existing migration-specific tests and UI language must be revised to the non-destructive model rather than retained as intended behavior.
+
+### DH-A003 — Explicit rebuild does not actually rebuild from the physical library when the archive is valid
+
+**Priority / state:** High duplicate-prevention correctness risk / VERIFIED IN SOURCE and tests.
+
+**Affected code:** `DownloadHistory.RebuildLibrary`, `CandidateRequiresLibraryRecovery`, `AnalyzeCore`, and the regression case `DownloadHistoryValidArchiveDoesNotPromoteUnarchivedFile`.
+
+**Finding:** `RebuildLibrary` calls `AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(...))`, exactly like ordinary reconciliation. When Download History is enabled, previously initialized, and not marked as needing reconciliation, `CandidateRequiresLibraryRecovery` returns `false`. `AnalyzeCore` then treats the valid archive as completion authority and skips any physical media whose recovered identity is absent from that archive. The explicit Rebuild operation therefore does not inventory the complete library in that state.
+
+**Impact:** A user pointing Download History at a large pre-existing library can press `Rebuild Archive` and still receive a healthy result that omits recoverable existing media. Those omitted IDs can later be downloaded again. This contradicts the explicit rebuild/inventory use case.
+
+**Required acceptance:**
+
+1. Keep ordinary protected validation conservative: a new final-looking file absent from a valid archive must not automatically become trusted history merely because it exists.
+2. Make the explicit Rebuild operation a separate intentional recovery mode that scans all configured inventory roots and reconstructs/cross-checks archive identities from authoritative in-place evidence.
+3. Explicit rebuild must report unresolved/ambiguous media instead of silently skipping it.
+4. Add regression coverage distinguishing ordinary validation from explicit rebuild: ordinary validation must not promote an unarchived residue; explicit rebuild must discover authoritative `.info.json` media missing from a valid archive.
+5. Rebuild remains non-destructive to all library files.
+
+### DH-A004 — History inventory is coupled to the active download directory instead of supporting separate roots
+
+**Priority / state:** High feature-model incompatibility / VERIFIED IN SOURCE and clarified by user requirement.
+
+**Affected code:** `GetLibraryRoot`, path/binding state (`BoundLibraryRoot`), `DefaultArchivePath`, `TryResolvePaths`, `AnalyzeCore` callers, settings/UI binding checks, and regression fixtures.
+
+**Finding:** The implementation defines the library root solely as `ResolveLibraryRoot(Downloads.downloadPath)`. Analysis, reconciliation, archive binding, default archive placement, and protected execution all assume that one path is both the active destination for new downloads and the complete existing library to inventory.
+
+**Impact:** The required deployment model cannot be represented when the user has an established library in one tree and wants future downloads written to another tree. Requiring a single root would force media reorganization or leave existing media outside duplicate prevention.
+
+**Required acceptance:**
+
+1. Preserve the application's current download directory as the only destination for new downloads.
+2. Allow one or more additional existing-library roots to be configured as scan-only inventory roots.
+3. Build one native yt-dlp archive from the union of the active download root and configured existing-library roots, de-duplicated by native archive identity.
+4. Never create, rename, move, or rewrite media/sidecars in scan-only roots.
+5. Binding/execution validation must detect meaningful root-set changes without incorrectly requiring all roots to be the same directory.
+6. Avoid double-scanning duplicate/nested-equivalent configured roots where practical.
+7. Add regression coverage for a separate download directory plus existing library, including nested folders and duplicate identities present in both roots.
 
 ## Leads still under review
 

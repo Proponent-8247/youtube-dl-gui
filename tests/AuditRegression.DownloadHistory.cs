@@ -669,11 +669,33 @@ internal static partial class AuditRegression {
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Healthy", DownloadHistoryStateName(analysis));
-            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, true);
-            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false);
+            Equal("Partial", DownloadHistoryStateName(rebuilt));
+            Equal(false, DownloadHistoryCanReconcile(rebuilt));
             string[] lines = DownloadHistoryArchiveLines(fixture.Archive);
             Require(lines.Contains("youtube " + trusted), "Trusted archive entry disappeared");
-            Require(!lines.Contains("youtube " + failed), "Unarchived final-looking file was promoted into trusted history");
+            Require(!lines.Contains("youtube " + failed), "Ambiguous final-looking file was promoted during explicit rebuild");
+        }
+    }
+
+    private static void DownloadHistoryExplicitRebuildRecoversAuthoritativeMissingEntry() {
+        const string trusted = "9qFjkwAElDs";
+        const string recovered = "aB_Cd-Ef123";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Trusted-" + trusted + ".mp4", "Youtube", trusted);
+            DownloadHistoryEnable(fixture, string.Empty);
+            string existing = DownloadHistoryWriteMediaWithInfo(fixture.Root, "Existing legacy media.mp4", "Youtube", recovered);
+
+            object normal = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(normal));
+            Require(!DownloadHistoryArchiveLines(fixture.Archive).Contains("youtube " + recovered), "Ordinary validation promoted an unarchived physical file");
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            string[] lines = DownloadHistoryArchiveLines(fixture.Archive);
+            Require(lines.Contains("youtube " + trusted) && lines.Contains("youtube " + recovered), "Explicit rebuild did not union authoritative physical identity with existing archive history");
+            Require(File.Exists(existing), "Explicit rebuild changed the authoritative media path");
+            Require(File.Exists(Path.Combine(fixture.Root, "Existing legacy media.info.json")), "Explicit rebuild changed the authoritative metadata path");
         }
     }
 
@@ -1047,6 +1069,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.CorruptArchiveDoesNotTrustPartialLines", DownloadHistoryCorruptArchiveDoesNotTrustPartialLines);
         Test("DOWNLOAD_HISTORY.DisableReenableReconcilesChanges", DownloadHistoryDisableReenableReconcilesChanges);
         Test("DOWNLOAD_HISTORY.ValidArchiveDoesNotPromoteUnarchivedFile", DownloadHistoryValidArchiveDoesNotPromoteUnarchivedFile);
+        Test("DOWNLOAD_HISTORY.ExplicitRebuildRecoversAuthoritativeMissingEntry", DownloadHistoryExplicitRebuildRecoversAuthoritativeMissingEntry);
         Test("DOWNLOAD_HISTORY.IgnoresFailedAndSidecarFiles", DownloadHistoryIgnoresFailedAndSidecarFiles);
         Test("DOWNLOAD_HISTORY.DisabledIntervalWithoutIdsFailsSafe", DownloadHistoryDisabledIntervalWithoutIdsFailsSafe);
         Test("DOWNLOAD_HISTORY.MissingParentHardStopsWithoutPersistence", DownloadHistoryMissingParentHardStopsWithoutPersistence);

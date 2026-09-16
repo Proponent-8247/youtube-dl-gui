@@ -612,9 +612,9 @@ internal static class DownloadHistory {
             if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport("rebuild the library");
             using (lease!) {
                 if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease!, out DownloadHistoryReport? initializeError)) return initializeError!;
-                // An explicit rebuild repairs a missing/corrupt/stale ledger. A current valid ledger
-                // remains the completion authority so a failed final-looking file is not promoted.
-                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));
+                // Rebuild is an explicit inventory operation: recover every authoritative identity
+                // visible in the physical library while preserving all valid existing archive entries.
+                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, true);
                 return ReconcileAnalysis(analysis, keepBackup, allowMigration);
             }
         }

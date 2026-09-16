@@ -26,10 +26,12 @@ This is the pre-review baseline, not proof that the feature is defect-free.
 
 - The feature is intended to inventory a large, pre-existing, recursively organized media library and then use the resulting history/archive to prevent duplicate future downloads.
 - Existing directory hierarchy must be preserved.
-- Existing media and companion files such as `.info.json`, `.description`, thumbnails, and subtitles must remain in place.
+- Existing media and companion files such as `.info.json`, `.description`, thumbnails, subtitles, and live-chat metadata must remain in place.
 - **No existing library file may be renamed, moved, or rewritten during inventory, reconciliation, archive generation, or validation.**
 - The library scan therefore has to be strictly non-destructive with respect to the user's media tree. Archive/history files maintained by the application are the only files that may be created/updated as part of this feature.
 - The active download destination and the pre-existing media library may be different directories. Download History must be able to inventory both simultaneously into one native yt-dlp archive; existing-library roots are scan-only, while new downloads continue to be written only to the application's active download destination.
+- Media locations are not stable identifiers. The contents of the active download directory may be moved or reorganized without notice, and existing-library paths may change. History must remain authoritative by native provider identity rather than by the current filesystem path of a media file.
+- Changing the active download directory, moving previously inventoried media, or changing the scan-only root set must not invalidate already-recorded archive identities or require the old media path to remain online during normal protected downloading.
 - The design should not require the user to merge, rename, move, or reorganize existing media merely to participate in duplicate prevention.
 
 Representative layout supplied during review:
@@ -45,41 +47,45 @@ and nested trees such as:
 
 `Downloads\YT-DL\youtube.com\Video\Casual Geographic\...`
 
+The supplied real-world listing also contains same-stem `.description`, `.info.json`, `.webm`/`.mkv`, `.webp`, `.live_chat.json`, and playlist-level metadata without a media file. Those companions must remain sidecars rather than independent completed media.
+
 ## Feature implementation issue register
 
-This is the canonical running list of issues relevant to this feature implementation. Verified findings receive a stable `DH-A###` ID. Leads remain explicitly marked as under review and are not promoted until verified against source, callers, and tests.
+This is the canonical running list of issues relevant to this feature implementation. Verified findings receive a stable `DH-A###` ID. Closed leads remain recorded so the review result is explicit rather than silently dropping investigated concerns.
 
 | ID | Severity | State | Summary |
 | --- | --- | --- | --- |
 | DH-A001 | High | Verified | Recovered `.info.json` identity is not guaranteed to be exactly one valid archive record; control characters/newlines can corrupt or inject archive entries. |
 | DH-A002 | High | Verified | Existing-library migration can rename/move files, violating the required strictly non-destructive inventory model. |
 | DH-A003 | High | Verified | Explicit `Rebuild Archive` does not force a full physical-library rescan when the current archive is valid, so existing recoverable media absent from that archive can remain undiscovered. |
-| DH-A004 | High | Verified | Download History is hard-bound to `Downloads.downloadPath` as its only library root and cannot inventory a separate existing library plus the active download destination into one archive. |
-| DH-L002 | TBD | Under review | Cross-session/process locking around first-use/default history-directory creation and archive mutation. |
-| DH-L003 | TBD | Under review | yt-dlp custom/config option escape surface may bypass or conflict with application-managed `--download-archive`. |
-| DH-L004 | TBD | Under review | UI save/cancel and partial-failure transaction boundaries may allow settings/history state to become inconsistent. |
-| DH-L005 | TBD | Under review | Large-library scan/archive performance and resource behavior, including recursive enumeration, JSON reads, memory use, and rewrite complexity. |
-| DH-L006 | TBD | Under review | Safe treatment/reporting of legacy files that cannot be identified authoritatively from `.info.json` or a supported filename pattern. |
-| DH-L007 | TBD | Under review | Sidecar/media-family classification for `.description`, `.info.json`, thumbnails, subtitles and related files must avoid counting companions as separate media items while leaving all files untouched. |
+| DH-A004 | High | Verified | Download History is hard-bound to `Downloads.downloadPath` as its only library root and treats the media path as part of archive validity instead of supporting path-agnostic identity plus separate scan roots. |
+| DH-A005 | Medium | Verified | Large-library management performs synchronous/repeated full scans and first materializes the complete media-file list, causing avoidable memory use and UI stalls for the intended large-library workflow. |
+| DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
+| DH-L003 | — | Closed / no bypass found | Protected commands inject `--ignore-config`, reject custom config locations/aliases and conflicting archive/output hooks, and append the app-owned archive option after user custom arguments. The later app option therefore remains authoritative; the later app-owned authentication config contains authentication options only. |
+| DH-L004 | — | Closed / no UI transaction defect found | Save/enable uses `CommitSettings` with rollback of settings writes; Rebuild and Reset are explicit archive-management actions whose app-owned ledger effects intentionally do not depend on pressing Save afterward. No media-tree mutation is acceptable after DH-A002 is fixed. |
+| DH-L006 | — | Closed / intended fail-safe behavior | Media without authoritative `.info.json` identity or an unambiguous filename match to a known native archive identity is reported unresolved; the implementation deliberately does not infer YouTube merely from an 11-character ID shape. |
+| DH-L007 | — | Closed / classifier verified | Completed-media enumeration is allowlisted to media extensions. Known sidecars including `.info.json`, generic `.json`/`.live_chat.json`, descriptions, common thumbnails, subtitles, `.part`, `.ytdl`, and text files are not counted as media. Regression coverage will be expanded with the supplied real-world family shape. |
 
-The register will be updated as each lead is proven, disproven, split, or closed. Fix status and validating commit/test evidence will be added to the same row when implementation begins.
+Fix status and validating commit/test evidence will be added to the verified rows during implementation.
 
 ## Review scope / status
 
-The review is covering the complete feature delta and its interactions, including:
+The review covered the complete feature delta and its interactions, including:
 
 - `youtube-dl-gui/Classes/DownloadHistory.cs`
 - `youtube-dl-gui/Forms/frmDownloadHistory.cs`
 - standard and extended downloader argument generation/execution
-- settings integration and provider/library/schema transitions
+- settings integration and provider/schema transitions
 - non-destructive recursive inventory/recovery behavior and on-disk archive integrity
-- separate active-download and existing-library roots sharing one history archive
+- separate active-download and scan-only existing-library roots sharing one history archive
+- path-agnostic native identity when media is later moved or reorganized
 - concurrency/lease behavior
-- custom-argument escape/bypass paths
+- custom-argument/config escape paths
+- sidecar/media-family handling
 - dedicated Download History regression coverage
 - build/packaging integration and externally defined yt-dlp archive semantics
 
-Review remains in progress. Findings are appended only after they survive source/caller/test reconciliation.
+The source-review pass is complete. Implementation remains in progress until every verified finding is repaired and the complete guarded before/after build and regression gates pass.
 
 ## Findings
 
@@ -99,9 +105,9 @@ Review remains in progress. Findings are appended only after they survive source
 
 1. Every metadata-derived archive identity must be validated as exactly one native archive record before it can enter `RecoveredEntries`.
 2. Extractor and ID must reject CR, LF, NUL and any representation that can alter record boundaries; validation must apply regardless of filename state.
-3. Reconciliation must not write or report `Healthy` for a recovered entry that `TryReadArchive` would reject.
+3. Reconciliation must not write or report `Healthy` for a recovered entry that the native archive parser would reject.
 4. Add regression cases for malicious/corrupt extractor and ID values, including a payload capable of creating a second otherwise-valid archive line.
-5. Re-run the complete existing regression/build gates after the eventual fix; do not weaken existing recovery behavior.
+5. Re-run the complete existing regression/build gates after the fix; do not weaken existing recovery behavior.
 
 ### DH-A002 — Existing-library migration/rename behavior violates the required non-destructive inventory model
 
@@ -119,7 +125,7 @@ Review remains in progress. Findings are appended only after they survive source
 2. Inventory must derive identity in-place from authoritative `.info.json` where available, and may fall back to supported filename parsing only without modifying the file.
 3. Files that cannot be identified safely must be reported as unresolved/ambiguous; the feature must not "fix" them by renaming.
 4. Reconciliation/validation/archive rebuild must only modify application-owned history/archive state, never the media tree.
-5. Add regression coverage proving that representative media families (`.mp4`, `.info.json`, `.description`, thumbnail, subtitles) and nested directory layouts are byte/path unchanged before and after inventory/reconciliation.
+5. Add regression coverage proving that representative media families (`.mp4`/`.webm`, `.info.json`, `.description`, thumbnail, subtitles/live-chat metadata) and nested directory layouts are byte/path unchanged before and after inventory/reconciliation.
 6. Existing migration-specific tests and UI language must be revised to the non-destructive model rather than retained as intended behavior.
 
 ### DH-A003 — Explicit rebuild does not actually rebuild from the physical library when the archive is valid
@@ -137,29 +143,47 @@ Review remains in progress. Findings are appended only after they survive source
 1. Keep ordinary protected validation conservative: a new final-looking file absent from a valid archive must not automatically become trusted history merely because it exists.
 2. Make the explicit Rebuild operation a separate intentional recovery mode that scans all configured inventory roots and reconstructs/cross-checks archive identities from authoritative in-place evidence.
 3. Explicit rebuild must report unresolved/ambiguous media instead of silently skipping it.
-4. Add regression coverage distinguishing ordinary validation from explicit rebuild: ordinary validation must not promote an unarchived residue; explicit rebuild must discover authoritative `.info.json` media missing from a valid archive.
-5. Rebuild remains non-destructive to all library files.
+4. Rebuild must union newly recovered identities with valid existing/backup archive identities; moving a previously inventoried file outside the currently scanned roots must not silently prune its historical identity. Reset History remains the explicit way to discard history.
+5. Add regression coverage distinguishing ordinary validation from explicit rebuild: ordinary validation must not promote an unarchived residue; explicit rebuild must discover authoritative `.info.json` media missing from a valid archive.
+6. Rebuild remains non-destructive to all library files.
 
-### DH-A004 — History inventory is coupled to the active download directory instead of supporting separate roots
+### DH-A004 — History identity is coupled to physical media paths and only one library root is supported
 
 **Priority / state:** High feature-model incompatibility / VERIFIED IN SOURCE and clarified by user requirement.
 
-**Affected code:** `GetLibraryRoot`, path/binding state (`BoundLibraryRoot`), `DefaultArchivePath`, `TryResolvePaths`, `AnalyzeCore` callers, settings/UI binding checks, and regression fixtures.
+**Affected code:** `GetLibraryRoot`, path/binding state (`BoundLibraryRoot`), `DefaultArchivePath`/archive resolution, `TryResolvePaths`, `CandidateRequiresLibraryRecovery`, `ValidatePreparedExecution`, `AnalyzeCore` callers, `frmSettings` download-path guard, `frmDownloadHistory`, and regression fixtures.
 
-**Finding:** The implementation defines the library root solely as `ResolveLibraryRoot(Downloads.downloadPath)`. Analysis, reconciliation, archive binding, default archive placement, and protected execution all assume that one path is both the active destination for new downloads and the complete existing library to inventory.
+**Finding:** The implementation defines the library root solely as `ResolveLibraryRoot(Downloads.downloadPath)`. Analysis, reconciliation, archive binding, prepared execution, and the Settings UI assume that one path is both the active destination for new downloads and the stable complete library. `frmSettings` explicitly blocks changing the download folder while protection is enabled, and the prepared-execution check rejects a command when the bound media path changes.
 
-**Impact:** The required deployment model cannot be represented when the user has an established library in one tree and wants future downloads written to another tree. Requiring a single root would force media reorganization or leave existing media outside duplicate prevention.
+**Impact:** The required deployment model cannot be represented when an established library lives elsewhere, and history becomes unnecessarily dependent on where media currently resides. Moving or reorganizing already-inventoried media can force artificial rebinding/reconciliation even though yt-dlp archive identity itself is path-independent.
 
 **Required acceptance:**
 
 1. Preserve the application's current download directory as the only destination for new downloads.
 2. Allow one or more additional existing-library roots to be configured as scan-only inventory roots.
-3. Build one native yt-dlp archive from the union of the active download root and configured existing-library roots, de-duplicated by native archive identity.
-4. Never create, rename, move, or rewrite media/sidecars in scan-only roots.
-5. Binding/execution validation must detect meaningful root-set changes without incorrectly requiring all roots to be the same directory.
-6. Avoid double-scanning duplicate/nested-equivalent configured roots where practical.
-7. Add regression coverage for a separate download directory plus existing library, including nested folders and duplicate identities present in both roots.
+3. Build one native yt-dlp archive from the union of the active download root and configured scan-only roots, de-duplicated by native archive identity.
+4. Treat inventory roots as inputs to deliberate inventory/rebuild, not as permanent identity bindings. Already-recorded archive entries remain valid if files are later moved, roots become temporarily unavailable, or the active download path changes.
+5. Normal protected execution must depend on the prepared archive/settings state, not on the continued existence or equality of an old media-library path.
+6. A deliberate change to the active download path or configured scan roots should make a later inventory/reconciliation discover recoverable media in the newly selected roots, but must never prune older archive identities solely because files are no longer present there.
+7. Never create, rename, move, or rewrite media/sidecars in scan-only roots.
+8. Avoid double-scanning duplicate or nested-equivalent configured roots where practical.
+9. Remove the Settings UI requirement to disable history merely to change the download destination.
+10. Add regression coverage for a separate download directory plus existing library, root changes after enablement, nested folders, duplicate identities present in multiple roots, and preservation of archive identity after media is moved out of an old root.
 
-## Leads still under review
+### DH-A005 — Large-library management blocks the UI and repeats avoidable scans
 
-The detailed lead list is maintained in the feature implementation issue register above. Leads are not findings until verified.
+**Priority / state:** Medium performance/usability risk / VERIFIED IN SOURCE.
+
+**Affected code:** `AnalyzeCore` and `frmDownloadHistory` management flows, plus `CommitSettings` final validation.
+
+**Finding:** `AnalyzeCore` calls `EnumerateCompletedMedia(...).ToList()`, retaining every completed-media path before processing. The WinForms dialog invokes analysis/reconciliation synchronously on the UI thread. `RebuildArchive` performs an Analyze pass and then a Rebuild pass; Save/enable performs Analyze, Reconcile, and then `CommitSettings` performs another complete `AnalyzeCore` pass. Each media item with adjacent metadata also causes the complete `.info.json` file to be read and deserialized.
+
+**Impact:** The intended large existing library can consume avoidable memory and make the settings dialog appear hung for the duration of one to three full recursive scans. The repeated work scales directly with media count and metadata size.
+
+**Required acceptance:**
+
+1. Enumerate/process media incrementally rather than first materializing the complete media-path list.
+2. Do not perform redundant full scans merely to repeat the same management decision; Rebuild and Save/enable should perform one deliberate inventory pass per requested operation where practical.
+3. Run long management scans off the WinForms UI thread and prevent unsafe re-entry/closing while the operation is active.
+4. Preserve existing archive locking and fail-safe error handling while moving work off the UI thread.
+5. Keep regression/build coverage and add source-level coverage that guards against reintroducing `ToList()` materialization/redundant synchronous management flow.

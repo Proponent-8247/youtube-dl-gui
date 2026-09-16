@@ -1035,7 +1035,8 @@ internal static class DownloadHistory {
             // A current valid native archive is the success marker. An unarchived final-looking
             // file may be residue from a failed provider run and must remain eligible for retry.
             // Recovery states deliberately trust authoritative physical-library identities instead.
-            if (!analysis.RecoverMissingEntries && analysis.ArchiveValid && entry is not null && !analysis.ArchiveEntries.Contains(entry)) {
+            if (!analysis.RecoverMissingEntries && analysis.ArchiveValid &&
+                (entry is null || !analysis.ArchiveEntries.Contains(entry))) {
                 continue;
             }
 
@@ -1283,12 +1284,6 @@ internal static class DownloadHistory {
     }
 
     private static string? TryRecoverFromFilename(string mediaPath, HashSet<string> archiveEntries) {
-        string name = Path.GetFileNameWithoutExtension(mediaPath);
-        if (TryExtractYoutubeIdFromSchema(mediaPath, out string? youtubeId)) return "youtube " + youtubeId;
-
-        Match youtube = Regex.Match(name, "-(?<id>[A-Za-z0-9_-]{11})(?:_[A-Za-z0-9_-]+)?$", RegexOptions.CultureInvariant);
-        if (youtube.Success) return "youtube " + youtube.Groups["id"].Value;
-
         string? match = null;
         foreach (string entry in archiveEntries) {
             int separator = entry.IndexOf(' ');
@@ -1351,24 +1346,6 @@ internal static class DownloadHistory {
         foreach (string schema in DecodeKnownFileNameSchemas(fKnownFileNameSchemas)) {
             if (seen.Add(schema)) yield return schema;
         }
-    }
-
-    private static bool TryExtractYoutubeIdFromSchema(string mediaPath, out string? sourceId) {
-        sourceId = null;
-        foreach (string schema in RecoveryFileNameSchemas()) {
-            string template = GetSchemaFileTemplate(schema);
-            if (template.IsNullEmptyWhitespace() || template.IndexOf("%(id)s", StringComparison.OrdinalIgnoreCase) < 0) continue;
-            string pattern = BuildSchemaRegex(template, "(?<id>[A-Za-z0-9_-]{11})");
-            Match match = Regex.Match(Path.GetFileName(mediaPath), pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-            if (!match.Success || !match.Groups["id"].Success) continue;
-            string candidate = match.Groups["id"].Value;
-            if (sourceId is not null && !string.Equals(sourceId, candidate, StringComparison.Ordinal)) {
-                sourceId = null;
-                return false;
-            }
-            sourceId = candidate;
-        }
-        return sourceId?.Length == 11;
     }
 
     private static bool SchemaFileNameContainsSourceId(string mediaPath, string sourceId) {

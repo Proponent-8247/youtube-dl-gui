@@ -256,7 +256,7 @@ internal static partial class AuditRegression {
             string[] ids = new string[extensions.Length];
             for (int i = 0; i < extensions.Length; i++) {
                 ids[i] = ((char)('A' + i)).ToString() + "1234567890";
-                DownloadHistoryWriteMedia(fixture.Root, "Media-" + ids[i] + extensions[i]);
+                DownloadHistoryWriteMediaWithInfo(fixture.Root, "Media-" + ids[i] + extensions[i], "Youtube", ids[i]);
             }
 
             object enabled = DownloadHistoryEnable(fixture, string.Empty);
@@ -274,8 +274,8 @@ internal static partial class AuditRegression {
     private static void DownloadHistoryRebuildsDeletedArchiveFromIds() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            DownloadHistoryWriteMedia(fixture.Root, "Video-" + id + ".webm");
-            DownloadHistoryWriteMedia(fixture.Root, "Video-copy-" + id + ".mp4");
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Video-" + id + ".webm", "Youtube", id);
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Video-copy-" + id + ".mp4", "Youtube", id);
             object enabled = DownloadHistoryEnable(fixture, string.Empty);
             Equal(1, Get(enabled, "ArchiveEntries"));
             Equal(1, DownloadHistoryArchiveLines(fixture.Archive).Length);
@@ -312,7 +312,7 @@ internal static partial class AuditRegression {
             string arguments, error;
             object execution;
             Equal(true, DownloadHistoryArguments(fixture.History, "%(id)s--%(title)s.%(ext)s", null, out arguments, out error, out execution));
-            DownloadHistoryWriteMedia(fixture.Root, id + "--historical-title.mp4");
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, id + "--historical-title.mp4", "Youtube", id);
 
             Set(fixture.Downloads, null, "fileNameSchema", "NEW-%(id)s.%(ext)s");
             File.Delete(fixture.Archive);
@@ -349,6 +349,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             Set(fixture.Downloads, null, "fileNameSchema", "%(id)s--%(title)s.%(ext)s");
             DownloadHistoryWriteMedia(fixture.Root, id + "--Title.webm");
+            File.WriteAllText(fixture.Archive, "youtube " + id + "\r\n", Encoding.UTF8);
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal(1, Get(analysis, "FilenameRecovered"));
             Equal(0, Get(analysis, "UnresolvedMedia"));
@@ -426,6 +427,18 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryDoesNotInferYoutubeFromIdShape() {
+        const string ambiguousId = "ABCDEFGHIJK";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMedia(fixture.Root, "Generic-" + ambiguousId + ".mp4");
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Unsafe", DownloadHistoryStateName(analysis));
+            Equal(1, Get(analysis, "UnresolvedMedia"));
+            Equal(false, DownloadHistoryCanReconcile(analysis));
+            Require(!File.Exists(fixture.Archive), "Ambiguous 11-character filename ID was incorrectly promoted into a YouTube archive entry");
+        }
+    }
+
     private static void DownloadHistoryUsesTopLevelInfoJsonIdentity() {
         const string correctId = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -494,7 +507,7 @@ internal static partial class AuditRegression {
     private static void DownloadHistoryBlocksPartialAndUnsafeLibraries() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            DownloadHistoryWriteMedia(fixture.Root, "Known-" + id + ".mp4");
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Known-" + id + ".mp4", "Youtube", id);
             DownloadHistoryWriteMedia(fixture.Root, "Unknown.mp4");
             object partial = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Partial", DownloadHistoryStateName(partial));
@@ -576,7 +589,7 @@ internal static partial class AuditRegression {
     private static void DownloadHistoryCorruptArchiveDoesNotTrustPartialLines() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            DownloadHistoryWriteMedia(fixture.Root, "Recovered-" + id + ".mp4");
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Recovered-" + id + ".mp4", "Youtube", id);
             File.WriteAllText(fixture.Archive, "youtube poisoned123\r\ninvalid-line-without-space\r\n", Encoding.UTF8);
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Invalid", DownloadHistoryStateName(analysis));
@@ -593,7 +606,7 @@ internal static partial class AuditRegression {
         const string first = "9qFjkwAElDs";
         const string second = "aB_Cd-Ef123";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            DownloadHistoryWriteMedia(fixture.Root, "First-" + first + ".mp4");
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "First-" + first + ".mp4", "Youtube", first);
             DownloadHistoryEnable(fixture, string.Empty);
             string beforeDisable = File.ReadAllText(fixture.Archive, Encoding.UTF8);
             Require(File.Exists(fixture.Archive + ".bak"), "Backup was not preserved before disable test");
@@ -607,7 +620,7 @@ internal static partial class AuditRegression {
             Require(File.Exists(fixture.Archive + ".bak"), "Disabling history deleted the backup");
             Equal("Dormant", fixture.History.GetProperty("LastReport", All).GetValue(null, null).GetType().GetProperty("State", All).GetValue(fixture.History.GetProperty("LastReport", All).GetValue(null, null), null).ToString());
 
-            DownloadHistoryWriteMedia(fixture.Root, "Second-" + second + ".webm");
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Second-" + second + ".webm", "Youtube", second);
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Missing", DownloadHistoryStateName(analysis));
             object reconciled = DownloadHistoryReconcile(fixture, string.Empty, true);
@@ -621,7 +634,7 @@ internal static partial class AuditRegression {
         const string trusted = "9qFjkwAElDs";
         const string failed = "aB_Cd-Ef123";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            DownloadHistoryWriteMedia(fixture.Root, "Trusted-" + trusted + ".mp4");
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Trusted-" + trusted + ".mp4", "Youtube", trusted);
             DownloadHistoryEnable(fixture, string.Empty);
             DownloadHistoryWriteMedia(fixture.Root, "Failed-looking-" + failed + ".mp4");
 
@@ -653,7 +666,7 @@ internal static partial class AuditRegression {
         const string trusted = "9qFjkwAElDs";
         const string recoverable = "aB_Cd-Ef123";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            DownloadHistoryWriteMedia(fixture.Root, "Trusted-" + trusted + ".mp4");
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Trusted-" + trusted + ".mp4", "Youtube", trusted);
             DownloadHistoryEnable(fixture, string.Empty);
             Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
             Set(fixture.Downloads, null, "fileNameSchema", "%(title)s.%(ext)s");
@@ -992,6 +1005,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsReparsePointTraversal", DownloadHistoryRejectsReparsePointTraversal);
         Test("DOWNLOAD_HISTORY.RecoversSanitizedProviderIds", DownloadHistoryRecoversSanitizedProviderIds);
         Test("DOWNLOAD_HISTORY.RecognizesSplitChapterIds", DownloadHistoryRecognizesSplitChapterIds);
+        Test("DOWNLOAD_HISTORY.DoesNotInferYoutubeFromIdShape", DownloadHistoryDoesNotInferYoutubeFromIdShape);
         Test("DOWNLOAD_HISTORY.UsesTopLevelInfoJsonIdentity", DownloadHistoryUsesTopLevelInfoJsonIdentity);
         Test("DOWNLOAD_HISTORY.MigratesLegacyMetadata", DownloadHistoryMigratesLegacyMetadata);
         Test("DOWNLOAD_HISTORY.MigrationFailureRollsBackMedia", DownloadHistoryMigrationFailureRollsBackMedia);

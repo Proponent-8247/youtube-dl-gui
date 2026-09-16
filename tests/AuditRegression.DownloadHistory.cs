@@ -718,22 +718,64 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryLeaseWaitHonorsCancellation() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
+            IDisposable first = (IDisposable)Call(execution.GetType(), execution, "AcquireValidatedLease");
+            ManualResetEvent started = new ManualResetEvent(false);
+            ManualResetEvent cancel = new ManualResetEvent(false);
+            ManualResetEvent finished = new ManualResetEvent(false);
+            Exception workerError = null;
+            Thread worker = new Thread(delegate() {
+                started.Set();
+                try {
+                    Func<bool> cancelled = delegate() { return cancel.WaitOne(0); };
+                    using (IDisposable ignored = (IDisposable)Call(execution.GetType(), execution, "AcquireValidatedLease", cancelled)) { }
+                    workerError = new Exception("Cancelled waiter unexpectedly acquired the protected archive lease");
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex) { workerError = ex; }
+                finally { finished.Set(); }
+            });
+            worker.IsBackground = true;
+            try {
+                worker.Start();
+                Require(started.WaitOne(2000), "Protected lease waiter did not start");
+                Thread.Sleep(200);
+                Require(!finished.WaitOne(0), "Protected lease waiter did not actually block behind the active worker");
+                cancel.Set();
+                Require(finished.WaitOne(2000), "Cancellation did not interrupt the protected archive lease wait");
+                Require(worker.Join(2000), "Cancelled protected lease waiter did not finish");
+                if (workerError != null) throw workerError;
+            }
+            finally {
+                first.Dispose();
+                started.Dispose();
+                cancel.Dispose();
+                finished.Dispose();
+            }
+        }
+    }
+
     private static void DownloadHistoryCancellationIsRecheckedBeforeProcessStart() {
         string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
         string standard = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmDownloader.cs"));
         string extended = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmExtendedDownloader.cs"));
 
-        int standardLease = standard.IndexOf("using DownloadHistoryLease? DownloadLease = HistoryExecution?.AcquireValidatedLease();", StringComparison.Ordinal);
+        int standardLease = standard.IndexOf("using DownloadHistoryLease? DownloadLease = HistoryExecution?.AcquireValidatedLease(() =>", StringComparison.Ordinal);
         int standardGuard = standard.IndexOf("CancellationRequested || CurrentDownload.Status == DownloadStatus.Aborted || CurrentDownload.Status == DownloadStatus.AbortForClose", standardLease, StringComparison.Ordinal);
         int standardStart = standard.IndexOf("DownloadProcess.Start();", standardLease, StringComparison.Ordinal);
         Require(standardLease >= 0 && standardGuard > standardLease && standardStart > standardGuard, "Standard worker can start after cancellation while waiting for the archive lease");
 
-        int normalLease = extended.IndexOf("using DownloadHistoryLease? DownloadLease = HistoryExecution?.AcquireValidatedLease();", StringComparison.Ordinal);
+        int normalLease = extended.IndexOf("using DownloadHistoryLease? DownloadLease = HistoryExecution?.AcquireValidatedLease(() =>", StringComparison.Ordinal);
         int normalGuard = extended.IndexOf("CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose", normalLease, StringComparison.Ordinal);
         int normalStart = extended.IndexOf("DownloadProcess.Start();", normalLease, StringComparison.Ordinal);
         Require(normalLease >= 0 && normalGuard > normalLease && normalStart > normalGuard, "Extended worker can start after cancellation while waiting for the archive lease");
 
-        int batchLease = extended.IndexOf("using DownloadHistoryLease? DownloadLease = BatchHistoryExecution?.AcquireValidatedLease();", StringComparison.Ordinal);
+        int batchLease = extended.IndexOf("using DownloadHistoryLease? DownloadLease = BatchHistoryExecution?.AcquireValidatedLease(() =>", StringComparison.Ordinal);
         int batchGuard = extended.IndexOf("CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose", batchLease, StringComparison.Ordinal);
         int batchStart = extended.IndexOf("DownloadProcess.Start();", batchLease, StringComparison.Ordinal);
         Require(batchLease >= 0 && batchGuard > batchLease && batchStart > batchGuard, "Extended batch worker can start after cancellation while waiting for the archive lease");
@@ -779,10 +821,10 @@ internal static partial class AuditRegression {
         string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
         string standard = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmDownloader.cs"));
         string extended = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmExtendedDownloader.cs"));
-        Require(standard.Contains("HistoryExecution?.AcquireValidatedLease()"), "Standard downloader does not launch through its prepared archive context");
+        Require(standard.Contains("HistoryExecution?.AcquireValidatedLease(() =>"), "Standard downloader does not launch through its cancellation-aware prepared archive context");
         Require(standard.Contains("HistoryExecution?.RefreshBackupAfterRun()"), "Standard downloader does not refresh archive backup after provider execution");
         Require(standard.IndexOf("DownloadHistory.Enabled ? DownloadHistory.AcquireArchiveLease()", StringComparison.Ordinal) < 0, "Standard downloader still binds locking to mutable live settings");
-        Require(extended.Contains("HistoryExecution?.AcquireValidatedLease()") && extended.Contains("BatchHistoryExecution?.AcquireValidatedLease()"), "Extended downloader paths do not launch through prepared archive contexts");
+        Require(extended.Contains("HistoryExecution?.AcquireValidatedLease(() =>") && extended.Contains("BatchHistoryExecution?.AcquireValidatedLease(() =>"), "Extended downloader paths do not launch through cancellation-aware prepared archive contexts");
         Require(extended.Contains("HistoryExecution?.RefreshBackupAfterRun()") && extended.Contains("BatchHistoryExecution?.RefreshBackupAfterRun()"), "Extended downloader paths do not refresh archive backups after provider execution");
         Require(extended.IndexOf("DownloadHistory.Enabled ? DownloadHistory.AcquireArchiveLease()", StringComparison.Ordinal) < 0, "Extended downloader still binds locking to mutable live settings");
     }
@@ -896,6 +938,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ExecutionContextRejectsSettingChanges", DownloadHistoryExecutionContextRejectsSettingChanges);
         Test("DOWNLOAD_HISTORY.ExecutionLeaseRejectsArchiveTruncation", DownloadHistoryExecutionLeaseRejectsArchiveTruncation);
         Test("DOWNLOAD_HISTORY.LeaseSerializesWorkers", DownloadHistoryLeaseSerializesWorkers);
+        Test("DOWNLOAD_HISTORY.LeaseWaitHonorsCancellation", DownloadHistoryLeaseWaitHonorsCancellation);
         Test("DOWNLOAD_HISTORY.CancellationIsRecheckedBeforeProcessStart", DownloadHistoryCancellationIsRecheckedBeforeProcessStart);
         Test("DOWNLOAD_HISTORY.SettingsRejectIdRemovalWhileEnabled", DownloadHistorySettingsRejectIdRemovalWhileEnabled);
         Test("DOWNLOAD_HISTORY.LibraryBindingPreventsCrossLibraryReuse", DownloadHistoryLibraryBindingPreventsCrossLibraryReuse);

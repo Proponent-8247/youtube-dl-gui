@@ -718,7 +718,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                     rtbVerbose.Invoke(() => rtbVerbose.AppendLine(e.Data.Trim()));
                 }
             };
-            using DownloadHistoryLease? DownloadLease = HistoryExecution?.AcquireValidatedLease();
+            using DownloadHistoryLease? DownloadLease = HistoryExecution?.AcquireValidatedLease(() => CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose);
             if (CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
                 return;
             }
@@ -1077,7 +1077,7 @@ public partial class frmExtendedDownloader : LocalizedProcessingForm {
                         rtbVerbose.Invoke(() => rtbVerbose.AppendLine($"Error: {e.Data.Trim()}"));
                     }
                 };
-                using DownloadHistoryLease? DownloadLease = BatchHistoryExecution?.AcquireValidatedLease();
+                using DownloadHistoryLease? DownloadLease = BatchHistoryExecution?.AcquireValidatedLease(() => CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose);
                 if (CancellationRequested || Status == DownloadStatus.Aborted || Status == DownloadStatus.AbortForClose) {
                     lvQueuedMedia.Invoke(() => lvQueuedMedia.Items[i].ImageIndex = StatusIcon.Waiting);
                     break;

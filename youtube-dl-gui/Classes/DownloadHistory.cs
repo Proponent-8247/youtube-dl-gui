@@ -42,14 +42,25 @@ internal sealed class DownloadHistoryLease : IDisposable {
         mutex = ownedMutex;
     }
 
-    internal DownloadHistoryLease(string name) {
-        mutex = new Mutex(false, name);
+    internal DownloadHistoryLease(string name, Func<bool>? cancellationRequested = null) {
+        Mutex candidate = new(false, name);
         try {
-            mutex.WaitOne();
+            while (true) {
+                if (cancellationRequested?.Invoke() == true) throw new OperationCanceledException("Download History lease wait was cancelled.");
+                try {
+                    if (candidate.WaitOne(100)) break;
+                }
+                catch (AbandonedMutexException) {
+                    // The previous owner terminated without releasing the archive lease.
+                    // Ownership transfers to this process, so protected work can continue safely.
+                    break;
+                }
+            }
+            mutex = candidate;
         }
-        catch (AbandonedMutexException) {
-            // The previous owner terminated without releasing the archive lease.
-            // Ownership transfers to this process, so protected work can continue safely.
+        catch {
+            candidate.Dispose();
+            throw;
         }
     }
 
@@ -67,9 +78,10 @@ internal sealed class DownloadHistoryLease : IDisposable {
         return true;
     }
 
-    internal void AcquireFileLock(string path) {
+    internal void AcquireFileLock(string path, Func<bool>? cancellationRequested = null) {
         string? parent = Path.GetDirectoryName(path);
         while (true) {
+            if (cancellationRequested?.Invoke() == true) throw new OperationCanceledException("Download History file-lock wait was cancelled.");
             try {
                 fileLock = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
                 fileLockPath = path;
@@ -78,6 +90,7 @@ internal sealed class DownloadHistoryLease : IDisposable {
             catch (IOException ex) {
                 int nativeError = ex.HResult & 0xFFFF;
                 if (nativeError is not 32 and not 33 || parent.IsNullEmptyWhitespace() || !Directory.Exists(parent)) throw;
+                if (cancellationRequested?.Invoke() == true) throw new OperationCanceledException("Download History file-lock wait was cancelled.");
                 Thread.Sleep(100);
             }
         }
@@ -122,7 +135,11 @@ internal sealed class DownloadHistoryExecution {
         KeepBackup = keepBackup;
     }
 
-    public DownloadHistoryLease AcquireValidatedLease() => DownloadHistory.AcquireValidatedExecutionLease(ArchivePath, KeepBackup);
+    public DownloadHistoryLease AcquireValidatedLease() => DownloadHistory.AcquireValidatedExecutionLease(ArchivePath, KeepBackup, null);
+
+    public DownloadHistoryLease AcquireValidatedLease(Func<bool> cancellationRequested) =>
+        DownloadHistory.AcquireValidatedExecutionLease(ArchivePath, KeepBackup, cancellationRequested);
+
 
     // This overload deliberately assumes the execution lease is still held by the caller.
     public void RefreshBackupAfterRun() => DownloadHistory.RefreshBackupAfterRun(ArchivePath, KeepBackup);
@@ -464,12 +481,12 @@ internal static class DownloadHistory {
 
     public static DownloadHistoryLease AcquireArchiveLease() => AcquireArchiveLease(EffectiveArchivePath);
 
-    private static DownloadHistoryLease AcquireArchiveLease(string archivePath) {
-        DownloadHistoryLease lease = new(GetArchiveMutexName(archivePath));
+    private static DownloadHistoryLease AcquireArchiveLease(string archivePath, Func<bool>? cancellationRequested = null) {
+        DownloadHistoryLease lease = new(GetArchiveMutexName(archivePath), cancellationRequested);
         try {
             string? parent = Path.GetDirectoryName(archivePath);
             if (!parent.IsNullEmptyWhitespace() && Directory.Exists(parent)) {
-                lease.AcquireFileLock(archivePath + ".lock");
+                lease.AcquireFileLock(archivePath + ".lock", cancellationRequested);
             }
             return lease;
         }
@@ -520,9 +537,9 @@ internal static class DownloadHistory {
         }
     }
 
-    internal static DownloadHistoryLease AcquireValidatedExecutionLease(string archivePath, bool keepBackup) {
+    internal static DownloadHistoryLease AcquireValidatedExecutionLease(string archivePath, bool keepBackup, Func<bool>? cancellationRequested = null) {
         lock (Sync) ValidatePreparedExecution(archivePath, keepBackup);
-        DownloadHistoryLease lease = AcquireArchiveLease(archivePath);
+        DownloadHistoryLease lease = AcquireArchiveLease(archivePath, cancellationRequested);
         try {
             lock (Sync) ValidatePreparedExecution(archivePath, keepBackup);
             if (!File.Exists(archivePath)) {

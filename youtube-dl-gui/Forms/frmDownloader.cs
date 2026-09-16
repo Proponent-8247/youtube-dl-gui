@@ -316,7 +316,7 @@ internal partial class frmDownloader : LocalizedProcessingForm {
                     pbStatus.ShowInTaskbar = true;
                 });
 
-                using DownloadHistoryLease? DownloadLease = HistoryExecution?.AcquireValidatedLease();
+                using DownloadHistoryLease? DownloadLease = HistoryExecution?.AcquireValidatedLease(() => CancellationRequested || CurrentDownload.Status == DownloadStatus.Aborted || CurrentDownload.Status == DownloadStatus.AbortForClose);
                 if (CancellationRequested || CurrentDownload.Status == DownloadStatus.Aborted || CurrentDownload.Status == DownloadStatus.AbortForClose) {
                     return;
                 }

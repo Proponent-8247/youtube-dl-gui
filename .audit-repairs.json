@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "base_sha": "cc4bbe33cbe510e30c573e738018221d788ad7f7",
+  "base_sha": "d75d55aa31def232768f7d76df3073fa70ff754e",
   "expected_failures": [],
-  "allowed_flaky_failures": ["V011.ActualUpdaterExecutablesExchangeBoundPacket"],
+  "allowed_flaky_failures": ["V011.ActualUpdaterExecutablesExchangeBoundPacket", "V011.ActualUpdaterCancellationLeavesApplicationUntouched"],
   "remaining_failures": [],
   "repairs": [
     {

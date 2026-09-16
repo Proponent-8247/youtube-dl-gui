@@ -154,6 +154,7 @@ internal sealed class DownloadHistorySettingsSnapshot {
     internal bool NeedsReconciliation { get; init; }
     internal string BoundLibraryRoot { get; init; } = string.Empty;
     internal string BoundArchivePath { get; init; } = string.Empty;
+    internal string InventoryRoots { get; init; } = string.Empty;
     internal string? PreparedKey { get; init; }
     internal DownloadHistoryReport LastReport { get; init; } = new();
 }
@@ -186,6 +187,7 @@ internal static class DownloadHistory {
     private static bool fNeedsReconciliation = IniProvider.Read(false, false, ConfigName, nameof(NeedsReconciliation));
     private static string fBoundLibraryRoot = IniProvider.Read(string.Empty, string.Empty, ConfigName, nameof(BoundLibraryRoot));
     private static string fBoundArchivePath = IniProvider.Read(string.Empty, string.Empty, ConfigName, nameof(BoundArchivePath));
+    private static string fInventoryRoots = IniProvider.Read(string.Empty, string.Empty, ConfigName, nameof(InventoryRoots));
     private static string fKnownFileNameSchemas = IniProvider.Read(string.Empty, string.Empty, ConfigName, "KnownFileNameSchemas");
 
     public static bool Enabled {
@@ -270,6 +272,8 @@ internal static class DownloadHistory {
         }
     }
 
+    public static string InventoryRoots => fInventoryRoots;
+
     public static DownloadHistoryReport LastReport => LastReportInternal;
 
     public static DownloadHistorySettingsSnapshot CaptureSettings() => new() {
@@ -281,6 +285,7 @@ internal static class DownloadHistory {
         NeedsReconciliation = fNeedsReconciliation,
         BoundLibraryRoot = fBoundLibraryRoot,
         BoundArchivePath = fBoundArchivePath,
+        InventoryRoots = fInventoryRoots,
         PreparedKey = PreparedKey,
         LastReport = LastReportInternal
     };
@@ -294,6 +299,7 @@ internal static class DownloadHistory {
         fNeedsReconciliation = snapshot.NeedsReconciliation;
         fBoundLibraryRoot = snapshot.BoundLibraryRoot;
         fBoundArchivePath = snapshot.BoundArchivePath;
+        fInventoryRoots = snapshot.InventoryRoots;
         PreparedKey = snapshot.PreparedKey;
         LastReportInternal = snapshot.LastReport;
         IniProvider.Write(fEnabled, ConfigName, nameof(Enabled));
@@ -304,6 +310,7 @@ internal static class DownloadHistory {
         IniProvider.Write(fNeedsReconciliation, ConfigName, nameof(NeedsReconciliation));
         IniProvider.Write(fBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));
         IniProvider.Write(fBoundArchivePath, ConfigName, nameof(BoundArchivePath));
+        IniProvider.Write(fInventoryRoots, ConfigName, nameof(InventoryRoots));
     }
 
     public static void ResetHistory() {
@@ -574,54 +581,73 @@ internal static class DownloadHistory {
             LastReportInternal = DisabledReport();
             return LastReportInternal;
         }
-        DownloadHistoryReport report = AnalyzeLibrary(ArchivePath);
+        DownloadHistoryReport report = AnalyzeLibrary(ArchivePath, fInventoryRoots);
         LastReportInternal = report;
         return report;
     }
 
-    public static DownloadHistoryReport AnalyzeLibrary(string configuredArchivePath) {
+    public static DownloadHistoryReport AnalyzeLibrary(string configuredArchivePath) => AnalyzeLibrary(configuredArchivePath, fInventoryRoots);
+
+    public static DownloadHistoryReport AnalyzeLibrary(string configuredArchivePath, string configuredInventoryRoots) {
         lock (Sync) {
             if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {
                 return pathError!;
             }
+            if (!TryResolveInventoryRoots(libraryRoot, configuredInventoryRoots, out List<string> scanRoots, out DownloadHistoryReport? rootError)) return rootError!;
             if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport("validate the library");
-            using (lease!) return AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive)).Report;
+            bool recoverMissingEntries = CandidateRequiresLibraryRecovery(libraryRoot, archive) || InventoryRootsChanged(configuredInventoryRoots);
+            using (lease!) return AnalyzeCore(libraryRoot, scanRoots, archive, recoverMissingEntries).Report;
         }
     }
 
-    public static DownloadHistoryReport ReconcileLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration) {
+    public static DownloadHistoryReport ReconcileLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration) =>
+        ReconcileLibrary(configuredArchivePath, keepBackup, allowMigration, fInventoryRoots);
+
+    public static DownloadHistoryReport ReconcileLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration, string configuredInventoryRoots) {
         lock (Sync) {
             if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {
                 return pathError!;
             }
+            if (!TryResolveInventoryRoots(libraryRoot, configuredInventoryRoots, out List<string> scanRoots, out DownloadHistoryReport? rootError)) return rootError!;
             if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport("reconcile the library");
             using (lease!) {
                 if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease!, out DownloadHistoryReport? initializeError)) return initializeError!;
-                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));
+                bool recoverMissingEntries = CandidateRequiresLibraryRecovery(libraryRoot, archive) || InventoryRootsChanged(configuredInventoryRoots);
+                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, scanRoots, archive, recoverMissingEntries);
                 return ReconcileAnalysis(analysis, keepBackup, allowMigration);
             }
         }
     }
 
-    public static DownloadHistoryReport RebuildLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration) {
+    public static DownloadHistoryReport RebuildLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration) =>
+        RebuildLibrary(configuredArchivePath, keepBackup, allowMigration, fInventoryRoots);
+
+    public static DownloadHistoryReport RebuildLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration, string configuredInventoryRoots) {
         lock (Sync) {
             if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {
                 return pathError!;
             }
+            if (!TryResolveInventoryRoots(libraryRoot, configuredInventoryRoots, out List<string> scanRoots, out DownloadHistoryReport? rootError)) return rootError!;
             if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport("rebuild the library");
             using (lease!) {
                 if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease!, out DownloadHistoryReport? initializeError)) return initializeError!;
                 // Rebuild is an explicit inventory operation: recover every authoritative identity
                 // visible in the physical library while preserving all valid existing archive entries.
-                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, true);
+                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, scanRoots, archive, true);
                 return ReconcileAnalysis(analysis, keepBackup, allowMigration);
             }
         }
     }
 
-    public static void CommitSettings(bool enabled, string configuredArchivePath, bool keepBackup, DownloadHistoryReport? preparedReport) {
+    public static void CommitSettings(bool enabled, string configuredArchivePath, bool keepBackup, DownloadHistoryReport? preparedReport) =>
+        CommitSettings(enabled, configuredArchivePath, keepBackup, preparedReport, fInventoryRoots);
+
+    public static void CommitSettings(bool enabled, string configuredArchivePath, bool keepBackup, DownloadHistoryReport? preparedReport, string configuredInventoryRoots) {
         lock (Sync) {
             configuredArchivePath ??= string.Empty;
+            string normalizedInventoryRoots;
+            try { normalizedInventoryRoots = NormalizeInventoryRootsForStorage(configuredInventoryRoots); }
+            catch (Exception ex) { throw new InvalidOperationException("Download History inventory path is invalid: " + ex.Message, ex); }
             string? preparedKey = null;
             if (enabled) {
                 if (Downloads.YtdlType is not ((int)GitID.YtDlp) and not ((int)GitID.YtDlpNightly)) {
@@ -636,6 +662,9 @@ internal static class DownloadHistory {
                 if (!TryResolvePaths(configuredArchivePath, out string preparedLibraryRoot, out string preparedArchive, out DownloadHistoryReport? pathError)) {
                     throw new InvalidOperationException(pathError?.Message ?? "Download History path is invalid.");
                 }
+                if (!TryResolveInventoryRoots(preparedLibraryRoot, normalizedInventoryRoots, out List<string> preparedScanRoots, out DownloadHistoryReport? rootError)) {
+                    throw new InvalidOperationException(rootError?.Message ?? "Download History inventory path is invalid.");
+                }
 
                 using DownloadHistoryLease? previousLease = ShouldWaitForPreviousArchive(preparedArchive) ? AcquireManagementLease(BoundArchivePath, "change archive settings") : null;
                 using DownloadHistoryLease lease = AcquireManagementLease(preparedArchive, "save settings");
@@ -646,7 +675,7 @@ internal static class DownloadHistory {
                 if (!CanWriteArchiveLocation(preparedArchive, out string writeError)) {
                     throw new InvalidOperationException("Download History settings were not saved because the prepared archive is no longer writable: " + writeError);
                 }
-                DownloadHistoryAnalysis finalAnalysis = AnalyzeCore(preparedLibraryRoot, preparedArchive, CandidateRequiresLibraryRecovery(preparedLibraryRoot, preparedArchive));
+                DownloadHistoryAnalysis finalAnalysis = AnalyzeCore(preparedLibraryRoot, preparedScanRoots, preparedArchive, CandidateRequiresLibraryRecovery(preparedLibraryRoot, preparedArchive) || InventoryRootsChanged(normalizedInventoryRoots));
                 if (finalAnalysis.Report.State != DownloadHistoryState.Healthy) {
                     throw new InvalidOperationException("Download History settings were not saved because the library changed after preparation: " + finalAnalysis.Report.Message);
                 }
@@ -663,6 +692,7 @@ internal static class DownloadHistory {
             bool oldNeedsReconciliation = fNeedsReconciliation;
             string oldBoundLibraryRoot = fBoundLibraryRoot;
             string oldBoundArchivePath = fBoundArchivePath;
+            string oldInventoryRoots = fInventoryRoots;
             using DownloadHistoryLease? disableLease = !enabled && oldEnabled && !oldBoundArchivePath.IsNullEmptyWhitespace()
                 ? AcquireManagementLease(oldBoundArchivePath, "disable protection")
                 : null;
@@ -687,6 +717,7 @@ internal static class DownloadHistory {
                 IniProvider.Write(nextNeedsReconciliation, ConfigName, nameof(NeedsReconciliation));
                 IniProvider.Write(nextBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));
                 IniProvider.Write(nextBoundArchivePath, ConfigName, nameof(BoundArchivePath));
+                IniProvider.Write(normalizedInventoryRoots, ConfigName, nameof(InventoryRoots));
             }
             catch {
                 try {
@@ -698,6 +729,7 @@ internal static class DownloadHistory {
                     IniProvider.Write(oldNeedsReconciliation, ConfigName, nameof(NeedsReconciliation));
                     IniProvider.Write(oldBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));
                     IniProvider.Write(oldBoundArchivePath, ConfigName, nameof(BoundArchivePath));
+                    IniProvider.Write(oldInventoryRoots, ConfigName, nameof(InventoryRoots));
                 }
                 catch { }
                 throw;
@@ -711,6 +743,7 @@ internal static class DownloadHistory {
             fNeedsReconciliation = nextNeedsReconciliation;
             fBoundLibraryRoot = nextBoundLibraryRoot;
             fBoundArchivePath = nextBoundArchivePath;
+            fInventoryRoots = normalizedInventoryRoots;
             if (enabled) {
                 PreparedKey = preparedKey;
                 LastReportInternal = preparedReport!;
@@ -732,6 +765,10 @@ internal static class DownloadHistory {
                 LastReportInternal = pathError!;
                 return LastReportInternal;
             }
+            if (!TryResolveInventoryRoots(libraryRoot, fInventoryRoots, out List<string> scanRoots, out DownloadHistoryReport? rootError)) {
+                LastReportInternal = rootError!;
+                return LastReportInternal;
+            }
 
             string key = archive;
             if (!force && !NeedsReconciliation && PreparedKey == key && LastReportInternal.State == DownloadHistoryState.Healthy) {
@@ -744,7 +781,7 @@ internal static class DownloadHistory {
             }
             DownloadHistoryReport report;
             using (lease!) {
-                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));
+                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, scanRoots, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));
                 report = ReconcileAnalysis(analysis, KeepBackup, allowMigration);
             }
             LastReportInternal = report;
@@ -890,7 +927,62 @@ internal static class DownloadHistory {
         }
     }
 
-    private static DownloadHistoryAnalysis AnalyzeCore(string libraryRoot, string archive, bool recoverMissingEntries) {
+    private static DownloadHistoryAnalysis AnalyzeCore(string libraryRoot, string archive, bool recoverMissingEntries) =>
+        AnalyzeCore(libraryRoot, new[] { libraryRoot }, archive, recoverMissingEntries);
+
+    private static IEnumerable<string> ParseConfiguredInventoryRoots(string configuredInventoryRoots) {
+        if (configuredInventoryRoots.IsNullEmptyWhitespace()) yield break;
+        foreach (string raw in configuredInventoryRoots.Split(new[] { '|', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)) {
+            string candidate = raw.Trim();
+            if (candidate.Length > 0) yield return ResolveLibraryRoot(candidate);
+        }
+    }
+
+    private static bool IsPathWithin(string parent, string candidate) {
+        string normalizedParent = Path.GetFullPath(parent).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string normalizedCandidate = Path.GetFullPath(candidate).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (string.Equals(normalizedParent, normalizedCandidate, StringComparison.OrdinalIgnoreCase)) return true;
+        return normalizedCandidate.StartsWith(normalizedParent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static List<string> MinimizeInventoryRoots(IEnumerable<string> roots) {
+        List<string> result = [];
+        foreach (string root in roots.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(path => path.Length)) {
+            if (result.Any(parent => IsPathWithin(parent, root))) continue;
+            result.RemoveAll(child => IsPathWithin(root, child));
+            result.Add(root);
+        }
+        return result;
+    }
+
+    private static string NormalizeInventoryRootsForStorage(string configuredInventoryRoots) =>
+        string.Join("|", MinimizeInventoryRoots(ParseConfiguredInventoryRoots(configuredInventoryRoots)));
+
+    private static bool InventoryRootsChanged(string configuredInventoryRoots) {
+        try { return !string.Equals(NormalizeInventoryRootsForStorage(configuredInventoryRoots), fInventoryRoots, StringComparison.OrdinalIgnoreCase); }
+        catch { return true; }
+    }
+
+    private static bool TryResolveInventoryRoots(string libraryRoot, string configuredInventoryRoots, out List<string> scanRoots, out DownloadHistoryReport? error) {
+        scanRoots = [];
+        error = null;
+        try {
+            List<string> candidates = [libraryRoot];
+            candidates.AddRange(ParseConfiguredInventoryRoots(configuredInventoryRoots));
+            scanRoots = MinimizeInventoryRoots(candidates);
+            return true;
+        }
+        catch (Exception ex) {
+            error = new DownloadHistoryReport {
+                State = DownloadHistoryState.Invalid,
+                CanReconcile = false,
+                Message = "Download History inventory path is invalid: " + ex.Message
+            };
+            return false;
+        }
+    }
+
+    private static DownloadHistoryAnalysis AnalyzeCore(string libraryRoot, IReadOnlyList<string> scanRoots, string archive, bool recoverMissingEntries) {
         DownloadHistoryAnalysis analysis = new() { LibraryRoot = libraryRoot, ArchivePath = archive };
         DownloadHistoryReport report = analysis.Report;
 
@@ -906,6 +998,15 @@ internal static class DownloadHistory {
             report.CanReconcile = false;
             report.Message = "Media library path is unavailable: " + libraryRoot;
             return analysis;
+        }
+
+        foreach (string scanRoot in scanRoots) {
+            if (!Directory.Exists(scanRoot)) {
+                report.State = DownloadHistoryState.Unavailable;
+                report.CanReconcile = false;
+                report.Message = "Configured Download History inventory path is unavailable: " + scanRoot;
+                return analysis;
+            }
         }
 
         string? parent = Path.GetDirectoryName(archive);
@@ -967,8 +1068,10 @@ internal static class DownloadHistory {
 
         analysis.RecoverMissingEntries = recoverMissingEntries || !analysis.ArchiveExists || analysis.ArchiveWasInvalid || analysis.UsedBackup;
 
-        List<string> mediaFiles;
-        try { mediaFiles = EnumerateCompletedMedia(libraryRoot).ToList(); }
+        List<string> mediaFiles = [];
+        try {
+            foreach (string scanRoot in scanRoots) mediaFiles.AddRange(EnumerateCompletedMedia(scanRoot));
+        }
         catch (Exception ex) {
             report.State = DownloadHistoryState.Unavailable;
             report.CanReconcile = false;

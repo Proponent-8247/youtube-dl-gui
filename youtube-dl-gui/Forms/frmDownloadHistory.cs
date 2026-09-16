@@ -11,6 +11,8 @@ internal sealed class frmDownloadHistory : Form {
     private readonly Button btnBrowse = new();
     private readonly CheckBox chkBackup = new();
     private readonly CheckBox chkFailUnavailable = new();
+    private readonly TextBox txtInventoryRoots = new();
+    private readonly Button btnAddInventoryRoot = new();
     private readonly Label lbStatus = new();
     private readonly Label lbCounts = new();
     private readonly Button btnValidate = new();
@@ -27,7 +29,7 @@ internal sealed class frmDownloadHistory : Form {
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        ClientSize = new(660, 356);
+        ClientSize = new(660, 466);
 
         chkEnabled.Text = "Track previously downloaded media";
         chkEnabled.AutoSize = true;
@@ -54,46 +56,57 @@ internal sealed class frmDownloadHistory : Form {
         chkFailUnavailable.Checked = true;
         chkFailUnavailable.Enabled = false;
 
+        Label inventoryLabel = new() { Text = "Additional existing library folders (scan-only; one per line):", AutoSize = true, Location = new(18, 173) };
+        txtInventoryRoots.Location = new(18, 193);
+        txtInventoryRoots.Size = new(540, 66);
+        txtInventoryRoots.Multiline = true;
+        txtInventoryRoots.ScrollBars = ScrollBars.Vertical;
+        txtInventoryRoots.Text = DownloadHistory.InventoryRoots.Replace("|", Environment.NewLine);
+        btnAddInventoryRoot.Text = "Add Folder...";
+        btnAddInventoryRoot.Location = new(566, 193);
+        btnAddInventoryRoot.Size = new(76, 27);
+        btnAddInventoryRoot.Click += AddInventoryRoot;
+
         Label recovery = new() {
-            Text = "Recovery inventories existing media in place using authoritative .info.json metadata and media IDs embedded in completed filenames. Existing media and sidecar files are never renamed, moved, or rewritten.",
+            Text = "The archive tracks native provider identities and remains valid if media moves. Additional libraries are scan-only; existing media and sidecars are never renamed, moved, or rewritten.",
             AutoSize = false,
-            Location = new(18, 173),
+            Location = new(18, 273),
             Size = new(624, 48)
         };
 
-        lbStatus.Location = new(18, 222);
+        lbStatus.Location = new(18, 322);
         lbStatus.Size = new(624, 38);
         lbStatus.AutoEllipsis = true;
-        lbCounts.Location = new(18, 261);
+        lbCounts.Location = new(18, 361);
         lbCounts.Size = new(624, 20);
         lbCounts.AutoEllipsis = true;
 
         btnValidate.Text = "Validate Archive";
-        btnValidate.Location = new(18, 304);
+        btnValidate.Location = new(18, 414);
         btnValidate.Size = new(105, 28);
         btnValidate.Click += (_, _) => ValidateArchive();
         btnRebuild.Text = "Rebuild Archive";
-        btnRebuild.Location = new(129, 304);
+        btnRebuild.Location = new(129, 414);
         btnRebuild.Size = new(105, 28);
         btnRebuild.Click += (_, _) => RebuildArchive();
         btnOpen.Text = "Open Location";
-        btnOpen.Location = new(240, 304);
+        btnOpen.Location = new(240, 414);
         btnOpen.Size = new(95, 28);
         btnOpen.Click += OpenLocation;
         btnReset.Text = "Reset History";
-        btnReset.Location = new(341, 304);
+        btnReset.Location = new(341, 414);
         btnReset.Size = new(95, 28);
         btnReset.Click += ResetHistory;
         btnSave.Text = "Save";
-        btnSave.Location = new(472, 304);
+        btnSave.Location = new(472, 414);
         btnSave.Size = new(82, 28);
         btnSave.Click += SaveAndClose;
         btnCancel.Text = "Cancel";
-        btnCancel.Location = new(560, 304);
+        btnCancel.Location = new(560, 414);
         btnCancel.Size = new(82, 28);
         btnCancel.Click += (_, _) => Close();
 
-        Controls.AddRange([chkEnabled, pathLabel, txtArchive, btnBrowse, chkBackup, chkFailUnavailable, recovery, lbStatus, lbCounts,
+        Controls.AddRange([chkEnabled, pathLabel, txtArchive, btnBrowse, chkBackup, chkFailUnavailable, inventoryLabel, txtInventoryRoots, btnAddInventoryRoot, recovery, lbStatus, lbCounts,
             btnValidate, btnRebuild, btnOpen, btnReset, btnSave, btnCancel]);
         AcceptButton = btnSave;
         CancelButton = btnCancel;
@@ -124,6 +137,17 @@ internal sealed class frmDownloadHistory : Form {
         if (initialDirectory is not null) dialog.InitialDirectory = initialDirectory;
         if (dialog.ShowDialog(this) == DialogResult.OK) txtArchive.Text = dialog.FileName;
     }
+
+    private void AddInventoryRoot(object? sender, EventArgs e) {
+        using FolderBrowserDialog dialog = new() { Description = "Add an existing media library to scan for Download History identities" };
+        if (dialog.ShowDialog(this) != DialogResult.OK || dialog.SelectedPath.IsNullEmptyWhitespace()) return;
+        List<string> roots = txtInventoryRoots.Lines.Select(line => line.Trim()).Where(line => line.Length > 0).ToList();
+        if (!roots.Any(root => string.Equals(root, dialog.SelectedPath, StringComparison.OrdinalIgnoreCase))) roots.Add(dialog.SelectedPath);
+        txtInventoryRoots.Lines = roots.ToArray();
+    }
+
+    private string GetConfiguredInventoryRoots() => string.Join("|",
+        txtInventoryRoots.Lines.Select(line => line.Trim()).Where(line => line.Length > 0));
 
     private bool TryGetCandidate(bool showPrompts, out string configuredArchivePath) {
         configuredArchivePath = NormalizeConfiguredPath(txtArchive.Text);
@@ -161,7 +185,7 @@ internal sealed class frmDownloadHistory : Form {
             });
             return;
         }
-        DownloadHistoryReport report = DownloadHistory.AnalyzeLibrary(configuredArchivePath);
+        DownloadHistoryReport report = DownloadHistory.AnalyzeLibrary(configuredArchivePath, GetConfiguredInventoryRoots());
         RefreshStatus(report);
         if (report.State is DownloadHistoryState.Partial or DownloadHistoryState.Unsafe or DownloadHistoryState.Unavailable or DownloadHistoryState.Invalid) {
             MessageBox.Show(this, report.Message, "Download History validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -170,14 +194,14 @@ internal sealed class frmDownloadHistory : Form {
 
     private void RebuildArchive() {
         if (!TryGetCandidate(chkEnabled.Checked, out string configuredArchivePath)) return;
-        DownloadHistoryReport analysis = DownloadHistory.AnalyzeLibrary(configuredArchivePath);
+        DownloadHistoryReport analysis = DownloadHistory.AnalyzeLibrary(configuredArchivePath, GetConfiguredInventoryRoots());
         RefreshStatus(analysis);
         if (!analysis.CanReconcile) {
             MessageBox.Show(this, analysis.Message, "Download History cannot be rebuilt safely", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
-        DownloadHistoryReport report = DownloadHistory.RebuildLibrary(configuredArchivePath, chkBackup.Checked, false);
+        DownloadHistoryReport report = DownloadHistory.RebuildLibrary(configuredArchivePath, chkBackup.Checked, false, GetConfiguredInventoryRoots());
         RefreshStatus(report);
         if (report.State != DownloadHistoryState.Healthy) {
             MessageBox.Show(this, report.Message, "Download History rebuild", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -245,7 +269,7 @@ internal sealed class frmDownloadHistory : Form {
 
         if (!chkEnabled.Checked) {
             try {
-                DownloadHistory.CommitSettings(false, configuredArchivePath, chkBackup.Checked, null);
+                DownloadHistory.CommitSettings(false, configuredArchivePath, chkBackup.Checked, null, GetConfiguredInventoryRoots());
                 DialogResult = DialogResult.OK;
                 Close();
             }
@@ -255,14 +279,14 @@ internal sealed class frmDownloadHistory : Form {
             return;
         }
 
-        DownloadHistoryReport analysis = DownloadHistory.AnalyzeLibrary(configuredArchivePath);
+        DownloadHistoryReport analysis = DownloadHistory.AnalyzeLibrary(configuredArchivePath, GetConfiguredInventoryRoots());
         RefreshStatus(analysis);
         if (!analysis.CanReconcile) {
             MessageBox.Show(this, analysis.Message, "Download History cannot be enabled safely", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
-        DownloadHistoryReport report = DownloadHistory.ReconcileLibrary(configuredArchivePath, chkBackup.Checked, false);
+        DownloadHistoryReport report = DownloadHistory.ReconcileLibrary(configuredArchivePath, chkBackup.Checked, false, GetConfiguredInventoryRoots());
         RefreshStatus(report);
         if (report.State != DownloadHistoryState.Healthy) {
             MessageBox.Show(this, report.Message, "Download History not enabled safely", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -272,7 +296,7 @@ internal sealed class frmDownloadHistory : Form {
         string oldSchema = Downloads.fileNameSchema;
         try {
             Downloads.fileNameSchema = pendingFileNameSchema;
-            DownloadHistory.CommitSettings(true, configuredArchivePath, chkBackup.Checked, report);
+            DownloadHistory.CommitSettings(true, configuredArchivePath, chkBackup.Checked, report, GetConfiguredInventoryRoots());
         }
         catch (Exception ex) {
             Downloads.fileNameSchema = oldSchema;

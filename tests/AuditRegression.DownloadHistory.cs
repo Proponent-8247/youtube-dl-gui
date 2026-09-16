@@ -41,6 +41,7 @@ internal static partial class AuditRegression {
             history.GetField("fNeedsReconciliation", All).SetValue(null, false);
             history.GetField("fBoundLibraryRoot", All).SetValue(null, string.Empty);
             history.GetField("fBoundArchivePath", All).SetValue(null, string.Empty);
+            history.GetField("fInventoryRoots", All).SetValue(null, string.Empty);
             history.GetField("fKnownFileNameSchemas", All).SetValue(null, string.Empty);
             history.GetField("PreparedKey", All).SetValue(null, null);
         }
@@ -982,6 +983,47 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryMultipleInventoryRootsShareOneArchive() {
+        const string first = "9qFjkwAElDs";
+        const string second = "aB_Cd-Ef123";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string active = Path.Combine(fixture.Root, "downloads");
+            string existing = Path.Combine(fixture.Root, "existing-library");
+            string nested = Path.Combine(existing, "youtube.com", "Video", "Creator");
+            Directory.CreateDirectory(active);
+            Directory.CreateDirectory(nested);
+            Set(fixture.Downloads, null, "downloadPath", active);
+
+            DownloadHistoryWriteMediaWithInfo(active, "Active-" + first + ".mp4", "Youtube", first);
+            DownloadHistoryWriteMediaWithInfo(existing, "Duplicate-" + first + ".webm", "Youtube", first);
+            string nestedMedia = DownloadHistoryWriteMediaWithInfo(nested, "Existing library item.webm", "Youtube", second);
+            string nestedStem = Path.Combine(nested, "Existing library item");
+            File.WriteAllText(nestedStem + ".description", "description", Encoding.UTF8);
+            File.WriteAllText(nestedStem + ".webp", "thumbnail", Encoding.UTF8);
+            Dictionary<string, byte[]> before = Directory.GetFiles(existing, "*", SearchOption.AllDirectories)
+                .ToDictionary(path => path, path => File.ReadAllBytes(path), StringComparer.OrdinalIgnoreCase);
+
+            string customArchive = Path.Combine(fixture.Root, "history.txt");
+            string configuredRoots = existing + "|" + nested;
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", customArchive, true, false, configuredRoots);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(3, Get(rebuilt, "CompletedMedia"));
+            Equal(2, Get(rebuilt, "ArchiveEntries"));
+            string[] archiveLines = DownloadHistoryArchiveLines(customArchive);
+            Require(archiveLines.Contains("youtube " + first) && archiveLines.Contains("youtube " + second), "Multiple inventory roots were not unioned into one native archive");
+            Require(archiveLines.Length == 2, "Duplicate identities across inventory roots produced duplicate archive records");
+            foreach (KeyValuePair<string, byte[]> item in before) {
+                Require(File.Exists(item.Key), "Scan-only inventory moved or renamed a library file: " + item.Key);
+                Require(item.Value.SequenceEqual(File.ReadAllBytes(item.Key)), "Scan-only inventory rewrote a library file: " + item.Key);
+            }
+            Require(File.Exists(nestedMedia), "Scan-only inventory moved the nested media file");
+
+            Call(fixture.History, null, "CommitSettings", true, customArchive, true, rebuilt, configuredRoots);
+            string persisted = (string)fixture.History.GetProperty("InventoryRoots", All).GetValue(null, null);
+            Equal(Path.GetFullPath(existing), persisted);
+        }
+    }
+
     private static void DownloadHistoryWorkersUsePreparedContext() {
         string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
         string standard = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmDownloader.cs"));
@@ -1115,6 +1157,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.SettingsRejectIdRemovalWhileEnabled", DownloadHistorySettingsRejectIdRemovalWhileEnabled);
         Test("DOWNLOAD_HISTORY.LibraryBindingPreventsCrossLibraryReuse", DownloadHistoryLibraryBindingPreventsCrossLibraryReuse);
         Test("DOWNLOAD_HISTORY.PathAgnosticHistorySurvivesMediaMoves", DownloadHistoryPathAgnosticHistorySurvivesMediaMoves);
+        Test("DOWNLOAD_HISTORY.MultipleInventoryRootsShareOneArchive", DownloadHistoryMultipleInventoryRootsShareOneArchive);
         Test("DOWNLOAD_HISTORY.WorkersUsePreparedContext", DownloadHistoryWorkersUsePreparedContext);
         Test("DOWNLOAD_HISTORY.WiresStandardAndExtendedArguments", DownloadHistoryWiresStandardAndExtendedArguments);
     }

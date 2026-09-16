@@ -55,7 +55,7 @@ internal sealed class frmDownloadHistory : Form {
         chkFailUnavailable.Enabled = false;
 
         Label recovery = new() {
-            Text = "Recovery uses authoritative .info.json metadata and media IDs embedded in completed filenames. IDs are mandatory while protection is enabled. Legacy files identified by metadata can be migrated only after approval.",
+            Text = "Recovery inventories existing media in place using authoritative .info.json metadata and media IDs embedded in completed filenames. Existing media and sidecar files are never renamed, moved, or rewritten.",
             AutoSize = false,
             Location = new(18, 173),
             Size = new(624, 48)
@@ -177,26 +177,16 @@ internal sealed class frmDownloadHistory : Form {
             return;
         }
 
-        bool allowMigration = analysis.MigrationCount == 0 || ConfirmMigration(analysis);
-        if (analysis.MigrationCount > 0 && !allowMigration) return;
-        DownloadHistoryReport report = DownloadHistory.RebuildLibrary(configuredArchivePath, chkBackup.Checked, allowMigration);
+        DownloadHistoryReport report = DownloadHistory.RebuildLibrary(configuredArchivePath, chkBackup.Checked, false);
         RefreshStatus(report);
         if (report.State != DownloadHistoryState.Healthy) {
             MessageBox.Show(this, report.Message, "Download History rebuild", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
-    private bool ConfirmMigration(DownloadHistoryReport report) {
-        return MessageBox.Show(this,
-            $"{report.MigrationCount:N0} completed media file(s) lack the required embedded ID but can be identified authoritatively from adjacent .info.json metadata.\r\n\r\n" +
-            "Migration will rename those media files, and their matching .info.json files, to append the source ID. Media contents are not modified.\r\n\r\n" +
-            "Start this migration?",
-            "Migrate existing library", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;
-    }
-
     private void RefreshStatus(DownloadHistoryReport report) {
         lbStatus.Text = "Status: " + report.State + (report.Message.IsNullEmptyWhitespace() ? string.Empty : " - " + report.Message);
-        lbCounts.Text = $"Archive: {report.ArchiveEntries:N0}   Media: {report.CompletedMedia:N0}   Metadata: {report.MetadataRecovered:N0}   Filename IDs: {report.FilenameRecovered:N0}   Migrate: {report.MigrationCount:N0}   Unresolved: {report.UnresolvedMedia:N0}";
+        lbCounts.Text = $"Archive: {report.ArchiveEntries:N0}   Media: {report.CompletedMedia:N0}   Metadata: {report.MetadataRecovered:N0}   Filename IDs: {report.FilenameRecovered:N0}   Unresolved: {report.UnresolvedMedia:N0}";
     }
 
     private void OpenLocation(object? sender, EventArgs e) {
@@ -272,9 +262,7 @@ internal sealed class frmDownloadHistory : Form {
             return;
         }
 
-        bool allowMigration = analysis.MigrationCount == 0 || ConfirmMigration(analysis);
-        if (analysis.MigrationCount > 0 && !allowMigration) return;
-        DownloadHistoryReport report = DownloadHistory.ReconcileLibrary(configuredArchivePath, chkBackup.Checked, allowMigration);
+        DownloadHistoryReport report = DownloadHistory.ReconcileLibrary(configuredArchivePath, chkBackup.Checked, false);
         RefreshStatus(report);
         if (report.State != DownloadHistoryState.Healthy) {
             MessageBox.Show(this, report.Message, "Download History not enabled safely", MessageBoxButtons.OK, MessageBoxIcon.Warning);

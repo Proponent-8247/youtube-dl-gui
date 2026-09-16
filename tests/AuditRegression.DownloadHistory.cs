@@ -418,12 +418,13 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string original = DownloadHistoryWriteMediaWithInfo(fixture.Root, "Legacy Rokfin.mp4", "Rokfin", id);
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
-            Equal("Migratable", DownloadHistoryStateName(analysis));
-            Equal(1, Get(analysis, "MigrationCount"));
-            DownloadHistoryReconcile(fixture, string.Empty, true);
+            Equal("Missing", DownloadHistoryStateName(analysis));
+            Equal(0, Get(analysis, "MigrationCount"));
+            DownloadHistoryReconcile(fixture, string.Empty, false);
             string expected = Path.Combine(fixture.Root, "Legacy Rokfin-stream\u29F831332.mp4");
-            Require(File.Exists(expected), "Provider ID containing a slash was not migrated using yt-dlp-compatible filename sanitization");
-            Require(!File.Exists(original), "Unsanitized legacy provider media remained after migration");
+            Require(!File.Exists(expected), "Inventory created a renamed provider media path");
+            Require(File.Exists(original), "Metadata-backed provider media was renamed during inventory");
+            Require(File.Exists(Path.Combine(fixture.Root, "Legacy Rokfin.info.json")), "Metadata sidecar was renamed during inventory");
             Equal("rokfin " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
 
             File.Delete(fixture.Archive);
@@ -473,11 +474,13 @@ internal static partial class AuditRegression {
             File.WriteAllText(stem + ".info.json", "{\"formats\":[{\"id\":\"WRONG_ID_01\",\"extractor_key\":\"WrongExtractor\"}],\"id\":\"" + correctId + "\",\"extractor_key\":\"Youtube\"}", Encoding.UTF8);
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
-            Equal("Migratable", DownloadHistoryStateName(analysis));
+            Equal("Missing", DownloadHistoryStateName(analysis));
             Equal(1, Get(analysis, "MetadataRecovered"));
-            object migrated = DownloadHistoryReconcile(fixture, string.Empty, true);
+            DownloadHistoryReconcile(fixture, string.Empty, false);
             Equal("youtube " + correctId, DownloadHistoryArchiveLines(fixture.Archive).Single());
-            Require(File.Exists(Path.Combine(fixture.Root, "Nested Metadata-" + correctId + ".mp4")), "Metadata recovery did not use the top-level media identity");
+            Require(File.Exists(media), "Metadata recovery renamed the original media");
+            Require(File.Exists(stem + ".info.json"), "Metadata recovery renamed the original info sidecar");
+            Require(!File.Exists(Path.Combine(fixture.Root, "Nested Metadata-" + correctId + ".mp4")), "Metadata recovery created a renamed media path");
             Require(!File.Exists(Path.Combine(fixture.Root, "Nested Metadata-WRONG_ID_01.mp4")), "Nested metadata identity was incorrectly trusted as the media identity");
         }
     }
@@ -486,47 +489,47 @@ internal static partial class AuditRegression {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string original = DownloadHistoryWriteMediaWithInfo(fixture.Root, "Legacy Title.mp4", "Youtube", id);
+            string metadata = Path.Combine(fixture.Root, "Legacy Title.info.json");
+            byte[] mediaBefore = File.ReadAllBytes(original);
+            byte[] metadataBefore = File.ReadAllBytes(metadata);
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
-            Equal("Migratable", DownloadHistoryStateName(analysis));
-            Equal(1, Get(analysis, "MigrationCount"));
+            Equal("Missing", DownloadHistoryStateName(analysis));
+            Equal(0, Get(analysis, "MigrationCount"));
             Equal(1, Get(analysis, "MetadataRecovered"));
 
-            object declined = Call(fixture.History, null, "ReconcileLibrary", string.Empty, true, false);
-            Equal("Migratable", DownloadHistoryStateName(declined));
-            Require(File.Exists(original), "Migration occurred without explicit approval");
-            Require(!File.Exists(fixture.Archive), "Archive was written before migration approval");
-
-            object migrated = DownloadHistoryReconcile(fixture, string.Empty, true);
-            Equal(1, Get(migrated, "MigrationCount"));
-            string migratedMedia = Path.Combine(fixture.Root, "Legacy Title-" + id + ".mp4");
-            Require(File.Exists(migratedMedia), "Legacy media was not renamed with its authoritative ID");
-            Require(File.Exists(Path.Combine(fixture.Root, "Legacy Title-" + id + ".info.json")), "Legacy metadata did not follow the migrated media filename");
-            Require(!File.Exists(original), "Original legacy media path remained after successful migration");
+            object reconciled = Call(fixture.History, null, "ReconcileLibrary", string.Empty, true, false);
+            Equal("Healthy", DownloadHistoryStateName(reconciled));
+            Require(File.Exists(original) && File.Exists(metadata), "Legacy inventory changed existing paths");
+            Require(mediaBefore.SequenceEqual(File.ReadAllBytes(original)), "Legacy inventory rewrote media contents");
+            Require(metadataBefore.SequenceEqual(File.ReadAllBytes(metadata)), "Legacy inventory rewrote metadata contents");
+            Require(!File.Exists(Path.Combine(fixture.Root, "Legacy Title-" + id + ".mp4")), "Legacy inventory created a renamed media path");
             Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
         }
     }
 
     private static void DownloadHistoryMigrationFailureRollsBackMedia() {
+        const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            Type migrationType = T("youtube_dl_gui.DownloadHistoryMigration");
-            Type listType = typeof(List<>).MakeGenericType(migrationType);
-            System.Collections.IList migrations = (System.Collections.IList)Activator.CreateInstance(listType);
-            object migration = Activator.CreateInstance(migrationType, true);
-            string mediaSource = DownloadHistoryWriteMedia(fixture.Root, "Legacy.mp4");
-            string metadataSource = Path.Combine(fixture.Root, "Legacy.info.json");
-            File.WriteAllText(metadataSource, "{}", Encoding.UTF8);
-            string mediaTarget = Path.Combine(fixture.Root, "Legacy-9qFjkwAElDs.mp4");
-            string metadataTarget = Path.Combine(fixture.Root, "missing-directory", "Legacy-9qFjkwAElDs.info.json");
-            Set(migrationType, migration, "MediaSource", mediaSource);
-            Set(migrationType, migration, "MediaTarget", mediaTarget);
-            Set(migrationType, migration, "MetadataSource", metadataSource);
-            Set(migrationType, migration, "MetadataTarget", metadataTarget);
-            migrations.Add(migration);
+            string directory = Path.Combine(fixture.Root, "youtube.com", "Video", "Casual Geographic");
+            Directory.CreateDirectory(directory);
+            string media = DownloadHistoryWriteMediaWithInfo(directory, "Animal Facts That I Got WRONG-" + id + ".webm", "Youtube", id);
+            string stem = Path.Combine(directory, "Animal Facts That I Got WRONG-" + id);
+            File.WriteAllText(stem + ".description", "description", Encoding.UTF8);
+            File.WriteAllText(stem + ".webp", "thumbnail", Encoding.UTF8);
+            File.WriteAllText(stem + ".vtt", "subtitle", Encoding.UTF8);
+            File.WriteAllText(stem + ".live_chat.json", "{\"chat\":true}", Encoding.UTF8);
+            File.WriteAllText(Path.Combine(directory, "Casual Geographic - Videos-channel.info.json"), "{\"id\":\"channel\"}", Encoding.UTF8);
+            string[] paths = Directory.GetFiles(directory, "*", SearchOption.TopDirectoryOnly);
+            Dictionary<string, byte[]> before = paths.ToDictionary(path => path, path => File.ReadAllBytes(path), StringComparer.OrdinalIgnoreCase);
 
-            Throws<DirectoryNotFoundException>(() => Call(fixture.History, null, "ApplyMigrations", migrations));
-            Require(File.Exists(mediaSource), "Failed migration did not restore the original media path");
-            Require(File.Exists(metadataSource), "Failed migration did not preserve the original metadata path");
-            Require(!File.Exists(mediaTarget), "Failed migration left the media at the migrated path");
+            DownloadHistoryReconcile(fixture, string.Empty, false);
+            Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+            Equal(before.Count, Directory.GetFiles(directory, "*", SearchOption.TopDirectoryOnly).Length);
+            foreach (KeyValuePair<string, byte[]> item in before) {
+                Require(File.Exists(item.Key), "Inventory moved or renamed existing library file: " + item.Key);
+                Require(item.Value.SequenceEqual(File.ReadAllBytes(item.Key)), "Inventory rewrote existing library file: " + item.Key);
+            }
+            Require(File.Exists(media), "Inventory moved the representative media file");
         }
     }
 
@@ -702,9 +705,9 @@ internal static partial class AuditRegression {
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Partial", DownloadHistoryStateName(analysis));
             Equal(false, DownloadHistoryCanReconcile(analysis));
-            Equal(1, Get(analysis, "MigrationCount"));
-            Require(File.Exists(Path.Combine(fixture.Root, "Recoverable.mp4")), "Partial migration mutated media despite unresolved files");
-            Require(!File.Exists(Path.Combine(fixture.Root, "Recoverable-" + recoverable + ".mp4")), "Partial migration renamed media before the library was safe");
+            Equal(0, Get(analysis, "MigrationCount"));
+            Require(File.Exists(Path.Combine(fixture.Root, "Recoverable.mp4")), "Partial inventory mutated recoverable media despite unresolved files");
+            Require(!File.Exists(Path.Combine(fixture.Root, "Recoverable-" + recoverable + ".mp4")), "Partial inventory created a renamed media path");
         }
     }
 
@@ -1036,6 +1039,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.UsesTopLevelInfoJsonIdentity", DownloadHistoryUsesTopLevelInfoJsonIdentity);
         Test("DOWNLOAD_HISTORY.MigratesLegacyMetadata", DownloadHistoryMigratesLegacyMetadata);
         Test("DOWNLOAD_HISTORY.MigrationFailureRollsBackMedia", DownloadHistoryMigrationFailureRollsBackMedia);
+        Test("DOWNLOAD_HISTORY.InventoryNeverMutatesMediaFamilies", DownloadHistoryMigrationFailureRollsBackMedia);
         Test("DOWNLOAD_HISTORY.BlocksPartialAndUnsafeLibraries", DownloadHistoryBlocksPartialAndUnsafeLibraries);
         Test("DOWNLOAD_HISTORY.UnexpectedLossRequiresExplicitReset", DownloadHistoryUnexpectedLossRequiresExplicitReset);
         Test("DOWNLOAD_HISTORY.BackupRefreshRejectsCorruption", DownloadHistoryBackupRefreshRejectsCorruption);

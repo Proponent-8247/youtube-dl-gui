@@ -158,13 +158,6 @@ internal sealed class DownloadHistorySettingsSnapshot {
     internal DownloadHistoryReport LastReport { get; init; } = new();
 }
 
-internal sealed class DownloadHistoryMigration {
-    internal string MediaSource { get; init; } = string.Empty;
-    internal string MediaTarget { get; init; } = string.Empty;
-    internal string? MetadataSource { get; init; }
-    internal string? MetadataTarget { get; init; }
-}
-
 internal sealed class DownloadHistoryAnalysis {
     internal DownloadHistoryReport Report { get; } = new();
     internal string LibraryRoot { get; init; } = string.Empty;
@@ -177,7 +170,6 @@ internal sealed class DownloadHistoryAnalysis {
     internal bool RecoverMissingEntries { get; set; }
     internal HashSet<string> ArchiveEntries { get; } = new(StringComparer.Ordinal);
     internal HashSet<string> RecoveredEntries { get; } = new(StringComparer.Ordinal);
-    internal List<DownloadHistoryMigration> Migrations { get; } = [];
 }
 
 internal static class DownloadHistory {
@@ -776,25 +768,6 @@ internal static class DownloadHistory {
     private static DownloadHistoryReport ReconcileAnalysis(DownloadHistoryAnalysis analysis, bool keepBackup, bool allowMigration) {
         DownloadHistoryReport report = analysis.Report;
         if (!report.CanReconcile) return report;
-        if (analysis.Migrations.Count > 0 && !allowMigration) {
-            report.State = DownloadHistoryState.Migratable;
-            report.Message = $"{analysis.Migrations.Count:N0} completed media file(s) can be safely migrated using authoritative .info.json metadata. Migration must be explicitly approved before Download History can be enabled.";
-            return report;
-        }
-
-        bool migrationsApplied = false;
-        if (analysis.Migrations.Count > 0) {
-            try {
-                ApplyMigrations(analysis.Migrations);
-                migrationsApplied = true;
-            }
-            catch (Exception ex) {
-                report.State = DownloadHistoryState.Unsafe;
-                report.CanReconcile = false;
-                report.Message = "Download History could not safely normalize legacy filenames: " + ex.Message;
-                return report;
-            }
-        }
 
         bool changed = analysis.ArchiveNeedsRewrite || !analysis.ArchiveExists;
         if (analysis.RecoverMissingEntries) {
@@ -808,13 +781,9 @@ internal static class DownloadHistory {
                 WriteArchiveAtomically(analysis.ArchivePath, analysis.ArchiveEntries);
             }
             catch (Exception ex) {
-                string rollbackError = string.Empty;
-                bool rollbackOk = !migrationsApplied || TryRollbackMigrations(analysis.Migrations, out rollbackError);
-                report.State = rollbackOk ? DownloadHistoryState.Unavailable : DownloadHistoryState.Unsafe;
+                report.State = DownloadHistoryState.Unavailable;
                 report.CanReconcile = false;
-                report.Message = rollbackOk
-                    ? "Download archive could not be written safely; legacy filename changes were rolled back: " + ex.Message
-                    : "Download archive write failed and legacy filename rollback was incomplete. Manual review is required. Archive error: " + ex.Message + " Rollback error: " + rollbackError;
+                report.Message = "Download archive could not be written safely: " + ex.Message;
                 return report;
             }
         }
@@ -824,8 +793,6 @@ internal static class DownloadHistory {
                 CopyArchiveToBackupAtomically(analysis.ArchivePath);
             }
             catch (Exception ex) {
-                // The primary archive is already valid. Do not undo successful archive/media work;
-                // block enablement until the requested backup can be refreshed safely.
                 report.State = DownloadHistoryState.Unavailable;
                 report.CanReconcile = true;
                 report.ArchiveEntries = analysis.ArchiveEntries.Count;
@@ -837,7 +804,7 @@ internal static class DownloadHistory {
         report.ArchiveEntries = analysis.ArchiveEntries.Count;
         report.State = DownloadHistoryState.Healthy;
         report.CanReconcile = true;
-        report.Message = $"Download History is healthy. {report.ArchiveEntries:N0} archive entr{(report.ArchiveEntries == 1 ? "y" : "ies")} validated; {report.MigrationCount:N0} legacy filename(s) normalized.";
+        report.Message = $"Download History is healthy. {report.ArchiveEntries:N0} archive entr{(report.ArchiveEntries == 1 ? "y" : "ies")} validated without modifying existing media.";
         return report;
     }
 
@@ -1026,9 +993,8 @@ internal static class DownloadHistory {
             return analysis;
         }
 
-        HashSet<string> plannedTargets = new(StringComparer.OrdinalIgnoreCase);
         foreach (string media in mediaFiles) {
-            string? entry = TryRecoverFromInfoJson(media, out string? sourceId, out string? infoPath);
+            string? entry = TryRecoverFromInfoJson(media, out _, out _);
             bool fromMetadata = entry is not null;
             if (entry is null) entry = TryRecoverFromFilename(media, analysis.ArchiveEntries);
 
@@ -1046,37 +1012,19 @@ internal static class DownloadHistory {
                 continue;
             }
 
-            if (fromMetadata) {
-                report.MetadataRecovered++;
-                if (sourceId is not null && !FileNameContainsRecoverableSourceId(media, sourceId, entry, analysis.ArchiveEntries)) {
-                    if (!TryPlanMigration(media, infoPath, sourceId, plannedTargets, out DownloadHistoryMigration? migration)) {
-                        report.UnresolvedMedia++;
-                        continue;
-                    }
-                    analysis.Migrations.Add(migration!);
-                }
-            }
-            else {
-                report.FilenameRecovered++;
-            }
+            if (fromMetadata) report.MetadataRecovered++;
+            else report.FilenameRecovered++;
 
             report.IdentifiedMedia++;
             analysis.RecoveredEntries.Add(entry);
         }
-        report.MigrationCount = analysis.Migrations.Count;
+        report.MigrationCount = 0;
         report.ArchiveEntries = analysis.ArchiveEntries.Count;
 
         if (report.UnresolvedMedia > 0) {
             report.State = report.IdentifiedMedia > 0 ? DownloadHistoryState.Partial : DownloadHistoryState.Unsafe;
             report.CanReconcile = false;
             report.Message = $"Download History cannot safely enable protection: {report.UnresolvedMedia:N0} completed media file(s) have no authoritative recoverable source identity. No archive or media changes were written.";
-            return analysis;
-        }
-
-        if (analysis.Migrations.Count > 0) {
-            report.State = DownloadHistoryState.Migratable;
-            report.CanReconcile = true;
-            report.Message = $"Existing library is migratable: {analysis.Migrations.Count:N0} completed media file(s) can be renamed to embed authoritative source IDs from .info.json metadata.";
             return analysis;
         }
 
@@ -1277,14 +1225,6 @@ internal static class DownloadHistory {
         return Regex.IsMatch(name, "\\[" + Regex.Escape(sourceId) + "\\]$", RegexOptions.CultureInvariant);
     }
 
-    private static bool FileNameContainsRecoverableSourceId(string mediaPath, string sourceId, string archiveEntry, HashSet<string> archiveEntries) {
-        if (SourceIdFileNameCandidates(sourceId).Any(candidate => FileNameMatchesSourceId(mediaPath, candidate))) return true;
-        string? recovered = TryRecoverFromFilename(mediaPath, archiveEntries.Count == 0
-            ? new HashSet<string>(new[] { archiveEntry }, StringComparer.Ordinal)
-            : archiveEntries);
-        return string.Equals(recovered, archiveEntry, StringComparison.Ordinal);
-    }
-
     private static string? TryRecoverFromFilename(string mediaPath, HashSet<string> archiveEntries) {
         string? match = null;
         foreach (string entry in archiveEntries) {
@@ -1395,66 +1335,6 @@ internal static class DownloadHistory {
         }
         pattern.Append('$');
         return pattern.ToString();
-    }
-
-    private static bool TryPlanMigration(string mediaPath, string? infoPath, string sourceId, HashSet<string> plannedTargets, out DownloadHistoryMigration? migration) {
-        migration = null;
-        if (sourceId.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0) return false;
-        string directory = Path.GetDirectoryName(mediaPath) ?? string.Empty;
-        string targetStem = Path.GetFileNameWithoutExtension(mediaPath) + "-" + SanitizeSourceIdForFileName(sourceId);
-        string mediaTarget = Path.Combine(directory, targetStem + Path.GetExtension(mediaPath));
-        string? metadataTarget = infoPath is null ? null : Path.Combine(directory, targetStem + ".info.json");
-        if (File.Exists(mediaTarget) || (metadataTarget is not null && File.Exists(metadataTarget))) return false;
-        if (!plannedTargets.Add(mediaTarget) || (metadataTarget is not null && !plannedTargets.Add(metadataTarget))) return false;
-        migration = new DownloadHistoryMigration {
-            MediaSource = mediaPath,
-            MediaTarget = mediaTarget,
-            MetadataSource = infoPath,
-            MetadataTarget = metadataTarget
-        };
-        return true;
-    }
-
-    private static void ApplyMigrations(List<DownloadHistoryMigration> migrations) {
-        List<DownloadHistoryMigration> applied = [];
-        try {
-            foreach (DownloadHistoryMigration migration in migrations) {
-                File.Move(migration.MediaSource, migration.MediaTarget);
-                applied.Add(migration);
-                if (migration.MetadataSource is not null && migration.MetadataTarget is not null) {
-                    File.Move(migration.MetadataSource, migration.MetadataTarget);
-                }
-            }
-        }
-        catch (Exception ex) {
-            if (!TryRollbackMigrations(applied, out string rollbackError)) {
-                throw new IOException("Legacy filename migration failed and rollback was incomplete. Migration error: " + ex.Message + " Rollback error: " + rollbackError, ex);
-            }
-            throw;
-        }
-    }
-
-    private static bool TryRollbackMigrations(IEnumerable<DownloadHistoryMigration> migrations, out string error) {
-        error = string.Empty;
-        List<string> failures = [];
-        foreach (DownloadHistoryMigration migration in migrations.Reverse()) {
-            try {
-                if (migration.MetadataSource is not null && migration.MetadataTarget is not null && File.Exists(migration.MetadataTarget)) {
-                    if (File.Exists(migration.MetadataSource)) throw new IOException("Original metadata path already exists: " + migration.MetadataSource);
-                    File.Move(migration.MetadataTarget, migration.MetadataSource);
-                }
-                if (File.Exists(migration.MediaTarget)) {
-                    if (File.Exists(migration.MediaSource)) throw new IOException("Original media path already exists: " + migration.MediaSource);
-                    File.Move(migration.MediaTarget, migration.MediaSource);
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-                failures.Add(ex.Message);
-            }
-        }
-        if (failures.Count == 0) return true;
-        error = string.Join(" | ", failures);
-        return false;
     }
 
     private static bool CanWriteArchiveLocation(string archive, out string error) {

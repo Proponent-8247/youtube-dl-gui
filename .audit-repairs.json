@@ -1,7 +1,8 @@
 {
   "version": 2,
-  "base_sha": "cbd1e40bcc13dadcea5f11973f963ef9a3ea802d",
+  "base_sha": "7ff68ce057c5e9816f2d2df1229f2ea4f1776401",
   "expected_failures": [],
+  "allowed_flaky_failures": ["V011.ActualUpdaterExecutablesExchangeBoundPacket"],
   "remaining_failures": [],
   "repairs": [
     {

@@ -386,6 +386,46 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRecoversSanitizedProviderIds() {
+        const string id = "stream/31332";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string original = DownloadHistoryWriteMediaWithInfo(fixture.Root, "Legacy Rokfin.mp4", "Rokfin", id);
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Migratable", DownloadHistoryStateName(analysis));
+            Equal(1, Get(analysis, "MigrationCount"));
+            DownloadHistoryReconcile(fixture, string.Empty, true);
+            string expected = Path.Combine(fixture.Root, "Legacy Rokfin-stream\u29F831332.mp4");
+            Require(File.Exists(expected), "Provider ID containing a slash was not migrated using yt-dlp-compatible filename sanitization");
+            Require(!File.Exists(original), "Unsanitized legacy provider media remained after migration");
+            Equal("rokfin " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+
+            File.Delete(fixture.Archive);
+            if (File.Exists(fixture.Archive + ".bak")) File.Delete(fixture.Archive + ".bak");
+            DownloadHistoryReconcile(fixture, string.Empty, true);
+            Equal("rokfin " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMedia(fixture.Root, "Restricted-stream_31332.mp4");
+            File.WriteAllText(fixture.Archive, "rokfin " + id + "\r\n", Encoding.UTF8);
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(analysis));
+            Equal(1, Get(analysis, "FilenameRecovered"));
+        }
+    }
+
+    private static void DownloadHistoryRecognizesSplitChapterIds() {
+        const string id = "9qFjkwAElDs";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMedia(fixture.Root, "Video - 001 Intro [" + id + "].mp4");
+            File.WriteAllText(fixture.Archive, "youtube " + id + "\r\n", Encoding.UTF8);
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(analysis));
+            Equal(1, Get(analysis, "FilenameRecovered"));
+            Equal(0, Get(analysis, "UnresolvedMedia"));
+        }
+    }
+
     private static void DownloadHistoryUsesTopLevelInfoJsonIdentity() {
         const string correctId = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -950,6 +990,8 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.PreservesDelimiterBearingSchemas", DownloadHistoryPreservesDelimiterBearingSchemas);
         Test("DOWNLOAD_HISTORY.UnderstandsIdPlacementFromSchema", DownloadHistoryUnderstandsIdPlacementFromSchema);
         Test("DOWNLOAD_HISTORY.RejectsReparsePointTraversal", DownloadHistoryRejectsReparsePointTraversal);
+        Test("DOWNLOAD_HISTORY.RecoversSanitizedProviderIds", DownloadHistoryRecoversSanitizedProviderIds);
+        Test("DOWNLOAD_HISTORY.RecognizesSplitChapterIds", DownloadHistoryRecognizesSplitChapterIds);
         Test("DOWNLOAD_HISTORY.UsesTopLevelInfoJsonIdentity", DownloadHistoryUsesTopLevelInfoJsonIdentity);
         Test("DOWNLOAD_HISTORY.MigratesLegacyMetadata", DownloadHistoryMigratesLegacyMetadata);
         Test("DOWNLOAD_HISTORY.MigrationFailureRollsBackMedia", DownloadHistoryMigrationFailureRollsBackMedia);

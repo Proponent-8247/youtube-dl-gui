@@ -1210,10 +1210,72 @@ internal static class DownloadHistory {
         catch (InvalidOperationException) { return null; }
     }
 
-    private static bool FileNameContainsRecoverableSourceId(string mediaPath, string sourceId, string archiveEntry, HashSet<string> archiveEntries) {
+    private static IEnumerable<string> SourceIdFileNameCandidates(string sourceId) {
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        foreach (string candidate in new[] {
+            sourceId,
+            SanitizeSourceIdForFileName(sourceId),
+            SanitizeSourceIdCompat(sourceId, false),
+            SanitizeSourceIdCompat(sourceId, true)
+        }) {
+            if (!candidate.IsNullEmptyWhitespace() && seen.Add(candidate)) yield return candidate;
+        }
+    }
+
+    private static string SanitizeSourceIdForFileName(string sourceId) {
+        StringBuilder result = new();
+        foreach (char value in sourceId) {
+            if (value < 32 || value == 127) continue;
+            result.Append(value switch {
+                '/' => '\u29F8',
+                '\\' => '\u29F9',
+                '"' => '\uFF02',
+                '*' => '\uFF0A',
+                ':' => '\uFF1A',
+                '<' => '\uFF1C',
+                '>' => '\uFF1E',
+                '?' => '\uFF1F',
+                '|' => '\uFF5C',
+                _ => value
+            });
+        }
+        return result.Length == 0 ? "_" : result.ToString();
+    }
+
+    private static string SanitizeSourceIdCompat(string sourceId, bool restricted) {
+        StringBuilder result = new();
+        foreach (char value in sourceId) {
+            if (value < 32 || value == 127 || value == '?') continue;
+            if (value == '"') {
+                if (!restricted) result.Append('\'');
+                continue;
+            }
+            if (value == ':') {
+                result.Append(restricted ? "_-" : " -");
+                continue;
+            }
+            if (value is '/' or '\\' or '|' or '*' or '<' or '>') {
+                result.Append('_');
+                continue;
+            }
+            if (restricted && (char.IsWhiteSpace(value) || value > 127 || "!&'()[]{}$;`^,#".IndexOf(value) >= 0)) {
+                result.Append('_');
+                continue;
+            }
+            result.Append(value);
+        }
+        return result.Length == 0 ? "_" : result.ToString();
+    }
+
+    private static bool FileNameMatchesSourceId(string mediaPath, string sourceId) {
         if (SchemaFileNameContainsSourceId(mediaPath, sourceId)) return true;
         string name = Path.GetFileNameWithoutExtension(mediaPath);
         if (Regex.IsMatch(name, Regex.Escape("-" + sourceId) + "(?:_[A-Za-z0-9_-]+)?$", RegexOptions.CultureInvariant)) return true;
+        return Regex.IsMatch(name, "\\[" + Regex.Escape(sourceId) + "\\]$", RegexOptions.CultureInvariant);
+    }
+
+    private static bool FileNameContainsRecoverableSourceId(string mediaPath, string sourceId, string archiveEntry, HashSet<string> archiveEntries) {
+        if (SourceIdFileNameCandidates(sourceId).Any(candidate => FileNameMatchesSourceId(mediaPath, candidate))) return true;
         string? recovered = TryRecoverFromFilename(mediaPath, archiveEntries.Count == 0
             ? new HashSet<string>(new[] { archiveEntry }, StringComparer.Ordinal)
             : archiveEntries);
@@ -1232,9 +1294,7 @@ internal static class DownloadHistory {
             int separator = entry.IndexOf(' ');
             if (separator <= 0 || separator == entry.Length - 1) continue;
             string id = entry.Substring(separator + 1);
-            bool idMatches = SchemaFileNameContainsSourceId(mediaPath, id) ||
-                Regex.IsMatch(name, Regex.Escape("-" + id) + "(?:_[A-Za-z0-9_-]+)?$", RegexOptions.CultureInvariant);
-            if (!idMatches) continue;
+            if (!SourceIdFileNameCandidates(id).Any(candidate => FileNameMatchesSourceId(mediaPath, candidate))) continue;
             if (match is not null && !string.Equals(match, entry, StringComparison.Ordinal)) return null;
             match = entry;
         }
@@ -1316,7 +1376,7 @@ internal static class DownloadHistory {
             string template = GetSchemaFileTemplate(schema);
             if (template.IsNullEmptyWhitespace() || template.IndexOf("%(id)s", StringComparison.OrdinalIgnoreCase) < 0) continue;
             string pattern = BuildSchemaRegex(template, Regex.Escape(sourceId));
-            if (Regex.IsMatch(Path.GetFileName(mediaPath), pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) return true;
+            if (Regex.IsMatch(Path.GetFileName(mediaPath), pattern, RegexOptions.CultureInvariant)) return true;
         }
         return false;
     }
@@ -1360,9 +1420,9 @@ internal static class DownloadHistory {
 
     private static bool TryPlanMigration(string mediaPath, string? infoPath, string sourceId, HashSet<string> plannedTargets, out DownloadHistoryMigration? migration) {
         migration = null;
-        if (sourceId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || sourceId.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0) return false;
+        if (sourceId.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0) return false;
         string directory = Path.GetDirectoryName(mediaPath) ?? string.Empty;
-        string targetStem = Path.GetFileNameWithoutExtension(mediaPath) + "-" + sourceId;
+        string targetStem = Path.GetFileNameWithoutExtension(mediaPath) + "-" + SanitizeSourceIdForFileName(sourceId);
         string mediaTarget = Path.Combine(directory, targetStem + Path.GetExtension(mediaPath));
         string? metadataTarget = infoPath is null ? null : Path.Combine(directory, targetStem + ".info.json");
         if (File.Exists(mediaTarget) || (metadataTarget is not null && File.Exists(metadataTarget))) return false;

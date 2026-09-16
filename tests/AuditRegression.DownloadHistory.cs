@@ -357,6 +357,35 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsReparsePointTraversal() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string target = Path.Combine(Environment.CurrentDirectory, "download-history-link-target-" + Guid.NewGuid().ToString("N"));
+            string link = Path.Combine(fixture.Root, "linked-library");
+            Directory.CreateDirectory(target);
+            DownloadHistoryWriteMedia(target, "Outside-ABCDEFGHIJK.mp4");
+            try {
+                System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo {
+                    FileName = "cmd.exe",
+                    Arguments = "/d /c mklink /J \"" + link + "\" \"" + target + "\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using (System.Diagnostics.Process process = System.Diagnostics.Process.Start(psi)) {
+                    Require(process.WaitForExit(5000), "Junction creation did not complete");
+                    Equal(0, process.ExitCode);
+                }
+                object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+                Equal("Unavailable", DownloadHistoryStateName(analysis));
+                Require(((string)Get(analysis, "Message")).IndexOf("reparse", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Reparse-point library traversal did not fail with an explicit safety message");
+            }
+            finally {
+                if (Directory.Exists(link)) Directory.Delete(link);
+                if (Directory.Exists(target)) Directory.Delete(target, true);
+            }
+        }
+    }
+
     private static void DownloadHistoryUsesTopLevelInfoJsonIdentity() {
         const string correctId = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -920,6 +949,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ParsesFormattedFilenameSchemas", DownloadHistoryParsesFormattedFilenameSchemas);
         Test("DOWNLOAD_HISTORY.PreservesDelimiterBearingSchemas", DownloadHistoryPreservesDelimiterBearingSchemas);
         Test("DOWNLOAD_HISTORY.UnderstandsIdPlacementFromSchema", DownloadHistoryUnderstandsIdPlacementFromSchema);
+        Test("DOWNLOAD_HISTORY.RejectsReparsePointTraversal", DownloadHistoryRejectsReparsePointTraversal);
         Test("DOWNLOAD_HISTORY.UsesTopLevelInfoJsonIdentity", DownloadHistoryUsesTopLevelInfoJsonIdentity);
         Test("DOWNLOAD_HISTORY.MigratesLegacyMetadata", DownloadHistoryMigratesLegacyMetadata);
         Test("DOWNLOAD_HISTORY.MigrationFailureRollsBackMedia", DownloadHistoryMigrationFailureRollsBackMedia);

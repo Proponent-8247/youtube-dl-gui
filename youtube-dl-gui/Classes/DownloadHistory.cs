@@ -1142,23 +1142,37 @@ internal static class DownloadHistory {
 
     private static IEnumerable<string> EnumerateCompletedMedia(string root) {
         if (!Directory.Exists(root)) yield break;
-        foreach (string file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)) {
-            string name = Path.GetFileName(file);
-            string ext = Path.GetExtension(file).ToLowerInvariant();
-            if (name.EndsWith(".part", StringComparison.OrdinalIgnoreCase) ||
-                name.EndsWith(".ytdl", StringComparison.OrdinalIgnoreCase) ||
-                name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
-                name.EndsWith(".info.json", StringComparison.OrdinalIgnoreCase) ||
-                ext is ".json" or ".jpg" or ".jpeg" or ".png" or ".webp" or ".gif" or ".srt" or ".vtt" or ".ass" or ".lrc" or ".description" or ".txt") {
-                continue;
+        Stack<string> pending = new();
+        pending.Push(root);
+        while (pending.Count > 0) {
+            string directory = pending.Pop();
+            foreach (string file in Directory.EnumerateFiles(directory, "*", SearchOption.TopDirectoryOnly)) {
+                if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0) {
+                    throw new IOException("Download History will not traverse reparse-point media files inside the protected library: " + file);
+                }
+                string name = Path.GetFileName(file);
+                string ext = Path.GetExtension(file).ToLowerInvariant();
+                if (name.EndsWith(".part", StringComparison.OrdinalIgnoreCase) ||
+                    name.EndsWith(".ytdl", StringComparison.OrdinalIgnoreCase) ||
+                    name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
+                    name.EndsWith(".info.json", StringComparison.OrdinalIgnoreCase) ||
+                    ext is ".json" or ".jpg" or ".jpeg" or ".png" or ".webp" or ".gif" or ".srt" or ".vtt" or ".ass" or ".lrc" or ".description" or ".txt") {
+                    continue;
+                }
+                if (ext is ".mp4" or ".mkv" or ".webm" or ".mov" or ".avi" or ".flv" or ".m4v" or ".3gp" or ".3g2" or
+                    ".f4v" or ".mk3d" or ".divx" or ".ogv" or ".nut" or ".swf" or
+                    ".ts" or ".m2ts" or ".mts" or ".vob" or ".wmv" or ".asf" or ".mpg" or ".mpeg" or ".mpe" or ".mpv" or ".m2v" or
+                    ".mp3" or ".mp2" or ".m4a" or ".m4b" or ".m4r" or ".aac" or ".opus" or ".ogg" or ".oga" or ".ogx" or ".spx" or ".vorbis" or ".weba" or
+                    ".wav" or ".flac" or ".wma" or ".mka" or ".ape" or ".alac" or ".aiff" or ".aif" or ".aifc" or ".tta" or
+                    ".f4a" or ".f4b" or ".ac3" or ".eac3" or ".dts") {
+                    yield return file;
+                }
             }
-            if (ext is ".mp4" or ".mkv" or ".webm" or ".mov" or ".avi" or ".flv" or ".m4v" or ".3gp" or ".3g2" or
-                ".f4v" or ".mk3d" or ".divx" or ".ogv" or ".nut" or ".swf" or
-                ".ts" or ".m2ts" or ".mts" or ".vob" or ".wmv" or ".asf" or ".mpg" or ".mpeg" or ".mpe" or ".mpv" or ".m2v" or
-                ".mp3" or ".mp2" or ".m4a" or ".m4b" or ".m4r" or ".aac" or ".opus" or ".ogg" or ".oga" or ".ogx" or ".spx" or ".vorbis" or ".weba" or
-                ".wav" or ".flac" or ".wma" or ".mka" or ".ape" or ".alac" or ".aiff" or ".aif" or ".aifc" or ".tta" or
-                ".f4a" or ".f4b" or ".ac3" or ".eac3" or ".dts") {
-                yield return file;
+            foreach (string child in Directory.EnumerateDirectories(directory, "*", SearchOption.TopDirectoryOnly)) {
+                if ((File.GetAttributes(child) & FileAttributes.ReparsePoint) != 0) {
+                    throw new IOException("Download History will not traverse reparse-point directories inside the protected library: " + child);
+                }
+                pending.Push(child);
             }
         }
     }

@@ -43,6 +43,24 @@ and nested trees such as:
 
 `Downloads\YT-DL\youtube.com\Video\Casual Geographic\...`
 
+## Feature implementation issue register
+
+This is the canonical running list of issues relevant to this feature implementation. Verified findings receive a stable `DH-A###` ID. Leads remain explicitly marked as under review and are not promoted until verified against source, callers, and tests.
+
+| ID | Severity | State | Summary |
+| --- | --- | --- | --- |
+| DH-A001 | High | Verified | Recovered `.info.json` identity is not guaranteed to be exactly one valid archive record; control characters/newlines can corrupt or inject archive entries. |
+| DH-A002 | High | Verified | Existing-library migration can rename/move files, violating the required strictly non-destructive inventory model. |
+| DH-L001 | TBD | Under review | Explicit `Rebuild Archive` semantics may trust an existing valid archive instead of fully rescanning the library, which may conflict with initial large-library inventory/rebuild expectations. |
+| DH-L002 | TBD | Under review | Cross-session/process locking around first-use/default history-directory creation and archive mutation. |
+| DH-L003 | TBD | Under review | yt-dlp custom/config option escape surface may bypass or conflict with application-managed `--download-archive`. |
+| DH-L004 | TBD | Under review | UI save/cancel and partial-failure transaction boundaries may allow settings/history state to become inconsistent. |
+| DH-L005 | TBD | Under review | Large-library scan/archive performance and resource behavior, including recursive enumeration, JSON reads, memory use, and rewrite complexity. |
+| DH-L006 | TBD | Under review | Safe treatment/reporting of legacy files that cannot be identified authoritatively from `.info.json` or a supported filename pattern. |
+| DH-L007 | TBD | Under review | Sidecar/media-family classification for `.description`, `.info.json`, thumbnails, subtitles and related files must avoid counting companions as separate media items while leaving all files untouched. |
+
+The register will be updated as each lead is proven, disproven, split, or closed. Fix status and validating commit/test evidence will be added to the same row when implementation begins.
+
 ## Review scope / status
 
 The review is covering the complete feature delta and its interactions, including:
@@ -102,10 +120,4 @@ Review remains in progress. Findings are appended only after they survive source
 
 ## Leads still under review
 
-The following are review leads, not findings yet, and must not be treated as defects until reconciled:
-
-- cross-session first-use locking while the default library directory is being created;
-- current yt-dlp option/config escape surface and archive-identity compatibility;
-- UI save/cancel and partial-failure transaction boundaries;
-- large-library and archive performance/resource behavior;
-- treatment of unidentified legacy files when no authoritative `.info.json` is available.
+The detailed lead list is maintained in the feature implementation issue register above. Leads are not findings until verified.

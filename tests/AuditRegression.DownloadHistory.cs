@@ -291,6 +291,19 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryParsesFormattedFilenameSchemas() {
+        const string id = "aB_Cd-Ef123";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            Set(fixture.Downloads, null, "fileNameSchema", "%(title).200B-%(id)s-%(upload_date)s.%(ext)s");
+            DownloadHistoryWriteMedia(fixture.Root, "Title-" + id + "-20260915.mp4");
+            File.WriteAllText(fixture.Archive, "youtube " + id + "\r\n", Encoding.UTF8);
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal(1, Get(analysis, "FilenameRecovered"));
+            Equal(0, Get(analysis, "UnresolvedMedia"));
+            Equal("Healthy", DownloadHistoryStateName(analysis));
+        }
+    }
+
     private static void DownloadHistoryRecoversHistoricalProtectedSchemas() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -841,6 +854,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RecoversSupportedMediaExtensions", DownloadHistoryRecoversSupportedMediaExtensions);
         Test("DOWNLOAD_HISTORY.RebuildsDeletedArchiveFromIds", DownloadHistoryRebuildsDeletedArchiveFromIds);
         Test("DOWNLOAD_HISTORY.RecoversHistoricalProtectedSchemas", DownloadHistoryRecoversHistoricalProtectedSchemas);
+        Test("DOWNLOAD_HISTORY.ParsesFormattedFilenameSchemas", DownloadHistoryParsesFormattedFilenameSchemas);
         Test("DOWNLOAD_HISTORY.UnderstandsIdPlacementFromSchema", DownloadHistoryUnderstandsIdPlacementFromSchema);
         Test("DOWNLOAD_HISTORY.UsesTopLevelInfoJsonIdentity", DownloadHistoryUsesTopLevelInfoJsonIdentity);
         Test("DOWNLOAD_HISTORY.MigratesLegacyMetadata", DownloadHistoryMigratesLegacyMetadata);

@@ -1278,6 +1278,7 @@ internal static class DownloadHistory {
 
     private static string BuildSchemaRegex(string template, string idPattern) {
         const string idToken = "%(id)s";
+        const string conversionTypes = "diouxXeEfFgGcrsBjhlqDSU";
         StringBuilder pattern = new("^");
         int position = 0;
         while (position < template.Length) {
@@ -1287,14 +1288,20 @@ internal static class DownloadHistory {
                 break;
             }
             pattern.Append(Regex.Escape(template.Substring(position, tokenStart - position)));
-            int tokenEnd = template.IndexOf(")s", tokenStart, StringComparison.Ordinal);
-            if (tokenEnd < 0) {
+            int close = template.IndexOf(')', tokenStart + 2);
+            if (close < 0) {
                 pattern.Append(Regex.Escape(template.Substring(tokenStart)));
                 break;
             }
-            string token = template.Substring(tokenStart, tokenEnd + 2 - tokenStart);
+            int tokenEnd = close + 1;
+            while (tokenEnd < template.Length && conversionTypes.IndexOf(template[tokenEnd]) < 0) tokenEnd++;
+            if (tokenEnd >= template.Length) {
+                pattern.Append(Regex.Escape(template.Substring(tokenStart)));
+                break;
+            }
+            string token = template.Substring(tokenStart, tokenEnd + 1 - tokenStart);
             pattern.Append(string.Equals(token, idToken, StringComparison.OrdinalIgnoreCase) ? idPattern : ".*?");
-            position = tokenEnd + 2;
+            position = tokenEnd + 1;
         }
         pattern.Append('$');
         return pattern.ToString();

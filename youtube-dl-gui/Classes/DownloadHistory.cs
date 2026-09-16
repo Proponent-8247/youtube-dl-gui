@@ -419,9 +419,14 @@ internal static class DownloadHistory {
                 error = "--break-on-existing and --break-per-input are not allowed while Download History protection is enabled because they can stop collection traversal before new media is discovered.";
                 return false;
             }
-            if (ContainsShortOption(customArguments, "-o") || ContainsOption(customArguments, "--output") ||
+            if (ContainsShortOption(customArguments, "-o") || ContainsOption(customArguments, "--output") || ContainsOption(customArguments, "--id") ||
                 ContainsShortOption(customArguments, "-P") || ContainsOption(customArguments, "--paths")) {
                 error = "Custom output templates or paths are not allowed while Download History protection is enabled because the app must keep %(id)s-bearing media inside the validated library namespace.";
+                return false;
+            }
+            if (ContainsOption(customArguments, "--parse-metadata") || ContainsOption(customArguments, "--replace-in-metadata") ||
+                ContainsOption(customArguments, "--metadata-from-title")) {
+                error = "Custom metadata rewriting is not allowed while Download History protection is enabled because changing source identity fields can corrupt archive identity. Remove the metadata rewrite or disable Download History.";
                 return false;
             }
             if (ContainsOption(customArguments, "--force-write-archive") ||
@@ -436,6 +441,11 @@ internal static class DownloadHistory {
             }
             if (ContainsOption(customArguments, "--config-locations") || ContainsOption(customArguments, "--alias")) {
                 error = "Custom yt-dlp config locations and runtime aliases are not allowed while Download History protection is enabled because they can inject options that bypass archive and filename integrity checks. Move compatible options into the app's custom arguments instead.";
+                return false;
+            }
+            if (ContainsOption(customArguments, "--exec") || ContainsOption(customArguments, "--exec-before-download") ||
+                ContainsOption(customArguments, "--use-postprocessor")) {
+                error = "Arbitrary exec and plugin postprocessor hooks are not allowed while Download History protection is enabled because they can change protected identities or files outside the validated postprocessing model. Use built-in yt-dlp postprocessing options or disable Download History.";
                 return false;
             }
             if (ContainsOption(customArguments, "--")) {

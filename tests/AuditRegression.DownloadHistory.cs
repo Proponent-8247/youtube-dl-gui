@@ -198,6 +198,58 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsMetadataIdentityRewrites() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            string[] unsafeArguments = {
+                "--parse-metadata %(title)s:%(id)s",
+                "--parse-met %(title)s:%(id)s",
+                "--replace-in-metadata id old new",
+                "--metadata-from-title %(id)s"
+            };
+            foreach (string custom in unsafeArguments) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(error.IndexOf("metadata", StringComparison.OrdinalIgnoreCase) >= 0, "Identity-changing metadata option was not rejected clearly: " + custom);
+            }
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", "--parse-metadata %(title)s:%(id)s", out arguments, out error, out execution));
+        }
+    }
+
+    private static void DownloadHistoryRejectsArbitraryPostprocessorHooks() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            string[] unsafeArguments = {
+                "--exec echo changed",
+                "--exe echo changed",
+                "--exec-before-download echo changed",
+                "--use-postprocessor AuditPlugin"
+            };
+            foreach (string custom in unsafeArguments) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(error.IndexOf("postprocessor", StringComparison.OrdinalIgnoreCase) >= 0 || error.IndexOf("exec", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Arbitrary postprocessor hook was not rejected clearly: " + custom);
+            }
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", "--remux-video mp4 --split-chapters", out arguments, out error, out execution));
+        }
+    }
+
+    private static void DownloadHistoryRejectsIdOutputOverride() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", "--id", out arguments, out error, out execution));
+            Require(error.IndexOf("output", StringComparison.OrdinalIgnoreCase) >= 0, "The hidden --id output override was not rejected clearly");
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", "--id", out arguments, out error, out execution));
+        }
+    }
+
     private static void DownloadHistoryRecoversSupportedMediaExtensions() {
         string[] extensions = { ".f4v", ".mk3d", ".divx", ".ogv", ".f4a", ".f4b", ".m4r", ".ogx", ".spx", ".vorbis", ".weba", ".nut", ".swf", ".mp2", ".tta", ".aifc" };
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -782,6 +834,9 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.NeverEnabledIsNoOp", DownloadHistoryNeverEnabledIsNoOp);
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
         Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);
+        Test("DOWNLOAD_HISTORY.RejectsMetadataIdentityRewrites", DownloadHistoryRejectsMetadataIdentityRewrites);
+        Test("DOWNLOAD_HISTORY.RejectsArbitraryPostprocessorHooks", DownloadHistoryRejectsArbitraryPostprocessorHooks);
+        Test("DOWNLOAD_HISTORY.RejectsIdOutputOverride", DownloadHistoryRejectsIdOutputOverride);
         Test("DOWNLOAD_HISTORY.IgnoresAmbientYtDlpConfig", DownloadHistoryIgnoresAmbientYtDlpConfig);
         Test("DOWNLOAD_HISTORY.RecoversSupportedMediaExtensions", DownloadHistoryRecoversSupportedMediaExtensions);
         Test("DOWNLOAD_HISTORY.RebuildsDeletedArchiveFromIds", DownloadHistoryRebuildsDeletedArchiveFromIds);

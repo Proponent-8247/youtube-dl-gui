@@ -1,0 +1,195 @@
+{
+  "version": 2,
+  "base_sha": "af044a477ef1395465f859fef0502d4a027ed240",
+  "expected_failures": [],
+  "allowed_flaky_failures": ["V011.ActualUpdaterExecutablesExchangeBoundPacket"],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A004B",
+      "message": "feat: inventory additional scan-only library roots",
+      "resolves": ["DOWNLOAD_HISTORY.MultipleInventoryRootsShareOneArchive"],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "    internal string BoundArchivePath { get; init; } = string.Empty;\n    internal string? PreparedKey { get; init; }",
+              "new": "    internal string BoundArchivePath { get; init; } = string.Empty;\n    internal string InventoryRoots { get; init; } = string.Empty;\n    internal string? PreparedKey { get; init; }"
+            },
+            {
+              "old": "    private static string fBoundArchivePath = IniProvider.Read(string.Empty, string.Empty, ConfigName, nameof(BoundArchivePath));\n    private static string fKnownFileNameSchemas",
+              "new": "    private static string fBoundArchivePath = IniProvider.Read(string.Empty, string.Empty, ConfigName, nameof(BoundArchivePath));\n    private static string fInventoryRoots = IniProvider.Read(string.Empty, string.Empty, ConfigName, nameof(InventoryRoots));\n    private static string fKnownFileNameSchemas"
+            },
+            {
+              "old": "    public static DownloadHistoryReport LastReport => LastReportInternal;",
+              "new": "    public static string InventoryRoots => fInventoryRoots;\n\n    public static DownloadHistoryReport LastReport => LastReportInternal;"
+            },
+            {
+              "old": "        BoundLibraryRoot = fBoundLibraryRoot,\n        BoundArchivePath = fBoundArchivePath,\n        PreparedKey = PreparedKey,",
+              "new": "        BoundLibraryRoot = fBoundLibraryRoot,\n        BoundArchivePath = fBoundArchivePath,\n        InventoryRoots = fInventoryRoots,\n        PreparedKey = PreparedKey,"
+            },
+            {
+              "old": "        fBoundLibraryRoot = snapshot.BoundLibraryRoot;\n        fBoundArchivePath = snapshot.BoundArchivePath;\n        PreparedKey = snapshot.PreparedKey;",
+              "new": "        fBoundLibraryRoot = snapshot.BoundLibraryRoot;\n        fBoundArchivePath = snapshot.BoundArchivePath;\n        fInventoryRoots = snapshot.InventoryRoots;\n        PreparedKey = snapshot.PreparedKey;"
+            },
+            {
+              "old": "        IniProvider.Write(fBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));\n        IniProvider.Write(fBoundArchivePath, ConfigName, nameof(BoundArchivePath));",
+              "new": "        IniProvider.Write(fBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));\n        IniProvider.Write(fBoundArchivePath, ConfigName, nameof(BoundArchivePath));\n        IniProvider.Write(fInventoryRoots, ConfigName, nameof(InventoryRoots));"
+            },
+            {
+              "old": "    public static DownloadHistoryReport AnalyzeLibrary(string configuredArchivePath) {\n        lock (Sync) {\n            if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {\n                return pathError!;\n            }\n            if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport(\"validate the library\");\n            using (lease!) return AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive)).Report;\n        }\n    }",
+              "new": "    public static DownloadHistoryReport AnalyzeLibrary(string configuredArchivePath) => AnalyzeLibrary(configuredArchivePath, fInventoryRoots);\n\n    public static DownloadHistoryReport AnalyzeLibrary(string configuredArchivePath, string configuredInventoryRoots) {\n        lock (Sync) {\n            if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {\n                return pathError!;\n            }\n            if (!TryResolveInventoryRoots(libraryRoot, configuredInventoryRoots, out List<string> scanRoots, out DownloadHistoryReport? rootError)) return rootError!;\n            if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport(\"validate the library\");\n            using (lease!) return AnalyzeCore(libraryRoot, scanRoots, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive)).Report;\n        }\n    }"
+            },
+            {
+              "old": "    public static DownloadHistoryReport ReconcileLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration) {\n        lock (Sync) {\n            if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {\n                return pathError!;\n            }\n            if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport(\"reconcile the library\");\n            using (lease!) {\n                if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease!, out DownloadHistoryReport? initializeError)) return initializeError!;\n                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));\n                return ReconcileAnalysis(analysis, keepBackup, allowMigration);\n            }\n        }\n    }",
+              "new": "    public static DownloadHistoryReport ReconcileLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration) =>\n        ReconcileLibrary(configuredArchivePath, keepBackup, allowMigration, fInventoryRoots);\n\n    public static DownloadHistoryReport ReconcileLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration, string configuredInventoryRoots) {\n        lock (Sync) {\n            if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {\n                return pathError!;\n            }\n            if (!TryResolveInventoryRoots(libraryRoot, configuredInventoryRoots, out List<string> scanRoots, out DownloadHistoryReport? rootError)) return rootError!;\n            if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport(\"reconcile the library\");\n            using (lease!) {\n                if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease!, out DownloadHistoryReport? initializeError)) return initializeError!;\n                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, scanRoots, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));\n                return ReconcileAnalysis(analysis, keepBackup, allowMigration);\n            }\n        }\n    }"
+            },
+            {
+              "old": "    public static DownloadHistoryReport RebuildLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration) {\n        lock (Sync) {\n            if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {\n                return pathError!;\n            }\n            if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport(\"rebuild the library\");\n            using (lease!) {\n                if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease!, out DownloadHistoryReport? initializeError)) return initializeError!;\n                // Rebuild is an explicit inventory operation: recover every authoritative identity\n                // visible in the physical library while preserving all valid existing archive entries.\n                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, true);\n                return ReconcileAnalysis(analysis, keepBackup, allowMigration);\n            }\n        }\n    }",
+              "new": "    public static DownloadHistoryReport RebuildLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration) =>\n        RebuildLibrary(configuredArchivePath, keepBackup, allowMigration, fInventoryRoots);\n\n    public static DownloadHistoryReport RebuildLibrary(string configuredArchivePath, bool keepBackup, bool allowMigration, string configuredInventoryRoots) {\n        lock (Sync) {\n            if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {\n                return pathError!;\n            }\n            if (!TryResolveInventoryRoots(libraryRoot, configuredInventoryRoots, out List<string> scanRoots, out DownloadHistoryReport? rootError)) return rootError!;\n            if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport(\"rebuild the library\");\n            using (lease!) {\n                if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease!, out DownloadHistoryReport? initializeError)) return initializeError!;\n                // Rebuild is an explicit inventory operation: recover every authoritative identity\n                // visible in the physical library while preserving all valid existing archive entries.\n                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, scanRoots, archive, true);\n                return ReconcileAnalysis(analysis, keepBackup, allowMigration);\n            }\n        }\n    }"
+            },
+            {
+              "old": "    public static void CommitSettings(bool enabled, string configuredArchivePath, bool keepBackup, DownloadHistoryReport? preparedReport) {\n        lock (Sync) {\n            configuredArchivePath ??= string.Empty;\n            string? preparedKey = null;",
+              "new": "    public static void CommitSettings(bool enabled, string configuredArchivePath, bool keepBackup, DownloadHistoryReport? preparedReport) =>\n        CommitSettings(enabled, configuredArchivePath, keepBackup, preparedReport, fInventoryRoots);\n\n    public static void CommitSettings(bool enabled, string configuredArchivePath, bool keepBackup, DownloadHistoryReport? preparedReport, string configuredInventoryRoots) {\n        lock (Sync) {\n            configuredArchivePath ??= string.Empty;\n            string normalizedInventoryRoots;\n            try { normalizedInventoryRoots = NormalizeInventoryRootsForStorage(configuredInventoryRoots); }\n            catch (Exception ex) { throw new InvalidOperationException(\"Download History inventory path is invalid: \" + ex.Message, ex); }\n            string? preparedKey = null;"
+            },
+            {
+              "old": "                if (!TryResolvePaths(configuredArchivePath, out string preparedLibraryRoot, out string preparedArchive, out DownloadHistoryReport? pathError)) {\n                    throw new InvalidOperationException(pathError?.Message ?? \"Download History path is invalid.\");\n                }\n\n                using DownloadHistoryLease? previousLease",
+              "new": "                if (!TryResolvePaths(configuredArchivePath, out string preparedLibraryRoot, out string preparedArchive, out DownloadHistoryReport? pathError)) {\n                    throw new InvalidOperationException(pathError?.Message ?? \"Download History path is invalid.\");\n                }\n                if (!TryResolveInventoryRoots(preparedLibraryRoot, normalizedInventoryRoots, out List<string> preparedScanRoots, out DownloadHistoryReport? rootError)) {\n                    throw new InvalidOperationException(rootError?.Message ?? \"Download History inventory path is invalid.\");\n                }\n\n                using DownloadHistoryLease? previousLease"
+            },
+            {
+              "old": "                DownloadHistoryAnalysis finalAnalysis = AnalyzeCore(preparedLibraryRoot, preparedArchive, CandidateRequiresLibraryRecovery(preparedLibraryRoot, preparedArchive));",
+              "new": "                DownloadHistoryAnalysis finalAnalysis = AnalyzeCore(preparedLibraryRoot, preparedScanRoots, preparedArchive, CandidateRequiresLibraryRecovery(preparedLibraryRoot, preparedArchive));"
+            },
+            {
+              "old": "            string oldBoundLibraryRoot = fBoundLibraryRoot;\n            string oldBoundArchivePath = fBoundArchivePath;",
+              "new": "            string oldBoundLibraryRoot = fBoundLibraryRoot;\n            string oldBoundArchivePath = fBoundArchivePath;\n            string oldInventoryRoots = fInventoryRoots;"
+            },
+            {
+              "old": "                IniProvider.Write(nextBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));\n                IniProvider.Write(nextBoundArchivePath, ConfigName, nameof(BoundArchivePath));",
+              "new": "                IniProvider.Write(nextBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));\n                IniProvider.Write(nextBoundArchivePath, ConfigName, nameof(BoundArchivePath));\n                IniProvider.Write(normalizedInventoryRoots, ConfigName, nameof(InventoryRoots));"
+            },
+            {
+              "old": "                    IniProvider.Write(oldBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));\n                    IniProvider.Write(oldBoundArchivePath, ConfigName, nameof(BoundArchivePath));",
+              "new": "                    IniProvider.Write(oldBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));\n                    IniProvider.Write(oldBoundArchivePath, ConfigName, nameof(BoundArchivePath));\n                    IniProvider.Write(oldInventoryRoots, ConfigName, nameof(InventoryRoots));"
+            },
+            {
+              "old": "            fBoundLibraryRoot = nextBoundLibraryRoot;\n            fBoundArchivePath = nextBoundArchivePath;",
+              "new": "            fBoundLibraryRoot = nextBoundLibraryRoot;\n            fBoundArchivePath = nextBoundArchivePath;\n            fInventoryRoots = normalizedInventoryRoots;"
+            },
+            {
+              "old": "            if (!TryResolvePaths(ArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {\n                LastReportInternal = pathError!;\n                return LastReportInternal;\n            }\n\n            string key = archive;",
+              "new": "            if (!TryResolvePaths(ArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {\n                LastReportInternal = pathError!;\n                return LastReportInternal;\n            }\n            if (!TryResolveInventoryRoots(libraryRoot, fInventoryRoots, out List<string> scanRoots, out DownloadHistoryReport? rootError)) {\n                LastReportInternal = rootError!;\n                return LastReportInternal;\n            }\n\n            string key = archive;"
+            },
+            {
+              "old": "                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));",
+              "new": "                DownloadHistoryAnalysis analysis = AnalyzeCore(libraryRoot, scanRoots, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive));"
+            },
+            {
+              "old": "    private static DownloadHistoryAnalysis AnalyzeCore(string libraryRoot, string archive, bool recoverMissingEntries) {\n        DownloadHistoryAnalysis analysis = new() { LibraryRoot = libraryRoot, ArchivePath = archive };",
+              "new": "    private static DownloadHistoryAnalysis AnalyzeCore(string libraryRoot, string archive, bool recoverMissingEntries) =>\n        AnalyzeCore(libraryRoot, new[] { libraryRoot }, archive, recoverMissingEntries);\n\n    private static DownloadHistoryAnalysis AnalyzeCore(string libraryRoot, IReadOnlyList<string> scanRoots, string archive, bool recoverMissingEntries) {\n        DownloadHistoryAnalysis analysis = new() { LibraryRoot = libraryRoot, ArchivePath = archive };"
+            },
+            {
+              "old": "        string? parent = Path.GetDirectoryName(archive);",
+              "new": "        foreach (string scanRoot in scanRoots) {\n            if (!Directory.Exists(scanRoot)) {\n                report.State = DownloadHistoryState.Unavailable;\n                report.CanReconcile = false;\n                report.Message = \"Configured Download History inventory path is unavailable: \" + scanRoot;\n                return analysis;\n            }\n        }\n\n        string? parent = Path.GetDirectoryName(archive);"
+            },
+            {
+              "old": "        List<string> mediaFiles;\n        try { mediaFiles = EnumerateCompletedMedia(libraryRoot).ToList(); }\n        catch (Exception ex) {",
+              "new": "        List<string> mediaFiles = [];\n        try {\n            foreach (string scanRoot in scanRoots) mediaFiles.AddRange(EnumerateCompletedMedia(scanRoot));\n        }\n        catch (Exception ex) {"
+            },
+            {
+              "old": "    private static DownloadHistoryAnalysis AnalyzeCore(string libraryRoot, IReadOnlyList<string> scanRoots, string archive, bool recoverMissingEntries) {",
+              "new": "    private static IEnumerable<string> ParseConfiguredInventoryRoots(string configuredInventoryRoots) {\n        if (configuredInventoryRoots.IsNullEmptyWhitespace()) yield break;\n        foreach (string raw in configuredInventoryRoots.Split(new[] { '|', '\\r', '\\n' }, StringSplitOptions.RemoveEmptyEntries)) {\n            string candidate = raw.Trim();\n            if (candidate.Length > 0) yield return ResolveLibraryRoot(candidate);\n        }\n    }\n\n    private static bool IsPathWithin(string parent, string candidate) {\n        string normalizedParent = Path.GetFullPath(parent).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);\n        string normalizedCandidate = Path.GetFullPath(candidate).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);\n        if (string.Equals(normalizedParent, normalizedCandidate, StringComparison.OrdinalIgnoreCase)) return true;\n        return normalizedCandidate.StartsWith(normalizedParent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);\n    }\n\n    private static List<string> MinimizeInventoryRoots(IEnumerable<string> roots) {\n        List<string> result = [];\n        foreach (string root in roots.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(path => path.Length)) {\n            if (result.Any(parent => IsPathWithin(parent, root))) continue;\n            result.RemoveAll(child => IsPathWithin(root, child));\n            result.Add(root);\n        }\n        return result;\n    }\n\n    private static string NormalizeInventoryRootsForStorage(string configuredInventoryRoots) =>\n        string.Join(\"|\", MinimizeInventoryRoots(ParseConfiguredInventoryRoots(configuredInventoryRoots)));\n\n    private static bool TryResolveInventoryRoots(string libraryRoot, string configuredInventoryRoots, out List<string> scanRoots, out DownloadHistoryReport? error) {\n        scanRoots = [];\n        error = null;\n        try {\n            List<string> candidates = [libraryRoot];\n            candidates.AddRange(ParseConfiguredInventoryRoots(configuredInventoryRoots));\n            scanRoots = MinimizeInventoryRoots(candidates);\n            return true;\n        }\n        catch (Exception ex) {\n            error = new DownloadHistoryReport {\n                State = DownloadHistoryState.Invalid,\n                CanReconcile = false,\n                Message = \"Download History inventory path is invalid: \" + ex.Message\n            };\n            return false;\n        }\n    }\n\n    private static DownloadHistoryAnalysis AnalyzeCore(string libraryRoot, IReadOnlyList<string> scanRoots, string archive, bool recoverMissingEntries) {"
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Forms/frmDownloadHistory.cs",
+          "edits": [
+            {
+              "old": "    private readonly CheckBox chkFailUnavailable = new();\n    private readonly Label lbStatus = new();",
+              "new": "    private readonly CheckBox chkFailUnavailable = new();\n    private readonly TextBox txtInventoryRoots = new();\n    private readonly Button btnAddInventoryRoot = new();\n    private readonly Label lbStatus = new();"
+            },
+            {
+              "old": "        ClientSize = new(660, 356);",
+              "new": "        ClientSize = new(660, 466);"
+            },
+            {
+              "old": "        chkFailUnavailable.Checked = true;\n        chkFailUnavailable.Enabled = false;\n\n        Label recovery = new() {\n            Text = \"Recovery inventories existing media in place using authoritative .info.json metadata and media IDs embedded in completed filenames. Existing media and sidecar files are never renamed, moved, or rewritten.\",\n            AutoSize = false,\n            Location = new(18, 173),\n            Size = new(624, 48)\n        };\n\n        lbStatus.Location = new(18, 222);\n        lbStatus.Size = new(624, 38);\n        lbStatus.AutoEllipsis = true;\n        lbCounts.Location = new(18, 261);\n        lbCounts.Size = new(624, 20);\n        lbCounts.AutoEllipsis = true;\n\n        btnValidate.Text = \"Validate Archive\";\n        btnValidate.Location = new(18, 304);",
+              "new": "        chkFailUnavailable.Checked = true;\n        chkFailUnavailable.Enabled = false;\n\n        Label inventoryLabel = new() { Text = \"Additional existing library folders (scan-only; one per line):\", AutoSize = true, Location = new(18, 173) };\n        txtInventoryRoots.Location = new(18, 193);\n        txtInventoryRoots.Size = new(540, 66);\n        txtInventoryRoots.Multiline = true;\n        txtInventoryRoots.ScrollBars = ScrollBars.Vertical;\n        txtInventoryRoots.Text = DownloadHistory.InventoryRoots.Replace(\"|\", Environment.NewLine);\n        btnAddInventoryRoot.Text = \"Add Folder...\";\n        btnAddInventoryRoot.Location = new(566, 193);\n        btnAddInventoryRoot.Size = new(76, 27);\n        btnAddInventoryRoot.Click += AddInventoryRoot;\n\n        Label recovery = new() {\n            Text = \"The archive tracks native provider identities and remains valid if media moves. Additional libraries are scan-only; existing media and sidecars are never renamed, moved, or rewritten.\",\n            AutoSize = false,\n            Location = new(18, 273),\n            Size = new(624, 48)\n        };\n\n        lbStatus.Location = new(18, 322);\n        lbStatus.Size = new(624, 38);\n        lbStatus.AutoEllipsis = true;\n        lbCounts.Location = new(18, 361);\n        lbCounts.Size = new(624, 20);\n        lbCounts.AutoEllipsis = true;\n\n        btnValidate.Text = \"Validate Archive\";\n        btnValidate.Location = new(18, 414);"
+            },
+            {
+              "old": "        btnRebuild.Location = new(129, 304);",
+              "new": "        btnRebuild.Location = new(129, 414);"
+            },
+            {
+              "old": "        btnOpen.Location = new(240, 304);",
+              "new": "        btnOpen.Location = new(240, 414);"
+            },
+            {
+              "old": "        btnReset.Location = new(341, 304);",
+              "new": "        btnReset.Location = new(341, 414);"
+            },
+            {
+              "old": "        btnSave.Location = new(472, 304);",
+              "new": "        btnSave.Location = new(472, 414);"
+            },
+            {
+              "old": "        btnCancel.Location = new(560, 304);",
+              "new": "        btnCancel.Location = new(560, 414);"
+            },
+            {
+              "old": "        Controls.AddRange([chkEnabled, pathLabel, txtArchive, btnBrowse, chkBackup, chkFailUnavailable, recovery, lbStatus, lbCounts,\n            btnValidate, btnRebuild, btnOpen, btnReset, btnSave, btnCancel]);",
+              "new": "        Controls.AddRange([chkEnabled, pathLabel, txtArchive, btnBrowse, chkBackup, chkFailUnavailable, inventoryLabel, txtInventoryRoots, btnAddInventoryRoot, recovery, lbStatus, lbCounts,\n            btnValidate, btnRebuild, btnOpen, btnReset, btnSave, btnCancel]);"
+            },
+            {
+              "old": "    private bool TryGetCandidate(bool showPrompts, out string configuredArchivePath) {",
+              "new": "    private void AddInventoryRoot(object? sender, EventArgs e) {\n        using FolderBrowserDialog dialog = new() { Description = \"Add an existing media library to scan for Download History identities\" };\n        if (dialog.ShowDialog(this) != DialogResult.OK || dialog.SelectedPath.IsNullEmptyWhitespace()) return;\n        List<string> roots = txtInventoryRoots.Lines.Select(line => line.Trim()).Where(line => line.Length > 0).ToList();\n        if (!roots.Any(root => string.Equals(root, dialog.SelectedPath, StringComparison.OrdinalIgnoreCase))) roots.Add(dialog.SelectedPath);\n        txtInventoryRoots.Lines = roots.ToArray();\n    }\n\n    private string GetConfiguredInventoryRoots() => string.Join(\"|\",\n        txtInventoryRoots.Lines.Select(line => line.Trim()).Where(line => line.Length > 0));\n\n    private bool TryGetCandidate(bool showPrompts, out string configuredArchivePath) {"
+            },
+            {
+              "old": "        DownloadHistoryReport report = DownloadHistory.AnalyzeLibrary(configuredArchivePath);",
+              "new": "        DownloadHistoryReport report = DownloadHistory.AnalyzeLibrary(configuredArchivePath, GetConfiguredInventoryRoots());"
+            },
+            {
+              "old": "        DownloadHistoryReport analysis = DownloadHistory.AnalyzeLibrary(configuredArchivePath);",
+              "new": "        DownloadHistoryReport analysis = DownloadHistory.AnalyzeLibrary(configuredArchivePath, GetConfiguredInventoryRoots());"
+            },
+            {
+              "old": "        DownloadHistoryReport report = DownloadHistory.RebuildLibrary(configuredArchivePath, chkBackup.Checked, false);",
+              "new": "        DownloadHistoryReport report = DownloadHistory.RebuildLibrary(configuredArchivePath, chkBackup.Checked, false, GetConfiguredInventoryRoots());"
+            },
+            {
+              "old": "                DownloadHistory.CommitSettings(false, configuredArchivePath, chkBackup.Checked, null);",
+              "new": "                DownloadHistory.CommitSettings(false, configuredArchivePath, chkBackup.Checked, null, GetConfiguredInventoryRoots());"
+            },
+            {
+              "old": "        DownloadHistoryReport analysis = DownloadHistory.AnalyzeLibrary(configuredArchivePath);\n        RefreshStatus(analysis);\n        if (!analysis.CanReconcile) {\n            MessageBox.Show(this, analysis.Message, \"Download History cannot be enabled safely\", MessageBoxButtons.OK, MessageBoxIcon.Warning);\n            return;\n        }\n\n        DownloadHistoryReport report = DownloadHistory.ReconcileLibrary(configuredArchivePath, chkBackup.Checked, false);",
+              "new": "        DownloadHistoryReport analysis = DownloadHistory.AnalyzeLibrary(configuredArchivePath, GetConfiguredInventoryRoots());\n        RefreshStatus(analysis);\n        if (!analysis.CanReconcile) {\n            MessageBox.Show(this, analysis.Message, \"Download History cannot be enabled safely\", MessageBoxButtons.OK, MessageBoxIcon.Warning);\n            return;\n        }\n\n        DownloadHistoryReport report = DownloadHistory.ReconcileLibrary(configuredArchivePath, chkBackup.Checked, false, GetConfiguredInventoryRoots());"
+            },
+            {
+              "old": "            DownloadHistory.CommitSettings(true, configuredArchivePath, chkBackup.Checked, report);",
+              "new": "            DownloadHistory.CommitSettings(true, configuredArchivePath, chkBackup.Checked, report, GetConfiguredInventoryRoots());"
+            }
+          ]
+        },
+        {
+          "path": "tests/AuditRegression.DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            history.GetField(\"fBoundArchivePath\", All).SetValue(null, string.Empty);\n            history.GetField(\"fKnownFileNameSchemas\", All).SetValue(null, string.Empty);",
+              "new": "            history.GetField(\"fBoundArchivePath\", All).SetValue(null, string.Empty);\n            history.GetField(\"fInventoryRoots\", All).SetValue(null, string.Empty);\n            history.GetField(\"fKnownFileNameSchemas\", All).SetValue(null, string.Empty);"
+            },
+            {
+              "old": "    private static void DownloadHistoryWorkersUsePreparedContext() {",
+              "new": "    private static void DownloadHistoryMultipleInventoryRootsShareOneArchive() {\n        const string first = \"9qFjkwAElDs\";\n        const string second = \"aB_Cd-Ef123\";\n        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {\n            string active = Path.Combine(fixture.Root, \"downloads\");\n            string existing = Path.Combine(fixture.Root, \"existing-library\");\n            string nested = Path.Combine(existing, \"youtube.com\", \"Video\", \"Creator\");\n            Directory.CreateDirectory(active);\n            Directory.CreateDirectory(nested);\n            Set(fixture.Downloads, null, \"downloadPath\", active);\n\n            DownloadHistoryWriteMediaWithInfo(active, \"Active-\" + first + \".mp4\", \"Youtube\", first);\n            DownloadHistoryWriteMediaWithInfo(existing, \"Duplicate-\" + first + \".webm\", \"Youtube\", first);\n            string nestedMedia = DownloadHistoryWriteMediaWithInfo(nested, \"Existing library item.webm\", \"Youtube\", second);\n            string nestedStem = Path.Combine(nested, \"Existing library item\");\n            File.WriteAllText(nestedStem + \".description\", \"description\", Encoding.UTF8);\n            File.WriteAllText(nestedStem + \".webp\", \"thumbnail\", Encoding.UTF8);\n            Dictionary<string, byte[]> before = Directory.GetFiles(existing, \"*\", SearchOption.AllDirectories)\n                .ToDictionary(path => path, path => File.ReadAllBytes(path), StringComparer.OrdinalIgnoreCase);\n\n            string customArchive = Path.Combine(fixture.Root, \"history.txt\");\n            string configuredRoots = existing + \"|\" + nested;\n            object rebuilt = Call(fixture.History, null, \"RebuildLibrary\", customArchive, true, false, configuredRoots);\n            Equal(\"Healthy\", DownloadHistoryStateName(rebuilt));\n            Equal(3, Get(rebuilt, \"CompletedMedia\"));\n            Equal(2, Get(rebuilt, \"ArchiveEntries\"));\n            string[] archiveLines = DownloadHistoryArchiveLines(customArchive);\n            Require(archiveLines.Contains(\"youtube \" + first) && archiveLines.Contains(\"youtube \" + second), \"Multiple inventory roots were not unioned into one native archive\");\n            Require(archiveLines.Length == 2, \"Duplicate identities across inventory roots produced duplicate archive records\");\n            foreach (KeyValuePair<string, byte[]> item in before) {\n                Require(File.Exists(item.Key), \"Scan-only inventory moved or renamed a library file: \" + item.Key);\n                Require(item.Value.SequenceEqual(File.ReadAllBytes(item.Key)), \"Scan-only inventory rewrote a library file: \" + item.Key);\n            }\n            Require(File.Exists(nestedMedia), \"Scan-only inventory moved the nested media file\");\n\n            Call(fixture.History, null, \"CommitSettings\", true, customArchive, true, rebuilt, configuredRoots);\n            string persisted = (string)fixture.History.GetProperty(\"InventoryRoots\", All).GetValue(null, null);\n            Equal(Path.GetFullPath(existing), persisted);\n        }\n    }\n\n    private static void DownloadHistoryWorkersUsePreparedContext() {"
+            },
+            {
+              "old": "        Test(\"DOWNLOAD_HISTORY.PathAgnosticHistorySurvivesMediaMoves\", DownloadHistoryPathAgnosticHistorySurvivesMediaMoves);\n        Test(\"DOWNLOAD_HISTORY.WorkersUsePreparedContext\", DownloadHistoryWorkersUsePreparedContext);",
+              "new": "        Test(\"DOWNLOAD_HISTORY.PathAgnosticHistorySurvivesMediaMoves\", DownloadHistoryPathAgnosticHistorySurvivesMediaMoves);\n        Test(\"DOWNLOAD_HISTORY.MultipleInventoryRootsShareOneArchive\", DownloadHistoryMultipleInventoryRootsShareOneArchive);\n        Test(\"DOWNLOAD_HISTORY.WorkersUsePreparedContext\", DownloadHistoryWorkersUsePreparedContext);"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

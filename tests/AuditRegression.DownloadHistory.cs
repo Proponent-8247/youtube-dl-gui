@@ -924,7 +924,7 @@ internal static partial class AuditRegression {
             string settingsSource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmSettings.cs"));
             Require(settingsSource.Contains("DownloadHistory.Enabled && !DownloadHistory.HasRequiredIdTemplate"), "Main Settings no longer blocks ID removal while history is enabled");
             Require(settingsSource.Contains("DownloadHistory.EverEnabled") && settingsSource.Contains("Keeping media IDs in filenames is strongly recommended"), "Disabled-state ID removal warning is missing");
-            Require(settingsSource.Contains("DownloadHistory.IsCurrentLibraryPath"), "Main Settings does not protect the library/archive binding when the download folder changes");
+            Require(settingsSource.IndexOf("Disable Download History before changing libraries", StringComparison.Ordinal) < 0, "Main Settings still blocks path-agnostic download-folder changes while history is enabled");
             Require(settingsSource.Contains("unsavedSchema") && settingsSource.Contains("Unsaved download settings"), "Opening Download History does not warn about an unsaved filename-format change");
             Require(settingsSource.Contains("history.ShowDialog(this) != DialogResult.OK"), "Cancelling Download History can overwrite unsaved filename-format UI state");
             Require(settingsSource.Contains("Download History requires yt-dlp or yt-dlp nightly") && settingsSource.Contains("selectedProvider is not"), "Main Settings does not prevent an incompatible provider switch while history is enabled");
@@ -934,19 +934,51 @@ internal static partial class AuditRegression {
     }
 
     private static void DownloadHistoryLibraryBindingPreventsCrossLibraryReuse() {
+        const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string ledgerDirectory = Path.Combine(fixture.Root, "ledger");
             Directory.CreateDirectory(ledgerDirectory);
             string custom = Path.Combine(ledgerDirectory, "history.txt");
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Original-" + id + ".mp4", "Youtube", id);
             DownloadHistoryEnable(fixture, custom);
 
             string secondLibrary = Path.Combine(fixture.Root, "second-library");
             Directory.CreateDirectory(secondLibrary);
             Set(fixture.Downloads, null, "downloadPath", secondLibrary);
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", custom);
-            Equal("Unsafe", DownloadHistoryStateName(analysis));
-            Equal(false, DownloadHistoryCanReconcile(analysis));
-            Require(((string)Get(analysis, "Message")).Contains("bound to a different media library"), "Cross-library archive reuse was not explained");
+            Equal("Healthy", DownloadHistoryStateName(analysis));
+            Equal(true, DownloadHistoryCanReconcile(analysis));
+            Require(DownloadHistoryArchiveLines(custom).Contains("youtube " + id), "Changing physical media roots invalidated an existing native archive identity");
+        }
+    }
+
+    private static void DownloadHistoryPathAgnosticHistorySurvivesMediaMoves() {
+        const string id = "aB_Cd-Ef123";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string media = DownloadHistoryWriteMediaWithInfo(fixture.Root, "Movable-" + id + ".mp4", "Youtube", id);
+            string metadata = Path.Combine(fixture.Root, "Movable-" + id + ".info.json");
+            DownloadHistoryEnable(fixture, string.Empty);
+            string archive = (string)fixture.History.GetProperty("EffectiveArchivePath", All).GetValue(null, null);
+
+            string arguments, error;
+            object preparedExecution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out preparedExecution));
+
+            string relocated = Path.Combine(fixture.Root, "relocated");
+            Directory.CreateDirectory(relocated);
+            File.Move(media, Path.Combine(relocated, Path.GetFileName(media)));
+            File.Move(metadata, Path.Combine(relocated, Path.GetFileName(metadata)));
+            string futureDownloads = Path.Combine(fixture.Root, "future-downloads");
+            Directory.CreateDirectory(futureDownloads);
+            Set(fixture.Downloads, null, "downloadPath", futureDownloads);
+
+            Equal(archive, fixture.History.GetProperty("EffectiveArchivePath", All).GetValue(null, null));
+            using (IDisposable lease = (IDisposable)Call(preparedExecution.GetType(), preparedExecution, "AcquireValidatedLease")) { }
+            fixture.History.GetField("PreparedKey", All).SetValue(null, null);
+            object nextExecution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out nextExecution));
+            Require(arguments.Contains("--download-archive \"" + archive + "\""), "Changing media paths silently rebound the native archive");
+            Require(DownloadHistoryArchiveLines(archive).Contains("youtube " + id), "Moving media removed its durable native archive identity");
         }
     }
 
@@ -1082,6 +1114,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.CancellationIsRecheckedBeforeProcessStart", DownloadHistoryCancellationIsRecheckedBeforeProcessStart);
         Test("DOWNLOAD_HISTORY.SettingsRejectIdRemovalWhileEnabled", DownloadHistorySettingsRejectIdRemovalWhileEnabled);
         Test("DOWNLOAD_HISTORY.LibraryBindingPreventsCrossLibraryReuse", DownloadHistoryLibraryBindingPreventsCrossLibraryReuse);
+        Test("DOWNLOAD_HISTORY.PathAgnosticHistorySurvivesMediaMoves", DownloadHistoryPathAgnosticHistorySurvivesMediaMoves);
         Test("DOWNLOAD_HISTORY.WorkersUsePreparedContext", DownloadHistoryWorkersUsePreparedContext);
         Test("DOWNLOAD_HISTORY.WiresStandardAndExtendedArguments", DownloadHistoryWiresStandardAndExtendedArguments);
     }

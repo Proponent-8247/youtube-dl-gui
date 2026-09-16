@@ -377,6 +377,9 @@ internal static class DownloadHistory {
             if (!ArchivePath.IsNullEmptyWhitespace()) {
                 return Path.GetFullPath(Environment.ExpandEnvironmentVariables(ArchivePath));
             }
+            if (EverEnabled && !BoundArchivePath.IsNullEmptyWhitespace()) {
+                return Path.GetFullPath(Environment.ExpandEnvironmentVariables(BoundArchivePath));
+            }
             return DefaultArchivePath;
         }
     }
@@ -523,7 +526,6 @@ internal static class DownloadHistory {
         }
         if (!PathEquals(archivePath, EffectiveArchivePath) ||
             (!BoundArchivePath.IsNullEmptyWhitespace() && !PathEquals(archivePath, BoundArchivePath)) ||
-            (!BoundLibraryRoot.IsNullEmptyWhitespace() && !PathEquals(GetLibraryRoot(), BoundLibraryRoot)) ||
             fKeepBackup != keepBackup) {
             throw new InvalidOperationException("Download History settings changed after this download command was prepared. Regenerate the command before starting the download.");
         }
@@ -582,7 +584,6 @@ internal static class DownloadHistory {
             if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {
                 return pathError!;
             }
-            if (!TryValidateLibraryBinding(libraryRoot, archive, out DownloadHistoryReport? bindingError)) return bindingError!;
             if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport("validate the library");
             using (lease!) return AnalyzeCore(libraryRoot, archive, CandidateRequiresLibraryRecovery(libraryRoot, archive)).Report;
         }
@@ -593,7 +594,6 @@ internal static class DownloadHistory {
             if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {
                 return pathError!;
             }
-            if (!TryValidateLibraryBinding(libraryRoot, archive, out DownloadHistoryReport? bindingError)) return bindingError!;
             if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport("reconcile the library");
             using (lease!) {
                 if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease!, out DownloadHistoryReport? initializeError)) return initializeError!;
@@ -608,7 +608,6 @@ internal static class DownloadHistory {
             if (!TryResolvePaths(configuredArchivePath, out string libraryRoot, out string archive, out DownloadHistoryReport? pathError)) {
                 return pathError!;
             }
-            if (!TryValidateLibraryBinding(libraryRoot, archive, out DownloadHistoryReport? bindingError)) return bindingError!;
             if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport("rebuild the library");
             using (lease!) {
                 if (!TryInitializeNewDefaultLibrary(libraryRoot, archive, lease!, out DownloadHistoryReport? initializeError)) return initializeError!;
@@ -637,9 +636,6 @@ internal static class DownloadHistory {
                 if (!TryResolvePaths(configuredArchivePath, out string preparedLibraryRoot, out string preparedArchive, out DownloadHistoryReport? pathError)) {
                     throw new InvalidOperationException(pathError?.Message ?? "Download History path is invalid.");
                 }
-                if (!TryValidateLibraryBinding(preparedLibraryRoot, preparedArchive, out DownloadHistoryReport? bindingError)) {
-                    throw new InvalidOperationException(bindingError?.Message ?? "Download History archive is bound to a different media library.");
-                }
 
                 using DownloadHistoryLease? previousLease = ShouldWaitForPreviousArchive(preparedArchive) ? AcquireManagementLease(BoundArchivePath, "change archive settings") : null;
                 using DownloadHistoryLease lease = AcquireManagementLease(preparedArchive, "save settings");
@@ -656,7 +652,7 @@ internal static class DownloadHistory {
                 }
                 if (keepBackup) CopyArchiveToBackupAtomically(preparedArchive);
                 preparedReport = finalAnalysis.Report;
-                preparedKey = preparedLibraryRoot + "|" + preparedArchive;
+                preparedKey = preparedArchive;
             }
 
             bool oldEnabled = fEnabled;
@@ -674,7 +670,9 @@ internal static class DownloadHistory {
             bool nextEverEnabled = enabled || oldEverEnabled;
             string nextBoundLibraryRoot = enabled ? GetLibraryRoot() : oldBoundLibraryRoot;
             string nextBoundArchivePath = enabled
-                ? (configuredArchivePath.IsNullEmptyWhitespace() ? Path.Combine(nextBoundLibraryRoot, "yt-dlp-archive.txt") : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configuredArchivePath)))
+                ? (configuredArchivePath.IsNullEmptyWhitespace()
+                    ? (oldEverEnabled && !oldBoundArchivePath.IsNullEmptyWhitespace() ? oldBoundArchivePath : Path.Combine(nextBoundLibraryRoot, "yt-dlp-archive.txt"))
+                    : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configuredArchivePath)))
                 : oldBoundArchivePath;
             bool nextNeedsReconciliation = enabled
                 ? false
@@ -734,12 +732,8 @@ internal static class DownloadHistory {
                 LastReportInternal = pathError!;
                 return LastReportInternal;
             }
-            if (!TryValidateLibraryBinding(libraryRoot, archive, out DownloadHistoryReport? bindingError)) {
-                LastReportInternal = bindingError!;
-                return LastReportInternal;
-            }
 
-            string key = libraryRoot + "|" + archive;
+            string key = archive;
             if (!force && !NeedsReconciliation && PreparedKey == key && LastReportInternal.State == DownloadHistoryState.Healthy) {
                 return LastReportInternal;
             }
@@ -826,15 +820,14 @@ internal static class DownloadHistory {
 
     private static bool CandidateRequiresLibraryRecovery(string libraryRoot, string candidateArchive) {
         if (!Enabled || !EverEnabled || NeedsReconciliation) return true;
-        if (BoundLibraryRoot.IsNullEmptyWhitespace() || BoundArchivePath.IsNullEmptyWhitespace()) return true;
-        return !PathEquals(libraryRoot, BoundLibraryRoot) || !PathEquals(candidateArchive, BoundArchivePath);
+        if (BoundArchivePath.IsNullEmptyWhitespace()) return true;
+        return !PathEquals(candidateArchive, BoundArchivePath);
     }
 
     private static bool IsPreviouslyInitializedNamespace(string libraryRoot, string archive) {
         if (!EverEnabled) return false;
         if (BoundArchivePath.IsNullEmptyWhitespace()) return true;
-        if (!PathEquals(archive, BoundArchivePath)) return false;
-        return BoundLibraryRoot.IsNullEmptyWhitespace() || PathEquals(libraryRoot, BoundLibraryRoot);
+        return PathEquals(archive, BoundArchivePath);
     }
 
     private static bool IsDefaultArchiveForLibrary(string libraryRoot, string archive) =>
@@ -864,18 +857,6 @@ internal static class DownloadHistory {
         }
     }
 
-    private static bool TryValidateLibraryBinding(string libraryRoot, string archive, out DownloadHistoryReport? error) {
-        error = null;
-        if (!EverEnabled || BoundLibraryRoot.IsNullEmptyWhitespace() || BoundArchivePath.IsNullEmptyWhitespace()) return true;
-        if (PathEquals(libraryRoot, BoundLibraryRoot) || !PathEquals(archive, BoundArchivePath)) return true;
-        error = new DownloadHistoryReport {
-            State = DownloadHistoryState.Unsafe,
-            CanReconcile = false,
-            Message = "This Download History archive is bound to a different media library. Choose a different archive for the current library, restore the original library path, or disable and Reset History before intentionally reusing this archive namespace."
-        };
-        return false;
-    }
-
     private static bool ShouldWaitForPreviousArchive(string preparedArchive) =>
         !BoundArchivePath.IsNullEmptyWhitespace() && !PathEquals(preparedArchive, BoundArchivePath);
 
@@ -893,7 +874,9 @@ internal static class DownloadHistory {
         try {
             libraryRoot = GetLibraryRoot();
             archive = configuredArchivePath.IsNullEmptyWhitespace()
-                ? Path.Combine(libraryRoot, "yt-dlp-archive.txt")
+                ? (EverEnabled && !BoundArchivePath.IsNullEmptyWhitespace()
+                    ? Path.GetFullPath(Environment.ExpandEnvironmentVariables(BoundArchivePath))
+                    : Path.Combine(libraryRoot, "yt-dlp-archive.txt"))
                 : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configuredArchivePath));
             return true;
         }

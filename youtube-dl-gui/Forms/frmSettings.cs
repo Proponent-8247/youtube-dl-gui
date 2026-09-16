@@ -676,14 +676,6 @@ public partial class frmSettings : LocalizedForm {
     }
 
     private void btnSettingsSave_Click(object sender, EventArgs e) {
-        if (DownloadHistory.Enabled && !DownloadHistory.IsCurrentLibraryPath(txtSettingsDownloadsSavePath.Text)) {
-            MessageBox.Show(this,
-                "Download History is enabled and bound to the current media library. Disable Download History first, save the new download folder, then re-enable Download History so the new library can be reconciled safely.",
-                "Disable Download History before changing libraries", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            tcMain.SelectedTab = tabSettingsDownloads;
-            txtSettingsDownloadsSavePath.Focus();
-            return;
-        }
         if (DownloadHistory.Enabled && !DownloadHistory.HasRequiredIdTemplate(txtSettingsDownloadsFileNameSchema.Text)) {
             MessageBox.Show(this,
                 "Download History is enabled, so the filename format must contain %(id)s. Disable Download History first if you want to remove media IDs.",

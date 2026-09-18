@@ -1726,13 +1726,18 @@ internal static class DownloadHistory {
         return false;
     }
 
+    private static bool ShortOptionTakesAttachedValue(char option) =>
+        "tIup2fSNRrOaPo".IndexOf(option) >= 0;
+
     private static bool ContainsShortOption(string? arguments, string option) {
-        if (arguments.IsNullEmptyWhitespace()) return false;
+        if (arguments.IsNullEmptyWhitespace() || option.Length != 2 || option[0] != '-') return false;
+        char target = option[1];
         foreach (string token in TokenizeArguments(arguments!)) {
-            if (token.Equals(option, StringComparison.Ordinal) ||
-                token.StartsWith(option + "=", StringComparison.Ordinal) ||
-                (token.Length > option.Length && token.StartsWith(option, StringComparison.Ordinal))) {
-                return true;
+            if (token.Length < 2 || token[0] != '-' || token[1] == '-') continue;
+            for (int index = 1; index < token.Length; index++) {
+                char current = token[index];
+                if (current == target) return true;
+                if (ShortOptionTakesAttachedValue(current)) break;
             }
         }
         return false;

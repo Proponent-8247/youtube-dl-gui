@@ -1031,6 +1031,7 @@ internal static partial class AuditRegression {
             string lockPath = custom + ".lock";
             byte[] lockBytes = Encoding.UTF8.GetBytes("user-lock-sentinel");
             File.WriteAllBytes(lockPath, lockBytes);
+            fixture.History.GetField("fArchivePath", All).SetValue(null, custom);
 
             using (IDisposable lease = (IDisposable)Call(fixture.History, null, "AcquireArchiveLease")) { }
             Require(File.Exists(lockPath), "Archive lease disposal deleted a pre-existing lock-path file");

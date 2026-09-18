@@ -521,6 +521,31 @@ internal static partial class AuditRegression {
         }
     }
 
+
+    private static void DownloadHistoryRecoversRestrictedYtDlpIdSanitization() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            const string accentedId = "äabc";
+            DownloadHistoryWriteMedia(fixture.Root, "Restricted-aabc.mp4");
+            File.WriteAllText(fixture.Archive, "rokfin " + accentedId + Environment.NewLine, Encoding.UTF8);
+
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(analysis));
+            Equal(1, Get(analysis, "FilenameRecovered"));
+            Equal(0, Get(analysis, "UnresolvedMedia"));
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            const string leadingInvalidId = "/abc";
+            DownloadHistoryWriteMedia(fixture.Root, "Restricted-abc.mp4");
+            File.WriteAllText(fixture.Archive, "rokfin " + leadingInvalidId + Environment.NewLine, Encoding.UTF8);
+
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(analysis));
+            Equal(1, Get(analysis, "FilenameRecovered"));
+            Equal(0, Get(analysis, "UnresolvedMedia"));
+        }
+    }
+
     private static void DownloadHistoryRecoversSanitizedProviderIds() {
         const string id = "stream/31332";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -833,6 +858,31 @@ internal static partial class AuditRegression {
             Require(lines.Contains("youtube " + trusted) && lines.Contains("youtube " + recovered), "Explicit rebuild did not union authoritative physical identity with existing archive history");
             Require(File.Exists(existing), "Explicit rebuild changed the authoritative media path");
             Require(File.Exists(Path.Combine(fixture.Root, "Existing legacy media.info.json")), "Explicit rebuild changed the authoritative metadata path");
+        }
+    }
+
+
+    private static void DownloadHistoryInventoriesGifMediaConservatively() {
+        const string id = "9qFjkwAElDs";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Animated-" + id + ".gif", "Youtube", id);
+
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal(1, Get(analysis, "CompletedMedia"));
+            Equal(1, Get(analysis, "MetadataRecovered"));
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMedia(fixture.Root, "Unknown.gif");
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Unsafe", DownloadHistoryStateName(analysis));
+            Equal(1, Get(analysis, "CompletedMedia"));
+            Equal(1, Get(analysis, "UnresolvedMedia"));
+            Equal(false, DownloadHistoryCanReconcile(analysis));
+            Require(!File.Exists(fixture.Archive), "Unidentified standalone GIF was silently ignored during rebuild safety analysis");
         }
     }
 
@@ -1820,6 +1870,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.PreservesDelimiterBearingSchemas", DownloadHistoryPreservesDelimiterBearingSchemas);
         Test("DOWNLOAD_HISTORY.UnderstandsIdPlacementFromSchema", DownloadHistoryUnderstandsIdPlacementFromSchema);
         Test("DOWNLOAD_HISTORY.RejectsReparsePointTraversal", DownloadHistoryRejectsReparsePointTraversal);
+        Test("DOWNLOAD_HISTORY.RecoversRestrictedYtDlpIdSanitization", DownloadHistoryRecoversRestrictedYtDlpIdSanitization);
         Test("DOWNLOAD_HISTORY.RecoversSanitizedProviderIds", DownloadHistoryRecoversSanitizedProviderIds);
         Test("DOWNLOAD_HISTORY.RecognizesSplitChapterIds", DownloadHistoryRecognizesSplitChapterIds);
         Test("DOWNLOAD_HISTORY.DoesNotInferYoutubeFromIdShape", DownloadHistoryDoesNotInferYoutubeFromIdShape);
@@ -1836,6 +1887,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.DisableReenableReconcilesChanges", DownloadHistoryDisableReenableReconcilesChanges);
         Test("DOWNLOAD_HISTORY.ValidArchiveDoesNotPromoteUnarchivedFile", DownloadHistoryValidArchiveDoesNotPromoteUnarchivedFile);
         Test("DOWNLOAD_HISTORY.ExplicitRebuildRecoversAuthoritativeMissingEntry", DownloadHistoryExplicitRebuildRecoversAuthoritativeMissingEntry);
+        Test("DOWNLOAD_HISTORY.InventoriesGifMediaConservatively", DownloadHistoryInventoriesGifMediaConservatively);
         Test("DOWNLOAD_HISTORY.IgnoresFailedAndSidecarFiles", DownloadHistoryIgnoresFailedAndSidecarFiles);
         Test("DOWNLOAD_HISTORY.DisabledIntervalWithoutIdsFailsSafe", DownloadHistoryDisabledIntervalWithoutIdsFailsSafe);
         Test("DOWNLOAD_HISTORY.MissingParentHardStopsWithoutPersistence", DownloadHistoryMissingParentHardStopsWithoutPersistence);

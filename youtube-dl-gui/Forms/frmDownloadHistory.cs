@@ -3,6 +3,7 @@ namespace youtube_dl_gui;
 
 using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 internal sealed class frmDownloadHistory : Form {
@@ -22,6 +23,7 @@ internal sealed class frmDownloadHistory : Form {
     private readonly Button btnSave = new();
     private readonly Button btnCancel = new();
     private string pendingFileNameSchema = Downloads.fileNameSchema;
+    private bool managementOperationInProgress;
 
     public frmDownloadHistory() {
         Text = "Download History / Duplicate Prevention";
@@ -110,6 +112,9 @@ internal sealed class frmDownloadHistory : Form {
             btnValidate, btnRebuild, btnOpen, btnReset, btnSave, btnCancel]);
         AcceptButton = btnSave;
         CancelButton = btnCancel;
+        FormClosing += (_, e) => {
+            if (managementOperationInProgress) e.Cancel = true;
+        };
         RefreshStatus(DownloadHistory.LastReport);
     }
 
@@ -177,7 +182,41 @@ internal sealed class frmDownloadHistory : Form {
         catch { return value.Trim(); }
     }
 
-    private void ValidateArchive() {
+    private void SetManagementOperationInProgress(bool inProgress) {
+        managementOperationInProgress = inProgress;
+        chkEnabled.Enabled = !inProgress;
+        txtArchive.Enabled = !inProgress;
+        btnBrowse.Enabled = !inProgress;
+        chkBackup.Enabled = !inProgress;
+        txtInventoryRoots.Enabled = !inProgress;
+        btnAddInventoryRoot.Enabled = !inProgress;
+        btnValidate.Enabled = !inProgress;
+        btnRebuild.Enabled = !inProgress;
+        btnOpen.Enabled = !inProgress;
+        btnReset.Enabled = !inProgress;
+        btnSave.Enabled = !inProgress;
+        btnCancel.Enabled = !inProgress;
+        chkFailUnavailable.Enabled = false;
+        ControlBox = !inProgress;
+        UseWaitCursor = inProgress;
+    }
+
+    private async Task<DownloadHistoryReport?> RunManagementOperationAsync(Func<DownloadHistoryReport> operation, string title) {
+        if (managementOperationInProgress) return null;
+        SetManagementOperationInProgress(true);
+        try {
+            return await Task.Run(operation);
+        }
+        catch (Exception ex) {
+            MessageBox.Show(this, ex.Message, title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return null;
+        }
+        finally {
+            SetManagementOperationInProgress(false);
+        }
+    }
+
+    private async void ValidateArchive() {
         if (!TryGetCandidate(false, out string configuredArchivePath)) {
             RefreshStatus(new DownloadHistoryReport {
                 State = DownloadHistoryState.Unsafe,
@@ -185,23 +224,26 @@ internal sealed class frmDownloadHistory : Form {
             });
             return;
         }
-        DownloadHistoryReport report = DownloadHistory.AnalyzeLibrary(configuredArchivePath, GetConfiguredInventoryRoots());
+
+        string inventoryRoots = GetConfiguredInventoryRoots();
+        DownloadHistoryReport? report = await RunManagementOperationAsync(
+            () => DownloadHistory.AnalyzeLibrary(configuredArchivePath, inventoryRoots),
+            "Download History validation");
+        if (report is null) return;
         RefreshStatus(report);
         if (report.State is DownloadHistoryState.Partial or DownloadHistoryState.Unsafe or DownloadHistoryState.Unavailable or DownloadHistoryState.Invalid) {
             MessageBox.Show(this, report.Message, "Download History validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
-    private void RebuildArchive() {
+    private async void RebuildArchive() {
         if (!TryGetCandidate(chkEnabled.Checked, out string configuredArchivePath)) return;
-        DownloadHistoryReport analysis = DownloadHistory.AnalyzeLibrary(configuredArchivePath, GetConfiguredInventoryRoots());
-        RefreshStatus(analysis);
-        if (!analysis.CanReconcile) {
-            MessageBox.Show(this, analysis.Message, "Download History cannot be rebuilt safely", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        DownloadHistoryReport report = DownloadHistory.RebuildLibrary(configuredArchivePath, chkBackup.Checked, false, GetConfiguredInventoryRoots());
+        string inventoryRoots = GetConfiguredInventoryRoots();
+        bool keepBackup = chkBackup.Checked;
+        DownloadHistoryReport? report = await RunManagementOperationAsync(
+            () => DownloadHistory.RebuildLibrary(configuredArchivePath, keepBackup, false, inventoryRoots),
+            "Download History rebuild");
+        if (report is null) return;
         RefreshStatus(report);
         if (report.State != DownloadHistoryState.Healthy) {
             MessageBox.Show(this, report.Message, "Download History rebuild", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -264,12 +306,14 @@ internal sealed class frmDownloadHistory : Form {
         }
     }
 
-    private void SaveAndClose(object? sender, EventArgs e) {
+    private async void SaveAndClose(object? sender, EventArgs e) {
         if (!TryGetCandidate(true, out string configuredArchivePath)) return;
+        string inventoryRoots = GetConfiguredInventoryRoots();
+        bool keepBackup = chkBackup.Checked;
 
         if (!chkEnabled.Checked) {
             try {
-                DownloadHistory.CommitSettings(false, configuredArchivePath, chkBackup.Checked, null, GetConfiguredInventoryRoots());
+                DownloadHistory.CommitSettings(false, configuredArchivePath, keepBackup, null, inventoryRoots);
                 DialogResult = DialogResult.OK;
                 Close();
             }
@@ -279,14 +323,10 @@ internal sealed class frmDownloadHistory : Form {
             return;
         }
 
-        DownloadHistoryReport analysis = DownloadHistory.AnalyzeLibrary(configuredArchivePath, GetConfiguredInventoryRoots());
-        RefreshStatus(analysis);
-        if (!analysis.CanReconcile) {
-            MessageBox.Show(this, analysis.Message, "Download History cannot be enabled safely", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        DownloadHistoryReport report = DownloadHistory.ReconcileLibrary(configuredArchivePath, chkBackup.Checked, false, GetConfiguredInventoryRoots());
+        DownloadHistoryReport? report = await RunManagementOperationAsync(
+            () => DownloadHistory.ReconcileLibrary(configuredArchivePath, keepBackup, false, inventoryRoots),
+            "Download History settings");
+        if (report is null) return;
         RefreshStatus(report);
         if (report.State != DownloadHistoryState.Healthy) {
             MessageBox.Show(this, report.Message, "Download History not enabled safely", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -296,7 +336,7 @@ internal sealed class frmDownloadHistory : Form {
         string oldSchema = Downloads.fileNameSchema;
         try {
             Downloads.fileNameSchema = pendingFileNameSchema;
-            DownloadHistory.CommitSettings(true, configuredArchivePath, chkBackup.Checked, report, GetConfiguredInventoryRoots());
+            DownloadHistory.CommitSettings(true, configuredArchivePath, keepBackup, report, inventoryRoots);
         }
         catch (Exception ex) {
             Downloads.fileNameSchema = oldSchema;

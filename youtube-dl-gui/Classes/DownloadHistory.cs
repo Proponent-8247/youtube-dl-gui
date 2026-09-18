@@ -31,6 +31,7 @@ internal sealed class DownloadHistoryReport {
     public int MigrationCount { get; set; }
     public bool CanReconcile { get; set; }
     public string Message { get; set; } = string.Empty;
+    internal string ArchiveDigest { get; set; } = string.Empty;
 }
 
 internal sealed class DownloadHistoryLease : IDisposable {
@@ -189,6 +190,111 @@ internal static class DownloadHistory {
     private static string fBoundArchivePath = IniProvider.Read(string.Empty, string.Empty, ConfigName, nameof(BoundArchivePath));
     private static string fInventoryRoots = IniProvider.Read(string.Empty, string.Empty, ConfigName, nameof(InventoryRoots));
     private static string fKnownFileNameSchemas = IniProvider.Read(string.Empty, string.Empty, ConfigName, "KnownFileNameSchemas");
+
+    private sealed class FileNameIdentityMatcher {
+        private sealed class Candidate {
+            internal string Value { get; }
+            internal string[] Entries { get; }
+
+            internal Candidate(string value, IEnumerable<string> entries) {
+                Value = value;
+                Entries = entries.OrderBy(entry => entry, StringComparer.Ordinal).ToArray();
+            }
+        }
+
+        private sealed class Node {
+            internal Dictionary<char, Node> Next { get; } = new();
+            internal Node? Failure { get; set; }
+            internal List<Candidate> Outputs { get; } = [];
+        }
+
+        private readonly Node root = new();
+
+        internal FileNameIdentityMatcher(IEnumerable<string> archiveEntries) {
+            Dictionary<string, HashSet<string>> candidates = new(StringComparer.Ordinal);
+            foreach (string entry in archiveEntries) {
+                int separator = entry.IndexOf(' ');
+                if (separator <= 0 || separator == entry.Length - 1) continue;
+                string sourceId = entry.Substring(separator + 1);
+                foreach (string value in DownloadHistory.SourceIdFileNameCandidates(sourceId)) {
+                    if (!candidates.TryGetValue(value, out HashSet<string>? matches)) {
+                        matches = new HashSet<string>(StringComparer.Ordinal);
+                        candidates.Add(value, matches);
+                    }
+                    matches.Add(entry);
+                }
+            }
+
+            foreach (KeyValuePair<string, HashSet<string>> item in candidates) Add(item.Key, item.Value);
+            BuildFailureLinks();
+        }
+
+        private void Add(string value, IEnumerable<string> entries) {
+            Node node = root;
+            foreach (char character in value) {
+                if (!node.Next.TryGetValue(character, out Node? next)) {
+                    next = new Node();
+                    node.Next.Add(character, next);
+                }
+                node = next;
+            }
+            node.Outputs.Add(new Candidate(value, entries));
+        }
+
+        private void BuildFailureLinks() {
+            root.Failure = root;
+            Queue<Node> pending = new();
+            foreach (Node child in root.Next.Values) {
+                child.Failure = root;
+                pending.Enqueue(child);
+            }
+
+            while (pending.Count > 0) {
+                Node current = pending.Dequeue();
+                foreach (KeyValuePair<char, Node> edge in current.Next) {
+                    Node fallback = current.Failure ?? root;
+                    while (!ReferenceEquals(fallback, root) && !fallback.Next.ContainsKey(edge.Key)) {
+                        fallback = fallback.Failure ?? root;
+                    }
+
+                    if (fallback.Next.TryGetValue(edge.Key, out Node? nextFallback) && !ReferenceEquals(nextFallback, edge.Value)) {
+                        edge.Value.Failure = nextFallback;
+                    }
+                    else {
+                        edge.Value.Failure = root;
+                    }
+
+                    if (edge.Value.Failure.Outputs.Count > 0) edge.Value.Outputs.AddRange(edge.Value.Failure.Outputs);
+                    pending.Enqueue(edge.Value);
+                }
+            }
+        }
+
+        internal string? Match(string mediaPath) {
+            string fileName = Path.GetFileName(mediaPath);
+            Node node = root;
+            string? match = null;
+            HashSet<string> evaluated = new(StringComparer.Ordinal);
+
+            foreach (char character in fileName) {
+                while (!ReferenceEquals(node, root) && !node.Next.ContainsKey(character)) {
+                    node = node.Failure ?? root;
+                }
+
+                if (node.Next.TryGetValue(character, out Node? next)) node = next;
+                else node = root;
+
+                foreach (Candidate candidate in node.Outputs) {
+                    if (!evaluated.Add(candidate.Value) || !DownloadHistory.FileNameMatchesSourceId(mediaPath, candidate.Value)) continue;
+                    foreach (string entry in candidate.Entries) {
+                        if (match is not null && !string.Equals(match, entry, StringComparison.Ordinal)) return null;
+                        match = entry;
+                    }
+                }
+            }
+            return match;
+        }
+    }
 
     public static bool Enabled {
         get => fEnabled;
@@ -659,11 +765,8 @@ internal static class DownloadHistory {
                 if (preparedReport?.State != DownloadHistoryState.Healthy) {
                     throw new InvalidOperationException("Download History settings cannot be enabled until the candidate library state is healthy.");
                 }
-                if (!TryResolvePaths(configuredArchivePath, out string preparedLibraryRoot, out string preparedArchive, out DownloadHistoryReport? pathError)) {
+                if (!TryResolvePaths(configuredArchivePath, out _, out string preparedArchive, out DownloadHistoryReport? pathError)) {
                     throw new InvalidOperationException(pathError?.Message ?? "Download History path is invalid.");
-                }
-                if (!TryResolveInventoryRoots(preparedLibraryRoot, normalizedInventoryRoots, out List<string> preparedScanRoots, out DownloadHistoryReport? rootError)) {
-                    throw new InvalidOperationException(rootError?.Message ?? "Download History inventory path is invalid.");
                 }
 
                 using DownloadHistoryLease? previousLease = ShouldWaitForPreviousArchive(preparedArchive) ? AcquireManagementLease(BoundArchivePath, "change archive settings") : null;
@@ -675,12 +778,12 @@ internal static class DownloadHistory {
                 if (!CanWriteArchiveLocation(preparedArchive, out string writeError)) {
                     throw new InvalidOperationException("Download History settings were not saved because the prepared archive is no longer writable: " + writeError);
                 }
-                DownloadHistoryAnalysis finalAnalysis = AnalyzeCore(preparedLibraryRoot, preparedScanRoots, preparedArchive, CandidateRequiresLibraryRecovery(preparedLibraryRoot, preparedArchive) || InventoryRootsChanged(normalizedInventoryRoots));
-                if (finalAnalysis.Report.State != DownloadHistoryState.Healthy) {
-                    throw new InvalidOperationException("Download History settings were not saved because the library changed after preparation: " + finalAnalysis.Report.Message);
+                string preparedDigest = preparedReport!.ArchiveDigest;
+                string currentDigest = ComputeArchiveDigest(entries);
+                if (preparedDigest.IsNullEmptyWhitespace() || !string.Equals(preparedDigest, currentDigest, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException("Download History settings were not saved because the prepared archive changed after reconciliation. Re-run validation/reconciliation and try again.");
                 }
                 if (keepBackup) CopyArchiveToBackupAtomically(preparedArchive);
-                preparedReport = finalAnalysis.Report;
                 preparedKey = preparedArchive;
             }
 
@@ -833,6 +936,7 @@ internal static class DownloadHistory {
         }
 
         report.ArchiveEntries = analysis.ArchiveEntries.Count;
+        report.ArchiveDigest = ComputeArchiveDigest(analysis.ArchiveEntries);
         report.State = DownloadHistoryState.Healthy;
         report.CanReconcile = true;
         report.Message = $"Download History is healthy. {report.ArchiveEntries:N0} archive entr{(report.ArchiveEntries == 1 ? "y" : "ies")} validated without modifying existing media.";
@@ -1155,41 +1259,41 @@ internal static class DownloadHistory {
 
         analysis.RecoverMissingEntries = recoverMissingEntries || !analysis.ArchiveExists || analysis.ArchiveWasInvalid || analysis.UsedBackup;
 
-        List<string> mediaFiles = [];
+        FileNameIdentityMatcher filenameMatcher = new(analysis.ArchiveEntries);
         try {
-            foreach (string scanRoot in scanRoots) mediaFiles.AddRange(EnumerateCompletedMedia(scanRoot));
+            foreach (string scanRoot in scanRoots) {
+                foreach (string media in EnumerateCompletedMedia(scanRoot)) {
+                    string? entry = TryRecoverFromInfoJson(media, out _, out _);
+                    bool fromMetadata = entry is not null;
+                    if (entry is null) entry = filenameMatcher.Match(media);
+
+                    // A current valid native archive is the success marker. An unarchived final-looking
+                    // file may be residue from a failed provider run and must remain eligible for retry.
+                    // Recovery states deliberately trust authoritative physical-library identities instead.
+                    if (!analysis.RecoverMissingEntries && analysis.ArchiveValid &&
+                        (entry is null || !analysis.ArchiveEntries.Contains(entry))) {
+                        continue;
+                    }
+
+                    report.CompletedMedia++;
+                    if (entry is null) {
+                        report.UnresolvedMedia++;
+                        continue;
+                    }
+
+                    if (fromMetadata) report.MetadataRecovered++;
+                    else report.FilenameRecovered++;
+
+                    report.IdentifiedMedia++;
+                    analysis.RecoveredEntries.Add(entry);
+                }
+            }
         }
         catch (Exception ex) {
             report.State = DownloadHistoryState.Unavailable;
             report.CanReconcile = false;
             report.Message = "Media library cannot be scanned safely: " + ex.Message;
             return analysis;
-        }
-
-        foreach (string media in mediaFiles) {
-            string? entry = TryRecoverFromInfoJson(media, out _, out _);
-            bool fromMetadata = entry is not null;
-            if (entry is null) entry = TryRecoverFromFilename(media, analysis.ArchiveEntries);
-
-            // A current valid native archive is the success marker. An unarchived final-looking
-            // file may be residue from a failed provider run and must remain eligible for retry.
-            // Recovery states deliberately trust authoritative physical-library identities instead.
-            if (!analysis.RecoverMissingEntries && analysis.ArchiveValid &&
-                (entry is null || !analysis.ArchiveEntries.Contains(entry))) {
-                continue;
-            }
-
-            report.CompletedMedia++;
-            if (entry is null) {
-                report.UnresolvedMedia++;
-                continue;
-            }
-
-            if (fromMetadata) report.MetadataRecovered++;
-            else report.FilenameRecovered++;
-
-            report.IdentifiedMedia++;
-            analysis.RecoveredEntries.Add(entry);
         }
         report.MigrationCount = 0;
         report.ArchiveEntries = analysis.ArchiveEntries.Count;
@@ -1398,19 +1502,6 @@ internal static class DownloadHistory {
         return Regex.IsMatch(name, "\\[" + Regex.Escape(sourceId) + "\\]$", RegexOptions.CultureInvariant);
     }
 
-    private static string? TryRecoverFromFilename(string mediaPath, HashSet<string> archiveEntries) {
-        string? match = null;
-        foreach (string entry in archiveEntries) {
-            int separator = entry.IndexOf(' ');
-            if (separator <= 0 || separator == entry.Length - 1) continue;
-            string id = entry.Substring(separator + 1);
-            if (!SourceIdFileNameCandidates(id).Any(candidate => FileNameMatchesSourceId(mediaPath, candidate))) continue;
-            if (match is not null && !string.Equals(match, entry, StringComparison.Ordinal)) return null;
-            match = entry;
-        }
-        return match;
-    }
-
     private const string KnownSchemaEncodingPrefix = "v2:";
 
     private static string[] DecodeKnownFileNameSchemas(string value) {
@@ -1508,6 +1599,13 @@ internal static class DownloadHistory {
         }
         pattern.Append('$');
         return pattern.ToString();
+    }
+
+    private static string ComputeArchiveDigest(IEnumerable<string> entries) {
+        string normalized = string.Join("\n", entries.OrderBy(entry => entry, StringComparer.Ordinal));
+        using SHA256 sha = SHA256.Create();
+        byte[] digest = sha.ComputeHash(Encoding.UTF8.GetBytes(normalized));
+        return string.Concat(digest.Select(value => value.ToString("x2")));
     }
 
     private static bool CanWriteArchiveLocation(string archive, out string error) {

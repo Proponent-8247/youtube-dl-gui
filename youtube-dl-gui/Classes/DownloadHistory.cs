@@ -809,7 +809,7 @@ internal static class DownloadHistory {
                 }
 
                 if (archiveTransition) {
-                    if (!TryReadLedgerForArchiveTransition(BoundArchivePath, out HashSet<string> previousEntries, out string transitionError)) {
+                    if (!TryReadLedgerForArchiveTransition(BoundArchivePath, fKeepBackup, out HashSet<string> previousEntries, out string transitionError)) {
                         throw new InvalidOperationException(transitionError + " Reset History explicitly before changing the archive path if discarding prior history is intended.");
                     }
 
@@ -1015,6 +1015,15 @@ internal static class DownloadHistory {
             HashSet<string> backupEntries = new(StringComparer.Ordinal);
             bool backupValid = TryReadArchive(backup, backupEntries, out string backupError);
 
+            if (!primaryValid && backupValid && !KeepBackup) {
+                return new DownloadHistoryReport {
+                    State = primaryExists ? DownloadHistoryState.Invalid : DownloadHistoryState.Missing,
+                    CanReconcile = true,
+                    ArchiveEntries = backupEntries.Count,
+                    Message = "The primary Download History archive is unavailable or invalid while backup retention is disabled. The retained backup may be stale and will not be used as the sole automatic ledger. Run Rebuild Archive before protected downloading."
+                };
+            }
+
             if (!primaryValid && !backupValid) {
                 return new DownloadHistoryReport {
                     State = primaryExists ? DownloadHistoryState.Invalid : DownloadHistoryState.Missing,
@@ -1133,7 +1142,7 @@ internal static class DownloadHistory {
         }
     }
 
-    private static bool TryReadLedgerForArchiveTransition(string archive, out HashSet<string> entries, out string error) {
+    private static bool TryReadLedgerForArchiveTransition(string archive, bool backupMaintained, out HashSet<string> entries, out string error) {
         entries = new HashSet<string>(StringComparer.Ordinal);
         error = string.Empty;
 
@@ -1141,6 +1150,10 @@ internal static class DownloadHistory {
         bool primaryValid = TryReadArchive(archive, primaryEntries, out string primaryError);
         HashSet<string> backupEntries = new(StringComparer.Ordinal);
         bool backupValid = TryReadArchive(archive + ".bak", backupEntries, out string backupError);
+        if (!primaryValid && backupValid && !backupMaintained) {
+            error = "The previously bound primary Download History ledger is unavailable or invalid, and backup retention was disabled. The retained backup may be stale and cannot be treated as complete history for archive relocation.";
+            return false;
+        }
         if (!primaryValid && !backupValid) {
             error = "The previously bound Download History ledger is unavailable or invalid, so its identities cannot be preserved during archive relocation.";
             if (!primaryError.IsNullEmptyWhitespace()) error += " Primary: " + primaryError;

@@ -58,12 +58,14 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A001 | High | Fixed / regression-verified | Recovered `.info.json` identity is validated as exactly one native archive record before publication. |
 | DH-A002 | High | Fixed / regression-verified | Existing-library inventory is non-destructive; rename/move migration paths were removed. |
 | DH-A003 | High | Fixed / regression-verified | Explicit `Rebuild Archive` now forces authoritative physical inventory while preserving prior archive identities. |
-| DH-A004 | High | Fixed / regression-verified, follow-up in DH-A006 | History is decoupled from media paths and supports additional scan-only roots; normal execution still has one residual inventory dependency tracked as DH-A006. |
-| DH-A005 | Medium | Verified | Large-library management performs synchronous/repeated scans, materializes the media-file list, and filename-only recovery can degrade toward archive-entry × media-file matching. |
-| DH-A006 | High | Verified | Normal protected execution still performs inventory validation after restart/cache loss and can be blocked by an unavailable scan-only root even when the native archive and backup are valid. |
+| DH-A004 | High | Fixed / regression-verified | History is decoupled from media paths and supports additional scan-only roots; the residual normal-execution dependency was repaired under DH-A006. |
+| DH-A005 | Medium | Fixed / regression-verified | Inventory now streams media, uses a reusable filename-identity matcher, avoids redundant management rescans, and runs long scans off the WinForms UI thread. |
+| DH-A006 | High | Fixed / regression-verified | Normal protected execution validates only the application-owned ledger/backup and no longer scans or requires media roots after restart/cache loss. |
+| DH-A007 | High | Verified | Protected yt-dlp invocations ignore config files but still load ambient/default plugins, allowing extractor/postprocessor overrides to run inside the protected history model. |
+| DH-A008 | Medium | Verified | Settings persistence writes `Enabled` before all dependent keys and rollback restores it before all old keys, so a write failure plus rollback failure can leave a partially enabled on-disk configuration. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
-| DH-L003 | — | Closed / no bypass found | Protected commands inject `--ignore-config`, reject custom config locations/aliases and conflicting archive/output hooks, and append the app-owned archive option after user custom arguments. The later app option therefore remains authoritative; the later app-owned authentication config contains authentication options only. |
-| DH-L004 | — | Closed / no UI transaction defect found | Save/enable uses `CommitSettings` with rollback of settings writes; Rebuild and Reset are explicit archive-management actions whose app-owned ledger effects intentionally do not depend on pressing Save afterward. No media-tree mutation is acceptable after DH-A002 is fixed. |
+| DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
+| DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
 | DH-L006 | — | Closed / intended fail-safe behavior | Media without authoritative `.info.json` identity or an unambiguous filename match to a known native archive identity is reported unresolved; the implementation deliberately does not infer YouTube merely from an 11-character ID shape. |
 | DH-L007 | — | Closed / classifier verified | Completed-media enumeration is allowlisted to media extensions. Known sidecars including `.info.json`, generic `.json`/`.live_chat.json`, descriptions, common thumbnails, subtitles, `.part`, `.ytdl`, and text files are not counted as media. Regression coverage will be expanded with the supplied real-world family shape. |
 
@@ -72,8 +74,12 @@ Repair evidence recorded so far:
 - DH-A002: `d7225e8771e4628f0245aafe4a10a3c01fb9bcbd` (`fix: inventory existing media without renaming files`), closed by guarded batch `270fd58e2d54da82ed20efb70fdde1922b9ff7b5`.
 - DH-A003: `007044f2e372c0bb8d29c2dbf2011263d4455d7b` (`fix: make explicit archive rebuild inventory authoritative media`), closed by guarded batch `7250344c32e0c0e6573103dad009c46e5591a163`.
 - DH-A004: `b2f1201825acc11f31e3c4e2b343e33553562a59` and `d84afa98890a346e578abe6409d4de641dc94ae8`, closed by guarded batches `af044a477ef1395465f859fef0502d4a027ed240` and `1e30865ecba0c698401b4ec7239d5fe973999bf2`.
+- DH-A006: `9860f740be48cba18650c1f7b08b95f313545070` (`fix: decouple protected downloads from inventory roots`).
+- DH-A005: `a238742ce63ba6e890c27e24f4e895e32ce90a0a` (`perf: make download history inventory single-pass`).
+- DH-A005/A006 were closed by guarded workflow run `35296863602`, cleanup commit `9313543d0fd31dcd1130bfb46289aa1b2f0f0fa3`. The guard demonstrated all three new regressions failing before the repairs and passing afterward while also completing Debug solution, Release updater, Release application, and full regression gates.
+- The first A005/A006 repair request was deliberately discarded at `76d58d3616e0845f7ec00a0d222f52b2dbfa17ce` after re-audit caught a cross-thread WinForms control read before the repair was accepted. The corrected request then captured UI values on the UI thread before `Task.Run`.
 
-DH-A005 and DH-A006 remain open until their guarded repair batches and final re-audit pass.
+DH-A007 and DH-A008 remain open until their guarded repair batches and final re-audit pass.
 
 ## Review scope / status
 
@@ -215,3 +221,41 @@ The source-review pass is complete. Implementation remains in progress until eve
 4. Explicit Validate/Reconcile/Rebuild operations may require configured inventory roots, and Rebuild remains the full authoritative inventory operation.
 5. Add regression coverage that takes a previously inventoried scan-only root offline, clears the in-memory prepared cache to simulate restart, and proves protected argument generation still succeeds from the valid archive/backup without recreating or scanning that root.
 6. Re-run the complete Windows Debug/Release/regression gates and re-audit the resulting normal-execution path.
+
+
+### DH-A007 — Protected yt-dlp invocations do not isolate ambient plugins
+
+**Priority / state:** High integrity/security-boundary risk / VERIFIED in final re-audit.
+
+**Affected code:** `TryGetArchiveArguments` and the app-owned protected yt-dlp argument prefix.
+
+**Finding:** Protected commands currently inject `--ignore-config` and reject custom config locations, aliases, exec hooks, and explicit plugin postprocessor hooks, but they do not disable yt-dlp's default plugin search. Current upstream yt-dlp initializes `plugin_dirs` to `['default']`; the default search covers yt-dlp plugin/config folders, executable-adjacent plugin locations, and Python import paths. yt-dlp then loads all registered plugin types before constructing `YoutubeDL`, and plugin extractor classes are merged ahead of built-ins. Upstream's `--no-plugin-dirs` option clears the complete plugin-directory list and prevents plugin loading.
+
+**Impact:** A locally installed ambient extractor or postprocessor plugin can execute during a run that the application otherwise treats as protected and isolated from identity-changing hooks. An extractor override can change which extractor owns a URL and therefore alter native archive identity; arbitrary plugin code can also mutate files/state outside the assumptions enforced by the app's custom-argument filter. This weakens both duplicate-prevention correctness and the meaning of the protected mode.
+
+**Required acceptance:**
+
+1. App-owned protected arguments must include `--no-plugin-dirs` before the source operand so ambient/default plugins are disabled whenever Download History protection is enabled.
+2. Reject custom positive `--plugin-dirs` options while protection is enabled; a user who explicitly requires plugins must disable Download History rather than silently weakening its integrity model.
+3. Do not reject a user-supplied `--no-plugin-dirs`; it is compatible with and only reinforces the protected mode.
+4. Keep `--ignore-config`, app-owned native archive arguments, authentication config handling, and standard/extended argument ordering intact.
+5. Add regression coverage for plugin isolation and rerun the complete guarded Windows build/regression gates.
+
+### DH-A008 — Settings persistence can fail into a partially enabled on-disk state
+
+**Priority / state:** Medium fail-safe persistence risk / VERIFIED in final re-audit.
+
+**Affected code:** `CommitSettings` INI persistence and its rollback block.
+
+**Finding:** `CommitSettings` writes `Enabled` before `EverEnabled`, `NeedsReconciliation`, bound archive/root data, and inventory roots. If a later INI write fails, the catch block attempts rollback, but rollback likewise restores `Enabled` before restoring all remaining old keys. If the underlying storage failure also interrupts rollback, the current process keeps its old in-memory state but the INI can be left with `Enabled=true` and a mixture of new, old, or missing dependent settings. A restart then consumes that partially committed state.
+
+**Impact:** The feature's normal runtime validation is fail-closed, but its persistence transaction is not. A disk/permission/I/O failure at the wrong point can transform a rejected settings change into a partially enabled configuration on next launch.
+
+**Required acceptance:**
+
+1. Persist Download History settings with `Enabled=false` as the first guard write.
+2. Persist every dependent setting while protection is disabled on disk.
+3. Persist the intended final `Enabled` value only as the last write, after every other key succeeds.
+4. Rollback must use the same ordering: write `Enabled=false` first, restore all old dependent keys, and restore the previous enabled state only last. If rollback itself fails, the durable state must therefore remain disabled rather than partially enabled.
+5. In-memory state remains unchanged until the complete target write succeeds.
+6. Add regression/source-structure coverage for the fail-closed persistence ordering and rerun the complete guarded Windows build/regression gates.

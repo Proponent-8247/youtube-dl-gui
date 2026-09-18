@@ -1024,6 +1024,93 @@ internal static partial class AuditRegression {
         }
     }
 
+
+    private static void DownloadHistoryNormalProtectionIgnoresOfflineInventoryRoots() {
+        const string id = "9qFjkwAElDs";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string active = Path.Combine(fixture.Root, "downloads");
+            string existing = Path.Combine(fixture.Root, "existing-library");
+            Directory.CreateDirectory(active);
+            Directory.CreateDirectory(existing);
+            Set(fixture.Downloads, null, "downloadPath", active);
+            DownloadHistoryWriteMediaWithInfo(existing, "Existing-" + id + ".mp4", "Youtube", id);
+
+            string customArchive = Path.Combine(fixture.Root, "history.txt");
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", customArchive, true, false, existing);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Call(fixture.History, null, "CommitSettings", true, customArchive, true, rebuilt, existing);
+
+            string offline = existing + "-offline";
+            Directory.Move(existing, offline);
+            fixture.History.GetField("PreparedKey", All).SetValue(null, null); // simulate application restart/cache loss
+
+            string arguments, error;
+            object execution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
+            Require(arguments.Contains("--download-archive \"" + customArchive + "\""), "Healthy path-agnostic archive was not used after its scan-only root went offline");
+            Require(!Directory.Exists(existing), "Normal protected command generation recreated or required the offline scan-only root");
+            Require(DownloadHistoryArchiveLines(customArchive).Contains("youtube " + id), "Offline inventory root invalidated an already-recorded native identity");
+        }
+    }
+
+    private static void DownloadHistoryPreparedCommitDoesNotRescanInventory() {
+        const string id = "aB_Cd-Ef123";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string active = Path.Combine(fixture.Root, "downloads");
+            string existing = Path.Combine(fixture.Root, "existing-library");
+            Directory.CreateDirectory(active);
+            Directory.CreateDirectory(existing);
+            Set(fixture.Downloads, null, "downloadPath", active);
+            DownloadHistoryWriteMediaWithInfo(existing, "Prepared-" + id + ".webm", "Youtube", id);
+
+            string customArchive = Path.Combine(fixture.Root, "history.txt");
+            object prepared = Call(fixture.History, null, "ReconcileLibrary", customArchive, true, false, existing);
+            Equal("Healthy", DownloadHistoryStateName(prepared));
+            string offline = existing + "-offline";
+            Directory.Move(existing, offline);
+
+            Call(fixture.History, null, "CommitSettings", true, customArchive, true, prepared, existing);
+            Equal(true, fixture.History.GetProperty("Enabled", All).GetValue(null, null));
+            Require(DownloadHistoryArchiveLines(customArchive).Contains("youtube " + id), "Prepared archive identity was lost when the scan-only root moved before settings commit");
+            Require(!Directory.Exists(existing), "CommitSettings rescanned or recreated a scan-only inventory root after a healthy prepared reconciliation");
+        }
+    }
+
+    private static void DownloadHistoryLargeLibraryManagementAvoidsRepeatedScans() {
+        string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
+        string historySource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Classes", "DownloadHistory.cs"));
+        string dialogSource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmDownloadHistory.cs"));
+
+        Require(historySource.IndexOf("List<string> mediaFiles = []", StringComparison.Ordinal) < 0,
+            "Large-library inventory still materializes the complete media-file list before processing");
+        Require(historySource.Contains("FileNameIdentityMatcher"),
+            "Filename-only recovery still lacks a reusable archive identity matcher");
+        Require(historySource.IndexOf("TryRecoverFromFilename(string mediaPath, HashSet<string> archiveEntries)", StringComparison.Ordinal) < 0,
+            "Filename-only recovery still scans the complete archive separately for each media file");
+
+        int commitStart = historySource.IndexOf("public static void CommitSettings(bool enabled, string configuredArchivePath, bool keepBackup, DownloadHistoryReport? preparedReport, string configuredInventoryRoots)", StringComparison.Ordinal);
+        int validateStart = historySource.IndexOf("public static DownloadHistoryReport ValidateAndReconcile", commitStart, StringComparison.Ordinal);
+        Require(commitStart >= 0 && validateStart > commitStart, "Could not inspect Download History settings commit flow");
+        string commitSource = historySource.Substring(commitStart, validateStart - commitStart);
+        Require(commitSource.IndexOf("AnalyzeCore(", StringComparison.Ordinal) < 0,
+            "CommitSettings still performs a redundant full physical-library scan after a healthy prepared reconciliation");
+
+        int rebuildStart = dialogSource.IndexOf("private async void RebuildArchive()", StringComparison.Ordinal);
+        int refreshStart = dialogSource.IndexOf("private void RefreshStatus", rebuildStart, StringComparison.Ordinal);
+        Require(rebuildStart >= 0 && refreshStart > rebuildStart, "Rebuild Archive is not an asynchronous management operation");
+        string rebuildSource = dialogSource.Substring(rebuildStart, refreshStart - rebuildStart);
+        Require(rebuildSource.IndexOf("AnalyzeLibrary(", StringComparison.Ordinal) < 0,
+            "Rebuild Archive still performs a redundant analysis scan before the explicit rebuild scan");
+
+        int saveStart = dialogSource.IndexOf("private async void SaveAndClose", StringComparison.Ordinal);
+        Require(saveStart >= 0, "Save/enable does not run long inventory work asynchronously");
+        string saveSource = dialogSource.Substring(saveStart);
+        Require(saveSource.IndexOf("AnalyzeLibrary(", StringComparison.Ordinal) < 0,
+            "Save/enable still performs a redundant analysis scan before reconciliation");
+        Require(dialogSource.Contains("Task.Run") && dialogSource.Contains("managementOperationInProgress") && dialogSource.Contains("FormClosing"),
+            "Long Download History management operations are not kept off the UI thread with re-entry/close protection");
+    }
+
     private static void DownloadHistoryWorkersUsePreparedContext() {
         string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
         string standard = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmDownloader.cs"));
@@ -1158,6 +1245,9 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.LibraryBindingPreventsCrossLibraryReuse", DownloadHistoryLibraryBindingPreventsCrossLibraryReuse);
         Test("DOWNLOAD_HISTORY.PathAgnosticHistorySurvivesMediaMoves", DownloadHistoryPathAgnosticHistorySurvivesMediaMoves);
         Test("DOWNLOAD_HISTORY.MultipleInventoryRootsShareOneArchive", DownloadHistoryMultipleInventoryRootsShareOneArchive);
+        Test("DOWNLOAD_HISTORY.NormalProtectionIgnoresOfflineInventoryRoots", DownloadHistoryNormalProtectionIgnoresOfflineInventoryRoots);
+        Test("DOWNLOAD_HISTORY.PreparedCommitDoesNotRescanInventory", DownloadHistoryPreparedCommitDoesNotRescanInventory);
+        Test("DOWNLOAD_HISTORY.LargeLibraryManagementAvoidsRepeatedScans", DownloadHistoryLargeLibraryManagementAvoidsRepeatedScans);
         Test("DOWNLOAD_HISTORY.WorkersUsePreparedContext", DownloadHistoryWorkersUsePreparedContext);
         Test("DOWNLOAD_HISTORY.WiresStandardAndExtendedArguments", DownloadHistoryWiresStandardAndExtendedArguments);
     }

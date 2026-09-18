@@ -80,6 +80,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A023 | High | Fixed / regression-verified | Protected runs now force `--concat-playlist never` and reject conflicting custom concat policies, preserving one physical media family per native identity. |
 | DH-A024 | Medium | Fixed / regression-verified | Filename recovery now mirrors current and legacy yt-dlp restricted ID sanitization, including accent transliteration and current boundary normalization. |
 | DH-A025 | High | Fixed / regression-verified | GIF is now conservatively inventoried as possible final media, so authoritative GIF outputs rebuild and unidentified GIFs fail safe. |
+| DH-A026 | High | Verified | A never-initialized invalid file named the default `yt-dlp-archive.txt` is treated as application-owned solely by filename and may be overwritten during first-use reconciliation. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -161,7 +162,7 @@ Repair evidence recorded so far:
 - Baseline evidence showed both new regressions failing; after A024 the restricted-sanitization regression passed while GIF inventory still failed; after A025 both passed with the complete guarded build/regression gates.
 - Evidence artifact `10537860896` has SHA-256 `232188661c66b02379f2082b880cedc337dbf4f632bb85899bddddc6074685c1`.
 
-No verified findings are currently open. The terminal current-head audit is in progress.
+DH-A026 remains open until its guarded repair batch and final re-audit pass.
 
 ## Review scope / status
 
@@ -686,3 +687,24 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 3. A GIF thumbnail sharing an authoritative media family may resolve to the same native identity without creating duplicate archive records; archive identity de-duplication remains set-based.
 4. Add regression coverage proving authoritative GIF media is inventoried/rebuilt and an unidentified standalone GIF fails safe instead of being silently ignored.
 5. Re-run the complete guarded Windows build/regression gates.
+
+
+### DH-A026 — Default archive filename alone is not proof of application ownership
+
+**Priority / state:** High non-destructive data-integrity risk / VERIFIED in terminal state-machine audit.
+
+**Affected code:** invalid-primary/no-valid-backup handling inside `AnalyzeCore` and the legacy regression `DOWNLOAD_HISTORY.CorruptArchiveDoesNotTrustPartialLines`.
+
+**Finding:** DH-A010/A012 correctly refuse to overwrite invalid custom archive targets without a valid backup, but the current source exempts any file at the default path `<active-root>\yt-dlp-archive.txt`. The existing corruption regression constructs such an invalid file in a fresh fixture with `EverEnabled=false` and no bound archive, then explicitly expects reconciliation to overwrite it. The filename itself is therefore being used as ownership proof before Download History has ever established that file.
+
+**Impact:** A user who already has an unrelated text/media-management file named `yt-dlp-archive.txt` in the download root can lose it merely by first enabling/rebuilding Download History. This contradicts the strict non-destructive first-use model and is the default-path equivalent of the custom collision fixed by DH-A010/A012.
+
+**Required acceptance:**
+
+1. A valid existing native primary or valid backup may still be adopted/reconciled on first use.
+2. An invalid existing default primary with no valid backup may be automatically reconstructed only if that exact path was previously and successfully bound by Download History.
+3. A never-initialized invalid default-path collision must remain byte-for-byte unchanged and return a non-reconcilable Invalid/Unsafe result.
+4. Revise the existing corruption-recovery regression (retain its test name) so it first establishes a real default archive, removes its backup, corrupts the primary, and then proves authoritative physical recovery still works.
+5. Add a separate first-use default-collision regression proving no overwrite occurs.
+6. Do not rely on `EverEnabled` alone when proving ownership; require the exact durable bound archive path as well.
+7. Re-run the complete guarded Windows Debug/Release/regression gates.

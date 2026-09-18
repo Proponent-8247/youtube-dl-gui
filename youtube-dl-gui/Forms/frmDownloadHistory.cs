@@ -283,7 +283,7 @@ internal sealed class frmDownloadHistory : Form {
         try {
             string configured = NormalizeConfiguredPath(txtArchive.Text);
             candidateArchive = configured.IsNullEmptyWhitespace()
-                ? DownloadHistory.DefaultArchivePath
+                ? DownloadHistory.EffectiveArchivePath
                 : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configured));
         }
         catch { candidateArchive = string.Empty; }

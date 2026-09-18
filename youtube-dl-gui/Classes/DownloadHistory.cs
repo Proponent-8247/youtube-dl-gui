@@ -541,6 +541,10 @@ internal static class DownloadHistory {
                 error = "--break-on-existing and --break-per-input are not allowed while Download History protection is enabled because they can stop collection traversal before new media is discovered.";
                 return false;
             }
+            if (ContainsOption(customArguments, "--concat-playlist")) {
+                error = "--concat-playlist is not allowed while Download History protection is enabled because concatenation can delete the per-entry media files needed to rebuild native archive identities. Disable Download History if playlist concatenation is required.";
+                return false;
+            }
             if (ContainsShortOption(customArguments, "-o") || ContainsOption(customArguments, "--output") || ContainsOption(customArguments, "--id") ||
                 ContainsShortOption(customArguments, "-P") || ContainsOption(customArguments, "--paths")) {
                 error = "Custom output templates or paths are not allowed while Download History protection is enabled because the app must keep %(id)s-bearing media inside the validated library namespace.";
@@ -589,7 +593,7 @@ internal static class DownloadHistory {
             if (!RememberFileNameSchema(fileNameSchema, out error)) return false;
             string preparedArchive = EffectiveArchivePath;
             execution = new DownloadHistoryExecution(preparedArchive, KeepBackup);
-            archiveArguments = $"--ignore-config --no-plugin-dirs --download-archive \"{preparedArchive}\" --no-break-on-existing";
+            archiveArguments = $"--ignore-config --no-plugin-dirs --download-archive \"{preparedArchive}\" --no-break-on-existing --concat-playlist never";
             return true;
         }
     }

@@ -79,6 +79,7 @@ internal sealed class DownloadHistoryLease : IDisposable {
     }
 
     internal void AcquireFileLock(string path, Func<bool>? cancellationRequested = null) {
+        if (fileLock is not null) return;
         string? parent = Path.GetDirectoryName(path);
         while (true) {
             if (cancellationRequested?.Invoke() == true) throw new OperationCanceledException("Download History file-lock wait was cancelled.");
@@ -1107,7 +1108,16 @@ internal static class DownloadHistory {
 
     private static bool TryInitializeNewDefaultLibrary(string libraryRoot, string archive, DownloadHistoryLease lease, out DownloadHistoryReport? error) {
         error = null;
-        if (Directory.Exists(libraryRoot)) return true;
+        if (Directory.Exists(libraryRoot)) {
+            if (IsDefaultArchiveForLibrary(libraryRoot, archive)) {
+                try { lease.AcquireFileLock(archive + ".lock"); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+                    error = new DownloadHistoryReport { State = DownloadHistoryState.Unavailable, CanReconcile = false, Message = "The default Download History archive lock could not be acquired safely: " + ex.Message };
+                    return false;
+                }
+            }
+            return true;
+        }
         if (!CanInitializeNewDefaultLibrary(libraryRoot, archive)) {
             error = new DownloadHistoryReport { State = DownloadHistoryState.Unavailable, CanReconcile = false, Message = "Media library path is unavailable: " + libraryRoot };
             return false;

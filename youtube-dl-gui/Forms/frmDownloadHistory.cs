@@ -176,8 +176,10 @@ internal sealed class frmDownloadHistory : Form {
         if (value.IsNullEmptyWhitespace()) return string.Empty;
         try {
             string full = Path.GetFullPath(Environment.ExpandEnvironmentVariables(value));
-            string defaultPath = Path.GetFullPath(DownloadHistory.DefaultArchivePath);
-            return string.Equals(full, defaultPath, StringComparison.OrdinalIgnoreCase) ? string.Empty : value.Trim();
+            string implicitPath = DownloadHistory.EverEnabled && !DownloadHistory.BoundArchivePath.IsNullEmptyWhitespace()
+                ? Path.GetFullPath(Environment.ExpandEnvironmentVariables(DownloadHistory.BoundArchivePath))
+                : Path.GetFullPath(DownloadHistory.DefaultArchivePath);
+            return string.Equals(full, implicitPath, StringComparison.OrdinalIgnoreCase) ? string.Empty : value.Trim();
         }
         catch { return value.Trim(); }
     }

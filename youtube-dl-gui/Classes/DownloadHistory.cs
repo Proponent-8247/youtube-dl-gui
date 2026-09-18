@@ -764,6 +764,9 @@ internal static class DownloadHistory {
             try { normalizedInventoryRoots = NormalizeInventoryRootsForStorage(configuredInventoryRoots); }
             catch (Exception ex) { throw new InvalidOperationException("Download History inventory path is invalid: " + ex.Message, ex); }
             string? preparedKey = null;
+            DownloadHistoryLease? previousArchiveLease = null;
+            DownloadHistoryLease? preparedArchiveLease = null;
+            try {
             if (enabled) {
                 if (Downloads.YtdlType is not ((int)GitID.YtDlp) and not ((int)GitID.YtDlpNightly)) {
                     throw new InvalidOperationException("Download History requires yt-dlp or yt-dlp nightly.");
@@ -778,8 +781,9 @@ internal static class DownloadHistory {
                     throw new InvalidOperationException(pathError?.Message ?? "Download History path is invalid.");
                 }
 
-                using DownloadHistoryLease? previousLease = ShouldWaitForPreviousArchive(preparedArchive) ? AcquireManagementLease(BoundArchivePath, "change archive settings") : null;
-                using DownloadHistoryLease lease = AcquireManagementLease(preparedArchive, "save settings");
+                bool archiveTransition = ShouldWaitForPreviousArchive(preparedArchive);
+                previousArchiveLease = archiveTransition ? AcquireManagementLease(BoundArchivePath, "change archive settings") : null;
+                preparedArchiveLease = AcquireManagementLease(preparedArchive, "save settings");
                 HashSet<string> entries = new(StringComparer.Ordinal);
                 if (!TryReadArchive(preparedArchive, entries, out string archiveError)) {
                     throw new InvalidOperationException("Download History settings were not saved because the prepared archive is no longer valid: " + archiveError);
@@ -792,6 +796,22 @@ internal static class DownloadHistory {
                 if (preparedDigest.IsNullEmptyWhitespace() || !string.Equals(preparedDigest, currentDigest, StringComparison.Ordinal)) {
                     throw new InvalidOperationException("Download History settings were not saved because the prepared archive changed after reconciliation. Re-run validation/reconciliation and try again.");
                 }
+
+                if (archiveTransition) {
+                    if (!TryReadLedgerForArchiveTransition(BoundArchivePath, out HashSet<string> previousEntries, out string transitionError)) {
+                        throw new InvalidOperationException(transitionError + " Reset History explicitly before changing the archive path if discarding prior history is intended.");
+                    }
+
+                    bool merged = false;
+                    foreach (string entry in previousEntries) {
+                        if (entries.Add(entry)) merged = true;
+                    }
+                    if (merged) WriteArchiveAtomically(preparedArchive, entries);
+                    preparedReport.ArchiveEntries = entries.Count;
+                    preparedReport.ArchiveDigest = ComputeArchiveDigest(entries);
+                    preparedReport.Message = $"Download History is healthy. {entries.Count:N0} archive entr{(entries.Count == 1 ? "y" : "ies")} preserved across archive relocation.";
+                }
+
                 if (keepBackup) CopyArchiveToBackupAtomically(preparedArchive);
                 preparedKey = preparedArchive;
             }
@@ -849,6 +869,11 @@ internal static class DownloadHistory {
             else {
                 PreparedKey = null;
                 LastReportInternal = DisabledReport();
+            }
+            }
+            finally {
+                preparedArchiveLease?.Dispose();
+                previousArchiveLease?.Dispose();
             }
         }
     }
@@ -1086,6 +1111,30 @@ internal static class DownloadHistory {
             error = new DownloadHistoryReport { State = DownloadHistoryState.Unavailable, CanReconcile = false, Message = "The new media library directory could not be initialized safely: " + ex.Message };
             return false;
         }
+    }
+
+    private static bool TryReadLedgerForArchiveTransition(string archive, out HashSet<string> entries, out string error) {
+        entries = new HashSet<string>(StringComparer.Ordinal);
+        error = string.Empty;
+
+        HashSet<string> primaryEntries = new(StringComparer.Ordinal);
+        bool primaryValid = TryReadArchive(archive, primaryEntries, out string primaryError);
+        HashSet<string> backupEntries = new(StringComparer.Ordinal);
+        bool backupValid = TryReadArchive(archive + ".bak", backupEntries, out string backupError);
+        if (!primaryValid && !backupValid) {
+            error = "The previously bound Download History ledger is unavailable or invalid, so its identities cannot be preserved during archive relocation.";
+            if (!primaryError.IsNullEmptyWhitespace()) error += " Primary: " + primaryError;
+            if (!backupError.IsNullEmptyWhitespace()) error += " Backup: " + backupError;
+            return false;
+        }
+
+        if (primaryValid) {
+            foreach (string entry in primaryEntries) entries.Add(entry);
+        }
+        if (backupValid) {
+            foreach (string entry in backupEntries) entries.Add(entry);
+        }
+        return true;
     }
 
     private static bool ShouldWaitForPreviousArchive(string preparedArchive) =>

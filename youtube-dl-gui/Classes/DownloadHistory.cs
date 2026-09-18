@@ -1252,10 +1252,10 @@ internal static class DownloadHistory {
                     analysis.ArchiveNeedsRewrite = true;
                 }
                 else {
-                    if (!IsPreviouslyInitializedNamespace(libraryRoot, archive) && !IsDefaultArchiveForLibrary(libraryRoot, archive)) {
+                    if (!IsDefaultArchiveForLibrary(libraryRoot, archive)) {
                         report.State = DownloadHistoryState.Invalid;
                         report.CanReconcile = false;
-                        report.Message = "The selected Download History archive file already exists but is not a valid native archive and has never been bound as application-owned history. Refusing to overwrite the existing file.";
+                        report.Message = "The selected custom Download History archive file already exists but is not a valid native archive and has no valid backup. Refusing to overwrite the existing file automatically; reset or remove the saved custom archive explicitly before rebuilding.";
                         return analysis;
                     }
                     analysis.ArchiveNeedsRewrite = true;

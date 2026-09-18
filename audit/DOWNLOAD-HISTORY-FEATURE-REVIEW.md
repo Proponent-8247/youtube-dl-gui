@@ -61,8 +61,10 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A004 | High | Fixed / regression-verified | History is decoupled from media paths and supports additional scan-only roots; the residual normal-execution dependency was repaired under DH-A006. |
 | DH-A005 | Medium | Fixed / regression-verified | Inventory now streams media, uses a reusable filename-identity matcher, avoids redundant management rescans, and runs long scans off the WinForms UI thread. |
 | DH-A006 | High | Fixed / regression-verified | Normal protected execution validates only the application-owned ledger/backup and no longer scans or requires media roots after restart/cache loss. |
-| DH-A007 | High | Verified | Protected yt-dlp invocations ignore config files but still load ambient/default plugins, allowing extractor/postprocessor overrides to run inside the protected history model. |
-| DH-A008 | Medium | Verified | Settings persistence writes `Enabled` before all dependent keys and rollback restores it before all old keys, so a write failure plus rollback failure can leave a partially enabled on-disk configuration. |
+| DH-A007 | High | Fixed / regression-verified | Protected arguments now disable ambient/default yt-dlp plugin discovery and reject positive custom plugin-directory overrides. |
+| DH-A008 | Medium | Fixed / regression-verified | Target and rollback settings writes now persist `Enabled=false` first and restore the intended enabled state only after every dependent key succeeds. |
+| DH-A009 | High | Verified | Management reconciliation does not treat a changed active download root as a new inventory input, so authoritative pre-existing media in the newly selected destination can remain absent from history unless the user manually chooses full Rebuild. |
+| DH-A010 | High | Verified | A newly selected existing invalid archive file can be overwritten during reconstruction, and an app-created archive with a media extension can later inventory itself as user media. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -79,7 +81,11 @@ Repair evidence recorded so far:
 - DH-A005/A006 were closed by guarded workflow run `35296863602`, cleanup commit `9313543d0fd31dcd1130bfb46289aa1b2f0f0fa3`. The guard demonstrated all three new regressions failing before the repairs and passing afterward while also completing Debug solution, Release updater, Release application, and full regression gates.
 - The first A005/A006 repair request was deliberately discarded at `76d58d3616e0845f7ec00a0d222f52b2dbfa17ce` after re-audit caught a cross-thread WinForms control read before the repair was accepted. The corrected request then captured UI values on the UI thread before `Task.Run`.
 
-DH-A007 and DH-A008 remain open until their guarded repair batches and final re-audit pass.
+- DH-A007: `b40025159650351bea3cde60932e395ed554fa37` (`fix: isolate protected downloads from yt-dlp plugins`).
+- DH-A008: `3c642ee130693b2c3662447a7493782343622713` (`fix: persist download history settings fail closed`).
+- DH-A007/A008 were closed by guarded workflow run `35297339353`, cleanup commit `a46af90a604bbeddda532151986d670a4f0ffae1`. The guard demonstrated `DOWNLOAD_HISTORY.DisablesAmbientYtDlpPlugins` and `DOWNLOAD_HISTORY.SettingsPersistenceFailsClosed` failing before their repairs and passing afterward, with the full Debug/Release/regression gates completing successfully. Evidence artifact `10528675973` has SHA-256 `738f9c4b2840c6be273373235863fbb6681aa7ce16774dafad8c622da9ed9820`.
+
+DH-A009 and DH-A010 remain open until their guarded repair batch and final re-audit pass.
 
 ## Review scope / status
 
@@ -259,3 +265,42 @@ The source-review pass is complete. Implementation remains in progress until eve
 4. Rollback must use the same ordering: write `Enabled=false` first, restore all old dependent keys, and restore the previous enabled state only last. If rollback itself fails, the durable state must therefore remain disabled rather than partially enabled.
 5. In-memory state remains unchanged until the complete target write succeeds.
 6. Add regression/source-structure coverage for the fail-closed persistence ordering and rerun the complete guarded Windows build/regression gates.
+
+
+### DH-A009 — Management reconciliation misses authoritative media after the active download root changes
+
+**Priority / state:** High duplicate-prevention correctness risk / VERIFIED in post-repair re-audit.
+
+**Affected code:** `CandidateRequiresLibraryRecovery`, management `AnalyzeLibrary`/`ReconcileLibrary` flows, and the persisted `BoundLibraryRoot` inventory marker.
+
+**Finding:** DH-A006 correctly removed physical-root checks from normal protected command generation. However, management reconciliation now decides whether to recover identities using archive binding and configured additional-root changes only. `CandidateRequiresLibraryRecovery(libraryRoot, archive)` receives the current active download root but no longer compares it with `BoundLibraryRoot`. If the user changes `Downloads.downloadPath` to a directory that already contains authoritative media, ordinary Analyze/Reconcile sees a valid existing archive, runs with `RecoverMissingEntries=false`, and deliberately ignores those unarchived final-looking files. Only the stronger explicit Rebuild currently discovers them.
+
+**Impact:** Normal downloads remain correctly path-agnostic, but a later deliberate management reconciliation can falsely report Healthy while omitting recoverable media already present in the newly selected active destination. A future download of that identity can therefore occur again even though the user performed the expected reconciliation step.
+
+**Required acceptance:**
+
+1. Keep normal protected command generation independent of media-root existence/equality; do not undo DH-A006.
+2. Treat a changed active download root as an inventory-input change only inside explicit management Analyze/Reconcile logic.
+3. Use `BoundLibraryRoot` only as the last successfully committed active inventory root marker, not as part of native history identity or execution validation.
+4. Reconciliation against a changed active root must recover authoritative identities there and union them into the existing native archive without pruning identities from the previous root.
+5. A successful settings commit updates the stored active-root marker; normal protected downloading continues to work if the old root later moves or disappears.
+6. Add regression coverage for an enabled archive, a subsequent active-root change containing new authoritative media, and successful ordinary reconciliation of that identity.
+
+### DH-A010 — Archive target collision can overwrite an unrecognized file and the archive can inventory itself
+
+**Priority / state:** High non-destructive data-integrity risk / VERIFIED in post-repair re-audit.
+
+**Affected code:** `AnalyzeCore`, invalid-archive recovery, completed-media enumeration, and `ReconcileAnalysis`.
+
+**Finding:** If a newly selected archive path already exists but is not a valid native archive and has no valid backup, `AnalyzeCore` marks it invalid yet can still declare it reconcilable when the physical library contains enough authoritative media. `ReconcileAnalysis` then atomically replaces that path with reconstructed archive text. For an unbound/new archive path, the existing file has never been established as application-owned state and may be an ordinary user media/sidecar file selected by mistake. Separately, if a new app-owned archive is deliberately given a supported media extension such as `.mp4`, a later full Rebuild enumerates that archive file as completed media and can fail as unresolved.
+
+**Impact:** The first case violates the hard requirement that existing library content never be rewritten: a mistaken archive target can be destroyed during a nominally non-destructive rebuild. The second makes a valid app-owned archive capable of poisoning its own inventory solely because of its filename extension.
+
+**Required acceptance:**
+
+1. If a candidate archive file already exists, is invalid, has no valid backup, and is not the previously bound application-owned archive namespace, refuse reconciliation/rebuild and leave the file byte-for-byte untouched.
+2. Continue allowing recovery of a previously bound damaged archive from a valid backup or authoritative library evidence.
+3. Completed-media inventory must always exclude the exact current archive path, regardless of its extension or location under a scan root.
+4. Do not rename, move, truncate, or rewrite the colliding user file while reporting the refusal.
+5. Add regressions proving an unbound existing media/archive-path collision remains unchanged and an app-created archive with a media extension never inventories itself.
+6. Re-run the complete guarded Windows build/regression gates and re-audit archive/backup mutation paths.

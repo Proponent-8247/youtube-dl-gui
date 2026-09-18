@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "base_sha": "7bbfa3b36503bb2fb16c1cf2f851c812ed71ca58",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.ResetUsesEffectiveArchiveForImplicitBoundPath"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A017",
+      "message": "fix: reset the saved effective history archive",
+      "resolves": [
+        "DOWNLOAD_HISTORY.ResetUsesEffectiveArchiveForImplicitBoundPath"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Forms/frmDownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            candidateArchive = configured.IsNullEmptyWhitespace()\n                ? DownloadHistory.DefaultArchivePath\n                : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configured));",
+              "new": "            candidateArchive = configured.IsNullEmptyWhitespace()\n                ? DownloadHistory.EffectiveArchivePath\n                : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configured));"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

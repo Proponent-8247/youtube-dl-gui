@@ -1024,6 +1024,71 @@ internal static partial class AuditRegression {
         }
     }
 
+
+    private static void DownloadHistoryCompanionLockAndTempFilesAreNonDestructive() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string custom = Path.Combine(fixture.Root, "companion-history.txt");
+            string lockPath = custom + ".lock";
+            byte[] lockBytes = Encoding.UTF8.GetBytes("user-lock-sentinel");
+            File.WriteAllBytes(lockPath, lockBytes);
+
+            using (IDisposable lease = (IDisposable)Call(fixture.History, null, "AcquireArchiveLease")) { }
+            Require(File.Exists(lockPath), "Archive lease disposal deleted a pre-existing lock-path file");
+            Require(lockBytes.SequenceEqual(File.ReadAllBytes(lockPath)), "Archive lease modified a pre-existing lock-path file");
+
+            string tempPath = custom + ".tmp";
+            byte[] tempBytes = Encoding.UTF8.GetBytes("user-temp-sentinel");
+            File.WriteAllBytes(tempPath, tempBytes);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", custom, false, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Require(File.Exists(tempPath), "Atomic archive creation consumed a pre-existing fixed temp-path file");
+            Require(tempBytes.SequenceEqual(File.ReadAllBytes(tempPath)), "Atomic archive creation overwrote a pre-existing fixed temp-path file");
+        }
+    }
+
+    private static void DownloadHistoryResetPreservesUnownedTempCompanions() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string custom = Path.Combine(fixture.Root, "reset-history.txt");
+            File.WriteAllText(custom, "youtube 9qFjkwAElDs" + Environment.NewLine, Encoding.UTF8);
+            string temp = custom + ".tmp";
+            string backupTemp = custom + ".bak.tmp";
+            byte[] tempBytes = Encoding.UTF8.GetBytes("user-primary-temp");
+            byte[] backupTempBytes = Encoding.UTF8.GetBytes("user-backup-temp");
+            File.WriteAllBytes(temp, tempBytes);
+            File.WriteAllBytes(backupTemp, backupTempBytes);
+
+            fixture.History.GetField("fArchivePath", All).SetValue(null, custom);
+            fixture.History.GetField("fEnabled", All).SetValue(null, false);
+            Call(fixture.History, null, "ResetHistory");
+
+            Require(File.Exists(temp) && tempBytes.SequenceEqual(File.ReadAllBytes(temp)),
+                "Reset History deleted or modified an unowned fixed primary temp-path collision");
+            Require(File.Exists(backupTemp) && backupTempBytes.SequenceEqual(File.ReadAllBytes(backupTemp)),
+                "Reset History deleted or modified an unowned fixed backup temp-path collision");
+        }
+    }
+
+    private static void DownloadHistoryRefusesInvalidBackupCollisionBeforePrimaryMutation() {
+        const string id = "9qFjkwAElDs";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string custom = Path.Combine(fixture.Root, "backup-collision-history.txt");
+            string backup = custom + ".bak";
+            byte[] backupBytes = Encoding.UTF8.GetBytes("THIS IS USER DATA, NOT A NATIVE ARCHIVE" + Environment.NewLine);
+            File.WriteAllBytes(backup, backupBytes);
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Existing-" + id + ".mp4", "Youtube", id);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", custom, true, false, string.Empty);
+
+            Require(!File.Exists(custom), "Rebuild mutated the primary archive before rejecting an invalid backup collision");
+            Require(File.Exists(backup) && backupBytes.SequenceEqual(File.ReadAllBytes(backup)),
+                "Rebuild overwrote an invalid pre-existing backup-path collision");
+            Equal(false, DownloadHistoryCanReconcile(rebuilt));
+            Require(DownloadHistoryStateName(rebuilt) == "Invalid" || DownloadHistoryStateName(rebuilt) == "Unavailable",
+                "Invalid backup collision was not rejected fail-closed");
+        }
+    }
+
     private static void DownloadHistoryBoundCustomArchiveCorruptionRequiresExplicitReset() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -1428,6 +1493,9 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.LibraryBindingPreventsCrossLibraryReuse", DownloadHistoryLibraryBindingPreventsCrossLibraryReuse);
         Test("DOWNLOAD_HISTORY.ActiveRootChangeTriggersInventoryRecovery", DownloadHistoryActiveRootChangeTriggersInventoryRecovery);
         Test("DOWNLOAD_HISTORY.RefusesUnrecognizedArchiveOverwrite", DownloadHistoryRefusesUnrecognizedArchiveOverwrite);
+        Test("DOWNLOAD_HISTORY.CompanionLockAndTempFilesAreNonDestructive", DownloadHistoryCompanionLockAndTempFilesAreNonDestructive);
+        Test("DOWNLOAD_HISTORY.ResetPreservesUnownedTempCompanions", DownloadHistoryResetPreservesUnownedTempCompanions);
+        Test("DOWNLOAD_HISTORY.RefusesInvalidBackupCollisionBeforePrimaryMutation", DownloadHistoryRefusesInvalidBackupCollisionBeforePrimaryMutation);
         Test("DOWNLOAD_HISTORY.BoundCustomArchiveCorruptionRequiresExplicitReset", DownloadHistoryBoundCustomArchiveCorruptionRequiresExplicitReset);
         Test("DOWNLOAD_HISTORY.ArchiveFileIsNotInventoryMedia", DownloadHistoryArchiveFileIsNotInventoryMedia);
         Test("DOWNLOAD_HISTORY.PathAgnosticHistorySurvivesMediaMoves", DownloadHistoryPathAgnosticHistorySurvivesMediaMoves);

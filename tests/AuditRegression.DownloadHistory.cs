@@ -942,16 +942,16 @@ internal static partial class AuditRegression {
 
                 bool blocked = false;
                 try {
-                    using FileStream competing = new(fixture.Archive + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                    using (FileStream competing = new FileStream(fixture.Archive + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)) { }
                 }
                 catch (IOException) { blocked = true; }
                 Require(blocked, "First-use initialization observed an existing directory but failed to upgrade the lease to the cross-session file lock");
             }
             finally {
-                lease?.Dispose();
+                if (lease != null) lease.Dispose();
             }
 
-            using FileStream afterRelease = new(fixture.Archive + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            using (FileStream afterRelease = new FileStream(fixture.Archive + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)) { }
         }
     }
 

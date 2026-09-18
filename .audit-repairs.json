@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "base_sha": "ee66a5e3f638d7f09713492adc31845178b03920",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.RejectsClusteredShortOutputOverrides"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A011",
+      "message": "fix: detect clustered short output overrides",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RejectsClusteredShortOutputOverrides"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "    private static bool ContainsShortOption(string? arguments, string option) {\n        if (arguments.IsNullEmptyWhitespace()) return false;\n        foreach (string token in TokenizeArguments(arguments!)) {\n            if (token.Equals(option, StringComparison.Ordinal) ||\n                token.StartsWith(option + \"=\", StringComparison.Ordinal) ||\n                (token.Length > option.Length && token.StartsWith(option, StringComparison.Ordinal))) {\n                return true;\n            }\n        }\n        return false;\n    }",
+              "new": "    private static bool ShortOptionTakesAttachedValue(char option) =>\n        \"tIup2fSNRrOaPo\".IndexOf(option) >= 0;\n\n    private static bool ContainsShortOption(string? arguments, string option) {\n        if (arguments.IsNullEmptyWhitespace() || option.Length != 2 || option[0] != '-') return false;\n        char target = option[1];\n        foreach (string token in TokenizeArguments(arguments!)) {\n            if (token.Length < 2 || token[0] != '-' || token[1] == '-') continue;\n            for (int index = 1; index < token.Length; index++) {\n                char current = token[index];\n                if (current == target) return true;\n                if (ShortOptionTakesAttachedValue(current)) break;\n            }\n        }\n        return false;\n    }"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

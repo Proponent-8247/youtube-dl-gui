@@ -164,6 +164,31 @@ internal static partial class AuditRegression {
         }
     }
 
+
+    private static void DownloadHistoryRejectsUnsafeProtectedFilenameSchemas() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            string[] unsafeSchemas = {
+                "%(title)s-%(id)s\" --.%(ext)s",
+                "%(title)s-%(id)s\r--.%(ext)s",
+                "%(title)s-%(id)s\n--.%(ext)s",
+                "%(title)s-%(id)s\t--.%(ext)s"
+            };
+            foreach (string schema in unsafeSchemas) {
+                Equal(false, DownloadHistoryArguments(fixture.History, schema, null, out arguments, out error, out execution));
+                Require(error.IndexOf("filename", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("schema", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Unsafe protected filename schema was not rejected clearly");
+            }
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, unsafeSchemas[0], null, out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryRejectsCustomArgumentsThatBreakProtection() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -1617,6 +1642,7 @@ internal static partial class AuditRegression {
     private static void RunDownloadHistoryTests() {
         Test("DOWNLOAD_HISTORY.NeverEnabledIsNoOp", DownloadHistoryNeverEnabledIsNoOp);
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
+        Test("DOWNLOAD_HISTORY.RejectsUnsafeProtectedFilenameSchemas", DownloadHistoryRejectsUnsafeProtectedFilenameSchemas);
         Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);
         Test("DOWNLOAD_HISTORY.RejectsClusteredShortOutputOverrides", DownloadHistoryRejectsClusteredShortOutputOverrides);
         Test("DOWNLOAD_HISTORY.RejectsSourceAndExtractorIdentityOverrides", DownloadHistoryRejectsSourceAndExtractorIdentityOverrides);

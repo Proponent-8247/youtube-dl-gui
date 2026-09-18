@@ -1498,7 +1498,9 @@ internal static class DownloadHistory {
             if (serializer.DeserializeObject(json) is not Dictionary<string, object> root) return null;
             string? recoveredId = root.TryGetValue("id", out object? idValue) ? idValue as string : null;
             string? extractor = null;
-            foreach (string key in new[] { "extractor_key", "ie_key", "extractor" }) {
+            // Native yt-dlp archive IDs are keyed from extractor_key/ie_key. The display-style
+            // "extractor" field can differ (for example youtube:clip vs YoutubeClip) and is not safe here.
+            foreach (string key in new[] { "extractor_key", "ie_key" }) {
                 if (root.TryGetValue(key, out object? value) && value is string text && !text.IsNullEmptyWhitespace()) {
                     extractor = text;
                     break;

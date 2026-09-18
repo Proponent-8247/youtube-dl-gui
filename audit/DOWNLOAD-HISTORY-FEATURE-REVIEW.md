@@ -77,7 +77,9 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A020 | Medium | Fixed / regression-verified | First-use initialization now idempotently upgrades the lease to the cross-session file lock once the default archive directory exists, including the competing-session race. |
 | DH-A021 | High | Fixed / regression-verified | Metadata recovery now accepts only native `extractor_key`/`ie_key` identity; display-style `extractor` alone remains unresolved. |
 | DH-A022 | High | Fixed / regression-verified | A retained backup remains a lower-bound check, but it is no longer accepted as the sole automatic ledger when retention is off and the primary is missing/invalid. |
-| DH-A023 | High | Verified | yt-dlp defaults playlist concatenation to `multi_video`; protected runs can therefore delete multiple per-entry media files after archiving their IDs and leave one aggregate output that cannot reconstruct all native identities after ledger loss. |
+| DH-A023 | High | Fixed / regression-verified | Protected runs now force `--concat-playlist never` and reject conflicting custom concat policies, preserving one physical media family per native identity. |
+| DH-A024 | Medium | Verified | Filename recovery does not fully reproduce yt-dlp restricted/legacy ID sanitization (notably accent transliteration and current-mode boundary substitute trimming), so known archive IDs can be falsely unresolved when metadata is absent. |
+| DH-A025 | High | Verified | Completed-media enumeration always skips `.gif` as a thumbnail sidecar even though yt-dlp supports GIF as a final `--recode-video` output, allowing explicit rebuild to ignore protected media. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -149,7 +151,11 @@ Repair evidence recorded so far:
 - Baseline evidence showed all three new regressions failing; after A021 only `DOWNLOAD_HISTORY.RejectsDisplayExtractorAsNativeIdentity` passed; after A022 all three passed. The guarded batch completed the full build/regression gates.
 - Evidence artifact `10536099487` has SHA-256 `c70dda08c68e3ef859addba675086a8cfe5234096614ffc4b6a6978f59bf07dd`.
 
-DH-A023 remains open until its guarded repair batch and final re-audit pass.
+- DH-A023: `9c0b1fef33f9c3fcf1eae6d6526289731edd6277` (`fix: preserve per-entry media during protected downloads`), closed by guarded workflow run `35320997928`, cleanup commit `8f345b04eaf5f224105ed9f61a3deec37d03109e`.
+- The guard showed `DOWNLOAD_HISTORY.DisablesPlaylistConcatenationWhileProtected` failing before the repair and passing afterward with the complete guarded build/regression gates.
+- Evidence artifact `10537620494` has SHA-256 `59b51b62cd5f1def0dddec1254438f80c7b784aea6d8a5469fd7f818b7601586`.
+
+DH-A024 and DH-A025 remain open until their guarded repair batches and final re-audit pass.
 
 ## Review scope / status
 
@@ -636,3 +642,41 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 4. Keep Download History disabled behavior unchanged; concat remains available when protection is off.
 5. Add regression coverage proving the protected prefix includes `--concat-playlist never` and that custom concat policies are rejected clearly.
 6. Re-run the complete guarded Windows Debug/Release/regression gates, then continue the terminal current-head audit.
+
+
+### DH-A024 — Restricted filename recovery is not fully compatible with yt-dlp ID sanitization
+
+**Priority / state:** Medium recovery/availability risk / VERIFIED against current app and upstream yt-dlp sanitization.
+
+**Affected code:** `SourceIdFileNameCandidates` and `SanitizeSourceIdCompat`.
+
+**Finding:** Filename-only recovery deliberately generates several sanitized forms of a known native source ID. The non-restricted current sanitizer is close to current yt-dlp behavior, but restricted candidates are incomplete. yt-dlp's restricted sanitizer transliterates a defined accent set (for example `ä -> a`) and, in current filename-sanitization mode, normalizes/condenses replacement markers and strips replacement markers from the beginning/end. The app currently maps non-ASCII restricted characters generically to `_` and has no current restricted-mode candidate.
+
+**Impact:** If the primary is damaged/missing but a valid ledger/backup still provides the native ID, and the media has no adjacent `.info.json`, a file produced with `--restrict-filenames` can fail filename matching even though its name was generated by yt-dlp from that exact ID. Recovery then reports unresolved/unsafe and can unnecessarily block the user from reconciling a recoverable library.
+
+**Required acceptance:**
+
+1. Generate candidates matching both current and legacy yt-dlp restricted ID sanitization behavior.
+2. Include yt-dlp's defined accent transliterations used in restricted mode.
+3. Preserve current non-restricted/full-width and legacy compatibility candidates.
+4. Do not weaken ambiguity handling: if different native archive entries collapse to the same sanitized filename candidate, recovery remains unresolved.
+5. Add regressions using an ID with restricted accent transliteration and an ID whose leading invalid character is stripped by current restricted sanitization.
+6. Re-run the complete guarded Windows build/regression gates.
+
+### DH-A025 — GIF can be final media but is always ignored as a sidecar
+
+**Priority / state:** High rebuild correctness risk / VERIFIED against current app and upstream yt-dlp FFmpeg conversion support.
+
+**Affected code:** `EnumerateCompletedMedia`.
+
+**Finding:** The scanner excludes every `.gif` before reaching the media-extension allowlist, treating GIF only as a possible thumbnail. Current yt-dlp's `FFmpegVideoConvertorPP` explicitly supports `gif` as a final recode target. Protected users can therefore legitimately produce `%(id)s.gif` media through custom `--recode-video gif` while the archive records the native identity normally.
+
+**Impact:** After ledger loss, explicit Rebuild can silently see zero completed media for a GIF-only protected library and initialize/reconstruct an archive without that identity, enabling a later duplicate download. This is worse than a conservative unresolved result.
+
+**Required acceptance:**
+
+1. Treat `.gif` as a completed-media candidate rather than unconditionally discarding it as a sidecar.
+2. Preserve conservative identity rules: a standalone GIF without authoritative metadata/known archive identity may block explicit rebuild as unresolved rather than being guessed.
+3. A GIF thumbnail sharing an authoritative media family may resolve to the same native identity without creating duplicate archive records; archive identity de-duplication remains set-based.
+4. Add regression coverage proving authoritative GIF media is inventoried/rebuilt and an unidentified standalone GIF fails safe instead of being silently ignored.
+5. Re-run the complete guarded Windows build/regression gates.

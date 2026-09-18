@@ -1134,6 +1134,100 @@ internal static partial class AuditRegression {
         }
     }
 
+
+    private static void DownloadHistoryArchiveRelocationPreservesLedgerOnlyIdentities() {
+        const string physical = "9qFjkwAElDs";
+        const string ledgerOnly = "ledgerOnlyIdentity001";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string initial = Path.Combine(fixture.Root, "initial-downloads");
+            string next = Path.Combine(fixture.Root, "next-downloads");
+            string offline = Path.Combine(fixture.Root, "offline-media");
+            Directory.CreateDirectory(initial);
+            Directory.CreateDirectory(next);
+            Directory.CreateDirectory(offline);
+            Set(fixture.Downloads, null, "downloadPath", initial);
+
+            string media = DownloadHistoryWriteMediaWithInfo(initial, "Original-" + physical + ".mp4", "Youtube", physical);
+            string metadata = Path.Combine(initial, "Original-" + physical + ".info.json");
+            DownloadHistoryEnable(fixture, string.Empty);
+            string oldArchive = (string)fixture.History.GetProperty("EffectiveArchivePath", All).GetValue(null, null);
+            File.AppendAllText(oldArchive, "youtube " + ledgerOnly + Environment.NewLine, Encoding.UTF8);
+            Call(fixture.History, null, "RefreshBackupAfterRun");
+            Require(DownloadHistoryArchiveLines(oldArchive).Contains("youtube " + ledgerOnly),
+                "Archive-only historical identity was not established before relocation");
+
+            File.Move(media, Path.Combine(offline, Path.GetFileName(media)));
+            File.Move(metadata, Path.Combine(offline, Path.GetFileName(metadata)));
+            Set(fixture.Downloads, null, "downloadPath", next);
+
+            string newArchive = Path.Combine(next, "relocated-history.txt");
+            object prepared = Call(fixture.History, null, "ReconcileLibrary", newArchive, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(prepared));
+            Call(fixture.History, null, "CommitSettings", true, newArchive, true, prepared, string.Empty);
+
+            string[] migrated = DownloadHistoryArchiveLines(newArchive);
+            Require(migrated.Contains("youtube " + physical),
+                "Archive relocation lost an identity whose physical media was no longer in a current scan root");
+            Require(migrated.Contains("youtube " + ledgerOnly),
+                "Archive relocation lost a ledger-only historical identity");
+            Equal(Path.GetFullPath(newArchive), fixture.History.GetProperty("EffectiveArchivePath", All).GetValue(null, null));
+            Require(File.Exists(oldArchive), "Archive relocation destructively removed the previous ledger");
+        }
+    }
+
+    private static void DownloadHistoryArchiveRelocationRequiresReadablePreviousLedger() {
+        const string id = "aB_Cd-Ef123";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string initial = Path.Combine(fixture.Root, "initial-downloads");
+            string next = Path.Combine(fixture.Root, "next-downloads");
+            Directory.CreateDirectory(initial);
+            Directory.CreateDirectory(next);
+            Set(fixture.Downloads, null, "downloadPath", initial);
+
+            string media = DownloadHistoryWriteMediaWithInfo(initial, "Move-" + id + ".mp4", "Youtube", id);
+            string metadata = Path.Combine(initial, "Move-" + id + ".info.json");
+            DownloadHistoryEnable(fixture, string.Empty);
+            string oldArchive = (string)fixture.History.GetProperty("EffectiveArchivePath", All).GetValue(null, null);
+            if (File.Exists(oldArchive)) File.Delete(oldArchive);
+            if (File.Exists(oldArchive + ".bak")) File.Delete(oldArchive + ".bak");
+
+            File.Move(media, Path.Combine(next, Path.GetFileName(media)));
+            File.Move(metadata, Path.Combine(next, Path.GetFileName(metadata)));
+            Set(fixture.Downloads, null, "downloadPath", next);
+
+            string newArchive = Path.Combine(next, "replacement-history.txt");
+            object prepared = Call(fixture.History, null, "ReconcileLibrary", newArchive, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(prepared));
+            Throws<InvalidOperationException>(() =>
+                Call(fixture.History, null, "CommitSettings", true, newArchive, true, prepared, string.Empty));
+            Equal(Path.GetFullPath(oldArchive), fixture.History.GetProperty("BoundArchivePath", All).GetValue(null, null));
+        }
+    }
+
+    private static void DownloadHistoryDialogCanSelectNewDefaultArchiveAfterRootChange() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string initial = Path.Combine(fixture.Root, "initial-downloads");
+            string next = Path.Combine(fixture.Root, "next-downloads");
+            Directory.CreateDirectory(initial);
+            Directory.CreateDirectory(next);
+            Set(fixture.Downloads, null, "downloadPath", initial);
+            DownloadHistoryEnable(fixture, string.Empty);
+
+            string oldBound = (string)fixture.History.GetProperty("BoundArchivePath", All).GetValue(null, null);
+            Set(fixture.Downloads, null, "downloadPath", next);
+            string newDefault = (string)fixture.History.GetProperty("DefaultArchivePath", All).GetValue(null, null);
+            Type dialog = T("youtube_dl_gui.frmDownloadHistory");
+
+            string normalizedNew = (string)Call(dialog, null, "NormalizeConfiguredPath", newDefault);
+            Require(!string.IsNullOrWhiteSpace(normalizedNew),
+                "Selecting the new active root's default archive path collapsed back to the old bound archive");
+            Equal(Path.GetFullPath(newDefault), Path.GetFullPath(normalizedNew));
+
+            string normalizedBound = (string)Call(dialog, null, "NormalizeConfiguredPath", oldBound);
+            Equal(string.Empty, normalizedBound);
+        }
+    }
+
     private static void DownloadHistoryPathAgnosticHistorySurvivesMediaMoves() {
         const string id = "aB_Cd-Ef123";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -1499,6 +1593,9 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RefusesInvalidBackupCollisionBeforePrimaryMutation", DownloadHistoryRefusesInvalidBackupCollisionBeforePrimaryMutation);
         Test("DOWNLOAD_HISTORY.BoundCustomArchiveCorruptionRequiresExplicitReset", DownloadHistoryBoundCustomArchiveCorruptionRequiresExplicitReset);
         Test("DOWNLOAD_HISTORY.ArchiveFileIsNotInventoryMedia", DownloadHistoryArchiveFileIsNotInventoryMedia);
+        Test("DOWNLOAD_HISTORY.ArchiveRelocationPreservesLedgerOnlyIdentities", DownloadHistoryArchiveRelocationPreservesLedgerOnlyIdentities);
+        Test("DOWNLOAD_HISTORY.ArchiveRelocationRequiresReadablePreviousLedger", DownloadHistoryArchiveRelocationRequiresReadablePreviousLedger);
+        Test("DOWNLOAD_HISTORY.DialogCanSelectNewDefaultArchiveAfterRootChange", DownloadHistoryDialogCanSelectNewDefaultArchiveAfterRootChange);
         Test("DOWNLOAD_HISTORY.PathAgnosticHistorySurvivesMediaMoves", DownloadHistoryPathAgnosticHistorySurvivesMediaMoves);
         Test("DOWNLOAD_HISTORY.MultipleInventoryRootsShareOneArchive", DownloadHistoryMultipleInventoryRootsShareOneArchive);
         Test("DOWNLOAD_HISTORY.NormalProtectionIgnoresOfflineInventoryRoots", DownloadHistoryNormalProtectionIgnoresOfflineInventoryRoots);

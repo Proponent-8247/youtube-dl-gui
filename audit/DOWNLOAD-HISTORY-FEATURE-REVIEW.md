@@ -65,7 +65,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A008 | Medium | Fixed / regression-verified | Target and rollback settings writes now persist `Enabled=false` first and restore the intended enabled state only after every dependent key succeeds. |
 | DH-A009 | High | Fixed / regression-verified | Explicit management reconciliation now treats a changed active download root as a new inventory input without rebinding normal protected downloads to media paths. |
 | DH-A010 | High | Fixed / regression-verified | Unbound custom invalid archive targets are refused without mutation, the archive path is excluded from media inventory, and established default-archive corruption recovery remains intact. |
-| DH-A011 | High | Verified | Clustered yt-dlp short options can hide `-o` or `-P` behind no-value flags (for example `-qo...` / `-qP...`), bypassing the protected custom-output/path filter. |
+| DH-A011 | High | Fixed / regression-verified | Cluster-aware short-option parsing now detects hidden `-o` / `-P` overrides without misreading attached values belonging to earlier value-taking options. |
+| DH-A012 | High | Verified | A previously bound custom archive path is treated as sufficient ownership proof when its primary is invalid and no backup exists, so a stale/partially persisted binding can authorize automatic overwrite of an unrelated custom file. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -92,7 +93,11 @@ Repair evidence recorded so far:
 - Evidence artifact `10529081282` has SHA-256 `179df0591bdfaaa8dbeff782d02100e3f5d157651a9479e1a82a788fbc7c723c`.
 - The first A010 attempt was deliberately rejected by guarded run `35297700397` because it introduced a failure in `DOWNLOAD_HISTORY.CorruptArchiveDoesNotTrustPartialLines`; request `8b740e92e41d6e32cd7783b97d9d0ec2489b19b8` was discarded by `c18f577dcfcc4f45aa53cd7c5750de06830405ee` without rewriting history. The corrected retry preserved established default-archive corruption recovery while refusing only unbound custom target collisions.
 
-DH-A011 remains open until its guarded repair batch and final re-audit pass.
+- DH-A011: `5a2855e59316075ffdf728fa5815b972ce3fff1a` (`fix: detect clustered short output overrides`), closed by guarded workflow run `35298299355`, cleanup commit `c70c3c41178510b63def7fb7d21e8ff498ecb059`.
+- The guard showed `DOWNLOAD_HISTORY.RejectsClusteredShortOutputOverrides` failing at baseline and passing after the repair while completing all Debug/Release/regression gates.
+- Evidence artifact `10528557720` has SHA-256 `a5dc1496005185f330c341a7ea4c63fbc7fdcb0352f1fe5b9089c410da6b8bc9`.
+
+DH-A012 remains open until its guarded repair batch and final re-audit pass.
 
 ## Review scope / status
 
@@ -333,3 +338,24 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 4. Preserve current long-option/abbreviation filtering and Windows argument tokenization.
 5. Add regression coverage for clustered `-o` / `-P` bypasses plus a legitimate attached-value control.
 6. Re-run the complete guarded Windows Debug/Release/regression gates, then re-audit the final custom-argument boundary.
+
+
+### DH-A012 — Bound custom path is not sufficient proof to overwrite an invalid archive target
+
+**Priority / state:** High non-destructive data-integrity risk / VERIFIED in final archive-mutation re-audit.
+
+**Affected code:** invalid-primary/no-valid-backup handling inside `AnalyzeCore`.
+
+**Finding:** DH-A010 refuses an invalid existing custom archive when the path is unbound, but still permits automatic reconstruction when `IsPreviouslyInitializedNamespace` says the path was previously bound. That marker is useful for deciding whether a **missing** archive represents unexpected history loss, but it is not strong enough evidence to overwrite an existing invalid custom file. Download History settings are deliberately persisted fail-closed rather than through an atomic multi-key transaction; an interrupted target write/rollback can leave dependent metadata such as `EverEnabled`/`BoundArchivePath` changed while durable `Enabled` remains false. A stale or partially persisted binding can therefore point at a user file that the application never safely established as archive-owned.
+
+**Impact:** If that custom file is invalid as a native archive and no valid `.bak` exists, Rebuild/Reconcilation can still replace it with reconstructed archive text solely because the path matches the durable binding marker. This violates the strict non-destructive rule for existing files.
+
+**Required acceptance:**
+
+1. A valid backup remains sufficient evidence to restore a damaged custom primary.
+2. The reserved default `yt-dlp-archive.txt` namespace may retain the established corruption-recovery behavior required by `DOWNLOAD_HISTORY.CorruptArchiveDoesNotTrustPartialLines`.
+3. An existing invalid **custom** archive target with no valid backup must never be overwritten automatically, even if it matches the bound archive path.
+4. Recovery for a genuinely damaged bound custom archive without backup must require an explicit destructive reset/removal step before rebuilding; do not infer ownership from settings metadata alone.
+5. Add a regression that first establishes a real bound custom archive, corrupts it, removes its backup, then proves Rebuild leaves the corrupt file byte-for-byte unchanged and refuses automatic reconciliation.
+6. Preserve DH-A010's unbound-collision and archive-self-inventory tests plus the default corruption-recovery test.
+7. Re-run the complete guarded Windows Debug/Release/regression gates and re-audit every archive mutation path.

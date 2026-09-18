@@ -1252,6 +1252,12 @@ internal static class DownloadHistory {
                     analysis.ArchiveNeedsRewrite = true;
                 }
                 else {
+                    if (!IsPreviouslyInitializedNamespace(libraryRoot, archive) && !IsDefaultArchiveForLibrary(libraryRoot, archive)) {
+                        report.State = DownloadHistoryState.Invalid;
+                        report.CanReconcile = false;
+                        report.Message = "The selected Download History archive file already exists but is not a valid native archive and has never been bound as application-owned history. Refusing to overwrite the existing file.";
+                        return analysis;
+                    }
                     analysis.ArchiveNeedsRewrite = true;
                     Log.Write("Download History archive is damaged and no valid backup is available: " + archiveError);
                 }
@@ -1268,6 +1274,7 @@ internal static class DownloadHistory {
         try {
             foreach (string scanRoot in scanRoots) {
                 foreach (string media in EnumerateCompletedMedia(scanRoot)) {
+                    if (PathEquals(media, archive)) continue;
                     string? entry = TryRecoverFromInfoJson(media, out _, out _);
                     bool fromMetadata = entry is not null;
                     if (entry is null) entry = filenameMatcher.Match(media);

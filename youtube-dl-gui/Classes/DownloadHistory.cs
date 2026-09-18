@@ -840,13 +840,100 @@ internal static class DownloadHistory {
     }
 
     private static bool EnsureReady(out string error) {
-        DownloadHistoryReport report = ValidateAndReconcile(false, false);
+        if (NeedsReconciliation) {
+            LastReportInternal = new DownloadHistoryReport {
+                State = DownloadHistoryState.Unsafe,
+                CanReconcile = true,
+                Message = "Download History requires explicit reconciliation before protected downloading can continue. Open Download History and validate or rebuild the archive."
+            };
+            error = LastReportInternal.Message;
+            return false;
+        }
+
+        DownloadHistoryReport report = ValidateArchiveForProtectedExecution();
+        LastReportInternal = report;
         if (report.State == DownloadHistoryState.Healthy) {
+            PreparedKey = EffectiveArchivePath;
             error = string.Empty;
             return true;
         }
         error = report.Message.IsNullEmptyWhitespace() ? "Download History is not in a safe state." : report.Message;
         return false;
+    }
+
+    private static DownloadHistoryReport ValidateArchiveForProtectedExecution() {
+        if (!TryResolvePaths(ArchivePath, out _, out string archive, out DownloadHistoryReport? pathError)) return pathError!;
+        if (!TryAcquireArchiveLease(archive, out DownloadHistoryLease? lease)) return BusyReport("validate the archive");
+
+        using (lease!) {
+            HashSet<string> entries = new(StringComparer.Ordinal);
+            bool primaryExists = File.Exists(archive);
+            bool primaryValid = TryReadArchive(archive, entries, out string primaryError);
+            string backup = archive + ".bak";
+            HashSet<string> backupEntries = new(StringComparer.Ordinal);
+            bool backupValid = TryReadArchive(backup, backupEntries, out string backupError);
+
+            if (!primaryValid && !backupValid) {
+                return new DownloadHistoryReport {
+                    State = primaryExists ? DownloadHistoryState.Invalid : DownloadHistoryState.Missing,
+                    CanReconcile = false,
+                    Message = primaryExists
+                        ? "The Download History archive is invalid and no valid last-good backup is available. Run Rebuild Archive before protected downloading. " + primaryError
+                        : "The Download History archive and its last-good backup are unavailable. Run Rebuild Archive before protected downloading." +
+                          (backupError.IsNullEmptyWhitespace() ? string.Empty : " " + backupError)
+                };
+            }
+
+            if (!CanWriteArchiveLocation(archive, out string writeError)) {
+                return new DownloadHistoryReport {
+                    State = DownloadHistoryState.Unavailable,
+                    CanReconcile = false,
+                    Message = "Download archive location is not writable: " + writeError
+                };
+            }
+
+            bool changed = false;
+            if (!primaryValid) {
+                entries.Clear();
+                foreach (string entry in backupEntries) entries.Add(entry);
+                changed = true;
+            }
+            else if (backupValid) {
+                foreach (string entry in backupEntries) {
+                    if (entries.Add(entry)) changed = true;
+                }
+            }
+
+            if (changed) {
+                try { WriteArchiveAtomically(archive, entries); }
+                catch (Exception ex) {
+                    return new DownloadHistoryReport {
+                        State = DownloadHistoryState.Unavailable,
+                        CanReconcile = false,
+                        Message = "Download History could not restore its native archive safely: " + ex.Message
+                    };
+                }
+            }
+
+            if (KeepBackup) {
+                try { CopyArchiveToBackupAtomically(archive); }
+                catch (Exception ex) {
+                    return new DownloadHistoryReport {
+                        State = DownloadHistoryState.Unavailable,
+                        CanReconcile = false,
+                        ArchiveEntries = entries.Count,
+                        Message = "The Download History archive is valid, but its last-good backup could not be refreshed: " + ex.Message
+                    };
+                }
+            }
+
+            return new DownloadHistoryReport {
+                State = DownloadHistoryState.Healthy,
+                CanReconcile = true,
+                ArchiveEntries = entries.Count,
+                Message = $"Download History is healthy. {entries.Count:N0} native archive entr{(entries.Count == 1 ? "y" : "ies")} validated without scanning media roots."
+            };
+        }
     }
 
     private static DownloadHistoryReport DisabledReport() => new() {

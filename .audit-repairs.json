@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "base_sha": "9ca3ef2713bae5d41008e1ef5871742695fe53a2",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.RejectsDisplayExtractorAsNativeIdentity",
+    "DOWNLOAD_HISTORY.RetentionOffDoesNotRestoreFromStaleBackupAlone",
+    "DOWNLOAD_HISTORY.ArchiveRelocationRejectsStaleBackupOnlySource"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A021",
+      "message": "fix: require native extractor keys for metadata recovery",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RejectsDisplayExtractorAsNativeIdentity"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            foreach (string key in new[] { \"extractor_key\", \"ie_key\", \"extractor\" }) {",
+              "new": "            // Native yt-dlp archive IDs are keyed from extractor_key/ie_key. The display-style\n            // \"extractor\" field can differ (for example youtube:clip vs YoutubeClip) and is not safe here.\n            foreach (string key in new[] { \"extractor_key\", \"ie_key\" }) {"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DH-A022",
+      "message": "fix: reject stale backup as sole automatic ledger",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RetentionOffDoesNotRestoreFromStaleBackupAlone",
+        "DOWNLOAD_HISTORY.ArchiveRelocationRejectsStaleBackupOnlySource"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "                    if (!TryReadLedgerForArchiveTransition(BoundArchivePath, out HashSet<string> previousEntries, out string transitionError)) {",
+              "new": "                    if (!TryReadLedgerForArchiveTransition(BoundArchivePath, fKeepBackup, out HashSet<string> previousEntries, out string transitionError)) {"
+            },
+            {
+              "old": "    private static bool TryReadLedgerForArchiveTransition(string archive, out HashSet<string> entries, out string error) {\n        entries = new HashSet<string>(StringComparer.Ordinal);\n        error = string.Empty;\n\n        HashSet<string> primaryEntries = new(StringComparer.Ordinal);\n        bool primaryValid = TryReadArchive(archive, primaryEntries, out string primaryError);\n        HashSet<string> backupEntries = new(StringComparer.Ordinal);\n        bool backupValid = TryReadArchive(archive + \".bak\", backupEntries, out string backupError);\n        if (!primaryValid && !backupValid) {",
+              "new": "    private static bool TryReadLedgerForArchiveTransition(string archive, bool backupMaintained, out HashSet<string> entries, out string error) {\n        entries = new HashSet<string>(StringComparer.Ordinal);\n        error = string.Empty;\n\n        HashSet<string> primaryEntries = new(StringComparer.Ordinal);\n        bool primaryValid = TryReadArchive(archive, primaryEntries, out string primaryError);\n        HashSet<string> backupEntries = new(StringComparer.Ordinal);\n        bool backupValid = TryReadArchive(archive + \".bak\", backupEntries, out string backupError);\n        if (!primaryValid && backupValid && !backupMaintained) {\n            error = \"The previously bound primary Download History ledger is unavailable or invalid, and backup retention was disabled. The retained backup may be stale and cannot be treated as complete history for archive relocation.\";\n            return false;\n        }\n        if (!primaryValid && !backupValid) {"
+            },
+            {
+              "old": "            bool backupValid = TryReadArchive(backup, backupEntries, out string backupError);\n\n            if (!primaryValid && !backupValid) {",
+              "new": "            bool backupValid = TryReadArchive(backup, backupEntries, out string backupError);\n\n            if (!primaryValid && backupValid && !KeepBackup) {\n                return new DownloadHistoryReport {\n                    State = primaryExists ? DownloadHistoryState.Invalid : DownloadHistoryState.Missing,\n                    CanReconcile = true,\n                    ArchiveEntries = backupEntries.Count,\n                    Message = \"The primary Download History archive is unavailable or invalid while backup retention is disabled. The retained backup may be stale and will not be used as the sole automatic ledger. Run Rebuild Archive before protected downloading.\"\n                };\n            }\n\n            if (!primaryValid && !backupValid) {"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

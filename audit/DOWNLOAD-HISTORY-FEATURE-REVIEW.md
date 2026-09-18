@@ -68,7 +68,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A011 | High | Fixed / regression-verified | Cluster-aware short-option parsing now detects hidden `-o` / `-P` overrides without misreading attached values belonging to earlier value-taking options. |
 | DH-A012 | High | Fixed / regression-verified | Invalid custom archive primaries without a valid backup are never overwritten automatically, even when the path was previously bound; reserved default-archive recovery remains intact. |
 | DH-A013 | High | Fixed / regression-verified | Companion handling preserves pre-existing lock/temp files, uses unique create-new temp files, and refuses invalid backup collisions before primary mutation. |
-| DH-A014 | High | Verified | Changing the archive storage path can create a new ledger without carrying forward identities from the previously bound archive; the dialog also normalizes the new active root's default path back to the old bound archive. |
+| DH-A014 | High | Fixed / regression-verified | Archive relocation preserves the union of the previous ledger/backup and prepared candidate while holding both leases; the dialog now distinguishes the bound implicit archive from a new active root's default path. |
+| DH-A015 | High | Verified | Protected custom arguments still allow extractor/source identity overrides: `--load-info-json` ignores the app URL and trusts file-supplied identity, while `--use-extractors`/`--ies` and `--force-generic-extractor` can change the native archive extractor key. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -108,7 +109,11 @@ Repair evidence recorded so far:
 - Evidence artifact `10533027131` has SHA-256 `cb4abd134a719edcb15ab5a05507b4b48206ce40bf2cdcbfa305f841447d9afc`.
 - The first A013 test commit used the wrong archive for the lease collision; it was corrected by `a0aa50a9846b3a7b7489ee5ba4a0123be0ad07a3` before any production repair request was submitted.
 
-DH-A014 remains open until its guarded repair batch and final re-audit pass.
+- DH-A014: `051f8ffc3942e4026c86fb90655b52e12fa124f6` (`fix: preserve history across archive relocation`), closed by guarded workflow run `35310465691`, cleanup commit `d2aae491fe7d5d65583668a2909c59ac5d6d95ce`.
+- The guard showed all three A014 regressions failing at baseline and passing after repair: ledger-only identities survive relocation, an unreadable prior ledger blocks rebinding, and the new active root's default archive can be selected explicitly.
+- Evidence artifact `10532908230` has SHA-256 `e2445a0acac55a00c483c661244e63c08f0ca0649aa98f7a08d348a270d42261`.
+
+DH-A015 remains open until its guarded repair batch and final re-audit pass.
 
 ## Review scope / status
 
@@ -415,3 +420,25 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 7. Add regressions with an archive-only historical identity absent from all current media roots, relocate the archive, and prove the identity survives; separately prove the dialog can select the new active root's default archive path.
 8. Preserve DH-A006 path-agnostic normal execution and all primary/companion collision protections.
 9. Re-run the complete guarded Windows Debug/Release/regression gates and re-audit archive path transitions.
+
+
+### DH-A015 — Custom extractor/source overrides can bypass the protected identity model
+
+**Priority / state:** High duplicate-prevention integrity risk / VERIFIED against current app source and upstream yt-dlp option flow.
+
+**Affected code:** `TryGetArchiveArguments` custom-argument safety filter.
+
+**Finding:** Protected mode currently blocks direct archive replacement, metadata identity rewriting, plugin injection, output/path replacement, and arbitrary postprocessor hooks, but it still accepts yt-dlp options that replace the source or alter extractor selection. Current upstream yt-dlp handles `--load-info-json FILE` by ignoring all command-line URLs and invoking `download_with_info_file` on the supplied JSON instead. That file carries the `id`/extractor identity used for the native archive. Upstream also exposes `--use-extractors`/`--ies` and `--force-generic-extractor`, which control the extractor selected for a URL; native archive IDs are constructed from the resulting extractor key plus media ID.
+
+**Impact:** A command prepared for one app-visible source can process a different identity entirely, or the same URL can be archived under a different extractor key than later protected runs. Either case breaks the invariant that the app-owned ledger consistently represents the app's requested source under authoritative native extraction, allowing duplicate prevention to miss an existing download or to seed unrelated identities.
+
+**Required acceptance:**
+
+1. While Download History protection is enabled, reject custom `--load-info-json`.
+2. Reject custom `--use-extractors` and its `--ies` alias, including accepted long-option abbreviations.
+3. Reject custom `--force-generic-extractor`, including accepted long-option abbreviations.
+4. The rejection message must explain that source/extractor identity overrides are incompatible with protected native archive identity.
+5. Do not block ordinary multi-URL/batch/playlist input mechanisms merely because they add legitimate sources; the repair is scoped to options that replace the app operand or alter extractor identity.
+6. Existing app-owned authentication config, ambient-config/plugin isolation, metadata-rewrite protections, and standard/extended argument ordering must remain intact.
+7. Add regressions for each override and prove the same arguments remain available when Download History is disabled.
+8. Re-run the complete guarded Windows Debug/Release/regression gates and continue the final custom-argument audit.

@@ -67,7 +67,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A010 | High | Fixed / regression-verified | Unbound custom invalid archive targets are refused without mutation, the archive path is excluded from media inventory, and established default-archive corruption recovery remains intact. |
 | DH-A011 | High | Fixed / regression-verified | Cluster-aware short-option parsing now detects hidden `-o` / `-P` overrides without misreading attached values belonging to earlier value-taking options. |
 | DH-A012 | High | Fixed / regression-verified | Invalid custom archive primaries without a valid backup are never overwritten automatically, even when the path was previously bound; reserved default-archive recovery remains intact. |
-| DH-A013 | High | Verified | Archive companion paths are not collision-safe: pre-existing `.lock` files are deleted, fixed `.tmp` files can be overwritten/deleted, and invalid pre-existing `.bak` files can be overwritten during backup refresh. |
+| DH-A013 | High | Fixed / regression-verified | Companion handling preserves pre-existing lock/temp files, uses unique create-new temp files, and refuses invalid backup collisions before primary mutation. |
+| DH-A014 | High | Verified | Changing the archive storage path can create a new ledger without carrying forward identities from the previously bound archive; the dialog also normalizes the new active root's default path back to the old bound archive. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -102,7 +103,12 @@ Repair evidence recorded so far:
 - The guard showed `DOWNLOAD_HISTORY.BoundCustomArchiveCorruptionRequiresExplicitReset` failing before the repair and passing afterward while `DOWNLOAD_HISTORY.CorruptArchiveDoesNotTrustPartialLines` and the previously repaired clustered-option regression remained green.
 - Evidence artifact `10529380115` has SHA-256 `a9d2f84d459cd4cd769dbce35b48db342856b5880e2efb1a53cd5bd74fc5c978`.
 
-DH-A013 remains open until its guarded repair batch and final re-audit pass.
+- DH-A013: `575820834084e922069d3a11617f2c2eae4e9d76` (`fix: make download history companion files collision-safe`), closed by guarded workflow run `35310088642`, cleanup commit `ddb28cd8634c37bd5e5527ecf2483b1dd7cb64f9`.
+- The guard showed all three A013 regressions failing at baseline and passing after repair: pre-existing lock/temp preservation, Reset preserving unowned fixed temp collisions, and invalid-backup refusal before primary mutation.
+- Evidence artifact `10533027131` has SHA-256 `cb4abd134a719edcb15ab5a05507b4b48206ce40bf2cdcbfa305f841447d9afc`.
+- The first A013 test commit used the wrong archive for the lease collision; it was corrected by `a0aa50a9846b3a7b7489ee5ba4a0123be0ad07a3` before any production repair request was submitted.
+
+DH-A014 remains open until its guarded repair batch and final re-audit pass.
 
 ## Review scope / status
 
@@ -386,3 +392,26 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 6. Preserve existing valid-backup merge/restore behavior, archive locking/serialization, and the A010/A012 primary-collision rules.
 7. Add regressions for pre-existing lock/temp companion files, Reset preserving fixed temp collisions, and invalid backup collision refusing before primary mutation.
 8. Re-run the complete guarded Windows Debug/Release/regression gates and re-audit every remaining file mutation path.
+
+
+### DH-A014 — Archive relocation can silently discard durable history
+
+**Priority / state:** High duplicate-prevention correctness risk / VERIFIED in final path-state re-audit.
+
+**Affected code:** `frmDownloadHistory.NormalizeConfiguredPath`, `ReconcileLibrary`/prepared reports, and `CommitSettings` archive-path transition handling.
+
+**Finding:** The native archive is path-agnostic with respect to media, but its own storage path is user-configurable. When a user changes that archive path, reconciliation prepares the candidate ledger solely from the candidate archive/backup plus currently scanned media. `CommitSettings` acquires the previous archive lease but never reads or unions the previously bound ledger before switching `BoundArchivePath`. Historical identities that exist only in the old ledger—because their media was moved away, the old scan root is offline, or the files were intentionally removed—can therefore disappear from the newly selected ledger. Separately, the dialog's `NormalizeConfiguredPath` converts any path equal to the **current active root's** `DefaultArchivePath` to an empty configuration. Once history has already been bound elsewhere, an empty configuration resolves to the old `BoundArchivePath`, so explicitly choosing the new active root's default archive path silently keeps the old archive.
+
+**Impact:** A user can intentionally move the application-owned history file and receive a healthy/save-success result while losing provider+ID records that no longer have physical evidence in current scan roots. Those identities can then be downloaded again. In the default-path case, the requested relocation may not happen at all.
+
+**Required acceptance:**
+
+1. Changing archive storage must preserve the union of all valid identities in the previously bound ledger and the newly prepared candidate ledger before the binding is committed.
+2. Read the previous primary and valid backup while holding the previous archive lease; if neither is usable, fail the path transition rather than switching to an incomplete ledger. Reset History remains the explicit way to discard prior history.
+3. Do not require historical media files or old media roots to remain online; the old application-owned ledger is the preservation source.
+4. Keep both old and new archive paths locked through the transition so a protected download cannot append to the old ledger between migration and settings commit.
+5. Update the prepared report/digest after the union and refresh the new backup according to the selected backup policy.
+6. `NormalizeConfiguredPath` may collapse a literal path to an empty/default configuration only when that empty configuration would resolve to the same archive path. After an active download-root change, choosing that root's default archive path must remain an explicit path while the old bound archive differs.
+7. Add regressions with an archive-only historical identity absent from all current media roots, relocate the archive, and prove the identity survives; separately prove the dialog can select the new active root's default archive path.
+8. Preserve DH-A006 path-agnostic normal execution and all primary/companion collision protections.
+9. Re-run the complete guarded Windows Debug/Release/regression gates and re-audit archive path transitions.

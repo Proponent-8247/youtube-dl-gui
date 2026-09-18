@@ -223,6 +223,42 @@ internal static partial class AuditRegression {
         }
     }
 
+
+    private static void DownloadHistoryRejectsSourceAndExtractorIdentityOverrides() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            string[] unsafeArguments = {
+                "--load-info-json saved.info.json",
+                "--load-info saved.info.json",
+                "--use-extractors generic",
+                "--use-extractor generic",
+                "--ies generic",
+                "--force-generic-extractor",
+                "--force-generic-ext"
+            };
+            foreach (string custom in unsafeArguments) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(error.IndexOf("identity", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("extractor", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("source", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Source/extractor identity override was not rejected clearly: " + custom);
+            }
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            foreach (string custom in new[] {
+                "--load-info-json saved.info.json",
+                "--use-extractors generic",
+                "--ies generic",
+                "--force-generic-extractor"
+            }) {
+                Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Equal(string.Empty, arguments);
+            }
+        }
+    }
+
     private static void DownloadHistoryRejectsMetadataIdentityRewrites() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -1546,6 +1582,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
         Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);
         Test("DOWNLOAD_HISTORY.RejectsClusteredShortOutputOverrides", DownloadHistoryRejectsClusteredShortOutputOverrides);
+        Test("DOWNLOAD_HISTORY.RejectsSourceAndExtractorIdentityOverrides", DownloadHistoryRejectsSourceAndExtractorIdentityOverrides);
         Test("DOWNLOAD_HISTORY.RejectsMetadataIdentityRewrites", DownloadHistoryRejectsMetadataIdentityRewrites);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryPostprocessorHooks", DownloadHistoryRejectsArbitraryPostprocessorHooks);
         Test("DOWNLOAD_HISTORY.RejectsIdOutputOverride", DownloadHistoryRejectsIdOutputOverride);

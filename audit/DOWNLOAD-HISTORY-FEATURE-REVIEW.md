@@ -66,7 +66,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A009 | High | Fixed / regression-verified | Explicit management reconciliation now treats a changed active download root as a new inventory input without rebinding normal protected downloads to media paths. |
 | DH-A010 | High | Fixed / regression-verified | Unbound custom invalid archive targets are refused without mutation, the archive path is excluded from media inventory, and established default-archive corruption recovery remains intact. |
 | DH-A011 | High | Fixed / regression-verified | Cluster-aware short-option parsing now detects hidden `-o` / `-P` overrides without misreading attached values belonging to earlier value-taking options. |
-| DH-A012 | High | Verified | A previously bound custom archive path is treated as sufficient ownership proof when its primary is invalid and no backup exists, so a stale/partially persisted binding can authorize automatic overwrite of an unrelated custom file. |
+| DH-A012 | High | Fixed / regression-verified | Invalid custom archive primaries without a valid backup are never overwritten automatically, even when the path was previously bound; reserved default-archive recovery remains intact. |
+| DH-A013 | High | Verified | Archive companion paths are not collision-safe: pre-existing `.lock` files are deleted, fixed `.tmp` files can be overwritten/deleted, and invalid pre-existing `.bak` files can be overwritten during backup refresh. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -97,7 +98,11 @@ Repair evidence recorded so far:
 - The guard showed `DOWNLOAD_HISTORY.RejectsClusteredShortOutputOverrides` failing at baseline and passing after the repair while completing all Debug/Release/regression gates.
 - Evidence artifact `10528557720` has SHA-256 `a5dc1496005185f330c341a7ea4c63fbc7fdcb0352f1fe5b9089c410da6b8bc9`.
 
-DH-A012 remains open until its guarded repair batch and final re-audit pass.
+- DH-A012: `45df7f257ff92b4653867289f77dd39e186c92d0` (`fix: refuse automatic recovery over corrupt custom archives`), closed by guarded workflow run `35298602701`, cleanup commit `52eea0ee2db151b2ef19812f06ab1b37062b7650`.
+- The guard showed `DOWNLOAD_HISTORY.BoundCustomArchiveCorruptionRequiresExplicitReset` failing before the repair and passing afterward while `DOWNLOAD_HISTORY.CorruptArchiveDoesNotTrustPartialLines` and the previously repaired clustered-option regression remained green.
+- Evidence artifact `10529380115` has SHA-256 `a9d2f84d459cd4cd769dbce35b48db342856b5880e2efb1a53cd5bd74fc5c978`.
+
+DH-A013 remains open until its guarded repair batch and final re-audit pass.
 
 ## Review scope / status
 
@@ -359,3 +364,25 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 5. Add a regression that first establishes a real bound custom archive, corrupts it, removes its backup, then proves Rebuild leaves the corrupt file byte-for-byte unchanged and refuses automatic reconciliation.
 6. Preserve DH-A010's unbound-collision and archive-self-inventory tests plus the default corruption-recovery test.
 7. Re-run the complete guarded Windows Debug/Release/regression gates and re-audit every archive mutation path.
+
+
+### DH-A013 — Archive companion paths can overwrite or delete unrelated files
+
+**Priority / state:** High non-destructive data-integrity risk / VERIFIED in archive-mutation re-audit.
+
+**Affected code:** `DownloadHistoryLease`, `ResetHistory`, `WriteArchiveAtomically`, `CopyArchiveToBackupAtomically`, and backup preflight in reconciliation/normal protected execution.
+
+**Finding:** The primary archive collision rules now fail closed, but the adjacent implementation-owned companion names are still treated as automatically disposable. Archive leases open `<archive>.lock` and unconditionally delete that path on dispose, even if it existed before the application acquired the lease. Atomic primary writes use the fixed name `<archive>.tmp` with `File.WriteAllText`, overwriting any pre-existing file before replacing/moving it. Backup writes similarly use `<archive>.bak.tmp` and allow overwrite. `ResetHistory` explicitly deletes both fixed temp names. Finally, when backup retention is enabled, an existing invalid `<archive>.bak` is not recognized as trusted history but can still be overwritten by `CopyArchiveToBackupAtomically`.
+
+**Impact:** A user file that merely collides with an implementation companion suffix can be deleted or replaced even when the selected primary archive itself is safe. This violates the feature's strict non-destructive rule and extends the same collision class fixed by DH-A010/DH-A012 to adjacent files.
+
+**Required acceptance:**
+
+1. Lease disposal must never delete a lock file solely because it was opened for synchronization. A lock file may persist as application synchronization state; pre-existing content must remain unchanged.
+2. Atomic archive and backup writes must use unique sibling temporary files opened with create-new semantics, never a fixed reusable `.tmp` pathname.
+3. `ResetHistory` must delete only the explicitly saved primary archive and its recognized backup, not legacy fixed temp names that may belong to the user.
+4. If backup retention is requested and `<archive>.bak` already exists but is not a valid native archive, fail before changing the primary or backup. Do not overwrite the colliding backup automatically.
+5. Backup refresh after protected execution must likewise refuse to overwrite an invalid existing backup and leave it byte-for-byte unchanged.
+6. Preserve existing valid-backup merge/restore behavior, archive locking/serialization, and the A010/A012 primary-collision rules.
+7. Add regressions for pre-existing lock/temp companion files, Reset preserving fixed temp collisions, and invalid backup collision refusing before primary mutation.
+8. Re-run the complete guarded Windows Debug/Release/regression gates and re-audit every remaining file mutation path.

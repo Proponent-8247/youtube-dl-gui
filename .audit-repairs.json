@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "base_sha": "cbe5e7c9d3e2bf785aa0aef7d41b3fd4e8280a98",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.FirstUseRaceAcquiresFileLockAfterDirectoryAppears"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A020",
+      "message": "fix: upgrade first-use history leases to file locks",
+      "resolves": [
+        "DOWNLOAD_HISTORY.FirstUseRaceAcquiresFileLockAfterDirectoryAppears"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "    internal void AcquireFileLock(string path, Func<bool>? cancellationRequested = null) {\n        string? parent = Path.GetDirectoryName(path);",
+              "new": "    internal void AcquireFileLock(string path, Func<bool>? cancellationRequested = null) {\n        if (fileLock is not null) return;\n        string? parent = Path.GetDirectoryName(path);"
+            },
+            {
+              "old": "    private static bool TryInitializeNewDefaultLibrary(string libraryRoot, string archive, DownloadHistoryLease lease, out DownloadHistoryReport? error) {\n        error = null;\n        if (Directory.Exists(libraryRoot)) return true;\n        if (!CanInitializeNewDefaultLibrary(libraryRoot, archive)) {",
+              "new": "    private static bool TryInitializeNewDefaultLibrary(string libraryRoot, string archive, DownloadHistoryLease lease, out DownloadHistoryReport? error) {\n        error = null;\n        if (Directory.Exists(libraryRoot)) {\n            if (IsDefaultArchiveForLibrary(libraryRoot, archive)) {\n                try { lease.AcquireFileLock(archive + \".lock\"); }\n                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {\n                    error = new DownloadHistoryReport { State = DownloadHistoryState.Unavailable, CanReconcile = false, Message = \"The default Download History archive lock could not be acquired safely: \" + ex.Message };\n                    return false;\n                }\n            }\n            return true;\n        }\n        if (!CanInitializeNewDefaultLibrary(libraryRoot, archive)) {"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

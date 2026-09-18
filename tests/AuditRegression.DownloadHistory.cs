@@ -783,7 +783,6 @@ internal static partial class AuditRegression {
             DownloadHistoryWriteMediaWithInfo(fixture.Root, "Recovered-" + id + ".mp4", "Youtube", id);
             DownloadHistoryEnable(fixture, string.Empty);
             Require(File.Exists(fixture.Archive + ".bak"), "Established default archive did not create its expected backup");
-            File.Delete(fixture.Archive + ".bak");
             File.WriteAllText(fixture.Archive, "youtube poisoned123\r\ninvalid-line-without-space\r\n", Encoding.UTF8);
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);

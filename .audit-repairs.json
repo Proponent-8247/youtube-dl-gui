@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "base_sha": "7ae9a06e364b3a79fa03cf98a3215f0a0f516587",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.RejectsUnsafeProtectedFilenameSchemas",
+    "DOWNLOAD_HISTORY.ExecutionLeaseUsesExistingBackupWhenRetentionOff"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A018",
+      "message": "fix: reject unsafe protected filename schemas",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RejectsUnsafeProtectedFilenameSchemas"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            if (!HasRequiredIdTemplate(fileNameSchema)) {\n                LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = \"The filename format does not contain %(id)s in the output filename.\" };\n                error = \"Download History requires %(id)s in the output filename so the library can be validated or reconstructed.\";\n                return false;\n            }",
+              "new": "            if (fileNameSchema.IndexOf('\"') >= 0 || fileNameSchema.Any(char.IsControl)) {\n                LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = \"The filename format contains characters that can escape the protected output argument.\" };\n                error = \"Download History cannot protect a filename schema containing quotes or control characters because they can escape the yt-dlp output argument boundary. Remove those characters or disable Download History.\";\n                return false;\n            }\n            if (!HasRequiredIdTemplate(fileNameSchema)) {\n                LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = \"The filename format does not contain %(id)s in the output filename.\" };\n                error = \"Download History requires %(id)s in the output filename so the library can be validated or reconstructed.\";\n                return false;\n            }"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DH-A019",
+      "message": "fix: honor existing valid backup at execution",
+      "resolves": [
+        "DOWNLOAD_HISTORY.ExecutionLeaseUsesExistingBackupWhenRetentionOff"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            if (keepBackup) {\n                string backupPath = archivePath + \".bak\";\n                HashSet<string> backupEntries = new(StringComparer.Ordinal);\n                if (!TryReadArchive(backupPath, backupEntries, out string backupError)) {\n                    lock (Sync) {\n                        PreparedKey = null;\n                        NeedsReconciliation = true;\n                    }\n                    throw new InvalidOperationException(\"The prepared Download History backup is no longer available or valid. Regenerate the download command after validating Download History.\" + (backupError.IsNullEmptyWhitespace() ? string.Empty : \" \" + backupError));\n                }\n                if (backupEntries.Any(entry => !entries.Contains(entry))) {\n                    lock (Sync) PreparedKey = null;\n                    throw new InvalidOperationException(\"The prepared Download History archive lost entries that remain in its last-good backup. Regenerate the download command so the ledger can be reconciled before downloading.\");\n                }\n            }",
+              "new": "            string backupPath = archivePath + \".bak\";\n            HashSet<string> backupEntries = new(StringComparer.Ordinal);\n            bool backupValid = TryReadArchive(backupPath, backupEntries, out string backupError);\n            if (keepBackup && !backupValid) {\n                lock (Sync) {\n                    PreparedKey = null;\n                    NeedsReconciliation = true;\n                }\n                throw new InvalidOperationException(\"The prepared Download History backup is no longer available or valid. Regenerate the download command after validating Download History.\" + (backupError.IsNullEmptyWhitespace() ? string.Empty : \" \" + backupError));\n            }\n            if (backupValid && backupEntries.Any(entry => !entries.Contains(entry))) {\n                lock (Sync) PreparedKey = null;\n                throw new InvalidOperationException(\"The prepared Download History archive lost entries that remain in its last-good backup. Regenerate the download command so the ledger can be reconciled before downloading.\");\n            }"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

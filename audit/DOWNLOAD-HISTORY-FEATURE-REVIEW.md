@@ -74,7 +74,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A017 | Medium | Fixed / regression-verified | Reset History now resolves an implicit/bound archive through the saved `EffectiveArchivePath`, preserving genuine unsaved-path protection. |
 | DH-A018 | High | Fixed / regression-verified | Protected filename schemas now reject quotes/control characters before raw output-template interpolation can escape the app-owned argument boundary. |
 | DH-A019 | High | Fixed / regression-verified | Execution leases now enforce monotonicity against any existing valid backup even when retention is currently off, while missing/invalid backups remain optional when retention is off. |
-| DH-A020 | Medium | Verified | A first-use race can acquire the session-local history mutex before the default archive directory exists, then observe that directory created by another session and return from initialization without upgrading to the cross-session file lock. |
+| DH-A020 | Medium | Fixed / regression-verified | First-use initialization now idempotently upgrades the lease to the cross-session file lock once the default archive directory exists, including the competing-session race. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -135,7 +135,12 @@ Repair evidence recorded so far:
 - Both were closed by guarded workflow run `35311817535`, cleanup commit `ee0a5b0704b3f56224f1e840295011e40d66e021`. At baseline both new regressions failed; after A018 only the schema regression passed; after A019 both passed, alongside the complete Debug/Release/full-regression gates.
 - Evidence artifact `10533770977` has SHA-256 `38dc032cbfed6bd1e6c821cd26736569f2f2ba89426f34f078654c87a3b11337`.
 
-DH-A020 remains open until its guarded repair batch and final re-audit pass.
+- DH-A020: `64ce7ccc89472610d47cf20099673e293d4abd85` (`fix: upgrade first-use history leases to file locks`), closed by guarded workflow run `35312320192`, cleanup commit `92799f3fda90a071d6991fc3142843bfa79808ea`.
+- The guard showed `DOWNLOAD_HISTORY.FirstUseRaceAcquiresFileLockAfterDirectoryAppears` failing before the repair and passing afterward; every Download History regression shown in the final run passed alongside the complete guarded build/test gates.
+- Evidence artifact `10534475320` has SHA-256 `de061aba1d1d7189b3b3a751c64b61fb68b837215e8b0ed5360e56af1243eeb8`.
+- The first A020 guarded request failed because the new regression used a C# form unsupported by the harness compiler; that request was explicitly discarded and retried after correcting only the test syntax, preserving the source repair concept unchanged.
+
+No verified findings are currently open. The terminal current-head re-audit is in progress.
 
 ## Review scope / status
 

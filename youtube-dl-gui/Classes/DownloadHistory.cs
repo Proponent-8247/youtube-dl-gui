@@ -540,6 +540,12 @@ internal static class DownloadHistory {
                 error = "Custom output templates or paths are not allowed while Download History protection is enabled because the app must keep %(id)s-bearing media inside the validated library namespace.";
                 return false;
             }
+            if (ContainsOption(customArguments, "--load-info-json") ||
+                ContainsOption(customArguments, "--use-extractors") || ContainsOption(customArguments, "--ies") ||
+                ContainsOption(customArguments, "--force-generic-extractor")) {
+                error = "Custom source or extractor identity overrides are not allowed while Download History protection is enabled because the native archive must use the app-requested source and authoritative extractor identity. Remove the override or disable Download History.";
+                return false;
+            }
             if (ContainsOption(customArguments, "--parse-metadata") || ContainsOption(customArguments, "--replace-in-metadata") ||
                 ContainsOption(customArguments, "--metadata-from-title")) {
                 error = "Custom metadata rewriting is not allowed while Download History protection is enabled because changing source identity fields can corrupt archive identity. Remove the metadata rewrite or disable Download History.";

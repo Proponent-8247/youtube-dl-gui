@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "base_sha": "a0aa50a9846b3a7b7489ee5ba4a0123be0ad07a3",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.CompanionLockAndTempFilesAreNonDestructive",
+    "DOWNLOAD_HISTORY.ResetPreservesUnownedTempCompanions",
+    "DOWNLOAD_HISTORY.RefusesInvalidBackupCollisionBeforePrimaryMutation"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A013",
+      "message": "fix: make download history companion files collision-safe",
+      "resolves": [
+        "DOWNLOAD_HISTORY.CompanionLockAndTempFilesAreNonDestructive",
+        "DOWNLOAD_HISTORY.ResetPreservesUnownedTempCompanions",
+        "DOWNLOAD_HISTORY.RefusesInvalidBackupCollisionBeforePrimaryMutation"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "    private Mutex? mutex;\n    private FileStream? fileLock;\n    private string? fileLockPath;",
+              "new": "    private Mutex? mutex;\n    private FileStream? fileLock;"
+            },
+            {
+              "old": "                fileLock = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);\n                fileLockPath = path;\n                return;",
+              "new": "                fileLock = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);\n                return;"
+            },
+            {
+              "old": "            fileLock = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);\n            fileLockPath = path;\n            return true;",
+              "new": "            fileLock = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);\n            return true;"
+            },
+            {
+              "old": "    public void Dispose() {\n        FileStream? lockFile = Interlocked.Exchange(ref fileLock, null);\n        string? lockPath = Interlocked.Exchange(ref fileLockPath, null);\n        lockFile?.Dispose();\n        if (lockPath is not null) {\n            try { File.Delete(lockPath); }\n            catch (IOException) { }\n            catch (UnauthorizedAccessException) { }\n        }\n\n        Mutex? owned = Interlocked.Exchange(ref mutex, null);",
+              "new": "    public void Dispose() {\n        FileStream? lockFile = Interlocked.Exchange(ref fileLock, null);\n        lockFile?.Dispose();\n\n        Mutex? owned = Interlocked.Exchange(ref mutex, null);"
+            },
+            {
+              "old": "        foreach (string path in new[] { archive, archive + \".bak\", archive + \".tmp\", archive + \".bak.tmp\" }) {\n            if (File.Exists(path)) File.Delete(path);\n        }",
+              "new": "        foreach (string path in new[] { archive, archive + \".bak\" }) {\n            if (File.Exists(path)) File.Delete(path);\n        }"
+            },
+            {
+              "old": "    private static DownloadHistoryReport ReconcileAnalysis(DownloadHistoryAnalysis analysis, bool keepBackup, bool allowMigration) {\n        DownloadHistoryReport report = analysis.Report;\n        if (!report.CanReconcile) return report;\n\n        bool changed = analysis.ArchiveNeedsRewrite || !analysis.ArchiveExists;",
+              "new": "    private static DownloadHistoryReport ReconcileAnalysis(DownloadHistoryAnalysis analysis, bool keepBackup, bool allowMigration) {\n        DownloadHistoryReport report = analysis.Report;\n        if (!report.CanReconcile) return report;\n\n        if (keepBackup && !CanReplaceBackupSafely(analysis.ArchivePath, out string backupSafetyError)) {\n            report.State = DownloadHistoryState.Invalid;\n            report.CanReconcile = false;\n            report.Message = \"Download History refused to overwrite the existing backup path: \" + backupSafetyError;\n            return report;\n        }\n\n        bool changed = analysis.ArchiveNeedsRewrite || !analysis.ArchiveExists;"
+            },
+            {
+              "old": "    private static void WriteArchiveAtomically(string path, HashSet<string> entries) {\n        foreach (string entry in entries) {\n            if (!IsValidArchiveEntry(entry)) throw new InvalidDataException(\"Refusing to write invalid Download History archive entry: \" + entry);\n        }\n        string temp = path + \".tmp\";\n        string content = string.Join(Environment.NewLine, entries.OrderBy(x => x, StringComparer.Ordinal));\n        if (content.Length > 0) content += Environment.NewLine;\n        File.WriteAllText(temp, content, new UTF8Encoding(false));\n        try {\n            if (File.Exists(path)) File.Replace(temp, path, null, true);\n            else File.Move(temp, path);\n        }\n        finally {\n            if (File.Exists(temp)) File.Delete(temp);\n        }\n    }\n\n    private static void CopyArchiveToBackupAtomically(string archive) {\n        if (!File.Exists(archive)) return;\n        string backup = archive + \".bak\";\n        string temp = backup + \".tmp\";\n        File.Copy(archive, temp, true);\n        try {\n            if (File.Exists(backup)) File.Replace(temp, backup, null, true);\n            else File.Move(temp, backup);\n        }\n        finally {\n            if (File.Exists(temp)) File.Delete(temp);\n        }\n    }",
+              "new": "    private static FileStream CreateUniqueSiblingTempFile(string destination, out string temp) {\n        temp = string.Empty;\n        for (int attempt = 0; attempt < 16; attempt++) {\n            temp = destination + \".youtube-dl-gui-\" + Guid.NewGuid().ToString(\"N\") + \".tmp\";\n            try {\n                return new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None);\n            }\n            catch (IOException) when (File.Exists(temp)) { }\n        }\n        throw new IOException(\"Could not allocate a unique temporary file beside the Download History archive.\");\n    }\n\n    private static bool CanReplaceBackupSafely(string archive, out string error) {\n        string backup = archive + \".bak\";\n        error = string.Empty;\n        if (Directory.Exists(backup)) {\n            error = \"The backup path is an existing directory: \" + backup;\n            return false;\n        }\n        if (!File.Exists(backup)) return true;\n\n        HashSet<string> entries = new(StringComparer.Ordinal);\n        if (TryReadArchive(backup, entries, out string backupError)) return true;\n        error = backupError.IsNullEmptyWhitespace()\n            ? \"The existing backup file is not a valid native archive: \" + backup\n            : \"The existing backup file is not a valid native archive: \" + backupError;\n        return false;\n    }\n\n    private static void WriteArchiveAtomically(string path, HashSet<string> entries) {\n        foreach (string entry in entries) {\n            if (!IsValidArchiveEntry(entry)) throw new InvalidDataException(\"Refusing to write invalid Download History archive entry: \" + entry);\n        }\n\n        string content = string.Join(Environment.NewLine, entries.OrderBy(x => x, StringComparer.Ordinal));\n        if (content.Length > 0) content += Environment.NewLine;\n        string temp;\n        using (FileStream stream = CreateUniqueSiblingTempFile(path, out temp))\n        using (StreamWriter writer = new(stream, new UTF8Encoding(false))) {\n            writer.Write(content);\n        }\n\n        try {\n            if (File.Exists(path)) File.Replace(temp, path, null, true);\n            else File.Move(temp, path);\n        }\n        finally {\n            if (File.Exists(temp)) File.Delete(temp);\n        }\n    }\n\n    private static void CopyArchiveToBackupAtomically(string archive) {\n        if (!File.Exists(archive)) return;\n        if (!CanReplaceBackupSafely(archive, out string backupSafetyError)) {\n            throw new InvalidDataException(backupSafetyError);\n        }\n\n        string backup = archive + \".bak\";\n        string temp;\n        using (FileStream output = CreateUniqueSiblingTempFile(backup, out temp))\n        using (FileStream input = new(archive, FileMode.Open, FileAccess.Read, FileShare.Read)) {\n            input.CopyTo(output);\n        }\n\n        try {\n            if (File.Exists(backup)) File.Replace(temp, backup, null, true);\n            else File.Move(temp, backup);\n        }\n        finally {\n            if (File.Exists(temp)) File.Delete(temp);\n        }\n    }"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

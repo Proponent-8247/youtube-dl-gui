@@ -1336,14 +1336,11 @@ internal static class DownloadHistory {
                     analysis.ArchiveNeedsRewrite = true;
                 }
                 else {
-                    if (!IsDefaultArchiveForLibrary(libraryRoot, archive)) {
-                        report.State = DownloadHistoryState.Invalid;
-                        report.CanReconcile = false;
-                        report.Message = "The selected custom Download History archive file already exists but is not a valid native archive and has no valid backup. Refusing to overwrite the existing file automatically; reset or remove the saved custom archive explicitly before rebuilding.";
-                        return analysis;
-                    }
-                    analysis.ArchiveNeedsRewrite = true;
-                    Log.Write("Download History archive is damaged and no valid backup is available: " + archiveError);
+                    report.State = DownloadHistoryState.Invalid;
+                    report.CanReconcile = false;
+                    report.Message = "The selected Download History archive file already exists but is not a valid native archive and has no valid backup. Refusing to overwrite the existing file automatically; reset or remove the saved archive explicitly before rebuilding." +
+                        (archiveError.IsNullEmptyWhitespace() ? string.Empty : " " + archiveError);
+                    return analysis;
                 }
             }
         }

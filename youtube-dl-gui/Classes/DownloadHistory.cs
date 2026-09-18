@@ -1478,11 +1478,11 @@ internal static class DownloadHistory {
                     name.EndsWith(".ytdl", StringComparison.OrdinalIgnoreCase) ||
                     name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
                     name.EndsWith(".info.json", StringComparison.OrdinalIgnoreCase) ||
-                    ext is ".json" or ".jpg" or ".jpeg" or ".png" or ".webp" or ".gif" or ".srt" or ".vtt" or ".ass" or ".lrc" or ".description" or ".txt") {
+                    ext is ".json" or ".jpg" or ".jpeg" or ".png" or ".webp" or ".srt" or ".vtt" or ".ass" or ".lrc" or ".description" or ".txt") {
                     continue;
                 }
                 if (ext is ".mp4" or ".mkv" or ".webm" or ".mov" or ".avi" or ".flv" or ".m4v" or ".3gp" or ".3g2" or
-                    ".f4v" or ".mk3d" or ".divx" or ".ogv" or ".nut" or ".swf" or
+                    ".f4v" or ".mk3d" or ".divx" or ".ogv" or ".nut" or ".swf" or ".gif" or
                     ".ts" or ".m2ts" or ".mts" or ".vob" or ".wmv" or ".asf" or ".mpg" or ".mpeg" or ".mpe" or ".mpv" or ".m2v" or
                     ".mp3" or ".mp2" or ".m4a" or ".m4b" or ".m4r" or ".aac" or ".opus" or ".ogg" or ".oga" or ".ogx" or ".spx" or ".vorbis" or ".weba" or
                     ".wav" or ".flac" or ".wma" or ".mka" or ".ape" or ".alac" or ".aiff" or ".aif" or ".aifc" or ".tta" or

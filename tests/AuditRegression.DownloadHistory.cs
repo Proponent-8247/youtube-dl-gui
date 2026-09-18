@@ -1111,6 +1111,47 @@ internal static partial class AuditRegression {
             "Long Download History management operations are not kept off the UI thread with re-entry/close protection");
     }
 
+
+    private static void DownloadHistorySettingsPersistenceFailsClosed() {
+        string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
+        string historySource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Classes", "DownloadHistory.cs"));
+
+        int helperStart = historySource.IndexOf("private static void PersistSettingsFailClosed(", StringComparison.Ordinal);
+        Require(helperStart >= 0, "Download History settings persistence does not use a dedicated fail-closed write helper");
+        int helperEnd = historySource.IndexOf("\n    private static ", helperStart + 1, StringComparison.Ordinal);
+        Require(helperEnd > helperStart, "Could not inspect the fail-closed Download History settings persistence helper");
+        string helper = historySource.Substring(helperStart, helperEnd - helperStart);
+
+        string disableWrite = "IniProvider.Write(false, ConfigName, nameof(Enabled));";
+        string finalWrite = "IniProvider.Write(enabled, ConfigName, nameof(Enabled));";
+        int guard = helper.IndexOf(disableWrite, StringComparison.Ordinal);
+        int final = helper.LastIndexOf(finalWrite, StringComparison.Ordinal);
+        Require(guard >= 0 && final > guard, "Settings persistence does not guard the durable state as disabled before dependent writes");
+        Require(helper.IndexOf(disableWrite, guard + disableWrite.Length, StringComparison.Ordinal) < 0,
+            "Fail-closed settings helper contains an unexpected second disabled guard write");
+        Require(helper.IndexOf(finalWrite, 0, StringComparison.Ordinal) == final,
+            "The intended Enabled state is written more than once by the fail-closed settings helper");
+
+        foreach (string dependent in new[] {
+            "nameof(ArchivePath)", "nameof(KeepBackup)", "nameof(FailIfUnavailable)", "nameof(EverEnabled)",
+            "nameof(NeedsReconciliation)", "nameof(BoundLibraryRoot)", "nameof(BoundArchivePath)", "nameof(InventoryRoots)"
+        }) {
+            int write = helper.IndexOf(dependent, StringComparison.Ordinal);
+            Require(write > guard && write < final, "Dependent Download History setting is not durably written between the disabled guard and final enable: " + dependent);
+        }
+
+        int commitStart = historySource.IndexOf("public static void CommitSettings(bool enabled, string configuredArchivePath, bool keepBackup, DownloadHistoryReport? preparedReport, string configuredInventoryRoots)", StringComparison.Ordinal);
+        int validateStart = historySource.IndexOf("public static DownloadHistoryReport ValidateAndReconcile", commitStart, StringComparison.Ordinal);
+        Require(commitStart >= 0 && validateStart > commitStart, "Could not inspect Download History settings commit flow");
+        string commit = historySource.Substring(commitStart, validateStart - commitStart);
+        Require(commit.Contains("PersistSettingsFailClosed(enabled,"),
+            "Target Download History settings are not persisted through the fail-closed helper");
+        Require(commit.Contains("PersistSettingsFailClosed(oldEnabled,"),
+            "Rollback does not restore prior Download History settings through the same fail-closed helper");
+        Require(commit.IndexOf("IniProvider.Write(enabled, ConfigName, nameof(Enabled));", StringComparison.Ordinal) < 0,
+            "CommitSettings still writes Enabled directly instead of using fail-closed persistence ordering");
+    }
+
     private static void DownloadHistoryWorkersUsePreparedContext() {
         string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
         string standard = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmDownloader.cs"));
@@ -1200,6 +1241,31 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryDisablesAmbientYtDlpPlugins() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
+            Require(arguments.Contains("--no-plugin-dirs"), "Protected arguments do not disable ambient/default yt-dlp plugins");
+            Require(arguments.IndexOf("--ignore-config", StringComparison.Ordinal) < arguments.IndexOf("--no-plugin-dirs", StringComparison.Ordinal),
+                "Plugin isolation is not part of the app-owned protected argument prefix");
+            Require(arguments.IndexOf("--no-plugin-dirs", StringComparison.Ordinal) < arguments.IndexOf("--download-archive", StringComparison.Ordinal),
+                "Plugin isolation is not applied before the app-owned native archive option");
+
+            foreach (string custom in new[] { "--plugin-dirs C:\\audit-plugins", "--plugin-dir C:\\audit-plugins" }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(error.IndexOf("plugin", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Custom plugin-directory option was not rejected clearly: " + custom);
+            }
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", "--no-plugin-dirs", out arguments, out error, out execution));
+            Require(arguments.Contains("--no-plugin-dirs"), "A compatible user-supplied plugin-disable option removed app-owned plugin isolation");
+        }
+    }
+
+
     private static void RunDownloadHistoryTests() {
         Test("DOWNLOAD_HISTORY.NeverEnabledIsNoOp", DownloadHistoryNeverEnabledIsNoOp);
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
@@ -1209,6 +1275,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsIdOutputOverride", DownloadHistoryRejectsIdOutputOverride);
         Test("DOWNLOAD_HISTORY.RejectsInjectedMetadataArchiveRecords", DownloadHistoryRejectsInjectedMetadataArchiveRecords);
         Test("DOWNLOAD_HISTORY.IgnoresAmbientYtDlpConfig", DownloadHistoryIgnoresAmbientYtDlpConfig);
+        Test("DOWNLOAD_HISTORY.DisablesAmbientYtDlpPlugins", DownloadHistoryDisablesAmbientYtDlpPlugins);
         Test("DOWNLOAD_HISTORY.RecoversSupportedMediaExtensions", DownloadHistoryRecoversSupportedMediaExtensions);
         Test("DOWNLOAD_HISTORY.RebuildsDeletedArchiveFromIds", DownloadHistoryRebuildsDeletedArchiveFromIds);
         Test("DOWNLOAD_HISTORY.RecoversHistoricalProtectedSchemas", DownloadHistoryRecoversHistoricalProtectedSchemas);
@@ -1248,6 +1315,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.NormalProtectionIgnoresOfflineInventoryRoots", DownloadHistoryNormalProtectionIgnoresOfflineInventoryRoots);
         Test("DOWNLOAD_HISTORY.PreparedCommitDoesNotRescanInventory", DownloadHistoryPreparedCommitDoesNotRescanInventory);
         Test("DOWNLOAD_HISTORY.LargeLibraryManagementAvoidsRepeatedScans", DownloadHistoryLargeLibraryManagementAvoidsRepeatedScans);
+        Test("DOWNLOAD_HISTORY.SettingsPersistenceFailsClosed", DownloadHistorySettingsPersistenceFailsClosed);
         Test("DOWNLOAD_HISTORY.WorkersUsePreparedContext", DownloadHistoryWorkersUsePreparedContext);
         Test("DOWNLOAD_HISTORY.WiresStandardAndExtendedArguments", DownloadHistoryWiresStandardAndExtendedArguments);
     }

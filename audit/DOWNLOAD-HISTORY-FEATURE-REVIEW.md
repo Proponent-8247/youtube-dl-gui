@@ -63,8 +63,9 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A006 | High | Fixed / regression-verified | Normal protected execution validates only the application-owned ledger/backup and no longer scans or requires media roots after restart/cache loss. |
 | DH-A007 | High | Fixed / regression-verified | Protected arguments now disable ambient/default yt-dlp plugin discovery and reject positive custom plugin-directory overrides. |
 | DH-A008 | Medium | Fixed / regression-verified | Target and rollback settings writes now persist `Enabled=false` first and restore the intended enabled state only after every dependent key succeeds. |
-| DH-A009 | High | Verified | Management reconciliation does not treat a changed active download root as a new inventory input, so authoritative pre-existing media in the newly selected destination can remain absent from history unless the user manually chooses full Rebuild. |
-| DH-A010 | High | Verified | A newly selected existing invalid archive file can be overwritten during reconstruction, and an app-created archive with a media extension can later inventory itself as user media. |
+| DH-A009 | High | Fixed / regression-verified | Explicit management reconciliation now treats a changed active download root as a new inventory input without rebinding normal protected downloads to media paths. |
+| DH-A010 | High | Fixed / regression-verified | Unbound custom invalid archive targets are refused without mutation, the archive path is excluded from media inventory, and established default-archive corruption recovery remains intact. |
+| DH-A011 | High | Verified | Clustered yt-dlp short options can hide `-o` or `-P` behind no-value flags (for example `-qo...` / `-qP...`), bypassing the protected custom-output/path filter. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -85,7 +86,13 @@ Repair evidence recorded so far:
 - DH-A008: `3c642ee130693b2c3662447a7493782343622713` (`fix: persist download history settings fail closed`).
 - DH-A007/A008 were closed by guarded workflow run `35297339353`, cleanup commit `a46af90a604bbeddda532151986d670a4f0ffae1`. The guard demonstrated `DOWNLOAD_HISTORY.DisablesAmbientYtDlpPlugins` and `DOWNLOAD_HISTORY.SettingsPersistenceFailsClosed` failing before their repairs and passing afterward, with the full Debug/Release/regression gates completing successfully. Evidence artifact `10528675973` has SHA-256 `738f9c4b2840c6be273373235863fbb6681aa7ce16774dafad8c622da9ed9820`.
 
-DH-A009 and DH-A010 remain open until their guarded repair batch and final re-audit pass.
+- DH-A009: `46e6ed3c580aedf0704d46cc3d7163797a281c18` (`fix: reconcile changed active download roots`).
+- DH-A010: `1ee40ba4f1f9ae4adfd063548083ca9d308a874b` (`fix: protect custom archive targets from inventory overwrite`).
+- DH-A009/A010 were closed by guarded workflow run `35298023958`, cleanup commit `3b9c5c46e6171bcd0ab34ffa0d079f2a27f88de3`. The guard showed all three new regressions failing at baseline, only the active-root regression passing after A009, and both collision regressions passing after A010 while `DOWNLOAD_HISTORY.CorruptArchiveDoesNotTrustPartialLines` remained green.
+- Evidence artifact `10529081282` has SHA-256 `179df0591bdfaaa8dbeff782d02100e3f5d157651a9479e1a82a788fbc7c723c`.
+- The first A010 attempt was deliberately rejected by guarded run `35297700397` because it introduced a failure in `DOWNLOAD_HISTORY.CorruptArchiveDoesNotTrustPartialLines`; request `8b740e92e41d6e32cd7783b97d9d0ec2489b19b8` was discarded by `c18f577dcfcc4f45aa53cd7c5750de06830405ee` without rewriting history. The corrected retry preserved established default-archive corruption recovery while refusing only unbound custom target collisions.
+
+DH-A011 remains open until its guarded repair batch and final re-audit pass.
 
 ## Review scope / status
 
@@ -304,3 +311,25 @@ The source-review pass is complete. Implementation remains in progress until eve
 4. Do not rename, move, truncate, or rewrite the colliding user file while reporting the refusal.
 5. Add regressions proving an unbound existing media/archive-path collision remains unchanged and an app-created archive with a media extension never inventories itself.
 6. Re-run the complete guarded Windows build/regression gates and re-audit archive/backup mutation paths.
+
+
+### DH-A011 — Clustered short options bypass protected output/path filtering
+
+**Priority / state:** High protection-boundary correctness risk / VERIFIED against current yt-dlp option parsing.
+
+**Affected code:** `ContainsShortOption` and the custom-argument checks for `-o` / `-P`.
+
+**Finding:** Protected mode intentionally rejects custom output templates and paths because the application must keep recoverable `%(id)s` filenames inside its controlled output namespace. The current short-option detector only recognizes tokens that begin with the target option. yt-dlp uses Python `optparse`, which processes clustered short flags one character at a time until an option that takes a value is encountered. Consequently, a token such as `-qooutside-%(id)s.%(ext)s` is parsed by yt-dlp as `-q` followed by `-o outside-%(id)s.%(ext)s`, while the app sees a token beginning with `-q` and misses the `-o`. The same bypass exists for `-P`, for example `-qPelsewhere`. Standard and Extended download generation append user custom arguments after the app-generated output path, so the hidden later output/path option can override the protected location/template.
+
+Current upstream yt-dlp short options that consume the remainder/next token include `-t -I -u -p -2 -f -S -N -r -R -O -a -P -o`; options such as `-q` are value-less and may legally precede another option in the same short cluster.
+
+**Impact:** A user custom-argument string can bypass an already-established integrity check and redirect protected downloads outside the validated namespace or replace the required ID-bearing output template. The native archive may still record the source ID, but physical-library reconstruction after ledger loss can then be incomplete or impossible, defeating the feature's protected recovery model.
+
+**Required acceptance:**
+
+1. Detect `-o` and `-P` anywhere they are actually parsed as short options inside a cluster, not merely at the start of the token.
+2. Stop scanning a short-option token once an earlier recognized short option consumes the remainder as its value, so legitimate values such as `-fbestvideo` are not misread because their value contains the letter `o`.
+3. Continue detecting attached target values (`-ofile`, `-Pdir`) and ordinary standalone forms.
+4. Preserve current long-option/abbreviation filtering and Windows argument tokenization.
+5. Add regression coverage for clustered `-o` / `-P` bypasses plus a legitimate attached-value control.
+6. Re-run the complete guarded Windows Debug/Release/regression gates, then re-audit the final custom-argument boundary.

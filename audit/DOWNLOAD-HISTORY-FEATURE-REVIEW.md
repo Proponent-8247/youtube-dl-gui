@@ -78,8 +78,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A021 | High | Fixed / regression-verified | Metadata recovery now accepts only native `extractor_key`/`ie_key` identity; display-style `extractor` alone remains unresolved. |
 | DH-A022 | High | Fixed / regression-verified | A retained backup remains a lower-bound check, but it is no longer accepted as the sole automatic ledger when retention is off and the primary is missing/invalid. |
 | DH-A023 | High | Fixed / regression-verified | Protected runs now force `--concat-playlist never` and reject conflicting custom concat policies, preserving one physical media family per native identity. |
-| DH-A024 | Medium | Verified | Filename recovery does not fully reproduce yt-dlp restricted/legacy ID sanitization (notably accent transliteration and current-mode boundary substitute trimming), so known archive IDs can be falsely unresolved when metadata is absent. |
-| DH-A025 | High | Verified | Completed-media enumeration always skips `.gif` as a thumbnail sidecar even though yt-dlp supports GIF as a final `--recode-video` output, allowing explicit rebuild to ignore protected media. |
+| DH-A024 | Medium | Fixed / regression-verified | Filename recovery now mirrors current and legacy yt-dlp restricted ID sanitization, including accent transliteration and current boundary normalization. |
+| DH-A025 | High | Fixed / regression-verified | GIF is now conservatively inventoried as possible final media, so authoritative GIF outputs rebuild and unidentified GIFs fail safe. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -155,7 +155,13 @@ Repair evidence recorded so far:
 - The guard showed `DOWNLOAD_HISTORY.DisablesPlaylistConcatenationWhileProtected` failing before the repair and passing afterward with the complete guarded build/regression gates.
 - Evidence artifact `10537620494` has SHA-256 `59b51b62cd5f1def0dddec1254438f80c7b784aea6d8a5469fd7f818b7601586`.
 
-DH-A024 and DH-A025 remain open until their guarded repair batches and final re-audit pass.
+- DH-A024: `88b8f7cc00b461e1b7b1442953d846542d4ddf70` (`fix: mirror yt-dlp restricted ID sanitization`).
+- DH-A025: `853c8d9a6e1b1d5d041744fc4a5920d8bf4e71a6` (`fix: inventory GIF recode outputs as media`).
+- Both were closed by guarded workflow run `35321525676`, cleanup commit `24a456f100714d92245c45025d5ade2468dfacea`.
+- Baseline evidence showed both new regressions failing; after A024 the restricted-sanitization regression passed while GIF inventory still failed; after A025 both passed with the complete guarded build/regression gates.
+- Evidence artifact `10537860896` has SHA-256 `232188661c66b02379f2082b880cedc337dbf4f632bb85899bddddc6074685c1`.
+
+No verified findings are currently open. The terminal current-head audit is in progress.
 
 ## Review scope / status
 

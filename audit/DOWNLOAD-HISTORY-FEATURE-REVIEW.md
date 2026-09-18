@@ -702,9 +702,9 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 **Required acceptance:**
 
 1. A valid existing native primary or valid backup may still be adopted/reconciled on first use.
-2. An invalid existing default primary with no valid backup may be automatically reconstructed only if that exact path was previously and successfully bound by Download History.
+2. An invalid existing primary with no valid backup must never be overwritten automatically, even at the default path; settings/binding metadata alone is not sufficient ownership proof.
 3. A never-initialized invalid default-path collision must remain byte-for-byte unchanged and return a non-reconcilable Invalid/Unsafe result.
-4. Revise the existing corruption-recovery regression (retain its test name) so it first establishes a real default archive, removes its backup, corrupts the primary, and then proves authoritative physical recovery still works.
+4. Revise the existing corruption-recovery regression (retain its test name) so it first establishes a real default archive with a valid backup, corrupts the primary, and proves recovery ignores poisoned partial primary entries and restores from trusted state.
 5. Add a separate first-use default-collision regression proving no overwrite occurs.
-6. Do not rely on `EverEnabled` alone when proving ownership; require the exact durable bound archive path as well.
+6. Do not rely on `EverEnabled` or `BoundArchivePath` to authorize overwrite of an invalid primary without a valid backup; explicit Reset/removal is required before physical rebuild can replace it.
 7. Re-run the complete guarded Windows Debug/Release/regression gates.

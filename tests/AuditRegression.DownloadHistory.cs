@@ -953,6 +953,67 @@ internal static partial class AuditRegression {
         }
     }
 
+
+    private static void DownloadHistoryActiveRootChangeTriggersInventoryRecovery() {
+        const string first = "9qFjkwAElDs";
+        const string second = "aB_Cd-Ef123";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string initial = Path.Combine(fixture.Root, "initial-downloads");
+            string next = Path.Combine(fixture.Root, "next-downloads");
+            string ledger = Path.Combine(fixture.Root, "ledger");
+            Directory.CreateDirectory(initial);
+            Directory.CreateDirectory(next);
+            Directory.CreateDirectory(ledger);
+            Set(fixture.Downloads, null, "downloadPath", initial);
+
+            DownloadHistoryWriteMediaWithInfo(initial, "Initial-" + first + ".mp4", "Youtube", first);
+            string archive = Path.Combine(ledger, "history.txt");
+            object prepared = Call(fixture.History, null, "RebuildLibrary", archive, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(prepared));
+            Call(fixture.History, null, "CommitSettings", true, archive, true, prepared, string.Empty);
+            Require(DownloadHistoryArchiveLines(archive).Contains("youtube " + first), "Initial active-root identity was not archived");
+
+            Set(fixture.Downloads, null, "downloadPath", next);
+            DownloadHistoryWriteMediaWithInfo(next, "AlreadyHere-" + second + ".webm", "Youtube", second);
+
+            object reconciled = Call(fixture.History, null, "ReconcileLibrary", archive, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(reconciled));
+            string[] entries = DownloadHistoryArchiveLines(archive);
+            Require(entries.Contains("youtube " + first), "Changing the active inventory root pruned prior history");
+            Require(entries.Contains("youtube " + second), "Ordinary management reconciliation ignored authoritative media in the newly selected active root");
+        }
+    }
+
+    private static void DownloadHistoryRefusesUnrecognizedArchiveOverwrite() {
+        const string id = "aB_Cd-Ef123";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string collision = DownloadHistoryWriteMediaWithInfo(fixture.Root, "DoNotReplace-" + id + ".mp4", "Youtube", id);
+            byte[] before = File.ReadAllBytes(collision);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", collision, true, false, string.Empty);
+
+            Require(before.SequenceEqual(File.ReadAllBytes(collision)),
+                "Rebuild overwrote an existing unbound user file that was selected as the archive path");
+            Equal(false, DownloadHistoryCanReconcile(rebuilt));
+            Require(DownloadHistoryStateName(rebuilt) == "Invalid" || DownloadHistoryStateName(rebuilt) == "Unsafe",
+                "Unrecognized invalid archive collision was not rejected fail-closed");
+        }
+    }
+
+    private static void DownloadHistoryArchiveFileIsNotInventoryMedia() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string archive = Path.Combine(fixture.Root, "application-history.mp4");
+            object prepared = Call(fixture.History, null, "RebuildLibrary", archive, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(prepared));
+            Call(fixture.History, null, "CommitSettings", true, archive, true, prepared, string.Empty);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", archive, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(0, Get(rebuilt, "CompletedMedia"));
+            Require(File.Exists(archive), "Explicit rebuild removed the application-owned archive");
+        }
+    }
+
     private static void DownloadHistoryPathAgnosticHistorySurvivesMediaMoves() {
         const string id = "aB_Cd-Ef123";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -1310,6 +1371,9 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.CancellationIsRecheckedBeforeProcessStart", DownloadHistoryCancellationIsRecheckedBeforeProcessStart);
         Test("DOWNLOAD_HISTORY.SettingsRejectIdRemovalWhileEnabled", DownloadHistorySettingsRejectIdRemovalWhileEnabled);
         Test("DOWNLOAD_HISTORY.LibraryBindingPreventsCrossLibraryReuse", DownloadHistoryLibraryBindingPreventsCrossLibraryReuse);
+        Test("DOWNLOAD_HISTORY.ActiveRootChangeTriggersInventoryRecovery", DownloadHistoryActiveRootChangeTriggersInventoryRecovery);
+        Test("DOWNLOAD_HISTORY.RefusesUnrecognizedArchiveOverwrite", DownloadHistoryRefusesUnrecognizedArchiveOverwrite);
+        Test("DOWNLOAD_HISTORY.ArchiveFileIsNotInventoryMedia", DownloadHistoryArchiveFileIsNotInventoryMedia);
         Test("DOWNLOAD_HISTORY.PathAgnosticHistorySurvivesMediaMoves", DownloadHistoryPathAgnosticHistorySurvivesMediaMoves);
         Test("DOWNLOAD_HISTORY.MultipleInventoryRootsShareOneArchive", DownloadHistoryMultipleInventoryRootsShareOneArchive);
         Test("DOWNLOAD_HISTORY.NormalProtectionIgnoresOfflineInventoryRoots", DownloadHistoryNormalProtectionIgnoresOfflineInventoryRoots);

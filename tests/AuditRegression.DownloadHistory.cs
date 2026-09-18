@@ -1463,6 +1463,25 @@ internal static partial class AuditRegression {
             "CommitSettings still writes Enabled directly instead of using fail-closed persistence ordering");
     }
 
+
+    private static void DownloadHistorySettingsProviderRollbackCannotStrandProtection() {
+        string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
+        string settingsSource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmSettings.cs"));
+
+        int methodStart = settingsSource.IndexOf("private void AddDownloadHistorySettingsButton()", StringComparison.Ordinal);
+        int methodEnd = settingsSource.IndexOf("\n    private void frmSettings_Load", methodStart, StringComparison.Ordinal);
+        Require(methodStart >= 0 && methodEnd > methodStart, "Could not inspect the Download History Settings button integration");
+        string buttonSource = settingsSource.Substring(methodStart, methodEnd - methodStart);
+
+        int transientProviderGuard = buttonSource.IndexOf("Downloads.YtdlType != YtdlType_Last", StringComparison.Ordinal);
+        int childDialog = buttonSource.IndexOf("using frmDownloadHistory history = new()", StringComparison.Ordinal);
+        Require(transientProviderGuard >= 0 && childDialog > transientProviderGuard,
+            "Download History can still open against a transient provider selection that parent Settings Cancel may roll back");
+        Require(buttonSource.IndexOf("save or cancel", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                buttonSource.IndexOf("save or revert", StringComparison.OrdinalIgnoreCase) >= 0,
+            "Transient provider rollback guard does not give an actionable save/revert instruction");
+    }
+
     private static void DownloadHistoryWorkersUsePreparedContext() {
         string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
         string standard = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmDownloader.cs"));
@@ -1639,6 +1658,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.PreparedCommitDoesNotRescanInventory", DownloadHistoryPreparedCommitDoesNotRescanInventory);
         Test("DOWNLOAD_HISTORY.LargeLibraryManagementAvoidsRepeatedScans", DownloadHistoryLargeLibraryManagementAvoidsRepeatedScans);
         Test("DOWNLOAD_HISTORY.SettingsPersistenceFailsClosed", DownloadHistorySettingsPersistenceFailsClosed);
+        Test("DOWNLOAD_HISTORY.SettingsProviderRollbackCannotStrandProtection", DownloadHistorySettingsProviderRollbackCannotStrandProtection);
         Test("DOWNLOAD_HISTORY.WorkersUsePreparedContext", DownloadHistoryWorkersUsePreparedContext);
         Test("DOWNLOAD_HISTORY.WiresStandardAndExtendedArguments", DownloadHistoryWiresStandardAndExtendedArguments);
     }

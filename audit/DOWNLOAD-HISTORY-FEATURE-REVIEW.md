@@ -55,18 +55,25 @@ This is the canonical running list of issues relevant to this feature implementa
 
 | ID | Severity | State | Summary |
 | --- | --- | --- | --- |
-| DH-A001 | High | Verified | Recovered `.info.json` identity is not guaranteed to be exactly one valid archive record; control characters/newlines can corrupt or inject archive entries. |
-| DH-A002 | High | Verified | Existing-library migration can rename/move files, violating the required strictly non-destructive inventory model. |
-| DH-A003 | High | Verified | Explicit `Rebuild Archive` does not force a full physical-library rescan when the current archive is valid, so existing recoverable media absent from that archive can remain undiscovered. |
-| DH-A004 | High | Verified | Download History is hard-bound to `Downloads.downloadPath` as its only library root and treats the media path as part of archive validity instead of supporting path-agnostic identity plus separate scan roots. |
-| DH-A005 | Medium | Verified | Large-library management performs synchronous/repeated full scans and first materializes the complete media-file list, causing avoidable memory use and UI stalls for the intended large-library workflow. |
+| DH-A001 | High | Fixed / regression-verified | Recovered `.info.json` identity is validated as exactly one native archive record before publication. |
+| DH-A002 | High | Fixed / regression-verified | Existing-library inventory is non-destructive; rename/move migration paths were removed. |
+| DH-A003 | High | Fixed / regression-verified | Explicit `Rebuild Archive` now forces authoritative physical inventory while preserving prior archive identities. |
+| DH-A004 | High | Fixed / regression-verified, follow-up in DH-A006 | History is decoupled from media paths and supports additional scan-only roots; normal execution still has one residual inventory dependency tracked as DH-A006. |
+| DH-A005 | Medium | Verified | Large-library management performs synchronous/repeated scans, materializes the media-file list, and filename-only recovery can degrade toward archive-entry × media-file matching. |
+| DH-A006 | High | Verified | Normal protected execution still performs inventory validation after restart/cache loss and can be blocked by an unavailable scan-only root even when the native archive and backup are valid. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / no bypass found | Protected commands inject `--ignore-config`, reject custom config locations/aliases and conflicting archive/output hooks, and append the app-owned archive option after user custom arguments. The later app option therefore remains authoritative; the later app-owned authentication config contains authentication options only. |
 | DH-L004 | — | Closed / no UI transaction defect found | Save/enable uses `CommitSettings` with rollback of settings writes; Rebuild and Reset are explicit archive-management actions whose app-owned ledger effects intentionally do not depend on pressing Save afterward. No media-tree mutation is acceptable after DH-A002 is fixed. |
 | DH-L006 | — | Closed / intended fail-safe behavior | Media without authoritative `.info.json` identity or an unambiguous filename match to a known native archive identity is reported unresolved; the implementation deliberately does not infer YouTube merely from an 11-character ID shape. |
 | DH-L007 | — | Closed / classifier verified | Completed-media enumeration is allowlisted to media extensions. Known sidecars including `.info.json`, generic `.json`/`.live_chat.json`, descriptions, common thumbnails, subtitles, `.part`, `.ytdl`, and text files are not counted as media. Regression coverage will be expanded with the supplied real-world family shape. |
 
-Fix status and validating commit/test evidence will be added to the verified rows during implementation.
+Repair evidence recorded so far:
+- DH-A001: `8de689b98653f02975ae8559da85018e8b45a739` (`fix: validate recovered download archive identities`), closed by guarded batch `ba28f8a634510615b2c421d6c02d2b73c84fca6a`.
+- DH-A002: `d7225e8771e4628f0245aafe4a10a3c01fb9bcbd` (`fix: inventory existing media without renaming files`), closed by guarded batch `270fd58e2d54da82ed20efb70fdde1922b9ff7b5`.
+- DH-A003: `007044f2e372c0bb8d29c2dbf2011263d4455d7b` (`fix: make explicit archive rebuild inventory authoritative media`), closed by guarded batch `7250344c32e0c0e6573103dad009c46e5591a163`.
+- DH-A004: `b2f1201825acc11f31e3c4e2b343e33553562a59` and `d84afa98890a346e578abe6409d4de641dc94ae8`, closed by guarded batches `af044a477ef1395465f859fef0502d4a027ed240` and `1e30865ecba0c698401b4ec7239d5fe973999bf2`.
+
+DH-A005 and DH-A006 remain open until their guarded repair batches and final re-audit pass.
 
 ## Review scope / status
 
@@ -187,3 +194,24 @@ The source-review pass is complete. Implementation remains in progress until eve
 3. Run long management scans off the WinForms UI thread and prevent unsafe re-entry/closing while the operation is active.
 4. Preserve existing archive locking and fail-safe error handling while moving work off the UI thread.
 5. Keep regression/build coverage and add source-level coverage that guards against reintroducing `ToList()` materialization/redundant synchronous management flow.
+6. Avoid per-media scans across the complete archive when filename-only recovery is needed; build a reusable identity lookup/matcher once per inventory operation and preserve the existing ambiguity checks and schema/sanitization semantics.
+
+
+### DH-A006 — Normal protected execution still depends on physical inventory roots
+
+**Priority / state:** High path-agnostic correctness risk / VERIFIED after DH-A004 guarded repairs.
+
+**Affected code:** `EnsureReady`, `ValidateAndReconcile`, `TryResolveInventoryRoots`, and `AnalyzeCore`.
+
+**Finding:** The DH-A004 repairs correctly made the archive identity and prepared execution context path-agnostic, but `TryGetArchiveArguments` still calls `EnsureReady`, which calls `ValidateAndReconcile(false)`. Whenever the in-memory `PreparedKey` cache is empty (notably after application restart), that path resolves every configured inventory root and enters `AnalyzeCore`. `AnalyzeCore` then requires every scan root to exist and enumerates the media tree even when the primary native archive and last-good backup are already valid. A temporarily offline scan-only library therefore blocks protected downloads, and the first protected download after restart can trigger a full library walk.
+
+**Impact:** A media path that is explicitly supposed to be only an inventory input remains a runtime dependency. This violates the acceptance model that recorded provider+ID history survives moves, reorganizations, root outages, and application restarts. It also amplifies DH-A005 on large libraries.
+
+**Required acceptance:**
+
+1. Normal protected command generation validates/reconciles the application-owned native archive and backup only; it must not enumerate media or require configured scan-only roots to be online.
+2. A valid primary archive remains authoritative after restart/cache loss. A valid last-good backup may restore/repair the primary without physical inventory; if neither ledger is usable, normal download preparation fails closed and directs the user to an explicit Rebuild/Inventory action.
+3. `NeedsReconciliation` continues to fail closed until the user performs an explicit management reconciliation; normal downloading must not silently perform a physical-library rebuild.
+4. Explicit Validate/Reconcile/Rebuild operations may require configured inventory roots, and Rebuild remains the full authoritative inventory operation.
+5. Add regression coverage that takes a previously inventoried scan-only root offline, clears the in-memory prepared cache to simulate restart, and proves protected argument generation still succeeds from the valid archive/backup without recreating or scanning that root.
+6. Re-run the complete Windows Debug/Release/regression gates and re-audit the resulting normal-execution path.

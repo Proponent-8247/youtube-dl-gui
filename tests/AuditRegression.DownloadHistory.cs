@@ -199,6 +199,30 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsClusteredShortOutputOverrides() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string custom in new[] {
+                "-qooutside-%(id)s.%(ext)s",
+                "-qPelsewhere",
+                "-sqooutside-%(id)s.%(ext)s",
+                "-svPelsewhere"
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(error.IndexOf("output", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("path", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Clustered short output/path override was not rejected clearly: " + custom);
+            }
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", "-fbestvideo", out arguments, out error, out execution));
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", "-qfbestvideo", out arguments, out error, out execution));
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", "-uuserwitho", out arguments, out error, out execution));
+        }
+    }
+
     private static void DownloadHistoryRejectsMetadataIdentityRewrites() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -1331,6 +1355,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.NeverEnabledIsNoOp", DownloadHistoryNeverEnabledIsNoOp);
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
         Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);
+        Test("DOWNLOAD_HISTORY.RejectsClusteredShortOutputOverrides", DownloadHistoryRejectsClusteredShortOutputOverrides);
         Test("DOWNLOAD_HISTORY.RejectsMetadataIdentityRewrites", DownloadHistoryRejectsMetadataIdentityRewrites);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryPostprocessorHooks", DownloadHistoryRejectsArbitraryPostprocessorHooks);
         Test("DOWNLOAD_HISTORY.RejectsIdOutputOverride", DownloadHistoryRejectsIdOutputOverride);

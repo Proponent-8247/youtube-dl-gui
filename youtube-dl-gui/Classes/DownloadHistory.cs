@@ -1541,6 +1541,7 @@ internal static class DownloadHistory {
         foreach (string candidate in new[] {
             sourceId,
             SanitizeSourceIdForFileName(sourceId),
+            SanitizeSourceIdRestrictedCurrent(sourceId),
             SanitizeSourceIdCompat(sourceId, false),
             SanitizeSourceIdCompat(sourceId, true)
         }) {
@@ -1548,9 +1549,52 @@ internal static class DownloadHistory {
         }
     }
 
+    private static string NormalizeSourceIdTimestamps(string sourceId) =>
+        Regex.Replace(sourceId, @"[0-9]+(?::[0-9]+)+", match => match.Value.Replace(':', '_'), RegexOptions.CultureInvariant);
+
+    private static string? RestrictedAccentReplacement(char value) => value switch {
+        'Â' or 'Ã' or 'Ä' or 'À' or 'Á' or 'Å' => "A",
+        'Æ' => "AE",
+        'Ç' => "C",
+        'È' or 'É' or 'Ê' or 'Ë' => "E",
+        'Ì' or 'Í' or 'Î' or 'Ï' => "I",
+        'Ð' => "D",
+        'Ñ' => "N",
+        'Ò' or 'Ó' or 'Ô' or 'Õ' or 'Ö' or 'Ő' or 'Ø' => "O",
+        'Œ' => "OE",
+        'Ù' or 'Ú' or 'Û' or 'Ü' or 'Ű' => "U",
+        'Ý' => "Y",
+        'Þ' => "TH",
+        'ß' => "ss",
+        'à' or 'á' or 'â' or 'ã' or 'ä' or 'å' => "a",
+        'æ' => "ae",
+        'ç' => "c",
+        'è' or 'é' or 'ê' or 'ë' => "e",
+        'ì' or 'í' or 'î' or 'ï' => "i",
+        'ð' => "o",
+        'ñ' => "n",
+        'ò' or 'ó' or 'ô' or 'õ' or 'ö' or 'ő' or 'ø' => "o",
+        'œ' => "oe",
+        'ù' or 'ú' or 'û' or 'ü' or 'ű' => "u",
+        'ý' => "y",
+        'þ' => "th",
+        'ÿ' => "y",
+        _ => null
+    };
+
+    private static bool IsRestrictedDiscardCategory(char value) => char.GetUnicodeCategory(value) is
+        System.Globalization.UnicodeCategory.Control or
+        System.Globalization.UnicodeCategory.Format or
+        System.Globalization.UnicodeCategory.Surrogate or
+        System.Globalization.UnicodeCategory.PrivateUse or
+        System.Globalization.UnicodeCategory.OtherNotAssigned or
+        System.Globalization.UnicodeCategory.NonSpacingMark or
+        System.Globalization.UnicodeCategory.SpacingCombiningMark or
+        System.Globalization.UnicodeCategory.EnclosingMark;
+
     private static string SanitizeSourceIdForFileName(string sourceId) {
         StringBuilder result = new();
-        foreach (char value in sourceId) {
+        foreach (char value in NormalizeSourceIdTimestamps(sourceId)) {
             if (value < 32 || value == 127) continue;
             result.Append(value switch {
                 '/' => '\u29F8',
@@ -1568,9 +1612,45 @@ internal static class DownloadHistory {
         return result.Length == 0 ? "_" : result.ToString();
     }
 
+    private static string SanitizeSourceIdRestrictedCurrent(string sourceId) {
+        StringBuilder result = new();
+        foreach (char value in NormalizeSourceIdTimestamps(sourceId.Normalize(NormalizationForm.FormKC))) {
+            if (RestrictedAccentReplacement(value) is string accent) {
+                result.Append(accent);
+                continue;
+            }
+            if (value < 32 || value == 127 || value == '?' || value == '"') continue;
+            if (value == ':') {
+                result.Append('\0').Append('_').Append('\0').Append('-');
+                continue;
+            }
+            if (value is '/' or '\\' or '|' or '*' or '<' or '>') {
+                result.Append('\0').Append('_');
+                continue;
+            }
+            if (char.IsWhiteSpace(value) || value > 127 || "!&'()[]{}$;`^,#".IndexOf(value) >= 0) {
+                if (!IsRestrictedDiscardCategory(value)) result.Append('\0').Append('_');
+                continue;
+            }
+            result.Append(value);
+        }
+
+        string sanitized = result.ToString();
+        sanitized = Regex.Replace(sanitized, @"(\x00.)(?:(?=\1)..)+", "$1", RegexOptions.CultureInvariant);
+        sanitized = Regex.Replace(sanitized,
+            @"^\x00.(?:\x00.|[ _-])*|(?:\x00.|[ _-])*\x00.$",
+            string.Empty, RegexOptions.CultureInvariant);
+        sanitized = sanitized.Replace("\0", string.Empty);
+        return sanitized.Length == 0 ? "_" : sanitized;
+    }
+
     private static string SanitizeSourceIdCompat(string sourceId, bool restricted) {
         StringBuilder result = new();
-        foreach (char value in sourceId) {
+        foreach (char value in NormalizeSourceIdTimestamps(sourceId)) {
+            if (restricted && RestrictedAccentReplacement(value) is string accent) {
+                result.Append(accent);
+                continue;
+            }
             if (value < 32 || value == 127 || value == '?') continue;
             if (value == '"') {
                 if (!restricted) result.Append('\'');

@@ -77,6 +77,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A020 | Medium | Fixed / regression-verified | First-use initialization now idempotently upgrades the lease to the cross-session file lock once the default archive directory exists, including the competing-session race. |
 | DH-A021 | High | Fixed / regression-verified | Metadata recovery now accepts only native `extractor_key`/`ie_key` identity; display-style `extractor` alone remains unresolved. |
 | DH-A022 | High | Fixed / regression-verified | A retained backup remains a lower-bound check, but it is no longer accepted as the sole automatic ledger when retention is off and the primary is missing/invalid. |
+| DH-A023 | High | Verified | yt-dlp defaults playlist concatenation to `multi_video`; protected runs can therefore delete multiple per-entry media files after archiving their IDs and leave one aggregate output that cannot reconstruct all native identities after ledger loss. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -148,7 +149,7 @@ Repair evidence recorded so far:
 - Baseline evidence showed all three new regressions failing; after A021 only `DOWNLOAD_HISTORY.RejectsDisplayExtractorAsNativeIdentity` passed; after A022 all three passed. The guarded batch completed the full build/regression gates.
 - Evidence artifact `10536099487` has SHA-256 `c70dda08c68e3ef859addba675086a8cfe5234096614ffc4b6a6978f59bf07dd`.
 
-No verified findings are currently open. The terminal current-head re-audit is in progress.
+DH-A023 remains open until its guarded repair batch and final re-audit pass.
 
 ## Review scope / status
 
@@ -615,3 +616,23 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 5. Keep current automatic backup restoration when retention is on.
 6. Add regressions with a valid backup, disable retention, append a newer ledger-only identity to the primary, then remove the primary: normal protected preparation and archive relocation must not silently fall back to the stale backup.
 7. Re-run the complete guarded Windows Debug/Release/regression gates.
+
+
+### DH-A023 — Default multi-video concatenation can destroy per-identity rebuild evidence
+
+**Priority / state:** High archive-rebuild correctness risk / VERIFIED against current app source and upstream yt-dlp defaults/postprocessor behavior.
+
+**Affected code:** protected argument generation in `TryGetArchiveArguments`.
+
+**Finding:** Current yt-dlp defines `--concat-playlist` with default policy `multi_video`. When the playlist/multi-video concat postprocessor runs, it concatenates the entry media files into one playlist-level output and returns the individual inputs for deletion. The individual entries have already been processed for native archive recording, so one aggregate physical file can represent multiple archive IDs. Download History currently does not override this default.
+
+**Impact:** A completely normal protected run of a multi-video extractor can produce a valid native archive containing several provider+ID records while deliberately removing the corresponding per-entry media files. If the primary/backup ledger is later lost and the user invokes explicit Rebuild, the physical library no longer contains one authoritative media family per archived identity; the single aggregate output cannot reconstruct all of those native records. This defeats the feature's physical-library recovery model without any unsafe custom argument from the user.
+
+**Required acceptance:**
+
+1. Protected Download History arguments must explicitly append `--concat-playlist never` so the app retains per-entry media evidence for native identities.
+2. Reject a user-supplied `--concat-playlist` while protection is enabled rather than silently overriding an explicit conflicting request; users who require concatenation must disable Download History.
+3. Preserve all existing playlist traversal behavior and the `--no-break-on-existing` protection.
+4. Keep Download History disabled behavior unchanged; concat remains available when protection is off.
+5. Add regression coverage proving the protected prefix includes `--concat-playlist never` and that custom concat policies are rejected clearly.
+6. Re-run the complete guarded Windows Debug/Release/regression gates, then continue the terminal current-head audit.

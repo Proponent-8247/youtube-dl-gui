@@ -75,6 +75,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A018 | High | Fixed / regression-verified | Protected filename schemas now reject quotes/control characters before raw output-template interpolation can escape the app-owned argument boundary. |
 | DH-A019 | High | Fixed / regression-verified | Execution leases now enforce monotonicity against any existing valid backup even when retention is currently off, while missing/invalid backups remain optional when retention is off. |
 | DH-A020 | Medium | Fixed / regression-verified | First-use initialization now idempotently upgrades the lease to the cross-session file lock once the default archive directory exists, including the competing-session race. |
+| DH-A021 | High | Verified | Metadata recovery falls back to the display-style `extractor` field even though yt-dlp native archive identity is keyed from `extractor_key`/`ie_key`; real extractors such as `youtube:clip` vs `YoutubeClip` diverge. |
+| DH-A022 | High | Verified | After backup retention is disabled, a retained valid but stale `.bak` can be used as the sole automatic ledger when the primary is missing/invalid, silently discarding newer identities that were never backed up. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -140,7 +142,7 @@ Repair evidence recorded so far:
 - Evidence artifact `10534475320` has SHA-256 `de061aba1d1d7189b3b3a751c64b61fb68b837215e8b0ed5360e56af1243eeb8`.
 - The first A020 guarded request failed because the new regression used a C# form unsupported by the harness compiler; that request was explicitly discarded and retried after correcting only the test syntax, preserving the source repair concept unchanged.
 
-No verified findings are currently open. The terminal current-head re-audit is in progress.
+DH-A021 and DH-A022 remain open until their guarded repair batches and final re-audit pass. The terminal current-head re-audit continues in parallel.
 
 ## Review scope / status
 
@@ -567,3 +569,43 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 5. Keep existing same-session mutex behavior, cancellation semantics, persistent lock-file handling, and fail-fast management semantics.
 6. Add a runtime regression that acquires the history lease while the default directory is absent, creates the directory to simulate the competing session, runs initialization, and verifies a second exclusive open of the lock file is blocked until the lease is disposed.
 7. Re-run the complete guarded Windows gates and then perform the terminal feature-delta re-audit.
+
+
+### DH-A021 — Display-style metadata extractor is not a native archive key
+
+**Priority / state:** High duplicate-prevention correctness risk / VERIFIED against current app source and upstream yt-dlp identity construction.
+
+**Affected code:** `TryRecoverFromInfoJson`.
+
+**Finding:** Recovery currently chooses the first non-empty value from `extractor_key`, `ie_key`, and finally `extractor`. yt-dlp writes `extractor` from an extractor's human/namespace-style `IE_NAME` and writes `extractor_key` from `ie.ie_key()`. Native archive IDs are constructed from `extractor_key`/ `ie_key`, not from `extractor`. These values are not interchangeable: for example, yt-dlp's `YoutubeClipIE` has `IE_NAME = "youtube:clip"` while its native extractor key is `YoutubeClip`, producing archive prefix `youtubeclip`.
+
+**Impact:** A legacy, stripped, or partially damaged `.info.json` that retains only `extractor` can be accepted as authoritative and seed a syntactically valid but semantically wrong archive entry such as `youtube:clip <id>`. A later native yt-dlp run uses `youtubeclip <id>`, does not recognize the recovered record, and can download the same media again.
+
+**Required acceptance:**
+
+1. Metadata recovery may use `extractor_key` or `ie_key` as native extractor identity.
+2. Do not synthesize native archive identity from the display-style `extractor` field when no native key is present.
+3. Metadata containing only `id` plus `extractor` must remain unresolved/unsafe rather than being guessed.
+4. Preserve existing top-level-field precedence, control-character validation, and non-destructive behavior.
+5. Add a regression using a real divergent-style pair such as `extractor: "youtube:clip"` with no native key, and a control proving `ie_key: "YoutubeClip"` recovers `youtubeclip <id>`.
+6. Re-run the complete guarded Windows Debug/Release/regression gates.
+
+### DH-A022 — Stale retained backup cannot be the sole automatic ledger after retention is disabled
+
+**Priority / state:** High duplicate-prevention integrity risk / VERIFIED in final ledger-state audit.
+
+**Affected code:** `ValidateArchiveForProtectedExecution` and `TryReadLedgerForArchiveTransition` / archive relocation.
+
+**Finding:** Turning off backup retention intentionally stops refreshing `<archive>.bak`, but the existing valid backup file is preserved and still used as a lower-bound anti-truncation source. If the primary later becomes missing or invalid, normal preparation currently treats that retained backup as sufficient to recreate the primary even though it can be stale by design. The same problem exists during archive relocation: a missing/invalid previous primary plus a retained stale backup is accepted as the complete previous ledger.
+
+**Impact:** Identities appended after backup retention was disabled can disappear silently. Normal protected downloading or an archive-path transition can then continue with a healthy result based on an older subset, allowing those media to be downloaded again.
+
+**Required acceptance:**
+
+1. An existing valid backup may remain a monotonic lower-bound check when the primary is valid, regardless of current retention policy (preserve DH-A019).
+2. If the primary is missing or invalid and backup retention is currently off, normal protected preparation must fail closed even if a valid retained backup exists; direct the user to explicit Rebuild/Inventory.
+3. Do not rewrite/recreate the primary from that potentially stale backup during normal preparation.
+4. During archive relocation, if the previously bound primary is unavailable/invalid and the **previous** backup-retention policy was off, refuse the transition rather than treating the retained backup as complete history. Reset History remains the explicit history-discard path.
+5. Keep current automatic backup restoration when retention is on.
+6. Add regressions with a valid backup, disable retention, append a newer ledger-only identity to the primary, then remove the primary: normal protected preparation and archive relocation must not silently fall back to the stale backup.
+7. Re-run the complete guarded Windows Debug/Release/regression gates.

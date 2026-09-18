@@ -521,6 +521,11 @@ internal static class DownloadHistory {
                 return false;
             }
 
+            if (fileNameSchema.IndexOf('"') >= 0 || fileNameSchema.Any(char.IsControl)) {
+                LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "The filename format contains characters that can escape the protected output argument." };
+                error = "Download History cannot protect a filename schema containing quotes or control characters because they can escape the yt-dlp output argument boundary. Remove those characters or disable Download History.";
+                return false;
+            }
             if (!HasRequiredIdTemplate(fileNameSchema)) {
                 LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "The filename format does not contain %(id)s in the output filename." };
                 error = "Download History requires %(id)s in the output filename so the library can be validated or reconstructed.";

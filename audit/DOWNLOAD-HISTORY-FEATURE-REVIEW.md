@@ -69,7 +69,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A012 | High | Fixed / regression-verified | Invalid custom archive primaries without a valid backup are never overwritten automatically, even when the path was previously bound; reserved default-archive recovery remains intact. |
 | DH-A013 | High | Fixed / regression-verified | Companion handling preserves pre-existing lock/temp files, uses unique create-new temp files, and refuses invalid backup collisions before primary mutation. |
 | DH-A014 | High | Fixed / regression-verified | Archive relocation preserves the union of the previous ledger/backup and prepared candidate while holding both leases; the dialog now distinguishes the bound implicit archive from a new active root's default path. |
-| DH-A015 | High | Verified | Protected custom arguments still allow extractor/source identity overrides: `--load-info-json` ignores the app URL and trusts file-supplied identity, while `--use-extractors`/`--ies` and `--force-generic-extractor` can change the native archive extractor key. |
+| DH-A015 | High | Fixed / regression-verified | Protected custom arguments now reject source replacement and extractor-selection overrides while leaving ordinary multi-source input mechanisms available. |
+| DH-A016 | Medium | Verified | A transient provider change in the parent Settings dialog can be used to enable Download History, then parent Cancel restores the previous incompatible youtube-dl provider while leaving history enabled. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -113,7 +114,11 @@ Repair evidence recorded so far:
 - The guard showed all three A014 regressions failing at baseline and passing after repair: ledger-only identities survive relocation, an unreadable prior ledger blocks rebinding, and the new active root's default archive can be selected explicitly.
 - Evidence artifact `10532908230` has SHA-256 `e2445a0acac55a00c483c661244e63c08f0ca0649aa98f7a08d348a270d42261`.
 
-DH-A015 remains open until its guarded repair batch and final re-audit pass.
+- DH-A015: `8287110ed75f0bcaebee556fbfd9527bcbcae858` (`fix: reject protected source and extractor identity overrides`), closed by guarded workflow run `35310737158`, cleanup commit `4dd786cbd35f4c610a7b01f66cd4f099703f8e65`.
+- The A015 regression failed at baseline and passed after repair, covering `--load-info-json`, `--use-extractors`/`--ies`, and `--force-generic-extractor`, including accepted long-option abbreviations and disabled-history availability.
+- Evidence artifact `10533347524` has SHA-256 `2655c922e9af70d54cdfc6586753b0278742310261c350a1892b6c6d4de392f7`.
+
+DH-A016 remains open until its guarded repair batch and final re-audit pass.
 
 ## Review scope / status
 
@@ -442,3 +447,23 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 6. Existing app-owned authentication config, ambient-config/plugin isolation, metadata-rewrite protections, and standard/extended argument ordering must remain intact.
 7. Add regressions for each override and prove the same arguments remain available when Download History is disabled.
 8. Re-run the complete guarded Windows Debug/Release/regression gates and continue the final custom-argument audit.
+
+
+### DH-A016 — Parent Settings rollback can leave history enabled with an incompatible provider
+
+**Priority / state:** Medium fail-closed state-consistency risk / VERIFIED in final integration audit.
+
+**Affected code:** `frmSettings.AddDownloadHistorySettingsButton`, immediate provider selection handling, and `RestoreImmediateSettings`.
+
+**Finding:** Provider selection in the main Settings form is applied immediately to `Downloads.YtdlType` and remembered in `YtdlType_Last` so Cancel can restore the provider that was active when Settings opened. The Download History button currently warns only about unsaved download-folder and filename-schema edits. If history starts disabled under an incompatible youtube-dl provider, the user can change the provider dropdown to yt-dlp, open Download History, and successfully enable protection because the transient in-memory provider is compatible. If the user then cancels the parent Settings form, `RestoreImmediateSettings` restores `YtdlType_Last` (youtube-dl) while the independently committed Download History settings remain enabled.
+
+**Impact:** The state fails closed at download preparation, but the application can persist/return to an impossible combination: Download History enabled with a provider it explicitly does not support. The next download errors until the provider or history setting is corrected.
+
+**Required acceptance:**
+
+1. Do not allow the Download History child dialog to commit against a provider selection that the parent Settings dialog may later roll back.
+2. If `Downloads.YtdlType` differs from `YtdlType_Last`, require the user to save or cancel/revert the parent Settings provider change before opening Download History.
+3. Do not silently make parent Cancel persist an otherwise-unsaved provider change merely because Download History was opened.
+4. Preserve the existing guard that prevents switching away from yt-dlp/yt-dlp-nightly while history is already enabled.
+5. Keep the existing unsaved download-folder/schema warning behavior.
+6. Add regression coverage tying the Download History button to the parent provider rollback state, then rerun the complete guarded Windows gates.

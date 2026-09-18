@@ -1024,6 +1024,36 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryBoundCustomArchiveCorruptionRequiresExplicitReset() {
+        const string id = "9qFjkwAElDs";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string ledgerDirectory = Path.Combine(fixture.Root, "ledger");
+            Directory.CreateDirectory(ledgerDirectory);
+            string custom = Path.Combine(ledgerDirectory, "bound-history.txt");
+            string media = DownloadHistoryWriteMediaWithInfo(fixture.Root, "Bound-" + id + ".mp4", "Youtube", id);
+
+            object prepared = Call(fixture.History, null, "RebuildLibrary", custom, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(prepared));
+            Call(fixture.History, null, "CommitSettings", true, custom, true, prepared, string.Empty);
+            Require(File.Exists(custom), "Bound custom archive was not created");
+            Require(File.Exists(custom + ".bak"), "Bound custom archive backup was not created");
+
+            File.Delete(custom + ".bak");
+            byte[] corrupt = Encoding.UTF8.GetBytes("THIS IS NOT A NATIVE ARCHIVE\r\n");
+            File.WriteAllBytes(custom, corrupt);
+            byte[] mediaBefore = File.ReadAllBytes(media);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", custom, true, false, string.Empty);
+
+            Require(corrupt.SequenceEqual(File.ReadAllBytes(custom)),
+                "Rebuild overwrote a corrupt bound custom archive without a valid backup");
+            Require(mediaBefore.SequenceEqual(File.ReadAllBytes(media)),
+                "Refused custom-archive recovery modified existing media");
+            Equal(false, DownloadHistoryCanReconcile(rebuilt));
+            Equal("Invalid", DownloadHistoryStateName(rebuilt));
+        }
+    }
+
     private static void DownloadHistoryArchiveFileIsNotInventoryMedia() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string archive = Path.Combine(fixture.Root, "application-history.mp4");
@@ -1398,6 +1428,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.LibraryBindingPreventsCrossLibraryReuse", DownloadHistoryLibraryBindingPreventsCrossLibraryReuse);
         Test("DOWNLOAD_HISTORY.ActiveRootChangeTriggersInventoryRecovery", DownloadHistoryActiveRootChangeTriggersInventoryRecovery);
         Test("DOWNLOAD_HISTORY.RefusesUnrecognizedArchiveOverwrite", DownloadHistoryRefusesUnrecognizedArchiveOverwrite);
+        Test("DOWNLOAD_HISTORY.BoundCustomArchiveCorruptionRequiresExplicitReset", DownloadHistoryBoundCustomArchiveCorruptionRequiresExplicitReset);
         Test("DOWNLOAD_HISTORY.ArchiveFileIsNotInventoryMedia", DownloadHistoryArchiveFileIsNotInventoryMedia);
         Test("DOWNLOAD_HISTORY.PathAgnosticHistorySurvivesMediaMoves", DownloadHistoryPathAgnosticHistorySurvivesMediaMoves);
         Test("DOWNLOAD_HISTORY.MultipleInventoryRootsShareOneArchive", DownloadHistoryMultipleInventoryRootsShareOneArchive);

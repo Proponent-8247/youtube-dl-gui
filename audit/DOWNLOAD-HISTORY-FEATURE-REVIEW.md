@@ -72,8 +72,9 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A015 | High | Fixed / regression-verified | Protected custom arguments now reject source replacement and extractor-selection overrides while leaving ordinary multi-source input mechanisms available. |
 | DH-A016 | Medium | Fixed / regression-verified | The Download History child dialog is blocked while the parent Settings provider selection is transient, preventing Cancel from restoring an incompatible provider after protection is enabled. |
 | DH-A017 | Medium | Fixed / regression-verified | Reset History now resolves an implicit/bound archive through the saved `EffectiveArchivePath`, preserving genuine unsaved-path protection. |
-| DH-A018 | High | Verified | Protected filename schemas are interpolated raw inside quoted `-o` arguments; a quote/control-bearing schema can break the argument boundary and place a standalone `--` before the app-owned archive options. |
-| DH-A019 | High | Verified | Execution-lease truncation checks consult the last-good backup only when backup retention is currently enabled, even though preparation treats any valid existing backup as authoritative. |
+| DH-A018 | High | Fixed / regression-verified | Protected filename schemas now reject quotes/control characters before raw output-template interpolation can escape the app-owned argument boundary. |
+| DH-A019 | High | Fixed / regression-verified | Execution leases now enforce monotonicity against any existing valid backup even when retention is currently off, while missing/invalid backups remain optional when retention is off. |
+| DH-A020 | Medium | Verified | A first-use race can acquire the session-local history mutex before the default archive directory exists, then observe that directory created by another session and return from initialization without upgrading to the cross-session file lock. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -129,7 +130,12 @@ Repair evidence recorded so far:
 - The A017 regression failed at baseline and passed after repair while the full guarded Debug/Release/regression gates completed successfully.
 - Evidence artifact `10534075054` has SHA-256 `4fb9596673fb30a4ebeb637f6486af642e3bc4c478755bd82d3cd646be958821`.
 
-DH-A018 and DH-A019 remain open until their guarded repair batches and final re-audit pass.
+- DH-A018: `61403c3862bc0ae25fbfa62c595cedb7a6ca5111` (`fix: reject unsafe protected filename schemas`).
+- DH-A019: `9054bc74ecf1c6984336f86f84e66976a3eaef26` (`fix: honor existing valid backup at execution`).
+- Both were closed by guarded workflow run `35311817535`, cleanup commit `ee0a5b0704b3f56224f1e840295011e40d66e021`. At baseline both new regressions failed; after A018 only the schema regression passed; after A019 both passed, alongside the complete Debug/Release/full-regression gates.
+- Evidence artifact `10533770977` has SHA-256 `38dc032cbfed6bd1e6c821cd26736569f2f2ba89426f34f078654c87a3b11337`.
+
+DH-A020 remains open until its guarded repair batch and final re-audit pass.
 
 ## Review scope / status
 
@@ -535,3 +541,24 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 3. When retention is off, a missing or invalid backup is not newly required; only an existing **valid** backup contributes the monotonicity check.
 4. Regenerating the command after such a rejection must allow normal preparation to union the valid backup into the primary, preserving current behavior.
 5. Add regression coverage for a retained valid backup plus `KeepBackup=false`, then rerun the complete guarded Windows gates.
+
+
+### DH-A020 — First-use directory race can skip the cross-session archive file lock
+
+**Priority / state:** Medium concurrency/integrity risk / VERIFIED in final locking re-audit.
+
+**Affected code:** `DownloadHistoryLease`, `TryAcquireArchiveLease`, and `TryInitializeNewDefaultLibrary`.
+
+**Finding:** The archive-specific named mutex deliberately uses the `Local\` namespace, and the application's single-instance mutex is likewise session-scoped. Cross-session serialization therefore depends on the exclusive `<archive>.lock` file. When the default library/archive parent does not yet exist, `TryAcquireArchiveLease` can only acquire the named mutex and skips the file lock. `TryInitializeNewDefaultLibrary` normally creates the directory and immediately acquires the file lock. However, if another session creates the directory after the lease was acquired but before this method runs, its leading `if (Directory.Exists(libraryRoot)) return true;` exits without acquiring the now-available file lock. Two sessions can then proceed with only independent session-local mutexes.
+
+**Impact:** Simultaneous first enable/reconcile from separate Windows sessions can bypass the intended cross-process archive serialization and race archive/backup creation or replacement.
+
+**Required acceptance:**
+
+1. A lease must be able to idempotently ensure that its cross-session file lock is held once the archive parent exists.
+2. `TryInitializeNewDefaultLibrary` must ensure the default archive lock even when the directory is already present by the time initialization runs.
+3. Re-acquiring/ensuring the lock on a lease that already obtained it must be a no-op rather than self-deadlocking.
+4. Do not create custom archive parent directories as a side effect; the fix is limited to the default-library first-use path.
+5. Keep existing same-session mutex behavior, cancellation semantics, persistent lock-file handling, and fail-fast management semantics.
+6. Add a runtime regression that acquires the history lease while the default directory is absent, creates the directory to simulate the competing session, runs initialization, and verifies a second exclusive open of the lock file is blocked until the lease is disposed.
+7. Re-run the complete guarded Windows gates and then perform the terminal feature-delta re-audit.

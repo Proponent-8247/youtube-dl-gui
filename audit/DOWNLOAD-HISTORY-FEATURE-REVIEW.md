@@ -75,8 +75,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A018 | High | Fixed / regression-verified | Protected filename schemas now reject quotes/control characters before raw output-template interpolation can escape the app-owned argument boundary. |
 | DH-A019 | High | Fixed / regression-verified | Execution leases now enforce monotonicity against any existing valid backup even when retention is currently off, while missing/invalid backups remain optional when retention is off. |
 | DH-A020 | Medium | Fixed / regression-verified | First-use initialization now idempotently upgrades the lease to the cross-session file lock once the default archive directory exists, including the competing-session race. |
-| DH-A021 | High | Verified | Metadata recovery falls back to the display-style `extractor` field even though yt-dlp native archive identity is keyed from `extractor_key`/`ie_key`; real extractors such as `youtube:clip` vs `YoutubeClip` diverge. |
-| DH-A022 | High | Verified | After backup retention is disabled, a retained valid but stale `.bak` can be used as the sole automatic ledger when the primary is missing/invalid, silently discarding newer identities that were never backed up. |
+| DH-A021 | High | Fixed / regression-verified | Metadata recovery now accepts only native `extractor_key`/`ie_key` identity; display-style `extractor` alone remains unresolved. |
+| DH-A022 | High | Fixed / regression-verified | A retained backup remains a lower-bound check, but it is no longer accepted as the sole automatic ledger when retention is off and the primary is missing/invalid. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -142,7 +142,13 @@ Repair evidence recorded so far:
 - Evidence artifact `10534475320` has SHA-256 `de061aba1d1d7189b3b3a751c64b61fb68b837215e8b0ed5360e56af1243eeb8`.
 - The first A020 guarded request failed because the new regression used a C# form unsupported by the harness compiler; that request was explicitly discarded and retried after correcting only the test syntax, preserving the source repair concept unchanged.
 
-DH-A021 and DH-A022 remain open until their guarded repair batches and final re-audit pass. The terminal current-head re-audit continues in parallel.
+- DH-A021: `907575f4d81a52e1ae9b0d27ab2015070b8d9676` (`fix: require native extractor keys for metadata recovery`).
+- DH-A022: `d249f100075271a162ccc71f6c05e009cbb15212` (`fix: reject stale backup as sole automatic ledger`).
+- Both were closed by guarded workflow run `35320123110`, cleanup commit `3ea6a64feb894c17c554440c8f80d328c48a4cba`.
+- Baseline evidence showed all three new regressions failing; after A021 only `DOWNLOAD_HISTORY.RejectsDisplayExtractorAsNativeIdentity` passed; after A022 all three passed. The guarded batch completed the full build/regression gates.
+- Evidence artifact `10536099487` has SHA-256 `c70dda08c68e3ef859addba675086a8cfe5234096614ffc4b6a6978f59bf07dd`.
+
+No verified findings are currently open. The terminal current-head re-audit is in progress.
 
 ## Review scope / status
 

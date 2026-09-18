@@ -1264,6 +1264,24 @@ internal static partial class AuditRegression {
         }
     }
 
+
+    private static void DownloadHistoryResetUsesEffectiveArchiveForImplicitBoundPath() {
+        string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
+        string dialogSource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmDownloadHistory.cs"));
+
+        int resetStart = dialogSource.IndexOf("private void ResetHistory(object? sender, EventArgs e)", StringComparison.Ordinal);
+        int saveStart = dialogSource.IndexOf("private async void SaveAndClose", resetStart, StringComparison.Ordinal);
+        Require(resetStart >= 0 && saveStart > resetStart, "Could not inspect Download History Reset flow");
+        string resetSource = dialogSource.Substring(resetStart, saveStart - resetStart);
+
+        Require(resetSource.Contains("? DownloadHistory.EffectiveArchivePath"),
+            "Reset History does not resolve an implicit/bound archive to the saved effective archive");
+        Require(resetSource.IndexOf("? DownloadHistory.DefaultArchivePath", StringComparison.Ordinal) < 0,
+            "Reset History still substitutes the current active root's default for an implicit bound archive");
+        Require(resetSource.Contains("Reset History operates only on the currently saved archive"),
+            "Reset History lost its protection against a genuinely unsaved archive-path edit");
+    }
+
     private static void DownloadHistoryPathAgnosticHistorySurvivesMediaMoves() {
         const string id = "aB_Cd-Ef123";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -1652,6 +1670,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ArchiveRelocationPreservesLedgerOnlyIdentities", DownloadHistoryArchiveRelocationPreservesLedgerOnlyIdentities);
         Test("DOWNLOAD_HISTORY.ArchiveRelocationRequiresReadablePreviousLedger", DownloadHistoryArchiveRelocationRequiresReadablePreviousLedger);
         Test("DOWNLOAD_HISTORY.DialogCanSelectNewDefaultArchiveAfterRootChange", DownloadHistoryDialogCanSelectNewDefaultArchiveAfterRootChange);
+        Test("DOWNLOAD_HISTORY.ResetUsesEffectiveArchiveForImplicitBoundPath", DownloadHistoryResetUsesEffectiveArchiveForImplicitBoundPath);
         Test("DOWNLOAD_HISTORY.PathAgnosticHistorySurvivesMediaMoves", DownloadHistoryPathAgnosticHistorySurvivesMediaMoves);
         Test("DOWNLOAD_HISTORY.MultipleInventoryRootsShareOneArchive", DownloadHistoryMultipleInventoryRootsShareOneArchive);
         Test("DOWNLOAD_HISTORY.NormalProtectionIgnoresOfflineInventoryRoots", DownloadHistoryNormalProtectionIgnoresOfflineInventoryRoots);

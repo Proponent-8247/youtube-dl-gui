@@ -70,7 +70,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A013 | High | Fixed / regression-verified | Companion handling preserves pre-existing lock/temp files, uses unique create-new temp files, and refuses invalid backup collisions before primary mutation. |
 | DH-A014 | High | Fixed / regression-verified | Archive relocation preserves the union of the previous ledger/backup and prepared candidate while holding both leases; the dialog now distinguishes the bound implicit archive from a new active root's default path. |
 | DH-A015 | High | Fixed / regression-verified | Protected custom arguments now reject source replacement and extractor-selection overrides while leaving ordinary multi-source input mechanisms available. |
-| DH-A016 | Medium | Verified | A transient provider change in the parent Settings dialog can be used to enable Download History, then parent Cancel restores the previous incompatible youtube-dl provider while leaving history enabled. |
+| DH-A016 | Medium | Fixed / regression-verified | The Download History child dialog is blocked while the parent Settings provider selection is transient, preventing Cancel from restoring an incompatible provider after protection is enabled. |
+| DH-A017 | Medium | Verified | Reset History resolves an implicit/bound archive through `DefaultArchivePath` instead of `EffectiveArchivePath`, so bound custom archives or old-default archives after a download-root change are falsely treated as unsaved path edits and cannot be reset from the UI. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -118,7 +119,11 @@ Repair evidence recorded so far:
 - The A015 regression failed at baseline and passed after repair, covering `--load-info-json`, `--use-extractors`/`--ies`, and `--force-generic-extractor`, including accepted long-option abbreviations and disabled-history availability.
 - Evidence artifact `10533347524` has SHA-256 `2655c922e9af70d54cdfc6586753b0278742310261c350a1892b6c6d4de392f7`.
 
-DH-A016 remains open until its guarded repair batch and final re-audit pass.
+- DH-A016: `d0e58d273291972f0d6366505f3ac82130daf7c7` (`fix: block history settings on transient provider selection`), closed by guarded workflow run `35311174268`, cleanup commit `b9a24a40a12647da264cb3c27d409c6dd7cef30c`.
+- The A016 regression failed at baseline and passed after repair. The first repair request `5f7ef5470fe9ea2a57f2a59fdb358b6eab07fc83` was rejected before applying source because its exact-edit anchors contained CRLF; it was explicitly discarded by `990aea4cb1841ab956de8dada1e8b71493c4c96c` and retried with LF-normalized anchors.
+- Evidence artifact `10533448008` has SHA-256 `48703e77a6aadf2460ffbd8723c7623cb15e50325f51b2518750cbfbae6e15b4`.
+
+DH-A017 remains open until its guarded repair batch and final re-audit pass.
 
 ## Review scope / status
 
@@ -467,3 +472,23 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 4. Preserve the existing guard that prevents switching away from yt-dlp/yt-dlp-nightly while history is already enabled.
 5. Keep the existing unsaved download-folder/schema warning behavior.
 6. Add regression coverage tying the Download History button to the parent provider rollback state, then rerun the complete guarded Windows gates.
+
+
+### DH-A017 — Reset History cannot target the saved implicit archive after rebinding/path changes
+
+**Priority / state:** Medium management-UI correctness risk / VERIFIED in final integration re-audit.
+
+**Affected code:** `frmDownloadHistory.ResetHistory` and `NormalizeConfiguredPath`.
+
+**Finding:** A014 intentionally changed `NormalizeConfiguredPath` so a literal path collapses to an empty configuration only when it equals the archive path that an empty configuration actually means—normally the existing `BoundArchivePath` after history has been initialized. `ResetHistory` then re-expands an empty normalized candidate incorrectly as `DownloadHistory.DefaultArchivePath`, which is based on the **current** active download root rather than the saved/bound archive. For a bound custom archive, or for an older default archive retained after `Downloads.downloadPath` changes, the visible saved archive therefore normalizes to empty and is immediately reconstructed as a different path. The dialog reports a false unsaved-path change and refuses Reset.
+
+**Impact:** The explicit recovery mechanism required by the fail-safe design can become inaccessible from the UI even though `DownloadHistory.ResetHistory()` itself can reset the correct saved ledger. This is especially problematic after the path-agnostic/root-change behavior added by A004/A014.
+
+**Required acceptance:**
+
+1. When the archive-path field normalizes to the implicit saved configuration, Reset must compare against `DownloadHistory.EffectiveArchivePath`, not `DefaultArchivePath`.
+2. Bound custom archives must be resettable without first converting them to a different explicit path representation.
+3. An archive originally created as the old root's default must remain resettable after the active download root changes.
+4. An actual unsaved archive-path edit must still block Reset.
+5. Keep the existing requirement that protection be disabled before Reset and retain A013 companion-file collision protections.
+6. Add regression coverage for the Reset candidate mapping and rerun the complete guarded Windows gates.

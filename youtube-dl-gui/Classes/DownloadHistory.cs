@@ -749,6 +749,20 @@ internal static class DownloadHistory {
         }
     }
 
+    private static void PersistSettingsFailClosed(bool enabled, string archivePath, bool keepBackup, bool failIfUnavailable,
+        bool everEnabled, bool needsReconciliation, string boundLibraryRoot, string boundArchivePath, string inventoryRoots) {
+        IniProvider.Write(false, ConfigName, nameof(Enabled));
+        IniProvider.Write(archivePath, ConfigName, nameof(ArchivePath));
+        IniProvider.Write(keepBackup, ConfigName, nameof(KeepBackup));
+        IniProvider.Write(failIfUnavailable, ConfigName, nameof(FailIfUnavailable));
+        IniProvider.Write(everEnabled, ConfigName, nameof(EverEnabled));
+        IniProvider.Write(needsReconciliation, ConfigName, nameof(NeedsReconciliation));
+        IniProvider.Write(boundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));
+        IniProvider.Write(boundArchivePath, ConfigName, nameof(BoundArchivePath));
+        IniProvider.Write(inventoryRoots, ConfigName, nameof(InventoryRoots));
+        IniProvider.Write(enabled, ConfigName, nameof(Enabled));
+    }
+
     public static void CommitSettings(bool enabled, string configuredArchivePath, bool keepBackup, DownloadHistoryReport? preparedReport) =>
         CommitSettings(enabled, configuredArchivePath, keepBackup, preparedReport, fInventoryRoots);
 
@@ -816,27 +830,13 @@ internal static class DownloadHistory {
                 : oldNeedsReconciliation || oldEnabled || oldEverEnabled || pathChanged;
 
             try {
-                IniProvider.Write(configuredArchivePath, ConfigName, nameof(ArchivePath));
-                IniProvider.Write(keepBackup, ConfigName, nameof(KeepBackup));
-                IniProvider.Write(true, ConfigName, nameof(FailIfUnavailable));
-                IniProvider.Write(enabled, ConfigName, nameof(Enabled));
-                IniProvider.Write(nextEverEnabled, ConfigName, nameof(EverEnabled));
-                IniProvider.Write(nextNeedsReconciliation, ConfigName, nameof(NeedsReconciliation));
-                IniProvider.Write(nextBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));
-                IniProvider.Write(nextBoundArchivePath, ConfigName, nameof(BoundArchivePath));
-                IniProvider.Write(normalizedInventoryRoots, ConfigName, nameof(InventoryRoots));
+                PersistSettingsFailClosed(enabled, configuredArchivePath, keepBackup, true,
+                    nextEverEnabled, nextNeedsReconciliation, nextBoundLibraryRoot, nextBoundArchivePath, normalizedInventoryRoots);
             }
             catch {
                 try {
-                    IniProvider.Write(oldArchivePath, ConfigName, nameof(ArchivePath));
-                    IniProvider.Write(oldKeepBackup, ConfigName, nameof(KeepBackup));
-                    IniProvider.Write(oldFailIfUnavailable, ConfigName, nameof(FailIfUnavailable));
-                    IniProvider.Write(oldEnabled, ConfigName, nameof(Enabled));
-                    IniProvider.Write(oldEverEnabled, ConfigName, nameof(EverEnabled));
-                    IniProvider.Write(oldNeedsReconciliation, ConfigName, nameof(NeedsReconciliation));
-                    IniProvider.Write(oldBoundLibraryRoot, ConfigName, nameof(BoundLibraryRoot));
-                    IniProvider.Write(oldBoundArchivePath, ConfigName, nameof(BoundArchivePath));
-                    IniProvider.Write(oldInventoryRoots, ConfigName, nameof(InventoryRoots));
+                    PersistSettingsFailClosed(oldEnabled, oldArchivePath, oldKeepBackup, oldFailIfUnavailable,
+                        oldEverEnabled, oldNeedsReconciliation, oldBoundLibraryRoot, oldBoundArchivePath, oldInventoryRoots);
                 }
                 catch { }
                 throw;

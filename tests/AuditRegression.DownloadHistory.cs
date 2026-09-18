@@ -928,6 +928,33 @@ internal static partial class AuditRegression {
         DownloadHistoryExecutionContextRejectsSettingChanges();
     }
 
+
+    private static void DownloadHistoryFirstUseRaceAcquiresFileLockAfterDirectoryAppears() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(false)) {
+            IDisposable lease = null;
+            try {
+                lease = (IDisposable)Call(fixture.History, null, "AcquireArchiveLease");
+                Require(!Directory.Exists(fixture.Root), "First-use race fixture unexpectedly created the library while acquiring the lease");
+
+                Directory.CreateDirectory(fixture.Root); // competing session creates the default archive parent
+                object[] initialize = { fixture.Root, fixture.Archive, lease, null };
+                Equal(true, Call(fixture.History, null, "TryInitializeNewDefaultLibrary", initialize));
+
+                bool blocked = false;
+                try {
+                    using FileStream competing = new(fixture.Archive + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                }
+                catch (IOException) { blocked = true; }
+                Require(blocked, "First-use initialization observed an existing directory but failed to upgrade the lease to the cross-session file lock");
+            }
+            finally {
+                lease?.Dispose();
+            }
+
+            using FileStream afterRelease = new(fixture.Archive + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        }
+    }
+
     private static void DownloadHistoryLeaseSerializesWorkers() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryReconcile(fixture, string.Empty, true);
@@ -1708,6 +1735,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ExecutionLeaseRejectsArchiveTruncation", DownloadHistoryExecutionLeaseRejectsArchiveTruncation);
         Test("DOWNLOAD_HISTORY.ExecutionLeaseUsesExistingBackupWhenRetentionOff", DownloadHistoryExecutionLeaseUsesExistingBackupWhenRetentionOff);
         Test("DOWNLOAD_HISTORY.LeaseSerializesWorkers", DownloadHistoryLeaseSerializesWorkers);
+        Test("DOWNLOAD_HISTORY.FirstUseRaceAcquiresFileLockAfterDirectoryAppears", DownloadHistoryFirstUseRaceAcquiresFileLockAfterDirectoryAppears);
         Test("DOWNLOAD_HISTORY.LeaseWaitHonorsCancellation", DownloadHistoryLeaseWaitHonorsCancellation);
         Test("DOWNLOAD_HISTORY.CancellationIsRecheckedBeforeProcessStart", DownloadHistoryCancellationIsRecheckedBeforeProcessStart);
         Test("DOWNLOAD_HISTORY.SettingsRejectIdRemovalWhileEnabled", DownloadHistorySettingsRejectIdRemovalWhileEnabled);

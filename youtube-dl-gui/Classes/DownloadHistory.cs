@@ -662,20 +662,19 @@ internal static class DownloadHistory {
             if (!TryReadArchive(archivePath, entries, out string error)) {
                 throw new InvalidOperationException("The prepared Download History archive is no longer valid: " + error);
             }
-            if (keepBackup) {
-                string backupPath = archivePath + ".bak";
-                HashSet<string> backupEntries = new(StringComparer.Ordinal);
-                if (!TryReadArchive(backupPath, backupEntries, out string backupError)) {
-                    lock (Sync) {
-                        PreparedKey = null;
-                        NeedsReconciliation = true;
-                    }
-                    throw new InvalidOperationException("The prepared Download History backup is no longer available or valid. Regenerate the download command after validating Download History." + (backupError.IsNullEmptyWhitespace() ? string.Empty : " " + backupError));
+            string backupPath = archivePath + ".bak";
+            HashSet<string> backupEntries = new(StringComparer.Ordinal);
+            bool backupValid = TryReadArchive(backupPath, backupEntries, out string backupError);
+            if (keepBackup && !backupValid) {
+                lock (Sync) {
+                    PreparedKey = null;
+                    NeedsReconciliation = true;
                 }
-                if (backupEntries.Any(entry => !entries.Contains(entry))) {
-                    lock (Sync) PreparedKey = null;
-                    throw new InvalidOperationException("The prepared Download History archive lost entries that remain in its last-good backup. Regenerate the download command so the ledger can be reconciled before downloading.");
-                }
+                throw new InvalidOperationException("The prepared Download History backup is no longer available or valid. Regenerate the download command after validating Download History." + (backupError.IsNullEmptyWhitespace() ? string.Empty : " " + backupError));
+            }
+            if (backupValid && backupEntries.Any(entry => !entries.Contains(entry))) {
+                lock (Sync) PreparedKey = null;
+                throw new InvalidOperationException("The prepared Download History archive lost entries that remain in its last-good backup. Regenerate the download command so the ledger can be reconciled before downloading.");
             }
             if (!CanWriteArchiveLocation(archivePath, out string writeError)) {
                 throw new InvalidOperationException("The prepared Download History archive is no longer writable: " + writeError);

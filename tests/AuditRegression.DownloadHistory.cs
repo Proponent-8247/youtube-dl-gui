@@ -781,7 +781,11 @@ internal static partial class AuditRegression {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryWriteMediaWithInfo(fixture.Root, "Recovered-" + id + ".mp4", "Youtube", id);
+            DownloadHistoryEnable(fixture, string.Empty);
+            Require(File.Exists(fixture.Archive + ".bak"), "Established default archive did not create its expected backup");
+            File.Delete(fixture.Archive + ".bak");
             File.WriteAllText(fixture.Archive, "youtube poisoned123\r\ninvalid-line-without-space\r\n", Encoding.UTF8);
+
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Invalid", DownloadHistoryStateName(analysis));
             Equal(true, DownloadHistoryCanReconcile(analysis));
@@ -789,7 +793,28 @@ internal static partial class AuditRegression {
             string[] lines = DownloadHistoryArchiveLines(fixture.Archive);
             Equal(1, lines.Length);
             Equal("youtube " + id, lines[0]);
-            Require(lines.All(x => x.IndexOf("poisoned123", StringComparison.Ordinal) < 0), "Parser trusted entries preceding a corrupt archive line");
+            Require(lines.All(x => x.IndexOf("poisoned123", StringComparison.Ordinal) < 0), "Parser trusted entries preceding a corrupt established archive line");
+        }
+    }
+
+    private static void DownloadHistoryRefusesUninitializedDefaultArchiveCollision() {
+        const string id = "aB_Cd-Ef123";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Existing-" + id + ".mp4", "Youtube", id);
+            byte[] collision = Encoding.UTF8.GetBytes("THIS DEFAULT-NAMED FILE WAS NOT CREATED BY DOWNLOAD HISTORY\r\n");
+            File.WriteAllBytes(fixture.Archive, collision);
+
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Invalid", DownloadHistoryStateName(analysis));
+            Equal(false, DownloadHistoryCanReconcile(analysis));
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Equal("Invalid", DownloadHistoryStateName(rebuilt));
+            Equal(false, DownloadHistoryCanReconcile(rebuilt));
+            Require(collision.SequenceEqual(File.ReadAllBytes(fixture.Archive)),
+                "First-use reconciliation overwrote an uninitialized default archive-path collision");
+            Require(!File.Exists(fixture.Archive + ".bak"),
+                "First-use default collision created a backup and thereby claimed ownership of an unrelated file");
         }
     }
 
@@ -1884,6 +1909,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.BackupRefreshRejectsCorruption", DownloadHistoryBackupRefreshRejectsCorruption);
         Test("DOWNLOAD_HISTORY.ValidArchiveTruncationPreservesBackup", DownloadHistoryValidArchiveTruncationPreservesBackup);
         Test("DOWNLOAD_HISTORY.CorruptArchiveDoesNotTrustPartialLines", DownloadHistoryCorruptArchiveDoesNotTrustPartialLines);
+        Test("DOWNLOAD_HISTORY.RefusesUninitializedDefaultArchiveCollision", DownloadHistoryRefusesUninitializedDefaultArchiveCollision);
         Test("DOWNLOAD_HISTORY.DisableReenableReconcilesChanges", DownloadHistoryDisableReenableReconcilesChanges);
         Test("DOWNLOAD_HISTORY.ValidArchiveDoesNotPromoteUnarchivedFile", DownloadHistoryValidArchiveDoesNotPromoteUnarchivedFile);
         Test("DOWNLOAD_HISTORY.ExplicitRebuildRecoversAuthoritativeMissingEntry", DownloadHistoryExplicitRebuildRecoversAuthoritativeMissingEntry);

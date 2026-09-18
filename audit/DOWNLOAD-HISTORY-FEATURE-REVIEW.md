@@ -71,7 +71,9 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A014 | High | Fixed / regression-verified | Archive relocation preserves the union of the previous ledger/backup and prepared candidate while holding both leases; the dialog now distinguishes the bound implicit archive from a new active root's default path. |
 | DH-A015 | High | Fixed / regression-verified | Protected custom arguments now reject source replacement and extractor-selection overrides while leaving ordinary multi-source input mechanisms available. |
 | DH-A016 | Medium | Fixed / regression-verified | The Download History child dialog is blocked while the parent Settings provider selection is transient, preventing Cancel from restoring an incompatible provider after protection is enabled. |
-| DH-A017 | Medium | Verified | Reset History resolves an implicit/bound archive through `DefaultArchivePath` instead of `EffectiveArchivePath`, so bound custom archives or old-default archives after a download-root change are falsely treated as unsaved path edits and cannot be reset from the UI. |
+| DH-A017 | Medium | Fixed / regression-verified | Reset History now resolves an implicit/bound archive through the saved `EffectiveArchivePath`, preserving genuine unsaved-path protection. |
+| DH-A018 | High | Verified | Protected filename schemas are interpolated raw inside quoted `-o` arguments; a quote/control-bearing schema can break the argument boundary and place a standalone `--` before the app-owned archive options. |
+| DH-A019 | High | Verified | Execution-lease truncation checks consult the last-good backup only when backup retention is currently enabled, even though preparation treats any valid existing backup as authoritative. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -123,7 +125,11 @@ Repair evidence recorded so far:
 - The A016 regression failed at baseline and passed after repair. The first repair request `5f7ef5470fe9ea2a57f2a59fdb358b6eab07fc83` was rejected before applying source because its exact-edit anchors contained CRLF; it was explicitly discarded by `990aea4cb1841ab956de8dada1e8b71493c4c96c` and retried with LF-normalized anchors.
 - Evidence artifact `10533448008` has SHA-256 `48703e77a6aadf2460ffbd8723c7623cb15e50325f51b2518750cbfbae6e15b4`.
 
-DH-A017 remains open until its guarded repair batch and final re-audit pass.
+- DH-A017: `0ed13f6dfb36ac720573a8012a7258a5f1506b3d` (`fix: reset the saved effective history archive`), closed by guarded workflow run `35311455701`, cleanup commit `0e0468b291790d726a0b8cb9b7fb1ad66fad9ad0`.
+- The A017 regression failed at baseline and passed after repair while the full guarded Debug/Release/regression gates completed successfully.
+- Evidence artifact `10534075054` has SHA-256 `4fb9596673fb30a4ebeb637f6486af642e3bc4c478755bd82d3cd646be958821`.
+
+DH-A018 and DH-A019 remain open until their guarded repair batches and final re-audit pass.
 
 ## Review scope / status
 
@@ -492,3 +498,40 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 4. An actual unsaved archive-path edit must still block Reset.
 5. Keep the existing requirement that protection be disabled before Reset and retain A013 companion-file collision protections.
 6. Add regression coverage for the Reset candidate mapping and rerun the complete guarded Windows gates.
+
+
+### DH-A018 — Protected filename schemas can escape the quoted output argument
+
+**Priority / state:** High protected-argument integrity risk / VERIFIED in final input-boundary audit.
+
+**Affected code:** `TryGetArchiveArguments`, standard `DownloadInfo.GenerateArguments`, extended `ExtendedMediaDetails.GenerateArguments`, and filename-schema history input.
+
+**Finding:** Both standard and extended downloaders construct the yt-dlp output argument by opening a literal quote, appending the configured filename schema verbatim, and then appending the closing quote. Protected mode validates that the filename portion contains `%(id)s`, but it does not reject a quote or control character in the schema. The main Settings textbox blocks `"` on ordinary keypresses, but the schema-history editor accepts arbitrary text except `|`, and persisted/history values are not a trustworthy argument boundary. A schema such as an ID-bearing template followed by a raw quote and standalone `--` can terminate the `-o` value before the app later appends `--ignore-config --no-plugin-dirs --download-archive ...`; yt-dlp then sees the later protected options after an option terminator.
+
+**Impact:** A non-`CustomArguments` setting can bypass the very custom-argument restrictions intended to make Download History fail closed, causing the app-owned native archive option to be treated as a positional operand instead of protection.
+
+**Required acceptance:**
+
+1. While Download History is enabled, reject filename schemas containing `"` or control characters before protected arguments are generated.
+2. Continue allowing existing supported schema syntax, including formatting expressions and directory separators, so this does not become a general schema refactor.
+3. The rejection must be actionable and identify the filename schema as unsafe for protected argument generation.
+4. The restriction is scoped to protected mode; disabling Download History must not silently change unrelated legacy schema behavior.
+5. Add regressions for quote and record/control characters and rerun the complete Windows gates.
+
+### DH-A019 — Existing last-good backup is ignored by the execution lease when retention is off
+
+**Priority / state:** High duplicate-prevention integrity risk / VERIFIED in final runtime-integrity audit.
+
+**Affected code:** `ValidateArchiveForProtectedExecution` and `AcquireValidatedExecutionLease`.
+
+**Finding:** Normal protected preparation always reads a valid existing `<archive>.bak` and unions entries missing from the primary, regardless of the current `KeepBackup` setting. This makes an existing valid backup an authoritative anti-truncation source. The execution lease, however, performs the backup subset check only inside `if (keepBackup)`. If the user previously kept backups, later turns retention off (leaving the valid backup in place), prepares a command, and the primary is then replaced with a syntactically valid subset before process start, the execution lease accepts the truncated primary even though the existing backup proves entries were lost.
+
+**Impact:** The process can launch with a ledger known to have lost historical identities, allowing already downloaded media to be fetched again. The behavior is inconsistent with the preparation path and with the existing fail-closed truncation test when backup retention is on.
+
+**Required acceptance:**
+
+1. If a backup file exists and parses as a valid native archive, the execution lease must reject a primary that omits any of its identities regardless of the current backup-retention setting.
+2. When retention is on, a missing/invalid backup remains a hard failure as today.
+3. When retention is off, a missing or invalid backup is not newly required; only an existing **valid** backup contributes the monotonicity check.
+4. Regenerating the command after such a rejection must allow normal preparation to union the valid backup into the primary, preserving current behavior.
+5. Add regression coverage for a retained valid backup plus `KeepBackup=false`, then rerun the complete guarded Windows gates.

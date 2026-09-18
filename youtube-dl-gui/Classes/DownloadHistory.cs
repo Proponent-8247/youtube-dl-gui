@@ -1052,6 +1052,7 @@ internal static class DownloadHistory {
 
     private static bool CandidateRequiresLibraryRecovery(string libraryRoot, string candidateArchive) {
         if (!Enabled || !EverEnabled || NeedsReconciliation) return true;
+        if (BoundLibraryRoot.IsNullEmptyWhitespace() || !PathEquals(libraryRoot, BoundLibraryRoot)) return true;
         if (BoundArchivePath.IsNullEmptyWhitespace()) return true;
         return !PathEquals(candidateArchive, BoundArchivePath);
     }

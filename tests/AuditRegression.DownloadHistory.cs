@@ -552,6 +552,35 @@ internal static partial class AuditRegression {
         }
     }
 
+
+    private static void DownloadHistoryRejectsDisplayExtractorAsNativeIdentity() {
+        const string id = "UgytZKpehg-hEMBSn3F4AaABCQ";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string media = DownloadHistoryWriteMedia(fixture.Root, "Clip metadata.mp4");
+            string stem = Path.Combine(Path.GetDirectoryName(media), Path.GetFileNameWithoutExtension(media));
+            File.WriteAllText(stem + ".info.json",
+                "{\"id\":\"" + id + "\",\"extractor\":\"youtube:clip\"}", Encoding.UTF8);
+
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Unsafe", DownloadHistoryStateName(analysis));
+            Equal(0, Get(analysis, "MetadataRecovered"));
+            Equal(1, Get(analysis, "UnresolvedMedia"));
+            Require(!File.Exists(fixture.Archive),
+                "Display-style extractor metadata was promoted into a native archive identity");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string media = DownloadHistoryWriteMedia(fixture.Root, "Clip native key.mp4");
+            string stem = Path.Combine(Path.GetDirectoryName(media), Path.GetFileNameWithoutExtension(media));
+            File.WriteAllText(stem + ".info.json",
+                "{\"id\":\"" + id + "\",\"extractor\":\"youtube:clip\",\"ie_key\":\"YoutubeClip\"}", Encoding.UTF8);
+
+            object reconciled = Call(fixture.History, null, "ReconcileLibrary", string.Empty, true, false);
+            Equal("Healthy", DownloadHistoryStateName(reconciled));
+            Equal("youtubeclip " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+        }
+    }
+
     private static void DownloadHistoryUsesTopLevelInfoJsonIdentity() {
         const string correctId = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -875,6 +904,63 @@ internal static partial class AuditRegression {
         }
     }
 
+
+
+    private static void DownloadHistoryRetentionOffDoesNotRestoreFromStaleBackupAlone() {
+        const string first = "9qFjkwAElDs";
+        const string newer = "aB_Cd-Ef123";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "First-" + first + ".mp4", "Youtube", first);
+            DownloadHistoryEnable(fixture, string.Empty);
+            Require(File.Exists(fixture.Archive + ".bak"), "Retention-off stale-backup test did not establish a valid backup");
+
+            fixture.History.GetField("fKeepBackup", All).SetValue(null, false);
+            File.AppendAllText(fixture.Archive, "youtube " + newer + Environment.NewLine, Encoding.UTF8);
+            string[] beforeLoss = DownloadHistoryArchiveLines(fixture.Archive);
+            Require(beforeLoss.Contains("youtube " + first) && beforeLoss.Contains("youtube " + newer),
+                "Retention-off stale-backup test did not establish a newer primary-only identity");
+
+            File.Delete(fixture.Archive);
+            fixture.History.GetField("PreparedKey", All).SetValue(null, null);
+
+            string arguments, error;
+            object execution;
+            Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
+            Require(error.IndexOf("rebuild", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    error.IndexOf("backup", StringComparison.OrdinalIgnoreCase) >= 0,
+                "Retention-off primary loss did not fail with an actionable rebuild/backup error");
+            Require(!File.Exists(fixture.Archive),
+                "Normal protected preparation recreated a missing primary from a backup that may be stale because retention is off");
+            Equal(null, execution);
+        }
+    }
+
+    private static void DownloadHistoryArchiveRelocationRejectsStaleBackupOnlySource() {
+        const string first = "9qFjkwAElDs";
+        const string newer = "aB_Cd-Ef123";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "First-" + first + ".mp4", "Youtube", first);
+            DownloadHistoryEnable(fixture, string.Empty);
+            string oldArchive = fixture.Archive;
+            Require(File.Exists(oldArchive + ".bak"), "Archive-relocation stale-backup test did not establish a valid backup");
+
+            fixture.History.GetField("fKeepBackup", All).SetValue(null, false);
+            File.AppendAllText(oldArchive, "youtube " + newer + Environment.NewLine, Encoding.UTF8);
+            File.Delete(oldArchive);
+
+            string replacement = Path.Combine(fixture.Root, "replacement-history.txt");
+            object prepared = Call(fixture.History, null, "RebuildLibrary", replacement, false, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(prepared));
+            Require(DownloadHistoryArchiveLines(replacement).Contains("youtube " + first),
+                "Replacement candidate did not recover current physical media");
+
+            Throws<InvalidOperationException>(() =>
+                Call(fixture.History, null, "CommitSettings", true, replacement, false, prepared, string.Empty));
+            Equal(Path.GetFullPath(oldArchive), fixture.History.GetProperty("BoundArchivePath", All).GetValue(null, null));
+            Require(!DownloadHistoryArchiveLines(replacement).Contains("youtube " + newer),
+                "Stale retained backup unexpectedly supplied a newer identity that it never contained");
+        }
+    }
 
     private static void DownloadHistoryExecutionLeaseUsesExistingBackupWhenRetentionOff() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -1714,6 +1800,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RecoversSanitizedProviderIds", DownloadHistoryRecoversSanitizedProviderIds);
         Test("DOWNLOAD_HISTORY.RecognizesSplitChapterIds", DownloadHistoryRecognizesSplitChapterIds);
         Test("DOWNLOAD_HISTORY.DoesNotInferYoutubeFromIdShape", DownloadHistoryDoesNotInferYoutubeFromIdShape);
+        Test("DOWNLOAD_HISTORY.RejectsDisplayExtractorAsNativeIdentity", DownloadHistoryRejectsDisplayExtractorAsNativeIdentity);
         Test("DOWNLOAD_HISTORY.UsesTopLevelInfoJsonIdentity", DownloadHistoryUsesTopLevelInfoJsonIdentity);
         Test("DOWNLOAD_HISTORY.MigratesLegacyMetadata", DownloadHistoryMigratesLegacyMetadata);
         Test("DOWNLOAD_HISTORY.MigrationFailureRollsBackMedia", DownloadHistoryMigrationFailureRollsBackMedia);
@@ -1733,6 +1820,8 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ExecutionContextSurvivesDisableButNotReset", DownloadHistoryExecutionContextSurvivesDisableButNotReset);
         Test("DOWNLOAD_HISTORY.ExecutionContextRejectsSettingChanges", DownloadHistoryExecutionContextRejectsSettingChanges);
         Test("DOWNLOAD_HISTORY.ExecutionLeaseRejectsArchiveTruncation", DownloadHistoryExecutionLeaseRejectsArchiveTruncation);
+        Test("DOWNLOAD_HISTORY.RetentionOffDoesNotRestoreFromStaleBackupAlone", DownloadHistoryRetentionOffDoesNotRestoreFromStaleBackupAlone);
+        Test("DOWNLOAD_HISTORY.ArchiveRelocationRejectsStaleBackupOnlySource", DownloadHistoryArchiveRelocationRejectsStaleBackupOnlySource);
         Test("DOWNLOAD_HISTORY.ExecutionLeaseUsesExistingBackupWhenRetentionOff", DownloadHistoryExecutionLeaseUsesExistingBackupWhenRetentionOff);
         Test("DOWNLOAD_HISTORY.LeaseSerializesWorkers", DownloadHistoryLeaseSerializesWorkers);
         Test("DOWNLOAD_HISTORY.FirstUseRaceAcquiresFileLockAfterDirectoryAppears", DownloadHistoryFirstUseRaceAcquiresFileLockAfterDirectoryAppears);

@@ -48,6 +48,13 @@ public partial class frmSettings : LocalizedForm {
             TabIndex = 1000
         };
         button.Click += (_, _) => {
+            if (Downloads.YtdlType != YtdlType_Last) {
+                MessageBox.Show(this,
+                    "The download provider selection has an unsaved change. Save or cancel/revert the parent Settings dialog before configuring Download History so the provider cannot be rolled back after protection is enabled.",
+                    "Save provider selection first", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             bool unsavedLibrary = !DownloadHistory.IsCurrentLibraryPath(txtSettingsDownloadsSavePath.Text);
             bool unsavedSchema = !string.Equals(txtSettingsDownloadsFileNameSchema.Text, Downloads.fileNameSchema, StringComparison.Ordinal);
             if (unsavedLibrary || unsavedSchema) {

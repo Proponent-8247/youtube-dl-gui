@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "base_sha": "b5980cd328cc219fc563e86a01e2b6bd98aa655b",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.DisablesPlaylistConcatenationWhileProtected"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A023",
+      "message": "fix: preserve per-entry media during protected downloads",
+      "resolves": [
+        "DOWNLOAD_HISTORY.DisablesPlaylistConcatenationWhileProtected"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            if (ContainsOption(customArguments, \"--break-on-existing\") || ContainsOption(customArguments, \"--break-per-input\")) {\n                error = \"--break-on-existing and --break-per-input are not allowed while Download History protection is enabled because they can stop collection traversal before new media is discovered.\";\n                return false;\n            }",
+              "new": "            if (ContainsOption(customArguments, \"--break-on-existing\") || ContainsOption(customArguments, \"--break-per-input\")) {\n                error = \"--break-on-existing and --break-per-input are not allowed while Download History protection is enabled because they can stop collection traversal before new media is discovered.\";\n                return false;\n            }\n            if (ContainsOption(customArguments, \"--concat-playlist\")) {\n                error = \"--concat-playlist is not allowed while Download History protection is enabled because concatenation can delete the per-entry media files needed to rebuild native archive identities. Disable Download History if playlist concatenation is required.\";\n                return false;\n            }"
+            },
+            {
+              "old": "            archiveArguments = $\"--ignore-config --no-plugin-dirs --download-archive \\\"{preparedArchive}\\\" --no-break-on-existing\";",
+              "new": "            archiveArguments = $\"--ignore-config --no-plugin-dirs --download-archive \\\"{preparedArchive}\\\" --no-break-on-existing --concat-playlist never\";"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

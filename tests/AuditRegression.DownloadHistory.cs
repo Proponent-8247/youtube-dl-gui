@@ -189,6 +189,28 @@ internal static partial class AuditRegression {
         }
     }
 
+
+    private static void DownloadHistoryDisablesPlaylistConcatenationWhileProtected() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+
+            string arguments, error;
+            object execution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
+            Require(arguments.Contains("--concat-playlist never"),
+                "Protected arguments do not disable yt-dlp's default multi-video playlist concatenation");
+            Require(arguments.IndexOf("--no-break-on-existing", StringComparison.Ordinal) >= 0,
+                "Playlist concat protection disturbed safe archive traversal arguments");
+
+            foreach (string custom in new[] { "--concat-playlist always", "--concat-playlist=multi_video" }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(error.IndexOf("concat", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("concaten", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Conflicting custom playlist concatenation was not rejected clearly: " + custom);
+            }
+        }
+    }
+
     private static void DownloadHistoryRejectsCustomArgumentsThatBreakProtection() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -1781,6 +1803,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.NeverEnabledIsNoOp", DownloadHistoryNeverEnabledIsNoOp);
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
         Test("DOWNLOAD_HISTORY.RejectsUnsafeProtectedFilenameSchemas", DownloadHistoryRejectsUnsafeProtectedFilenameSchemas);
+        Test("DOWNLOAD_HISTORY.DisablesPlaylistConcatenationWhileProtected", DownloadHistoryDisablesPlaylistConcatenationWhileProtected);
         Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);
         Test("DOWNLOAD_HISTORY.RejectsClusteredShortOutputOverrides", DownloadHistoryRejectsClusteredShortOutputOverrides);
         Test("DOWNLOAD_HISTORY.RejectsSourceAndExtractorIdentityOverrides", DownloadHistoryRejectsSourceAndExtractorIdentityOverrides);

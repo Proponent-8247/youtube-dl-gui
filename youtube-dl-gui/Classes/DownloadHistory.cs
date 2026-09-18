@@ -37,7 +37,6 @@ internal sealed class DownloadHistoryReport {
 internal sealed class DownloadHistoryLease : IDisposable {
     private Mutex? mutex;
     private FileStream? fileLock;
-    private string? fileLockPath;
 
     private DownloadHistoryLease(Mutex ownedMutex) {
         mutex = ownedMutex;
@@ -85,7 +84,6 @@ internal sealed class DownloadHistoryLease : IDisposable {
             if (cancellationRequested?.Invoke() == true) throw new OperationCanceledException("Download History file-lock wait was cancelled.");
             try {
                 fileLock = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-                fileLockPath = path;
                 return;
             }
             catch (IOException ex) {
@@ -100,7 +98,6 @@ internal sealed class DownloadHistoryLease : IDisposable {
     internal bool TryAcquireFileLock(string path) {
         try {
             fileLock = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-            fileLockPath = path;
             return true;
         }
         catch (IOException ex) {
@@ -112,13 +109,7 @@ internal sealed class DownloadHistoryLease : IDisposable {
 
     public void Dispose() {
         FileStream? lockFile = Interlocked.Exchange(ref fileLock, null);
-        string? lockPath = Interlocked.Exchange(ref fileLockPath, null);
         lockFile?.Dispose();
-        if (lockPath is not null) {
-            try { File.Delete(lockPath); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-        }
 
         Mutex? owned = Interlocked.Exchange(ref mutex, null);
         if (owned is null) return;
@@ -428,7 +419,7 @@ internal static class DownloadHistory {
         }
 
         using DownloadHistoryLease lease = AcquireManagementLease(archive, "reset");
-        foreach (string path in new[] { archive, archive + ".bak", archive + ".tmp", archive + ".bak.tmp" }) {
+        foreach (string path in new[] { archive, archive + ".bak" }) {
             if (File.Exists(path)) File.Delete(path);
         }
         EverEnabled = false;
@@ -906,6 +897,13 @@ internal static class DownloadHistory {
     private static DownloadHistoryReport ReconcileAnalysis(DownloadHistoryAnalysis analysis, bool keepBackup, bool allowMigration) {
         DownloadHistoryReport report = analysis.Report;
         if (!report.CanReconcile) return report;
+
+        if (keepBackup && !CanReplaceBackupSafely(analysis.ArchivePath, out string backupSafetyError)) {
+            report.State = DownloadHistoryState.Invalid;
+            report.CanReconcile = false;
+            report.Message = "Download History refused to overwrite the existing backup path: " + backupSafetyError;
+            return report;
+        }
 
         bool changed = analysis.ArchiveNeedsRewrite || !analysis.ArchiveExists;
         if (analysis.RecoverMissingEntries) {
@@ -1682,14 +1680,48 @@ internal static class DownloadHistory {
         }
     }
 
+    private static FileStream CreateUniqueSiblingTempFile(string destination, out string temp) {
+        temp = string.Empty;
+        for (int attempt = 0; attempt < 16; attempt++) {
+            temp = destination + ".youtube-dl-gui-" + Guid.NewGuid().ToString("N") + ".tmp";
+            try {
+                return new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            }
+            catch (IOException) when (File.Exists(temp)) { }
+        }
+        throw new IOException("Could not allocate a unique temporary file beside the Download History archive.");
+    }
+
+    private static bool CanReplaceBackupSafely(string archive, out string error) {
+        string backup = archive + ".bak";
+        error = string.Empty;
+        if (Directory.Exists(backup)) {
+            error = "The backup path is an existing directory: " + backup;
+            return false;
+        }
+        if (!File.Exists(backup)) return true;
+
+        HashSet<string> entries = new(StringComparer.Ordinal);
+        if (TryReadArchive(backup, entries, out string backupError)) return true;
+        error = backupError.IsNullEmptyWhitespace()
+            ? "The existing backup file is not a valid native archive: " + backup
+            : "The existing backup file is not a valid native archive: " + backupError;
+        return false;
+    }
+
     private static void WriteArchiveAtomically(string path, HashSet<string> entries) {
         foreach (string entry in entries) {
             if (!IsValidArchiveEntry(entry)) throw new InvalidDataException("Refusing to write invalid Download History archive entry: " + entry);
         }
-        string temp = path + ".tmp";
+
         string content = string.Join(Environment.NewLine, entries.OrderBy(x => x, StringComparer.Ordinal));
         if (content.Length > 0) content += Environment.NewLine;
-        File.WriteAllText(temp, content, new UTF8Encoding(false));
+        string temp;
+        using (FileStream stream = CreateUniqueSiblingTempFile(path, out temp))
+        using (StreamWriter writer = new(stream, new UTF8Encoding(false))) {
+            writer.Write(content);
+        }
+
         try {
             if (File.Exists(path)) File.Replace(temp, path, null, true);
             else File.Move(temp, path);
@@ -1701,9 +1733,17 @@ internal static class DownloadHistory {
 
     private static void CopyArchiveToBackupAtomically(string archive) {
         if (!File.Exists(archive)) return;
+        if (!CanReplaceBackupSafely(archive, out string backupSafetyError)) {
+            throw new InvalidDataException(backupSafetyError);
+        }
+
         string backup = archive + ".bak";
-        string temp = backup + ".tmp";
-        File.Copy(archive, temp, true);
+        string temp;
+        using (FileStream output = CreateUniqueSiblingTempFile(backup, out temp))
+        using (FileStream input = new(archive, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+            input.CopyTo(output);
+        }
+
         try {
             if (File.Exists(backup)) File.Replace(temp, backup, null, true);
             else File.Move(temp, backup);

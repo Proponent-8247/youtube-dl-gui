@@ -500,6 +500,39 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsArbitraryStateMutationHooks() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string custom in new[] {
+                "--print-to-file \"youtube forged\" forged.txt",
+                "--print-to-f \"youtube forged\" forged.txt",
+                "--netrc-cmd \"echo credentials\"",
+                "--netrc-cm \"echo credentials\""
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(error.IndexOf("write", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("command", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("state", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("hook", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Arbitrary mutation hook was not rejected clearly: " + custom);
+                Equal(null, execution);
+            }
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--print %(id)s", out arguments, out error, out execution));
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--netrc", out arguments, out error, out execution));
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--print-to-file \"youtube forged\" forged.txt --netrc-cmd \"echo credentials\"", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryRejectsArbitraryPostprocessorHooks() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -2281,6 +2314,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsSourceAndExtractorIdentityOverrides", DownloadHistoryRejectsSourceAndExtractorIdentityOverrides);
         Test("DOWNLOAD_HISTORY.RejectsMetadataIdentityRewrites", DownloadHistoryRejectsMetadataIdentityRewrites);
         Test("DOWNLOAD_HISTORY.RejectsUnsafeExtensionCompatibility", DownloadHistoryRejectsUnsafeExtensionCompatibility);
+        Test("DOWNLOAD_HISTORY.RejectsArbitraryStateMutationHooks", DownloadHistoryRejectsArbitraryStateMutationHooks);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryPostprocessorHooks", DownloadHistoryRejectsArbitraryPostprocessorHooks);
         Test("DOWNLOAD_HISTORY.RejectsIdOutputOverride", DownloadHistoryRejectsIdOutputOverride);
         Test("DOWNLOAD_HISTORY.RejectsInjectedMetadataArchiveRecords", DownloadHistoryRejectsInjectedMetadataArchiveRecords);

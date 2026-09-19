@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "base_sha": "d03e912e9b74e9832a1ffdddcfaf54ecfd3f0891",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.RejectsUnbalancedCustomArgumentQuotes"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A027",
+      "message": "fix: reject unbalanced protected custom arguments",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RejectsUnbalancedCustomArgumentQuotes"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "    public static bool TryGetArchiveArguments(string fileNameSchema, string? customArguments, out string archiveArguments, out string error) =>\n        TryGetArchiveArguments(fileNameSchema, customArguments, out archiveArguments, out error, out _);",
+              "new": "    private static bool HasBalancedArgumentQuotes(string? arguments) {\n        if (arguments.IsNullEmptyWhitespace()) return true;\n        bool inQuotes = false;\n        for (int index = 0; index < arguments!.Length; index++) {\n            if (arguments[index] != '\"') continue;\n            int backslashes = 0;\n            for (int previous = index - 1; previous >= 0 && arguments[previous] == '\\\\'; previous--) backslashes++;\n            if ((backslashes & 1) == 0) inQuotes = !inQuotes;\n        }\n        return !inQuotes;\n    }\n\n    public static bool TryGetArchiveArguments(string fileNameSchema, string? customArguments, out string archiveArguments, out string error) =>\n        TryGetArchiveArguments(fileNameSchema, customArguments, out archiveArguments, out error, out _);"
+            },
+            {
+              "old": "            if (fileNameSchema.IndexOf('\"') >= 0 || fileNameSchema.Any(char.IsControl)) {",
+              "new": "            if (!HasBalancedArgumentQuotes(customArguments)) {\n                LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = \"Custom arguments contain an unterminated quoted region that can escape the protected argument boundary.\" };\n                error = \"Download History cannot protect custom arguments with unbalanced quotes because they can absorb the app-owned yt-dlp archive options. Balance or remove the quote, or disable Download History.\";\n                return false;\n            }\n\n            if (fileNameSchema.IndexOf('\"') >= 0 || fileNameSchema.Any(char.IsControl)) {"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

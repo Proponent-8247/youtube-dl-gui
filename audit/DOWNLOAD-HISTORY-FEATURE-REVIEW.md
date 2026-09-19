@@ -83,7 +83,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A026 | High | Fixed / regression-verified | Invalid first-use default archive collisions are refused unless a valid primary/backup proves native archive ownership; established corruption recovery remains backup-backed. |
 | DH-A027 | High | Fixed / regression-verified | Protected mode now rejects unbalanced Windows-style quoting in raw custom arguments before publishing an execution context. |
 | DH-A028 | High | Fixed / regression-verified | ID-template validation and historical filename recovery now honor yt-dlp percent-escape semantics, rejecting even escaped runs while supporting active odd runs. |
-| DH-A029 | High | Verified | Physical inventory ignores several current yt-dlp direct-media extensions (including `.unknown_video`), so valid protected Generic/direct outputs can disappear from explicit rebuild evidence. |
+| DH-A029 | High | Fixed / regression-verified | Physical inventory now covers current yt-dlp safe video/audio direct-media extensions plus `.unknown_video`, while preserving sidecar/manifest exclusions. |
+| DH-A030 | High | Verified | A prepared execution context does not retain the validated ledger entries, so with no valid backup a syntactically valid archive shrink between preparation and process start is accepted. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -177,7 +178,12 @@ Repair evidence recorded so far:
 - The guard showed `DOWNLOAD_HISTORY.HonorsEscapedIdTemplateSemantics` failing at baseline and passing after repair, including protected rejection of `%%(id)s` and historical recovery from an active odd-percent run; the complete Download History suite passed after repair.
 - Evidence artifact `10582771909` has SHA-256 `e8a820244ceb0547efa315ae77e679240efc55289398f0dcadf310dc174407e3`.
 
-DH-A029 remains open until its guarded repair batch and terminal re-audit pass.
+- DH-A029: `08b81a1d13581bd31ee23fd21f246b25731a2bd0` (`fix: inventory current yt-dlp direct media extensions`), closed by guarded workflow run `35437846492`, cleanup commit `3740b334cb7290a7516c3323898e5b358324ca34`.
+- The corrected guard showed `DOWNLOAD_HISTORY.InventoriesCurrentDirectMediaExtensions` failing at baseline with 0/31 enumerated and passing after repair with the complete Download History suite green.
+- Evidence artifact `10583480569` has SHA-256 `d77712b45b8ad084d539c4c6b43aa2a7424707d59f8e9e500df7edcf5d504cf1`.
+- The first A029 request `caa7c013797fef3f37c87fa6e2e1dc2a2df0dce1` was explicitly discarded by `2bf779d303c3a7b98a56b6e14af79e167570d2a6` because the new regression used target-typed collection syntax unsupported by the audit harness compiler. Only the test syntax was corrected before retrying the same production repair.
+
+DH-A030 remains open until its guarded repair batch and terminal re-audit pass.
 
 ## Review scope / status
 
@@ -785,3 +791,25 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 4. Preserve all existing media extensions and A025's conservative GIF handling.
 5. Add a regression covering every newly admitted extension with authoritative same-stem metadata and prove explicit Rebuild recovers each identity without modifying the files.
 6. Re-run the complete guarded Windows Debug/Release/full-regression gates.
+
+
+### DH-A030 — Backup-free prepared execution can accept a smaller ledger than the one validated
+
+**Priority / state:** High duplicate-prevention TOCTOU risk / VERIFIED in terminal runtime-integrity audit.
+
+**Affected code:** `DownloadHistoryExecution`, `ValidateArchiveForProtectedExecution`, `TryGetArchiveArguments`, and `AcquireValidatedExecutionLease`.
+
+**Finding:** Protected command preparation validates the current native archive and returns a `DownloadHistoryExecution` containing only the archive path and backup-retention flag. At process start, the execution lease re-reads the primary and checks it against a valid backup when one exists. If backup retention is off and no valid backup exists, however, a primary replaced after preparation with a different but syntactically valid subset/empty native archive passes execution validation. The app therefore launches a command against a ledger that is known to be smaller than the ledger it validated when it advertised the command as protected.
+
+**Impact:** Historical identities can disappear in the prepare-to-start window without detection, allowing the immediately launched yt-dlp process to redownload media that the prepared command was supposed to protect. Existing A019/A022 backup rules close this only when a usable backup happens to exist.
+
+**Required acceptance:**
+
+1. A prepared execution context must carry an immutable snapshot/lower-bound set of the native archive identities validated during command preparation.
+2. At `AcquireValidatedExecutionLease`, the current primary archive must contain every identity from that prepared snapshot before the provider starts. Additional entries appended after preparation are allowed.
+3. The check applies regardless of backup-retention policy and regardless of whether any backup exists.
+4. On prepared-snapshot loss, fail before process start, invalidate the prepared state, and require explicit validation/reconciliation rather than silently accepting the smaller ledger.
+5. Keep A019 behavior: any existing valid backup is also a lower-bound source, even when retention is off.
+6. Keep A022 behavior: a stale retained backup is not by itself sufficient to recreate a missing/invalid primary when retention is off.
+7. Add a regression with `KeepBackup=false`, no backup file, a prepared execution context, and a syntactically valid primary truncation; the lease must reject it. Also prove a post-preparation superset append remains acceptable.
+8. Re-run the complete guarded Windows Debug/Release/full-regression gates.

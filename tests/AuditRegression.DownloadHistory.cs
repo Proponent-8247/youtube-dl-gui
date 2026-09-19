@@ -533,6 +533,56 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsCookieWritebackCollisions() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string target in new[] { fixture.Archive, fixture.Archive + ".bak", fixture.Archive + ".lock" }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    "--cookies \"" + target + "\"", out arguments, out error, out execution));
+                Require(error.IndexOf("cookie", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                        (error.IndexOf("archive", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         error.IndexOf("protected", StringComparison.OrdinalIgnoreCase) >= 0),
+                    "Cookie writeback collision was not rejected clearly: " + target);
+                Equal(null, execution);
+
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    "--cookies=\"" + target + "\"", out arguments, out error, out execution));
+                Equal(null, execution);
+            }
+
+            string safeCookies = Path.Combine(fixture.Root, "provider-cookies.txt");
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--cookies \"" + safeCookies + "\"", out arguments, out error, out execution));
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--cookies-from-browser firefox", out arguments, out error, out execution));
+
+            MethodInfo validateAuthCookie = fixture.History.GetMethod("ValidateAuthenticationCookiePath", All)
+                ?? throw new Exception("Missing protected authentication cookie-path validator");
+            object[] collisionArgs = { fixture.Archive, execution, string.Empty };
+            Equal(false, validateAuthCookie.Invoke(null, collisionArgs));
+            Require(((string)collisionArgs[2]).IndexOf("cookie", StringComparison.OrdinalIgnoreCase) >= 0,
+                "Authentication cookie collision helper did not return an actionable error");
+            object[] safeArgs = { safeCookies, execution, string.Empty };
+            Equal(true, validateAuthCookie.Invoke(null, safeArgs));
+
+            string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
+            string standardSource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Classes", "DataClasses", "DownloadInfo.cs"));
+            string extendedSource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Classes", "DataClasses", "ExtendedMediaDetails.cs"));
+            Require(standardSource.Contains("ValidateAuthenticationCookiePath(Authentication?.CookiesFile, HistoryExecution"),
+                "Standard downloader does not validate app-configured cookie writeback against protected archive state");
+            Require(extendedSource.Contains("ValidateAuthenticationCookiePath(Authentication?.CookiesFile, HistoryExecution"),
+                "Extended downloader does not validate app-configured cookie writeback against protected archive state");
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--cookies \"" + fixture.Archive + "\"", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryRejectsArbitraryPostprocessorHooks() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -2315,6 +2365,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsMetadataIdentityRewrites", DownloadHistoryRejectsMetadataIdentityRewrites);
         Test("DOWNLOAD_HISTORY.RejectsUnsafeExtensionCompatibility", DownloadHistoryRejectsUnsafeExtensionCompatibility);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryStateMutationHooks", DownloadHistoryRejectsArbitraryStateMutationHooks);
+        Test("DOWNLOAD_HISTORY.RejectsCookieWritebackCollisions", DownloadHistoryRejectsCookieWritebackCollisions);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryPostprocessorHooks", DownloadHistoryRejectsArbitraryPostprocessorHooks);
         Test("DOWNLOAD_HISTORY.RejectsIdOutputOverride", DownloadHistoryRejectsIdOutputOverride);
         Test("DOWNLOAD_HISTORY.RejectsInjectedMetadataArchiveRecords", DownloadHistoryRejectsInjectedMetadataArchiveRecords);

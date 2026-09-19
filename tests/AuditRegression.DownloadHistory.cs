@@ -583,6 +583,36 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryExpandsDollarCookiePathsLikeYtDlp() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            const string variable = "YTDL_GUI_AUDIT_COOKIE_PATH";
+            string previous = Environment.GetEnvironmentVariable(variable);
+            try {
+                Environment.SetEnvironmentVariable(variable, fixture.Archive);
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    "--cookies \"$" + variable + "\"", out arguments, out error, out execution));
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    "--cookies \" + variable + \"", out arguments, out error, out execution));
+
+                MethodInfo validateAuthCookie = fixture.History.GetMethod("ValidateAuthenticationCookiePath", All);
+                if (validateAuthCookie == null) throw new Exception("Missing authentication cookie-path validator");
+                object[] authArgs = { "$" + variable, execution, string.Empty };
+                Equal(false, validateAuthCookie.Invoke(null, authArgs));
+
+                string safe = Path.Combine(fixture.Root, "safe-cookie.txt");
+                Environment.SetEnvironmentVariable(variable, safe);
+                Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    "--cookies \"$" + variable + "\"", out arguments, out error, out execution));
+            }
+            finally {
+                Environment.SetEnvironmentVariable(variable, previous);
+            }
+        }
+    }
+
     private static void DownloadHistoryRejectsRawChildProcessArguments() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -2430,6 +2460,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsUnsafeExtensionCompatibility", DownloadHistoryRejectsUnsafeExtensionCompatibility);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryStateMutationHooks", DownloadHistoryRejectsArbitraryStateMutationHooks);
         Test("DOWNLOAD_HISTORY.RejectsCookieWritebackCollisions", DownloadHistoryRejectsCookieWritebackCollisions);
+        Test("DOWNLOAD_HISTORY.ExpandsDollarCookiePathsLikeYtDlp", DownloadHistoryExpandsDollarCookiePathsLikeYtDlp);
         Test("DOWNLOAD_HISTORY.RejectsRawChildProcessArguments", DownloadHistoryRejectsRawChildProcessArguments);
         Test("DOWNLOAD_HISTORY.RejectsDestructiveCacheRemoval", DownloadHistoryRejectsDestructiveCacheRemoval);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryPostprocessorHooks", DownloadHistoryRejectsArbitraryPostprocessorHooks);

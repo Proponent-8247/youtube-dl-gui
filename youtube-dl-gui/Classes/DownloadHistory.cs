@@ -654,6 +654,11 @@ internal static class DownloadHistory {
                 error = "Arbitrary exec and plugin postprocessor hooks are not allowed while Download History protection is enabled because they can change protected identities or files outside the validated postprocessing model. Use built-in yt-dlp postprocessing options or disable Download History.";
                 return false;
             }
+            if (ContainsLongOptionOrAbbreviation(customArguments, "--print-to-file", "--print-to") ||
+                ContainsLongOptionOrAbbreviation(customArguments, "--netrc-cmd", "--netrc-c")) {
+                error = "Arbitrary file-write and shell-command hooks are not allowed while Download History protection is enabled because they can mutate the protected archive or other validated state. Use ordinary --print/static authentication options or disable Download History.";
+                return false;
+            }
             if (ContainsOption(customArguments, "--")) {
                 error = "A standalone -- option terminator is not allowed while Download History protection is enabled because it would turn the app's native archive protection arguments into positional inputs. Remove the terminator or disable Download History.";
                 return false;

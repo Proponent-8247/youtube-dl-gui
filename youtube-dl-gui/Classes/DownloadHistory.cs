@@ -599,6 +599,10 @@ internal static class DownloadHistory {
                 error = "Download History requires per-media --write-info-json metadata so native provider identities can be rebuilt after total archive loss. Remove --no-write-info-json or disable Download History.";
                 return false;
             }
+            if (RequestsUnsafeExtensionCompatibility(customArguments)) {
+                error = "Download History cannot allow yt-dlp's allow-unsafe-ext compatibility mode because it disables protected extension and path-boundary checks. Remove that compatibility request or disable Download History.";
+                return false;
+            }
             if (ContainsOption(customArguments, "--break-on-existing") || ContainsOption(customArguments, "--break-per-input")) {
                 error = "--break-on-existing and --break-per-input are not allowed while Download History protection is enabled because they can stop collection traversal before new media is discovered.";
                 return false;
@@ -659,7 +663,7 @@ internal static class DownloadHistory {
             if (!RememberFileNameSchema(fileNameSchema, out error)) return false;
             string preparedArchive = EffectiveArchivePath;
             execution = new DownloadHistoryExecution(preparedArchive, KeepBackup, LastReportInternal.ArchiveSnapshot);
-            archiveArguments = $"--ignore-config --no-plugin-dirs --write-info-json --download-archive \"{preparedArchive}\" --no-break-on-existing --concat-playlist never";
+            archiveArguments = $"--ignore-config --no-plugin-dirs --compat-options -allow-unsafe-ext --write-info-json --download-archive \"{preparedArchive}\" --no-break-on-existing --concat-playlist never";
             return true;
         }
     }
@@ -2164,6 +2168,66 @@ internal static class DownloadHistory {
         finally {
             if (File.Exists(temp)) File.Delete(temp);
         }
+    }
+
+    private static IEnumerable<string> GetOptionValues(string? arguments, string option) {
+        if (arguments.IsNullEmptyWhitespace()) yield break;
+        string[] tokens = TokenizeArguments(arguments!).ToArray();
+        for (int index = 0; index < tokens.Length; index++) {
+            string token = tokens[index];
+            int equals = token.IndexOf('=');
+            string name = equals >= 0 ? token.Substring(0, equals) : token;
+            bool matches = name.Equals(option, StringComparison.OrdinalIgnoreCase) ||
+                (name.StartsWith("--", StringComparison.Ordinal) && option.StartsWith(name, StringComparison.OrdinalIgnoreCase));
+            if (!matches) continue;
+            if (equals >= 0) {
+                yield return token.Substring(equals + 1);
+            }
+            else if (index + 1 < tokens.Length) {
+                yield return tokens[index + 1];
+            }
+        }
+    }
+
+    private static bool RequestsUnsafeExtensionCompatibility(string? arguments) {
+        bool unsafeExtensions = false;
+        foreach (string optionValue in GetOptionValues(arguments, "--compat-options")) {
+            foreach (string rawValue in optionValue.Split(',')) {
+                string value = rawValue.Trim().ToLowerInvariant();
+                switch (value) {
+                    case "all":
+                    case "allow-unsafe-ext":
+                        unsafeExtensions = true;
+                        break;
+                    case "-all":
+                    case "-allow-unsafe-ext":
+                    case "youtube-dl":
+                    case "youtube-dlc":
+                        unsafeExtensions = false;
+                        break;
+                    case "-youtube-dl":
+                    case "-youtube-dlc":
+                        unsafeExtensions = true;
+                        break;
+                }
+            }
+        }
+        return unsafeExtensions;
+    }
+
+    private static bool ContainsLongOptionOrAbbreviation(string? arguments, string option, string minimumPrefix) {
+        if (arguments.IsNullEmptyWhitespace()) return false;
+        foreach (string token in TokenizeArguments(arguments!)) {
+            int equals = token.IndexOf('=');
+            string name = equals >= 0 ? token.Substring(0, equals) : token;
+            if (name.Equals(option, StringComparison.OrdinalIgnoreCase)) return true;
+            if (name.Length >= minimumPrefix.Length &&
+                name.StartsWith(minimumPrefix, StringComparison.OrdinalIgnoreCase) &&
+                option.StartsWith(name, StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static bool ContainsOption(string? arguments, string option) {

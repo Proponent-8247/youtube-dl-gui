@@ -489,10 +489,25 @@ internal static class DownloadHistory {
         }
     }
 
+    private static bool HasActiveTemplateToken(string template, string token) {
+        int search = 0;
+        while (search < template.Length) {
+            int tokenStart = template.IndexOf(token, search, StringComparison.OrdinalIgnoreCase);
+            if (tokenStart < 0) return false;
+
+            int percentStart = tokenStart;
+            while (percentStart > 0 && template[percentStart - 1] == '%') percentStart--;
+            int percentCount = tokenStart - percentStart + 1;
+            if ((percentCount & 1) == 1) return true;
+            search = tokenStart + token.Length;
+        }
+        return false;
+    }
+
     public static bool HasRequiredIdTemplate(string? schema) {
         if (schema.IsNullEmptyWhitespace()) return false;
         string fileTemplate = GetSchemaFileTemplate(schema!);
-        return !fileTemplate.IsNullEmptyWhitespace() && fileTemplate.IndexOf("%(id)s", StringComparison.OrdinalIgnoreCase) >= 0;
+        return !fileTemplate.IsNullEmptyWhitespace() && HasActiveTemplateToken(fileTemplate, "%(id)s");
     }
 
     public static string AddRequiredIdTemplate(string? schema) {
@@ -1763,6 +1778,18 @@ internal static class DownloadHistory {
         return separator >= 0 ? normalized.Substring(separator + 1) : normalized;
     }
 
+    private static void AppendSchemaLiteralRegex(StringBuilder pattern, string literal) {
+        for (int index = 0; index < literal.Length; index++) {
+            if (literal[index] == '%' && index + 1 < literal.Length && literal[index + 1] == '%') {
+                pattern.Append('%');
+                index++;
+            }
+            else {
+                pattern.Append(Regex.Escape(literal[index].ToString()));
+            }
+        }
+    }
+
     private static string BuildSchemaRegex(string template, string idPattern) {
         const string idToken = "%(id)s";
         const string conversionTypes = "diouxXeEfFgGcrsBjhlqDSU";
@@ -1771,23 +1798,35 @@ internal static class DownloadHistory {
         while (position < template.Length) {
             int tokenStart = template.IndexOf("%(", position, StringComparison.Ordinal);
             if (tokenStart < 0) {
-                pattern.Append(Regex.Escape(template.Substring(position)));
+                AppendSchemaLiteralRegex(pattern, template.Substring(position));
                 break;
             }
-            pattern.Append(Regex.Escape(template.Substring(position, tokenStart - position)));
+
+            int percentStart = tokenStart;
+            while (percentStart > position && template[percentStart - 1] == '%') percentStart--;
+            AppendSchemaLiteralRegex(pattern, template.Substring(position, percentStart - position));
+
             int close = template.IndexOf(')', tokenStart + 2);
             if (close < 0) {
-                pattern.Append(Regex.Escape(template.Substring(tokenStart)));
+                AppendSchemaLiteralRegex(pattern, template.Substring(percentStart));
                 break;
             }
             int tokenEnd = close + 1;
             while (tokenEnd < template.Length && conversionTypes.IndexOf(template[tokenEnd]) < 0) tokenEnd++;
             if (tokenEnd >= template.Length) {
-                pattern.Append(Regex.Escape(template.Substring(tokenStart)));
+                AppendSchemaLiteralRegex(pattern, template.Substring(percentStart));
                 break;
             }
+
+            int percentCount = tokenStart - percentStart + 1;
+            if (percentCount > 1) pattern.Append(Regex.Escape(new string('%', percentCount / 2)));
             string token = template.Substring(tokenStart, tokenEnd + 1 - tokenStart);
-            pattern.Append(string.Equals(token, idToken, StringComparison.OrdinalIgnoreCase) ? idPattern : ".*?");
+            if ((percentCount & 1) == 1) {
+                pattern.Append(string.Equals(token, idToken, StringComparison.OrdinalIgnoreCase) ? idPattern : ".*?");
+            }
+            else {
+                pattern.Append(Regex.Escape(token.Substring(1)));
+            }
             position = tokenEnd + 1;
         }
         pattern.Append('$');

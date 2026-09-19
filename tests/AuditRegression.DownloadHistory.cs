@@ -1097,6 +1097,42 @@ internal static partial class AuditRegression {
 
 
 
+    private static void DownloadHistoryExecutionLeaseRejectsBackupFreePreparedTruncation() {
+        const string first = "9qFjkwAElDs";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Prepared-" + first + ".mp4", "Youtube", first);
+            object prepared = Call(fixture.History, null, "ReconcileLibrary", string.Empty, false, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(prepared));
+            Call(fixture.History, null, "CommitSettings", true, string.Empty, false, prepared, string.Empty);
+            Require(!File.Exists(fixture.Archive + ".bak"), "Backup-free prepared truncation fixture unexpectedly created a backup");
+
+            string arguments, error;
+            object execution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
+            File.WriteAllText(fixture.Archive, string.Empty, Encoding.UTF8);
+
+            Throws<InvalidOperationException>(() => Call(execution.GetType(), execution, "AcquireValidatedLease"));
+            Equal(true, fixture.History.GetProperty("NeedsReconciliation", All).GetValue(null, null));
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Prepared-" + first + ".mp4", "Youtube", first);
+            object prepared = Call(fixture.History, null, "ReconcileLibrary", string.Empty, false, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(prepared));
+            Call(fixture.History, null, "CommitSettings", true, string.Empty, false, prepared, string.Empty);
+
+            string arguments, error;
+            object execution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
+            File.AppendAllText(fixture.Archive, "youtube aB_Cd-Ef123" + Environment.NewLine, Encoding.UTF8);
+
+            using (IDisposable lease = (IDisposable)Call(execution.GetType(), execution, "AcquireValidatedLease")) { }
+            Require(DownloadHistoryArchiveLines(fixture.Archive).Contains("youtube " + first),
+                "A post-preparation superset append displaced an identity from the prepared ledger snapshot");
+        }
+    }
+
+
     private static void DownloadHistoryRetentionOffDoesNotRestoreFromStaleBackupAlone() {
         const string first = "9qFjkwAElDs";
         const string newer = "aB_Cd-Ef123";
@@ -2018,6 +2054,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ExecutionContextSurvivesDisableButNotReset", DownloadHistoryExecutionContextSurvivesDisableButNotReset);
         Test("DOWNLOAD_HISTORY.ExecutionContextRejectsSettingChanges", DownloadHistoryExecutionContextRejectsSettingChanges);
         Test("DOWNLOAD_HISTORY.ExecutionLeaseRejectsArchiveTruncation", DownloadHistoryExecutionLeaseRejectsArchiveTruncation);
+        Test("DOWNLOAD_HISTORY.ExecutionLeaseRejectsBackupFreePreparedTruncation", DownloadHistoryExecutionLeaseRejectsBackupFreePreparedTruncation);
         Test("DOWNLOAD_HISTORY.RetentionOffDoesNotRestoreFromStaleBackupAlone", DownloadHistoryRetentionOffDoesNotRestoreFromStaleBackupAlone);
         Test("DOWNLOAD_HISTORY.ArchiveRelocationRejectsStaleBackupOnlySource", DownloadHistoryArchiveRelocationRejectsStaleBackupOnlySource);
         Test("DOWNLOAD_HISTORY.ExecutionLeaseUsesExistingBackupWhenRetentionOff", DownloadHistoryExecutionLeaseUsesExistingBackupWhenRetentionOff);

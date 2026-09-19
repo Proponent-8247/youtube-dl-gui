@@ -597,6 +597,10 @@ internal static class DownloadHistory {
                 error = "Custom metadata rewriting is not allowed while Download History protection is enabled because changing source identity fields can corrupt archive identity. Remove the metadata rewrite or disable Download History.";
                 return false;
             }
+            if (RequestsGifVideoRecode(customArguments)) {
+                error = "Download History cannot safely protect --recode-video mappings that produce GIF because GIF is also a yt-dlp thumbnail sidecar extension and cannot be reconstructed unambiguously after postprocessing. Use another final video format or disable Download History.";
+                return false;
+            }
             if (ContainsOption(customArguments, "--force-write-archive") ||
                 ContainsOption(customArguments, "--force-write-download-archive") ||
                 ContainsOption(customArguments, "--force-download-archive")) {
@@ -1401,7 +1405,12 @@ internal static class DownloadHistory {
             foreach (string scanRoot in scanRoots) {
                 foreach (string media in EnumerateCompletedMedia(scanRoot)) {
                     if (PathEquals(media, archive)) continue;
-                    string? entry = TryRecoverFromInfoJson(media, out _, out _);
+                    string? entry = TryRecoverFromInfoJson(media, out _, out _, out string? metadataExtension);
+                    if (Path.GetExtension(media).Equals(".gif", StringComparison.OrdinalIgnoreCase) &&
+                        !metadataExtension.IsNullEmptyWhitespace() &&
+                        !metadataExtension.Equals("gif", StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
                     bool fromMetadata = entry is not null;
                     if (entry is null) entry = filenameMatcher.Match(media);
 
@@ -1544,9 +1553,10 @@ internal static class DownloadHistory {
         }
     }
 
-    private static string? TryRecoverFromInfoJson(string mediaPath, out string? sourceId, out string? infoPath) {
+    private static string? TryRecoverFromInfoJson(string mediaPath, out string? sourceId, out string? infoPath, out string? metadataExtension) {
         sourceId = null;
         infoPath = null;
+        metadataExtension = null;
         string directory = Path.GetDirectoryName(mediaPath) ?? string.Empty;
         string stem = Path.Combine(directory, Path.GetFileNameWithoutExtension(mediaPath));
         string candidate = stem + ".info.json";
@@ -1558,6 +1568,9 @@ internal static class DownloadHistory {
                 RecursionLimit = 256
             };
             if (serializer.DeserializeObject(json) is not Dictionary<string, object> root) return null;
+            metadataExtension = root.TryGetValue("ext", out object? extensionValue) && extensionValue is string extensionText
+                ? extensionText.Trim()
+                : null;
             string? recoveredId = root.TryGetValue("id", out object? idValue) ? idValue as string : null;
             string? extractor = null;
             // Native yt-dlp archive IDs are keyed from extractor_key/ie_key. The display-style
@@ -1988,6 +2001,36 @@ internal static class DownloadHistory {
         finally {
             if (File.Exists(temp)) File.Delete(temp);
         }
+    }
+
+    private static IEnumerable<string> GetOptionValues(string? arguments, string option) {
+        if (arguments.IsNullEmptyWhitespace()) yield break;
+        string[] tokens = TokenizeArguments(arguments!).ToArray();
+        for (int index = 0; index < tokens.Length; index++) {
+            string token = tokens[index];
+            int equals = token.IndexOf('=');
+            string name = equals >= 0 ? token.Substring(0, equals) : token;
+            bool matches = name.Equals(option, StringComparison.OrdinalIgnoreCase) ||
+                (name.StartsWith("--", StringComparison.Ordinal) && option.StartsWith(name, StringComparison.OrdinalIgnoreCase));
+            if (!matches) continue;
+            if (equals >= 0) {
+                yield return token.Substring(equals + 1);
+            }
+            else if (index + 1 < tokens.Length) {
+                yield return tokens[index + 1];
+            }
+        }
+    }
+
+    private static bool RequestsGifVideoRecode(string? arguments) {
+        foreach (string value in GetOptionValues(arguments, "--recode-video")) {
+            foreach (string mapping in value.Split('/')) {
+                int arrow = mapping.LastIndexOf('>');
+                string target = (arrow >= 0 ? mapping.Substring(arrow + 1) : mapping).Trim();
+                if (target.Equals("gif", StringComparison.OrdinalIgnoreCase)) return true;
+            }
+        }
+        return false;
     }
 
     private static bool ContainsOption(string? arguments, string option) {

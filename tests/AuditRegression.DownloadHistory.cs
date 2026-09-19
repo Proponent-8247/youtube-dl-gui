@@ -165,6 +165,41 @@ internal static partial class AuditRegression {
     }
 
 
+    private static void DownloadHistoryRequiresAuthoritativeMetadataForRebuild() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
+            Require(arguments.Contains("--write-info-json"),
+                "Protected arguments did not force authoritative per-media info JSON for total-loss recovery");
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--write-info-json", out arguments, out error, out execution));
+            Require(arguments.Contains("--write-info-json"),
+                "Compatible explicit info JSON request disturbed protected metadata retention");
+
+            foreach (string custom in new[] {
+                "--no-write-info-json",
+                "--no-write-info"
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    custom, out arguments, out error, out execution));
+                Require(error.IndexOf("info", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("metadata", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("rebuild", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Conflicting metadata-disable option was not rejected clearly: " + custom);
+                Equal(null, execution);
+            }
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--no-write-info-json", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryHonorsEscapedIdTemplateSemantics() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             Equal(true, Call(fixture.History, null, "HasRequiredIdTemplate", "%(title)s-%(id)s.%(ext)s"));
@@ -2158,6 +2193,7 @@ internal static partial class AuditRegression {
     private static void RunDownloadHistoryTests() {
         Test("DOWNLOAD_HISTORY.NeverEnabledIsNoOp", DownloadHistoryNeverEnabledIsNoOp);
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
+        Test("DOWNLOAD_HISTORY.RequiresAuthoritativeMetadataForRebuild", DownloadHistoryRequiresAuthoritativeMetadataForRebuild);
         Test("DOWNLOAD_HISTORY.HonorsEscapedIdTemplateSemantics", DownloadHistoryHonorsEscapedIdTemplateSemantics);
         Test("DOWNLOAD_HISTORY.RejectsUnsafeProtectedFilenameSchemas", DownloadHistoryRejectsUnsafeProtectedFilenameSchemas);
         Test("DOWNLOAD_HISTORY.DisablesPlaylistConcatenationWhileProtected", DownloadHistoryDisablesPlaylistConcatenationWhileProtected);

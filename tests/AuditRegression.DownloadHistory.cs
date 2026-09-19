@@ -583,6 +583,40 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsRawChildProcessArguments() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string custom in new[] {
+                "--postprocessor-args \"ffmpeg_o:-progress forged.txt\"",
+                "--ppa \"ffmpeg_o:-progress forged.txt\"",
+                "--postprocessor-a \"ffmpeg_o:-progress forged.txt\"",
+                "--downloader-args \"curl:--trace-ascii forged.txt\"",
+                "--external-downloader-args \"curl:--trace-ascii forged.txt\"",
+                "--downloader-a \"curl:--trace-ascii forged.txt\""
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(error.IndexOf("argument", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("child", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("postprocessor", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("downloader", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Raw child-process argument injection was not rejected clearly: " + custom);
+                Equal(null, execution);
+            }
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--remux-video mp4 --split-chapters --downloader aria2c", out arguments, out error, out execution));
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--ppa \"ffmpeg_o:-progress forged.txt\" --downloader-args \"curl:--trace-ascii forged.txt\"",
+                out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryRejectsArbitraryPostprocessorHooks() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -2366,6 +2400,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsUnsafeExtensionCompatibility", DownloadHistoryRejectsUnsafeExtensionCompatibility);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryStateMutationHooks", DownloadHistoryRejectsArbitraryStateMutationHooks);
         Test("DOWNLOAD_HISTORY.RejectsCookieWritebackCollisions", DownloadHistoryRejectsCookieWritebackCollisions);
+        Test("DOWNLOAD_HISTORY.RejectsRawChildProcessArguments", DownloadHistoryRejectsRawChildProcessArguments);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryPostprocessorHooks", DownloadHistoryRejectsArbitraryPostprocessorHooks);
         Test("DOWNLOAD_HISTORY.RejectsIdOutputOverride", DownloadHistoryRejectsIdOutputOverride);
         Test("DOWNLOAD_HISTORY.RejectsInjectedMetadataArchiveRecords", DownloadHistoryRejectsInjectedMetadataArchiveRecords);

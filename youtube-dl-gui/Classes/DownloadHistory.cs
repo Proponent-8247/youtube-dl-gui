@@ -32,6 +32,7 @@ internal sealed class DownloadHistoryReport {
     public bool CanReconcile { get; set; }
     public string Message { get; set; } = string.Empty;
     internal string ArchiveDigest { get; set; } = string.Empty;
+    internal string[] ArchiveSnapshot { get; set; } = Array.Empty<string>();
 }
 
 internal sealed class DownloadHistoryLease : IDisposable {
@@ -122,16 +123,18 @@ internal sealed class DownloadHistoryLease : IDisposable {
 internal sealed class DownloadHistoryExecution {
     internal string ArchivePath { get; }
     internal bool KeepBackup { get; }
+    private readonly string[] PreparedArchiveEntries;
 
-    internal DownloadHistoryExecution(string archivePath, bool keepBackup) {
+    internal DownloadHistoryExecution(string archivePath, bool keepBackup, IEnumerable<string> preparedArchiveEntries) {
         ArchivePath = archivePath;
         KeepBackup = keepBackup;
+        PreparedArchiveEntries = preparedArchiveEntries.Distinct(StringComparer.Ordinal).ToArray();
     }
 
-    public DownloadHistoryLease AcquireValidatedLease() => DownloadHistory.AcquireValidatedExecutionLease(ArchivePath, KeepBackup, null);
+    public DownloadHistoryLease AcquireValidatedLease() => DownloadHistory.AcquireValidatedExecutionLease(ArchivePath, KeepBackup, PreparedArchiveEntries, null);
 
     public DownloadHistoryLease AcquireValidatedLease(Func<bool> cancellationRequested) =>
-        DownloadHistory.AcquireValidatedExecutionLease(ArchivePath, KeepBackup, cancellationRequested);
+        DownloadHistory.AcquireValidatedExecutionLease(ArchivePath, KeepBackup, PreparedArchiveEntries, cancellationRequested);
 
 
     // This overload deliberately assumes the execution lease is still held by the caller.
@@ -625,7 +628,7 @@ internal static class DownloadHistory {
             if (!EnsureReady(out error)) return false;
             if (!RememberFileNameSchema(fileNameSchema, out error)) return false;
             string preparedArchive = EffectiveArchivePath;
-            execution = new DownloadHistoryExecution(preparedArchive, KeepBackup);
+            execution = new DownloadHistoryExecution(preparedArchive, KeepBackup, LastReportInternal.ArchiveSnapshot);
             archiveArguments = $"--ignore-config --no-plugin-dirs --download-archive \"{preparedArchive}\" --no-break-on-existing --concat-playlist never";
             return true;
         }
@@ -688,7 +691,7 @@ internal static class DownloadHistory {
         }
     }
 
-    internal static DownloadHistoryLease AcquireValidatedExecutionLease(string archivePath, bool keepBackup, Func<bool>? cancellationRequested = null) {
+    internal static DownloadHistoryLease AcquireValidatedExecutionLease(string archivePath, bool keepBackup, IReadOnlyCollection<string> preparedArchiveEntries, Func<bool>? cancellationRequested = null) {
         lock (Sync) ValidatePreparedExecution(archivePath, keepBackup);
         DownloadHistoryLease lease = AcquireArchiveLease(archivePath, cancellationRequested);
         try {
@@ -703,6 +706,14 @@ internal static class DownloadHistory {
             string backupPath = archivePath + ".bak";
             HashSet<string> backupEntries = new(StringComparer.Ordinal);
             bool backupValid = TryReadArchive(backupPath, backupEntries, out string backupError);
+            if (preparedArchiveEntries.Any(entry => !entries.Contains(entry))) {
+                bool backupCoversPrepared = backupValid && preparedArchiveEntries.All(entry => backupEntries.Contains(entry));
+                lock (Sync) {
+                    PreparedKey = null;
+                    if (!backupCoversPrepared) NeedsReconciliation = true;
+                }
+                throw new InvalidOperationException("The prepared Download History archive lost identities after the download command was generated. Validate or rebuild Download History before starting the download.");
+            }
             if (keepBackup && !backupValid) {
                 lock (Sync) {
                     PreparedKey = null;
@@ -1119,6 +1130,7 @@ internal static class DownloadHistory {
                 State = DownloadHistoryState.Healthy,
                 CanReconcile = true,
                 ArchiveEntries = entries.Count,
+                ArchiveSnapshot = entries.OrderBy(entry => entry, StringComparer.Ordinal).ToArray(),
                 Message = $"Download History is healthy. {entries.Count:N0} native archive entr{(entries.Count == 1 ? "y" : "ies")} validated without scanning media roots."
             };
         }

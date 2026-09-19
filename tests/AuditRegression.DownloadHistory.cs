@@ -1023,21 +1023,43 @@ internal static partial class AuditRegression {
     private static void DownloadHistoryInventoriesGifMediaConservatively() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            string gif = DownloadHistoryWriteMediaWithInfo(fixture.Root, "Animated-" + id + ".gif", "Youtube", id);
+            string gif = DownloadHistoryWriteMedia(fixture.Root, "Animated-" + id + ".gif");
+            string info = Path.ChangeExtension(gif, ".info.json");
+            File.WriteAllText(info,
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"mp4\"}", Encoding.UTF8);
             byte[] gifBefore = File.ReadAllBytes(gif);
-            byte[] infoBefore = File.ReadAllBytes(Path.ChangeExtension(gif, ".info.json"));
+            byte[] infoBefore = File.ReadAllBytes(info);
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal(0, Get(analysis, "CompletedMedia"));
             Equal(0, Get(analysis, "MetadataRecovered"));
             Equal(0, Get(analysis, "UnresolvedMedia"));
 
-            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
             Require(!DownloadHistoryArchiveLines(fixture.Archive).Contains("youtube " + id),
-                "GIF thumbnail/sidecar residue was promoted into native Download History");
-            Require(gifBefore.SequenceEqual(File.ReadAllBytes(gif)), "GIF sidecar inventory modified the file");
-            Require(infoBefore.SequenceEqual(File.ReadAllBytes(Path.ChangeExtension(gif, ".info.json"))),
-                "GIF sidecar inventory modified adjacent metadata");
+                "GIF thumbnail residue was promoted into native Download History");
+            Require(gifBefore.SequenceEqual(File.ReadAllBytes(gif)), "GIF thumbnail classification modified the file");
+            Require(infoBefore.SequenceEqual(File.ReadAllBytes(info)), "GIF thumbnail classification modified adjacent metadata");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string gif = DownloadHistoryWriteMedia(fixture.Root, "Direct-" + id + ".gif");
+            File.WriteAllText(Path.ChangeExtension(gif, ".info.json"),
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"gif\"}", Encoding.UTF8);
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(1, Get(rebuilt, "CompletedMedia"));
+            Equal(1, Get(rebuilt, "MetadataRecovered"));
+            Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMedia(fixture.Root, "Unknown.gif");
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Unsafe", DownloadHistoryStateName(analysis));
+            Equal(1, Get(analysis, "CompletedMedia"));
+            Equal(1, Get(analysis, "UnresolvedMedia"));
+            Equal(false, DownloadHistoryCanReconcile(analysis));
         }
 
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {

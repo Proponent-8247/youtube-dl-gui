@@ -89,7 +89,9 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A032 | High | Fixed / regression-verified | Protected mode rejects custom and built-in partial time-range downloads whose source-level native archive identity cannot represent the requested section. |
 | DH-A033 | High | Fixed / regression-verified | A shared in-memory per-archive floor now preserves same-session ledger knowledge across preparations and completed runs even when physical backup retention is off. |
 | DH-A034 | High | Fixed / regression-verified | Protected commands now retain clean per-media info JSON as authoritative extractor+ID recovery evidence and reject explicit attempts to disable it. |
-| DH-A035 | Medium | Verified | yt-dlp `--write-all-thumbnails` can create `base.<thumbnail-id>.<ext>` sidecars whose media-like extension is inventoried as an unresolved completed file because the adjacent metadata belongs to `base.info.json`. |
+| DH-A035 | Medium | Fixed / regression-verified | Indexed multi-thumbnail sidecars are now ignored only when neighboring authoritative metadata proves the exact thumbnail ID+extension ownership. |
+| DH-A036 | High | Verified | `--compat-options allow-unsafe-ext` disables yt-dlp's extension/path-separator safety, defeating the protected output namespace and the rebuild scanner's extension allowlist. |
+| DH-A037 | High | Verified | Protected custom arguments still permit direct arbitrary state-mutation hooks: `--print-to-file` can append forged records into the live archive, and `--netrc-cmd` executes an arbitrary shell command. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -961,3 +963,48 @@ Current yt-dlp writes per-video `.info.json` before media transfer when `--write
 6. Keep inventory streaming/non-destructive and avoid a whole-library pre-index solely for this check.
 7. Add regression coverage for an exact indexed GIF thumbnail sidecar and a near-match that must not be skipped; assert all media/sidecar bytes and paths remain unchanged.
 8. Re-run the complete guarded Windows Debug/Release/full-regression gates.
+
+
+- DH-A035: `774dc7d18d2cb9a3d1886f0fae4852326fb41eb4` (`fix: identify indexed thumbnail sidecars from metadata`), guarded workflow run `35462891907`, cleanup commit `45043b46462730ee924d3471d0f445016dfa6d2d`.
+- The guard showed `DOWNLOAD_HISTORY.IgnoresIndexedThumbnailSidecars` failing at baseline and passing after repair; the complete Download History regression set passed afterward.
+- Evidence artifact `10590227152` has SHA-256 `e7213be1e1645e8b621e764a751f73b03e179d8e8d4359119507470f97172f6d`.
+
+### DH-A036 — Unsafe-extension compatibility can escape protected output assumptions
+
+**Priority / state:** High protected-output and rebuild-integrity risk / VERIFIED against current app filtering and current yt-dlp extension-safety code.
+
+**Affected code:** protected custom-argument compatibility filtering and app-owned protected suffix.
+
+**Finding:** Current yt-dlp exposes `--compat-options allow-unsafe-ext`. Its validation explicitly sets the global unsafe-extension guard off; upstream warns that this opens the user to attacks. With the guard disabled, extension values containing normally rejected extensions or even path separators are no longer rejected. Download History relies on an app-owned `%(ext)s` output filename inside a validated namespace and on an allowlisted completed-media scanner. Protected mode currently allows this compatibility option.
+
+**Impact:** A protected command can create output outside the scanner's known media-extension set and, with malicious extractor extension data, can defeat the assumed filename/path boundary. The native archive may still record the identity, while later total-loss Rebuild cannot see the media reliably.
+
+**Required acceptance:**
+
+1. Reject a custom compatibility-option sequence whose final effective state enables `allow-unsafe-ext`.
+2. Preserve safe compatibility requests, including yt-dlp's `youtube-dl` / `youtube-dlc` aliases, which explicitly remove `allow-unsafe-ext`.
+3. Respect ordered/comma-separated enable/disable semantics: a later `-allow-unsafe-ext` or `-all` can make an earlier request safe; a later positive request makes it unsafe again.
+4. App-owned protected arguments must append `--compat-options -allow-unsafe-ext` as defense in depth against current/future option expansion after the custom string.
+5. Download History disabled behavior remains unchanged.
+6. Add regressions for direct enable, `all`, inverted compatibility aliases, safe aliases, and explicit later disable.
+7. Re-run the complete guarded Windows Debug/Release/full-regression gates.
+
+### DH-A037 — Arbitrary custom mutation hooks can tamper with protected state
+
+**Priority / state:** High protected-state integrity risk / VERIFIED against current app filter and current yt-dlp execution/write paths.
+
+**Affected code:** `TryGetArchiveArguments` custom-argument safety filter.
+
+**Finding:** `--print-to-file [WHEN:]TEMPLATE FILE` evaluates a template and opens the resulting arbitrary path in append mode. A user-supplied file target can therefore be the live native archive, allowing a syntactically valid forged record to be appended during the provider process. Because a forged valid record is a superset, the post-run archive/floor validation can accept it as newly learned history. Separately, `--netrc-cmd` is implemented as `Popen.run(..., shell=True)`, making it a direct arbitrary command-execution hook comparable to the already-blocked `--exec`.
+
+**Impact:** Protected mode can be prepared and leased correctly, yet the yt-dlp process itself can mutate the protected ledger or arbitrary state through allowed custom hooks, invalidating the meaning of the pre-start integrity checks.
+
+**Required acceptance:**
+
+1. Reject custom `--print-to-file` while Download History is enabled; ordinary `--print` without a file target remains available.
+2. Reject custom `--netrc-cmd` while Download History is enabled; static netrc/cookie/authentication mechanisms are not blocked by this repair.
+3. Long-option abbreviations accepted by yt-dlp must not bypass the checks.
+4. Keep the existing `--exec`, plugin, alias/config, source/extractor, output/path, and metadata protections intact.
+5. Download History disabled behavior remains unchanged.
+6. Add regressions for both mutation hooks and safe neighboring controls.
+7. Re-run the complete guarded Windows Debug/Release/full-regression gates.

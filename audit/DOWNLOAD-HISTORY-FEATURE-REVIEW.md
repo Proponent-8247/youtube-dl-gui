@@ -80,7 +80,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A023 | High | Fixed / regression-verified | Protected runs now force `--concat-playlist never` and reject conflicting custom concat policies, preserving one physical media family per native identity. |
 | DH-A024 | Medium | Fixed / regression-verified | Filename recovery now mirrors current and legacy yt-dlp restricted ID sanitization, including accent transliteration and current boundary normalization. |
 | DH-A025 | High | Fixed / regression-verified | GIF is now conservatively inventoried as possible final media, so authoritative GIF outputs rebuild and unidentified GIFs fail safe. |
-| DH-A026 | High | Verified | A never-initialized invalid file named the default `yt-dlp-archive.txt` is treated as application-owned solely by filename and may be overwritten during first-use reconciliation. |
+| DH-A026 | High | Fixed / regression-verified | Invalid first-use default archive collisions are refused unless a valid primary/backup proves native archive ownership; established corruption recovery remains backup-backed. |
+| DH-A027 | High | Verified | An unmatched quote in raw custom arguments can absorb the later app-owned protected archive suffix into a quoted argv token, bypassing Download History protection. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -162,7 +163,11 @@ Repair evidence recorded so far:
 - Baseline evidence showed both new regressions failing; after A024 the restricted-sanitization regression passed while GIF inventory still failed; after A025 both passed with the complete guarded build/regression gates.
 - Evidence artifact `10537860896` has SHA-256 `232188661c66b02379f2082b880cedc337dbf4f632bb85899bddddc6074685c1`.
 
-DH-A026 remains open until its guarded repair batch and final re-audit pass.
+- DH-A026: `ab9ecdb8f0192e26e4873abc04fa4784a0ff8e36` (`fix: refuse unowned default archive corruption overwrite`), closed by guarded workflow run `35322402275`, cleanup commit `1f59d51bd327df88a28724795d1d2ba04d04cdf3`.
+- The guard showed `DOWNLOAD_HISTORY.RefusesUninitializedDefaultArchiveCollision` failing before repair and passing afterward; `DOWNLOAD_HISTORY.CorruptArchiveDoesNotTrustPartialLines` remained green with trusted backup-backed recovery, and the complete Download History regression set passed after the repair.
+- Evidence artifact `10537982047` has SHA-256 `b660fc5cfd38febd0da0545973203903ef4b5c4dcc814417fa941bc21bfc435e`.
+
+DH-A027 remains open until its guarded repair batch and terminal re-audit pass.
 
 ## Review scope / status
 
@@ -708,3 +713,24 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 5. Add a separate first-use default-collision regression proving no overwrite occurs.
 6. Do not rely on `EverEnabled` or `BoundArchivePath` to authorize overwrite of an invalid primary without a valid backup; explicit Reset/removal is required before physical rebuild can replace it.
 7. Re-run the complete guarded Windows Debug/Release/regression gates.
+
+
+### DH-A027 — Unbalanced custom quoting can swallow the protected argument suffix
+
+**Priority / state:** High protected-argument integrity risk / VERIFIED in terminal current-head audit.
+
+**Affected code:** `TryGetArchiveArguments`, `TokenizeArguments`, and the standard/extended argument construction order.
+
+**Finding:** Download History validates the filename schema's raw quote/control-character boundary (DH-A018), and it tokenizes custom arguments to reject specific unsafe options. The tokenizer, however, does not reject an unterminated quoted region. Both standard and extended downloaders append the raw custom argument string **before** the app-owned `--ignore-config --no-plugin-dirs --download-archive ...` suffix. A custom value ending with an unmatched quote can therefore leave the Windows command line inside a quoted token when the protected suffix is appended. The safety scan sees no forbidden option, but yt-dlp need not receive the later archive flags as independent argv elements.
+
+**Impact:** The app can return a prepared `DownloadHistoryExecution` and treat a command as protected even though the native archive/anti-concat/plugin-isolation suffix is syntactically consumed by a preceding custom argument. This defeats the core duplicate-prevention boundary without using any already-blocked option.
+
+**Required acceptance:**
+
+1. While Download History is enabled, reject custom argument strings whose Windows-style quote state is unbalanced after accounting for backslash-escaped quotes.
+2. Keep correctly balanced quoted custom values available; this is not a ban on quoting.
+3. The rejection must occur before `EnsureReady`/execution-context publication and explain that the custom argument boundary is unsafe.
+4. Preserve the existing option tokenizer semantics and all A011/A015/A018 protections.
+5. Download History disabled behavior remains unchanged.
+6. Add regressions for a plain unmatched quote and an odd-backslash escaped quote case, plus a balanced quoted-value control.
+7. Re-run the complete guarded Windows Debug/Release/full-regression gates, then continue the terminal input-boundary audit.

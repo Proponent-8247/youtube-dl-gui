@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "base_sha": "c8dec43105ea5b07572903a2ff48570ac70c590e",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.RejectsCookieWritebackCollisions"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A038",
+      "message": "fix: protect history state from cookie writeback",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RejectsCookieWritebackCollisions"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "    public static bool TryGetArchiveArguments(string fileNameSchema, string? customArguments, out string archiveArguments, out string error) =>\n        TryGetArchiveArguments(fileNameSchema, customArguments, out archiveArguments, out error, out _);",
+              "new": "    private static bool TryNormalizeCookiePath(string path, out string normalized, out string error) {\n        normalized = string.Empty;\n        error = string.Empty;\n        try {\n            string expanded = Environment.ExpandEnvironmentVariables(path);\n            if (expanded == \"~\" || expanded.StartsWith(\"~/\", StringComparison.Ordinal) || expanded.StartsWith(\"~\\\\\", StringComparison.Ordinal)) {\n                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);\n                expanded = expanded.Length == 1 ? home : Path.Combine(home, expanded.Substring(2));\n            }\n            normalized = Path.GetFullPath(expanded);\n            return true;\n        }\n        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or System.Security.SecurityException) {\n            error = \"The cookie file path is invalid for protected Download History: \" + ex.Message;\n            return false;\n        }\n    }\n\n    private static bool IsProtectedStatePath(string cookiePath, string archivePath, out string error) {\n        error = string.Empty;\n        if (!TryNormalizeCookiePath(cookiePath, out string normalizedCookie, out error)) return true;\n\n        string normalizedArchive;\n        try { normalizedArchive = Path.GetFullPath(archivePath); }\n        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or System.Security.SecurityException) {\n            error = \"The protected Download History archive path is invalid: \" + ex.Message;\n            return true;\n        }\n\n        return string.Equals(normalizedCookie, normalizedArchive, StringComparison.OrdinalIgnoreCase) ||\n            string.Equals(normalizedCookie, normalizedArchive + \".bak\", StringComparison.OrdinalIgnoreCase) ||\n            string.Equals(normalizedCookie, normalizedArchive + \".lock\", StringComparison.OrdinalIgnoreCase);\n    }\n\n    internal static bool ValidateAuthenticationCookiePath(string? cookiePath, DownloadHistoryExecution? execution, out string error) {\n        error = string.Empty;\n        if (execution is null || cookiePath.IsNullEmptyWhitespace()) return true;\n        if (!IsProtectedStatePath(cookiePath!, execution.ArchivePath, out string pathError)) {\n            if (!pathError.IsNullEmptyWhitespace()) {\n                error = pathError;\n                return false;\n            }\n            return true;\n        }\n        error = \"The authentication cookie file cannot use the Download History archive, backup, or lock path because yt-dlp writes the cookie jar back at shutdown.\";\n        return false;\n    }\n\n    public static bool TryGetArchiveArguments(string fileNameSchema, string? customArguments, out string archiveArguments, out string error) =>\n        TryGetArchiveArguments(fileNameSchema, customArguments, out archiveArguments, out error, out _);"
+            },
+            {
+              "old": "            if (!EnsureReady(out error)) return false;\n            if (!RememberFileNameSchema(fileNameSchema, out error)) return false;",
+              "new": "            string protectedArchive = EffectiveArchivePath;\n            foreach (string cookiePath in GetOptionValues(customArguments, \"--cookies\")) {\n                if (IsProtectedStatePath(cookiePath, protectedArchive, out string cookiePathError)) {\n                    error = \"The custom cookie file cannot use the Download History archive, backup, or lock path because yt-dlp writes the cookie jar back at shutdown.\";\n                    return false;\n                }\n                if (!cookiePathError.IsNullEmptyWhitespace()) {\n                    error = cookiePathError;\n                    return false;\n                }\n            }\n\n            if (!EnsureReady(out error)) return false;\n            if (!RememberFileNameSchema(fileNameSchema, out error)) return false;"
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Classes/DataClasses/DownloadInfo.cs",
+          "edits": [
+            {
+              "old": "        DownloadHistoryExecution = HistoryExecution;\n\n        ArgumentList ArgumentsBuffer = [];",
+              "new": "        DownloadHistoryExecution = HistoryExecution;\n        if (!DownloadHistory.ValidateAuthenticationCookiePath(Authentication?.CookiesFile, HistoryExecution, out string CookiePathError)) {\n            Verbose(CookiePathError);\n            Status = DownloadStatus.ProgramError;\n            DownloadHistoryExecution = null;\n            return false;\n        }\n\n        ArgumentList ArgumentsBuffer = [];"
+            }
+          ]
+        },
+        {
+          "path": "youtube-dl-gui/Classes/DataClasses/ExtendedMediaDetails.cs",
+          "edits": [
+            {
+              "old": "        DownloadHistoryExecution = HistoryExecution;\n        ArgumentList ArgumentBuffer = [];",
+              "new": "        DownloadHistoryExecution = HistoryExecution;\n        if (!DownloadHistory.ValidateAuthenticationCookiePath(Authentication?.CookiesFile, HistoryExecution, out string CookiePathError)) {\n            Log.Write(CookiePathError);\n            base.Arguments = null;\n            ArgumentsCensored = string.Empty;\n            DownloadHistoryExecution = null;\n            return false;\n        }\n        ArgumentList ArgumentBuffer = [];"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

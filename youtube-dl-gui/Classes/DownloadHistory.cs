@@ -503,6 +503,18 @@ internal static class DownloadHistory {
         return index >= 0 ? value.Insert(index, "-%(id)s") : value + "-%(id)s.%(ext)s";
     }
 
+    private static bool HasBalancedArgumentQuotes(string? arguments) {
+        if (arguments.IsNullEmptyWhitespace()) return true;
+        bool inQuotes = false;
+        for (int index = 0; index < arguments!.Length; index++) {
+            if (arguments[index] != '"') continue;
+            int backslashes = 0;
+            for (int previous = index - 1; previous >= 0 && arguments[previous] == '\\'; previous--) backslashes++;
+            if ((backslashes & 1) == 0) inQuotes = !inQuotes;
+        }
+        return !inQuotes;
+    }
+
     public static bool TryGetArchiveArguments(string fileNameSchema, string? customArguments, out string archiveArguments, out string error) =>
         TryGetArchiveArguments(fileNameSchema, customArguments, out archiveArguments, out error, out _);
 
@@ -519,6 +531,12 @@ internal static class DownloadHistory {
             if (Downloads.YtdlType is not ((int)GitID.YtDlp) and not ((int)GitID.YtDlpNightly)) {
                 LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "Download History requires yt-dlp or yt-dlp nightly." };
                 error = "Download History uses yt-dlp archive semantics and is not enabled for the selected youtube-dl provider. Select yt-dlp/yt-dlp-nightly or disable Download History.";
+                return false;
+            }
+
+            if (!HasBalancedArgumentQuotes(customArguments)) {
+                LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "Custom arguments contain an unterminated quoted region that can escape the protected argument boundary." };
+                error = "Download History cannot protect custom arguments with unbalanced quotes because they can absorb the app-owned yt-dlp archive options. Balance or remove the quote, or disable Download History.";
                 return false;
             }
 

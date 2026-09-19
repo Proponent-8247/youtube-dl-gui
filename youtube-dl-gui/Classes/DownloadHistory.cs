@@ -581,6 +581,10 @@ internal static class DownloadHistory {
                 error = "--concat-playlist is not allowed while Download History protection is enabled because concatenation can delete the per-entry media files needed to rebuild native archive identities. Disable Download History if playlist concatenation is required.";
                 return false;
             }
+            if (ContainsOption(customArguments, "--download-sections")) {
+                error = "--download-sections is not allowed while Download History protection is enabled because yt-dlp's native archive records only the parent source ID and cannot distinguish partial time ranges. Disable Download History for intentional section/range downloads.";
+                return false;
+            }
             if (ContainsShortOption(customArguments, "-o") || ContainsOption(customArguments, "--output") || ContainsOption(customArguments, "--id") ||
                 ContainsShortOption(customArguments, "-P") || ContainsOption(customArguments, "--paths")) {
                 error = "Custom output templates or paths are not allowed while Download History protection is enabled because the app must keep %(id)s-bearing media inside the validated library namespace.";

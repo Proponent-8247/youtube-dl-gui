@@ -502,6 +502,12 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
     public override bool GenerateArguments() {
         DisposeAuthenticationConfig();
         DownloadHistoryExecution = null;
+        if (DownloadHistory.Enabled && SelectedType != DownloadType.Custom && (StartTime.HasValue || EndTime.HasValue)) {
+            Log.Write("Download History cannot protect partial time-range downloads because yt-dlp's native archive identity represents the whole source. Disable Download History for intentional section/range downloads.");
+            base.Arguments = null;
+            ArgumentsCensored = string.Empty;
+            return false;
+        }
         string Schema = FileNameSchema.IsNullEmptyWhitespace() ? "%(title)s-%(id)s.%(ext)s" : FileNameSchema;
         if (!DownloadHistory.TryGetArchiveArguments(Schema, CustomArguments, out string DownloadArchiveArguments, out string DownloadHistoryError, out DownloadHistoryExecution? HistoryExecution)) {
             Log.Write(DownloadHistoryError);

@@ -233,6 +233,35 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsParentTraversalFilenameSchemas() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string schema in new[] {
+                "..\\outside\\%(id)s.%(ext)s",
+                "../outside/%(id)s.%(ext)s",
+                "creator\\..\\outside\\%(id)s.%(ext)s"
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, schema, null, out arguments, out error, out execution));
+                Require(error.IndexOf("parent", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("path", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("directory", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Parent traversal schema was not rejected clearly: " + schema);
+                Equal(null, execution);
+            }
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "creator\\series\\%(id)s.%(ext)s",
+                null, out arguments, out error, out execution));
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "..\\outside\\%(id)s.%(ext)s",
+                null, out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryRejectsUnsafeProtectedFilenameSchemas() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -2449,6 +2478,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
         Test("DOWNLOAD_HISTORY.RequiresAuthoritativeMetadataForRebuild", DownloadHistoryRequiresAuthoritativeMetadataForRebuild);
         Test("DOWNLOAD_HISTORY.HonorsEscapedIdTemplateSemantics", DownloadHistoryHonorsEscapedIdTemplateSemantics);
+        Test("DOWNLOAD_HISTORY.RejectsParentTraversalFilenameSchemas", DownloadHistoryRejectsParentTraversalFilenameSchemas);
         Test("DOWNLOAD_HISTORY.RejectsUnsafeProtectedFilenameSchemas", DownloadHistoryRejectsUnsafeProtectedFilenameSchemas);
         Test("DOWNLOAD_HISTORY.DisablesPlaylistConcatenationWhileProtected", DownloadHistoryDisablesPlaylistConcatenationWhileProtected);
         Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);

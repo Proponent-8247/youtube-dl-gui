@@ -833,12 +833,12 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 
 **Required acceptance:**
 
-1. Thumbnail/image sidecars must never by themselves count as completed media evidence, including GIF.
-2. Because a standalone GIF cannot be reliably distinguished after the fact from a yt-dlp GIF thumbnail using filename/adjacent metadata alone, protected mode must not create final GIF media unless a separate unambiguous durable media marker is introduced.
-3. Keep ordinary app-supported video/audio formats unchanged; the built-in GUI does not currently expose GIF as a normal video output.
-4. Reject custom/preset behavior that explicitly requests final GIF video while Download History is enabled, with an actionable explanation; Download History disabled behavior remains unchanged.
-5. Remove GIF from completed-media inventory so failed/surviving GIF thumbnails remain sidecars.
-6. Replace the A025 regression semantics without deleting its test identity: it must now prove a GIF+same-stem `.info.json` sidecar family is ignored and protected GIF recode is refused.
+1. A GIF with adjacent authoritative metadata whose top-level media `ext` is **not** `gif` must be treated as a thumbnail/sidecar and must not count as completed media.
+2. A direct GIF whose authoritative top-level metadata says `ext=gif` remains recoverable as media; do not regress legitimate direct-GIF sources.
+3. A metadata-free GIF remains conservatively ambiguous/unresolved during recovery rather than being guessed as either media or sidecar.
+4. Reject custom post-download `--recode-video` mappings whose target is GIF while Download History is enabled, because the pre-postprocess info JSON describes the source extension and cannot distinguish that output from thumbnail residue. Download History disabled behavior remains unchanged.
+5. Keep ordinary app-supported video/audio formats unchanged; the built-in GUI does not currently expose GIF as a normal video output.
+6. Replace the A025 regression semantics without deleting its test identity: prove non-GIF metadata makes same-stem GIF residue ignorable, `ext=gif` preserves direct GIF recovery, metadata-free GIF stays fail-safe, and protected GIF recode is refused.
 7. Re-run the complete guarded Windows Debug/Release/full-regression gates.
 
 ### DH-A032 — Partial-section downloads cannot be represented safely by the native archive identity

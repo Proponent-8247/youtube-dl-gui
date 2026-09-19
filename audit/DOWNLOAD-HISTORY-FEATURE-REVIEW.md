@@ -85,7 +85,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A028 | High | Fixed / regression-verified | ID-template validation and historical filename recovery now honor yt-dlp percent-escape semantics, rejecting even escaped runs while supporting active odd runs. |
 | DH-A029 | High | Fixed / regression-verified | Physical inventory now covers current yt-dlp safe video/audio direct-media extensions plus `.unknown_video`, while preserving sidecar/manifest exclusions. |
 | DH-A030 | High | Fixed / regression-verified | Prepared execution now carries the validated ledger as an immutable lower bound and rejects any pre-start primary shrink while allowing supersets. |
-| DH-A031 | High | Verified / retry required | The first repair prevented obvious non-GIF-metadata promotion, but terminal re-audit proved orphan `ext=gif` evidence is still ambiguous because yt-dlp writes GIF thumbnails and info JSON before media completion. |
+| DH-A031 | High | Verified / second retry required | The first two repairs narrowed GIF recovery, but terminal re-audit found a better exact discriminator in yt-dlp's retained `thumbnails` metadata; blanket orphan-GIF rejection and GIF postprocess bans are unnecessarily broad. |
 | DH-A032 | High | Fixed / regression-verified | Protected mode rejects custom and built-in partial time-range downloads whose source-level native archive identity cannot represent the requested section. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
@@ -831,18 +831,23 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 
 **Impact:** Explicit Rebuild can falsely mark a source as downloaded from a surviving thumbnail alone. The next protected run then skips the source even though the actual media never completed or has been removed. This violates the required sidecar-vs-media distinction and fail-safe recovery model.
 
-**Required acceptance (revised after first guarded repair):**
+**Required acceptance (second revision after terminal source-order audit):**
 
-1. A GIF must never create a **new** native history identity during inventory/rebuild solely from the GIF file plus adjacent metadata or filename evidence; yt-dlp can leave those artifacts before media completion.
-2. If the GIF's identity already exists in a valid primary archive or trusted backup, inventory may treat the GIF as corroborating an already-known identity because no history is being invented.
-3. If a same-stem non-GIF completed-media sibling exists, treat the GIF as a sidecar and do not double-count it.
-4. Otherwise an orphan GIF encountered during a recovery/rebuild state must be reported unresolved/ambiguous and must block reconciliation rather than being silently promoted or silently ignored.
-5. Reject protected custom `--recode-video` **and** `--remux-video` mappings whose target is GIF, since those deliberately create the same ambiguous final extension. Download History disabled behavior remains unchanged.
-6. Keep normal protected validation conservative: an unarchived orphan GIF must not be promoted merely because it exists.
-7. Preserve the A025/A031 test identity but revise it to prove: same-stem GIF sidecar is ignored when real media exists; orphan GIF with `ext=gif` cannot rebuild a missing identity; a GIF corresponding to an already-valid archive identity is accepted without adding history; metadata-free orphan GIF is fail-safe; protected recode/remux-to-GIF are rejected.
-8. Re-run the complete guarded Windows Debug/Release/full-regression gates.
+1. Determine thumbnail ambiguity from the adjacent authoritative info JSON's retained `thumbnails` list, mirroring yt-dlp's thumbnail filename extension choice: prefer each thumbnail's explicit `ext`; otherwise derive the extension from its URL path.
+2. If a candidate completed-media path uses an extension that the same metadata says a thumbnail could use, that path may not create a **new** native history identity by itself because the thumbnail can be written before media completion.
+3. If the ambiguous candidate's identity already exists in a valid primary archive or trusted backup, it may corroborate that already-known identity; no history is invented.
+4. If a same-stem completed-media sibling uses an extension that is **not** listed as a possible thumbnail extension, treat the ambiguous candidate as a sidecar and do not double-count it.
+5. Otherwise, during recovery/rebuild, report the ambiguous candidate unresolved and block reconciliation; during ordinary valid-archive validation, continue to ignore unarchived residue.
+6. If metadata does **not** list the candidate extension as a possible thumbnail extension, preserve normal media recovery—including legitimate direct/recode/remux GIF outputs. Remove the temporary protected GIF recode/remux restrictions from the superseded retry.
+7. Metadata-free media remains governed by the existing conservative rules: it cannot invent a new extractor identity from filename shape alone when no native ledger identity exists.
+8. Keep all media/sidecar files byte- and path-unchanged.
+9. Preserve the A025/A031 test identity and cover: same-stem real media + GIF thumbnail metadata; failed/orphan GIF whose metadata explicitly lists a GIF thumbnail; direct GIF with no GIF-thumbnail evidence; already-known ambiguous GIF identity; metadata-free orphan; and recode/remux GIF remaining available when otherwise compatible.
+10. Re-run the complete guarded Windows Debug/Release/full-regression gates.
 
-**First repair disposition:** `d6703d39fbf6890db0c8e648f4d52d5fc354b06d` passed the original A031 regression in guarded workflow `35461564792`, but that regression encoded an unsafe assumption discovered during the immediately following terminal re-audit. The commit is retained for audit history but **superseded, not accepted as closure evidence**. A corrected regression/repair follows.
+**Repair disposition history:**
+
+- `d6703d39fbf6890db0c8e648f4d52d5fc354b06d` passed the original A031 regression in guarded workflow `35461564792`, but the regression assumed top-level `ext=gif` proved completion. Terminal re-audit showed that is not sufficient because thumbnail/info artifacts precede media completion. Superseded.
+- `991f7eca9bd623953e03c14e44d081947b176856` passed the first retry regression in guarded workflow `35461893289`, cleanup `98346003001d0c89429480c252306e9538741e8e`, artifact `10590200322`, SHA-256 `7ea70b46ba07527dfae7255be87320f2b41e1ed98013494735a77ab70a0320d4`. The immediately following terminal audit found that yt-dlp retains exact thumbnail extension evidence in `thumbnails`, allowing a narrower and more compatible fix. This retry is therefore also superseded rather than accepted as closure evidence.
 
 ### DH-A032 — Partial-section downloads cannot be represented safely by the native archive identity
 

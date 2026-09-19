@@ -633,6 +633,123 @@ internal static class DownloadHistory {
             string.Equals(normalizedCookie, normalizedArchive + ".lock", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsAsciiEnvironmentNameCharacter(char value) =>
+        value == '-' || value == '_' ||
+        value >= '0' && value <= '9' ||
+        value >= 'A' && value <= 'Z' ||
+        value >= 'a' && value <= 'z';
+
+    private static bool HasActiveEnvironmentExpansion(string value) {
+        for (int index = 0; index < value.Length;) {
+            if (value[index] == '\'') {
+                int closeQuote = value.IndexOf('\'', index + 1);
+                if (closeQuote < 0) return false;
+                index = closeQuote + 1;
+                continue;
+            }
+
+            if (value[index] == '%') {
+                int start = index;
+                while (index < value.Length && value[index] == '%') index++;
+                int percentCount = index - start;
+
+                if (index < value.Length && value[index] == '(') {
+                    int close = value.IndexOf(')', index + 1);
+                    if (close < 0) continue;
+                    index = close + 1;
+                    continue;
+                }
+
+                int closePercent = value.IndexOf('%', index);
+                if (closePercent >= 0) {
+                    if ((percentCount & 1) == 1) return true;
+                    index = closePercent + 1;
+                    continue;
+                }
+                continue;
+            }
+
+            if (value[index] == '$') {
+                int start = index;
+                while (index < value.Length && value[index] == '$') index++;
+                int dollarCount = index - start;
+                bool canExpand = dollarCount == 1 || (dollarCount & 1) == 0;
+
+                if (index < value.Length && value[index] == '{') {
+                    int closeBrace = value.IndexOf('}', index + 1);
+                    if (canExpand && closeBrace >= 0) return true;
+                    index = closeBrace >= 0 ? closeBrace + 1 : value.Length;
+                    continue;
+                }
+
+                int nameEnd = index;
+                while (nameEnd < value.Length && IsAsciiEnvironmentNameCharacter(value[nameEnd])) nameEnd++;
+                if (canExpand && nameEnd > index) return true;
+                index = nameEnd > index ? nameEnd : index;
+                continue;
+            }
+
+            index++;
+        }
+        return false;
+    }
+
+    private static void AppendStaticTemplateLiteral(StringBuilder literal, string value) {
+        for (int index = 0; index < value.Length; index++) {
+            if (value[index] == '%' && index + 1 < value.Length && value[index + 1] == '%') {
+                literal.Append('%');
+                index++;
+            }
+            else literal.Append(value[index]);
+        }
+    }
+
+    private static bool DirectoryComponentMayResolveToParent(string component) {
+        if (component == "..") return true;
+        const string conversionTypes = "diouxXeEfFgGcrsBjhlqDSU";
+        StringBuilder literal = new();
+        bool hasDynamicToken = false;
+        int position = 0;
+        while (position < component.Length) {
+            int tokenStart = component.IndexOf("%(", position, StringComparison.Ordinal);
+            if (tokenStart < 0) {
+                AppendStaticTemplateLiteral(literal, component.Substring(position));
+                break;
+            }
+            int percentStart = tokenStart;
+            while (percentStart > position && component[percentStart - 1] == '%') percentStart--;
+            AppendStaticTemplateLiteral(literal, component.Substring(position, percentStart - position));
+            int close = component.IndexOf(')', tokenStart + 2);
+            if (close < 0) {
+                AppendStaticTemplateLiteral(literal, component.Substring(percentStart));
+                break;
+            }
+            int tokenEnd = close + 1;
+            while (tokenEnd < component.Length && conversionTypes.IndexOf(component[tokenEnd]) < 0) tokenEnd++;
+            if (tokenEnd >= component.Length) {
+                AppendStaticTemplateLiteral(literal, component.Substring(percentStart));
+                break;
+            }
+            int percentCount = tokenStart - percentStart + 1;
+            if (percentCount > 1) literal.Append('%', percentCount / 2);
+            string token = component.Substring(tokenStart, tokenEnd + 1 - tokenStart);
+            if ((percentCount & 1) == 1) hasDynamicToken = true;
+            else literal.Append(token.Substring(1));
+            position = tokenEnd + 1;
+        }
+        if (!hasDynamicToken || literal.Length > 2) return false;
+        return literal.ToString().All(character => character == '.');
+    }
+
+    private static bool HasUnsafeFilenameSchemaPath(string schema) {
+        if (HasActiveEnvironmentExpansion(schema)) return true;
+        string[] components = schema.Split(new[] { '\\', '/' }, StringSplitOptions.None);
+        for (int index = 0; index + 1 < components.Length; index++) {
+            if (DirectoryComponentMayResolveToParent(components[index])) return true;
+        }
+        return false;
+    }
+
     internal static bool ValidateAuthenticationCookiePath(string? cookiePath, DownloadHistoryExecution? execution, out string error) {
         error = string.Empty;
         if (execution is null || cookiePath.IsNullEmptyWhitespace()) return true;
@@ -675,6 +792,11 @@ internal static class DownloadHistory {
             if (fileNameSchema.IndexOf('"') >= 0 || fileNameSchema.Any(char.IsControl)) {
                 LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "The filename format contains characters that can escape the protected output argument." };
                 error = "Download History cannot protect a filename schema containing quotes or control characters because they can escape the yt-dlp output argument boundary. Remove those characters or disable Download History.";
+                return false;
+            }
+            if (HasUnsafeFilenameSchemaPath(fileNameSchema)) {
+                LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "The filename format can resolve outside the active download directory." };
+                error = "Download History cannot protect a filename schema that can produce a parent-directory component or expand environment variables into path separators. Use static nested directories or give dynamic directory components a literal prefix/suffix.";
                 return false;
             }
             if (!HasRequiredIdTemplate(fileNameSchema)) {

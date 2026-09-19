@@ -473,8 +473,8 @@ internal static partial class AuditRegression {
             ".mpga", ".mxf", ".ogm", ".qt", ".ra", ".rm", ".shn", ".vid", ".vp9", ".xm", ".unknown_video"
         };
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            List<string> mediaPaths = new();
-            List<byte[]> mediaBytes = new();
+            List<string> mediaPaths = new List<string>();
+            List<byte[]> mediaBytes = new List<byte[]>();
             for (int i = 0; i < extensions.Length; i++) {
                 string id = "direct" + i.ToString("D4");
                 string media = DownloadHistoryWriteMediaWithInfo(fixture.Root, "Direct-" + id + extensions[i], "Generic", id);

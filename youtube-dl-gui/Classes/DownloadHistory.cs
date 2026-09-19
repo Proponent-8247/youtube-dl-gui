@@ -601,8 +601,8 @@ internal static class DownloadHistory {
                 error = "Custom metadata rewriting is not allowed while Download History protection is enabled because changing source identity fields can corrupt archive identity. Remove the metadata rewrite or disable Download History.";
                 return false;
             }
-            if (RequestsGifVideoRecode(customArguments)) {
-                error = "Download History cannot safely protect --recode-video mappings that produce GIF because GIF is also a yt-dlp thumbnail sidecar extension and cannot be reconstructed unambiguously after postprocessing. Use another final video format or disable Download History.";
+            if (RequestsAmbiguousGifOutput(customArguments)) {
+                error = "Download History cannot safely protect --recode-video or --remux-video mappings that produce GIF because GIF is also a yt-dlp thumbnail sidecar extension and cannot be reconstructed unambiguously after postprocessing. Use another final video format or disable Download History.";
                 return false;
             }
             if (ContainsOption(customArguments, "--force-write-archive") ||
@@ -1409,14 +1409,22 @@ internal static class DownloadHistory {
             foreach (string scanRoot in scanRoots) {
                 foreach (string media in EnumerateCompletedMedia(scanRoot)) {
                     if (PathEquals(media, archive)) continue;
-                    string? entry = TryRecoverFromInfoJson(media, out _, out _, out string? metadataExtension);
-                    if (Path.GetExtension(media).Equals(".gif", StringComparison.OrdinalIgnoreCase) &&
-                        !metadataExtension.IsNullEmptyWhitespace() &&
-                        !metadataExtension.Equals("gif", StringComparison.OrdinalIgnoreCase)) {
-                        continue;
-                    }
+                    string? entry = TryRecoverFromInfoJson(media, out _, out _);
                     bool fromMetadata = entry is not null;
                     if (entry is null) entry = filenameMatcher.Match(media);
+
+                    // GIF is also a yt-dlp thumbnail extension, and thumbnails plus info JSON can be
+                    // written before media completion. Never invent a native identity from an orphan GIF.
+                    if (Path.GetExtension(media).Equals(".gif", StringComparison.OrdinalIgnoreCase)) {
+                        if (HasSameStemNonGifMediaSibling(media)) continue;
+                        bool alreadyKnown = entry is not null && analysis.ArchiveEntries.Contains(entry);
+                        if (!alreadyKnown) {
+                            if (!analysis.RecoverMissingEntries && analysis.ArchiveValid) continue;
+                            report.CompletedMedia++;
+                            report.UnresolvedMedia++;
+                            continue;
+                        }
+                    }
 
                     // A current valid native archive is the success marker. An unarchived final-looking
                     // file may be residue from a failed provider run and must remain eligible for retry.
@@ -1517,6 +1525,28 @@ internal static class DownloadHistory {
         return Path.GetFullPath(Environment.ExpandEnvironmentVariables(path));
     }
 
+    private static bool IsCompletedMediaExtension(string ext) =>
+        ext is ".mp4" or ".mkv" or ".webm" or ".mov" or ".avi" or ".flv" or ".m4v" or ".3gp" or ".3g2" or
+                    ".f4v" or ".mk3d" or ".divx" or ".ogv" or ".nut" or ".swf" or ".gif" or
+                    ".ts" or ".m2ts" or ".mts" or ".vob" or ".wmv" or ".asf" or ".mpg" or ".mpeg" or ".mpe" or ".mpv" or ".m2v" or
+                    ".3ga" or ".asx" or ".isma" or ".ismv" or ".m2t" or ".m4s" or ".mng" or ".mp2v" or ".mp4v" or ".mpeg1" or ".mpeg2" or ".mpeg4" or
+                    ".mxf" or ".ogm" or ".qt" or ".rm" or ".vid" or ".vp9" or ".unknown_video" or
+                    ".mp3" or ".mp2" or ".m4a" or ".m4b" or ".m4r" or ".aac" or ".opus" or ".ogg" or ".oga" or ".ogx" or ".spx" or ".vorbis" or ".weba" or
+                    ".wav" or ".flac" or ".wma" or ".mka" or ".ape" or ".alac" or ".aiff" or ".aif" or ".aifc" or ".tta" or
+                    ".f4a" or ".f4b" or ".ac3" or ".eac3" or ".dts" or ".adts" or ".au" or ".it" or ".mid" or ".mod" or ".mp1" or
+                    ".mp4a" or ".mpa" or ".mpga" or ".ra" or ".shn" or ".xm";
+
+    private static bool HasSameStemNonGifMediaSibling(string gifPath) {
+        string directory = Path.GetDirectoryName(gifPath) ?? string.Empty;
+        string stem = Path.GetFileNameWithoutExtension(gifPath);
+        foreach (string sibling in Directory.EnumerateFiles(directory, stem + ".*", SearchOption.TopDirectoryOnly)) {
+            if (string.Equals(sibling, gifPath, StringComparison.OrdinalIgnoreCase)) continue;
+            string siblingExtension = Path.GetExtension(sibling).ToLowerInvariant();
+            if (siblingExtension != ".gif" && IsCompletedMediaExtension(siblingExtension)) return true;
+        }
+        return false;
+    }
+
     private static IEnumerable<string> EnumerateCompletedMedia(string root) {
         if (!Directory.Exists(root)) yield break;
         Stack<string> pending = new();
@@ -1536,17 +1566,7 @@ internal static class DownloadHistory {
                     ext is ".json" or ".jpg" or ".jpeg" or ".png" or ".webp" or ".srt" or ".vtt" or ".ass" or ".lrc" or ".description" or ".txt") {
                     continue;
                 }
-                if (ext is ".mp4" or ".mkv" or ".webm" or ".mov" or ".avi" or ".flv" or ".m4v" or ".3gp" or ".3g2" or
-                    ".f4v" or ".mk3d" or ".divx" or ".ogv" or ".nut" or ".swf" or ".gif" or
-                    ".ts" or ".m2ts" or ".mts" or ".vob" or ".wmv" or ".asf" or ".mpg" or ".mpeg" or ".mpe" or ".mpv" or ".m2v" or
-                    ".3ga" or ".asx" or ".isma" or ".ismv" or ".m2t" or ".m4s" or ".mng" or ".mp2v" or ".mp4v" or ".mpeg1" or ".mpeg2" or ".mpeg4" or
-                    ".mxf" or ".ogm" or ".qt" or ".rm" or ".vid" or ".vp9" or ".unknown_video" or
-                    ".mp3" or ".mp2" or ".m4a" or ".m4b" or ".m4r" or ".aac" or ".opus" or ".ogg" or ".oga" or ".ogx" or ".spx" or ".vorbis" or ".weba" or
-                    ".wav" or ".flac" or ".wma" or ".mka" or ".ape" or ".alac" or ".aiff" or ".aif" or ".aifc" or ".tta" or
-                    ".f4a" or ".f4b" or ".ac3" or ".eac3" or ".dts" or ".adts" or ".au" or ".it" or ".mid" or ".mod" or ".mp1" or
-                    ".mp4a" or ".mpa" or ".mpga" or ".ra" or ".shn" or ".xm") {
-                    yield return file;
-                }
+                if (IsCompletedMediaExtension(ext)) yield return file;
             }
             foreach (string child in Directory.EnumerateDirectories(directory, "*", SearchOption.TopDirectoryOnly)) {
                 if ((File.GetAttributes(child) & FileAttributes.ReparsePoint) != 0) {
@@ -1557,10 +1577,9 @@ internal static class DownloadHistory {
         }
     }
 
-    private static string? TryRecoverFromInfoJson(string mediaPath, out string? sourceId, out string? infoPath, out string? metadataExtension) {
+    private static string? TryRecoverFromInfoJson(string mediaPath, out string? sourceId, out string? infoPath) {
         sourceId = null;
         infoPath = null;
-        metadataExtension = null;
         string directory = Path.GetDirectoryName(mediaPath) ?? string.Empty;
         string stem = Path.Combine(directory, Path.GetFileNameWithoutExtension(mediaPath));
         string candidate = stem + ".info.json";
@@ -1572,9 +1591,6 @@ internal static class DownloadHistory {
                 RecursionLimit = 256
             };
             if (serializer.DeserializeObject(json) is not Dictionary<string, object> root) return null;
-            metadataExtension = root.TryGetValue("ext", out object? extensionValue) && extensionValue is string extensionText
-                ? extensionText.Trim()
-                : null;
             string? recoveredId = root.TryGetValue("id", out object? idValue) ? idValue as string : null;
             string? extractor = null;
             // Native yt-dlp archive IDs are keyed from extractor_key/ie_key. The display-style
@@ -2026,12 +2042,14 @@ internal static class DownloadHistory {
         }
     }
 
-    private static bool RequestsGifVideoRecode(string? arguments) {
-        foreach (string value in GetOptionValues(arguments, "--recode-video")) {
-            foreach (string mapping in value.Split('/')) {
-                int arrow = mapping.LastIndexOf('>');
-                string target = (arrow >= 0 ? mapping.Substring(arrow + 1) : mapping).Trim();
-                if (target.Equals("gif", StringComparison.OrdinalIgnoreCase)) return true;
+    private static bool RequestsAmbiguousGifOutput(string? arguments) {
+        foreach (string option in new[] { "--recode-video", "--remux-video" }) {
+            foreach (string value in GetOptionValues(arguments, option)) {
+                foreach (string mapping in value.Split('/')) {
+                    int arrow = mapping.LastIndexOf('>');
+                    string target = (arrow >= 0 ? mapping.Substring(arrow + 1) : mapping).Trim();
+                    if (target.Equals("gif", StringComparison.OrdinalIgnoreCase)) return true;
+                }
             }
         }
         return false;

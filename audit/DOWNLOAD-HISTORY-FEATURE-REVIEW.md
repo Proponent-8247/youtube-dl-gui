@@ -81,7 +81,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A024 | Medium | Fixed / regression-verified | Filename recovery now mirrors current and legacy yt-dlp restricted ID sanitization, including accent transliteration and current boundary normalization. |
 | DH-A025 | High | Fixed / regression-verified | GIF is now conservatively inventoried as possible final media, so authoritative GIF outputs rebuild and unidentified GIFs fail safe. |
 | DH-A026 | High | Fixed / regression-verified | Invalid first-use default archive collisions are refused unless a valid primary/backup proves native archive ownership; established corruption recovery remains backup-backed. |
-| DH-A027 | High | Verified | An unmatched quote in raw custom arguments can absorb the later app-owned protected archive suffix into a quoted argv token, bypassing Download History protection. |
+| DH-A027 | High | Fixed / regression-verified | Protected mode now rejects unbalanced Windows-style quoting in raw custom arguments before publishing an execution context. |
+| DH-A028 | High | Verified | The mandatory media-ID check treats escaped `%%(id)s` as a real yt-dlp ID placeholder even though yt-dlp emits it literally, defeating filename-based rebuild evidence. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -167,7 +168,11 @@ Repair evidence recorded so far:
 - The guard showed `DOWNLOAD_HISTORY.RefusesUninitializedDefaultArchiveCollision` failing before repair and passing afterward; `DOWNLOAD_HISTORY.CorruptArchiveDoesNotTrustPartialLines` remained green with trusted backup-backed recovery, and the complete Download History regression set passed after the repair.
 - Evidence artifact `10537982047` has SHA-256 `b660fc5cfd38febd0da0545973203903ef4b5c4dcc814417fa941bc21bfc435e`.
 
-DH-A027 remains open until its guarded repair batch and terminal re-audit pass.
+- DH-A027: `66b07f65832ec2dd284e503f21b9b983417b23ed` (`fix: reject unbalanced protected custom arguments`), closed by guarded workflow run `35437251231`, cleanup commit `b33a7935e7759c4b922ced3a4de0fd869420b98b`.
+- The guard showed `DOWNLOAD_HISTORY.RejectsUnbalancedCustomArgumentQuotes` failing at baseline and passing after repair; the complete Download History suite passed after repair.
+- Evidence artifact `10582312597` has SHA-256 `c805a8e6b3d2575e70b29d788735661328a1aa1d3b6b170c6fbf09aa8e90c3b8`.
+
+DH-A028 remains open until its guarded repair batch and terminal re-audit pass.
 
 ## Review scope / status
 
@@ -734,3 +739,24 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 5. Download History disabled behavior remains unchanged.
 6. Add regressions for a plain unmatched quote and an odd-backslash escaped quote case, plus a balanced quoted-value control.
 7. Re-run the complete guarded Windows Debug/Release/full-regression gates, then continue the terminal input-boundary audit.
+
+
+### DH-A028 — Escaped percent can satisfy the ID-template check without embedding the ID
+
+**Priority / state:** High rebuild-correctness risk / VERIFIED against current app source and current yt-dlp output-template semantics.
+
+**Affected code:** `HasRequiredIdTemplate`, `BuildSchemaRegex`, protected filename-schema validation, and historical filename recovery.
+
+**Finding:** The feature currently considers a schema recoverable whenever the filename portion contains the raw substring `%(id)s`. yt-dlp output templates use Python-style percent formatting, where `%%` emits a literal percent. Therefore `%%(id)s.%(ext)s` passes the app's mandatory-ID check even though yt-dlp emits the literal text `%(id)s` rather than the media ID. Percent runs also matter for historical recovery: an odd run can contain an active placeholder after literal-percent pairs (for example `%%%(id)s`), while an even run does not.
+
+**Impact:** A protected download can be archived successfully while its filename contains no source ID. If the application-owned ledger/backup is later lost, the physical library may no longer provide the mandatory filename evidence required for safe reconstruction. A validator that is fixed without matching recovery parsing would create a second incompatibility for schemas containing literal percent signs.
+
+**Required acceptance:**
+
+1. Recognize `%(id)s` only when the percent introducing that token is active under yt-dlp/Python percent-escape semantics.
+2. `%%(id)s` and other even-percent escaped forms must not satisfy the protected ID requirement.
+3. Odd percent runs that represent literal-percent pairs followed by an active `%(id)s` must remain valid.
+4. Historical schema regex construction must apply the same percent-run semantics so a valid odd-run schema can later recover its filename.
+5. Preserve existing formatted-placeholder parsing and directory-component behavior; do not broaden the requirement beyond the exact ID token.
+6. Add regression controls for unescaped, even-escaped, and odd-run ID tokens plus filename recovery from the odd-run form.
+7. Re-run the complete guarded Windows Debug/Release/full-regression gates.

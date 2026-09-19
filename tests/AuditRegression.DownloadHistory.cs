@@ -343,6 +343,28 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsEmbeddedNullCustomArguments() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            string custom = "--proxy http://example.invalid" + '\0' + "--output escaped.%(ext)s";
+
+            Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                custom, out arguments, out error, out execution));
+            Require(error.IndexOf("null", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    error.IndexOf("NUL", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    error.IndexOf("control", StringComparison.OrdinalIgnoreCase) >= 0,
+                "Embedded NUL custom argument was not rejected clearly");
+            Equal(null, execution);
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                custom, out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryRejectsUnbalancedCustomArgumentQuotes() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -2483,6 +2505,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.DisablesPlaylistConcatenationWhileProtected", DownloadHistoryDisablesPlaylistConcatenationWhileProtected);
         Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);
         Test("DOWNLOAD_HISTORY.RejectsUnbalancedCustomArgumentQuotes", DownloadHistoryRejectsUnbalancedCustomArgumentQuotes);
+        Test("DOWNLOAD_HISTORY.RejectsEmbeddedNullCustomArguments", DownloadHistoryRejectsEmbeddedNullCustomArguments);
         Test("DOWNLOAD_HISTORY.RejectsPartialSectionDownloads", DownloadHistoryRejectsPartialSectionDownloads);
         Test("DOWNLOAD_HISTORY.RejectsClusteredShortOutputOverrides", DownloadHistoryRejectsClusteredShortOutputOverrides);
         Test("DOWNLOAD_HISTORY.RejectsSourceAndExtractorIdentityOverrides", DownloadHistoryRejectsSourceAndExtractorIdentityOverrides);

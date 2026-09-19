@@ -82,7 +82,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A025 | High | Fixed / regression-verified | GIF is now conservatively inventoried as possible final media, so authoritative GIF outputs rebuild and unidentified GIFs fail safe. |
 | DH-A026 | High | Fixed / regression-verified | Invalid first-use default archive collisions are refused unless a valid primary/backup proves native archive ownership; established corruption recovery remains backup-backed. |
 | DH-A027 | High | Fixed / regression-verified | Protected mode now rejects unbalanced Windows-style quoting in raw custom arguments before publishing an execution context. |
-| DH-A028 | High | Verified | The mandatory media-ID check treats escaped `%%(id)s` as a real yt-dlp ID placeholder even though yt-dlp emits it literally, defeating filename-based rebuild evidence. |
+| DH-A028 | High | Fixed / regression-verified | ID-template validation and historical filename recovery now honor yt-dlp percent-escape semantics, rejecting even escaped runs while supporting active odd runs. |
+| DH-A029 | High | Verified | Physical inventory ignores several current yt-dlp direct-media extensions (including `.unknown_video`), so valid protected Generic/direct outputs can disappear from explicit rebuild evidence. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -172,7 +173,11 @@ Repair evidence recorded so far:
 - The guard showed `DOWNLOAD_HISTORY.RejectsUnbalancedCustomArgumentQuotes` failing at baseline and passing after repair; the complete Download History suite passed after repair.
 - Evidence artifact `10582312597` has SHA-256 `c805a8e6b3d2575e70b29d788735661328a1aa1d3b6b170c6fbf09aa8e90c3b8`.
 
-DH-A028 remains open until its guarded repair batch and terminal re-audit pass.
+- DH-A028: `233b6f0f403850a13f53a50d986a31433ad6d634` (`fix: honor escaped percent in protected ID templates`), closed by guarded workflow run `35437468831`, cleanup commit `0d4866ec7a40de20a9173f2e782e05818b3d3d77`.
+- The guard showed `DOWNLOAD_HISTORY.HonorsEscapedIdTemplateSemantics` failing at baseline and passing after repair, including protected rejection of `%%(id)s` and historical recovery from an active odd-percent run; the complete Download History suite passed after repair.
+- Evidence artifact `10582771909` has SHA-256 `e8a820244ceb0547efa315ae77e679240efc55289398f0dcadf310dc174407e3`.
+
+DH-A029 remains open until its guarded repair batch and terminal re-audit pass.
 
 ## Review scope / status
 
@@ -760,3 +765,23 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 5. Preserve existing formatted-placeholder parsing and directory-component behavior; do not broaden the requirement beyond the exact ID token.
 6. Add regression controls for unescaped, even-escaped, and odd-run ID tokens plus filename recovery from the odd-run form.
 7. Re-run the complete guarded Windows Debug/Release/full-regression gates.
+
+
+### DH-A029 — Inventory allowlist misses valid current yt-dlp direct-media outputs
+
+**Priority / state:** High archive-rebuild correctness risk / VERIFIED against current app source and current yt-dlp Generic/direct extension handling.
+
+**Affected code:** `EnumerateCompletedMedia` completed-media extension allowlist.
+
+**Finding:** The scanner covers yt-dlp's common/current `MEDIA_EXTENSIONS` video/audio set and the GIF recode case fixed under DH-A025, but yt-dlp's current safe-extension table contains additional extensions explicitly categorized as video/audio. The Generic extractor preserves any safe direct-link extension and falls back to the internal final extension `unknown_video` when a non-HTML direct URL has an unrecognized extension. The app currently ignores multiple such possible final media files during inventory, including `.mpga`, `.m4s`, `.mxf`, `.ra`, and `.unknown_video`.
+
+**Impact:** A protected download can complete, receive a native archive record, and leave an ID-bearing media family that explicit Rebuild never enumerates. If the application-owned ledger/backup is later lost, those valid physical identities are silently omitted instead of being recovered or conservatively reported unresolved.
+
+**Required acceptance:**
+
+1. Extend completed-media inventory to current yt-dlp safe extensions categorized as video/audio that are not already covered, plus the Generic extractor's `.unknown_video` fallback.
+2. Keep manifests, subtitles, thumbnails/images, metadata, fragments, and other sidecars excluded unless separately proven to be final media.
+3. Continue treating an enumerated file without authoritative metadata or unambiguous filename-to-ledger identity as unresolved rather than guessing.
+4. Preserve all existing media extensions and A025's conservative GIF handling.
+5. Add a regression covering every newly admitted extension with authoritative same-stem metadata and prove explicit Rebuild recovers each identity without modifying the files.
+6. Re-run the complete guarded Windows Debug/Release/full-regression gates.

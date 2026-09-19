@@ -266,12 +266,14 @@ internal static partial class AuditRegression {
                 "$literal\\%(id)s.%(ext)s",
                 "%%literal\\%(id)s.%(ext)s"
             }) {
-                Equal(true, DownloadHistoryArguments(fixture.History, schema, null, out arguments, out error, out execution));
+                Require(DownloadHistoryArguments(fixture.History, schema, null, out arguments, out error, out execution),
+                    "Safe protected filename schema was rejected: " + schema + " :: " + error);
             }
 
             Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
-            Equal(true, DownloadHistoryArguments(fixture.History, "..\\outside\\%(id)s.%(ext)s",
-                null, out arguments, out error, out execution));
+            Require(DownloadHistoryArguments(fixture.History, "..\\outside\\%(id)s.%(ext)s",
+                null, out arguments, out error, out execution),
+                "Disabling Download History unexpectedly kept filename containment enforcement active: " + error);
             Equal(string.Empty, arguments);
         }
     }

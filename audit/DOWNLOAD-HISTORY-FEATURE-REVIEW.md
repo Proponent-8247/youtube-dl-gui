@@ -93,8 +93,11 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A036 | High | Fixed / regression-verified | Protected mode rejects unsafe-extension compatibility and appends a final `-allow-unsafe-ext` compatibility directive. |
 | DH-A037 | High | Fixed / regression-verified | Protected mode rejects direct arbitrary state-mutation hooks such as `--print-to-file` and `--netrc-cmd` while preserving ordinary `--print` and `--netrc`. |
 | DH-A038 | High | Fixed / regression-verified | Custom and app-configured cookie files are path-checked against the prepared archive/backup/lock before protected execution. |
-| DH-A039 | High | Verified | Raw `--postprocessor-args` / `--ppa` and `--downloader-args` / `--external-downloader-args` let child tools choose arbitrary write targets outside the protected state model. |
-| DH-A040 | High | Verified | `--cache-dir` combined with `--rm-cache-dir` can recursively delete a user-selected tree, including an active library or protected archive directory. |
+| DH-A039 | High | Fixed / regression-verified | Protected mode rejects raw postprocessor/external-downloader child arguments while preserving built-in postprocessing and downloader selection. |
+| DH-A040 | High | Fixed / regression-verified | Protected mode blocks recursive yt-dlp cache removal while preserving ordinary cache-directory selection. |
+| DH-A041 | High | Verified | A038's cookie normalizer expands `%VAR%` but not yt-dlp/Python-supported `$VAR` / `${VAR}`, allowing an environment-expanded cookie path to alias protected state. |
+| DH-A042 | High | Verified | Protected filename schemas permit literal `..` path components; yt-dlp normalizes them, allowing output to escape the active download root despite blocked `-o/-P` overrides. |
+| DH-A043 | High | Verified | Raw custom arguments can contain NUL; Windows process command-line marshalling terminates at NUL, so the later app-owned archive protection suffix can be truncated. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -983,7 +986,12 @@ Current yt-dlp writes per-video `.info.json` before media transfer when `--write
 - Evidence artifact `10593395373` has SHA-256 `0c4be533899a48339ad963cb099cf3615e7bd9cd5d7b95c1797beed3f3aca8cb`.
 - Two prior A038 requests were discarded before production code because the new regression used C# null syntax unsupported by the audit harness compiler; only test syntax changed between retries.
 
-DH-A039 and DH-A040 remain open until their guarded repair batch and terminal re-audit pass.
+- DH-A039: `90464658952eb010126a8b06ba099dccd5a1a8e3` (`fix: reject raw child-process arguments in protected mode`).
+- DH-A040: `747df3a7bdb28e145b0bf998fb43de1b3752b342` (`fix: block destructive cache removal in protected mode`).
+- Both were closed by guarded workflow job `105974742010`, cleanup commit `c63b966d5e6d04c7f32e6e92979640328dba27ca`. Baseline evidence showed both regressions failing; after A039 only the raw-child regression passed; after A040 both passed and the full Download History suite was green.
+- Evidence artifact `10593375218` has SHA-256 `1d5c9c833d8efe5fb9164c8229baee2c7a8787efd471a58392b0ea18606d85dc`.
+
+DH-A041 through DH-A043 remain open until guarded repair and terminal re-audit.
 
 ### DH-A036 — Unsafe-extension compatibility can escape protected output assumptions
 
@@ -1086,3 +1094,28 @@ DH-A039 and DH-A040 remain open until their guarded repair batch and terminal re
 4. Download History disabled behavior remains unchanged.
 5. Add a regression proving the destructive pair is rejected while a cache-directory selection alone remains allowed.
 6. Re-run the complete guarded Windows Debug/Release/full-regression gates.
+
+
+### DH-A041 — Cookie collision normalization does not match yt-dlp dollar-variable expansion
+
+**Priority / state:** High protected-ledger integrity risk / VERIFIED against current A038 source, yt-dlp `expand_path`, and CPython Windows `ntpath.expandvars`.
+
+**Finding:** A038 normalizes cookie paths with .NET `Environment.ExpandEnvironmentVariables`, which expands Windows `%NAME%` syntax, then handles `~`. yt-dlp calls Python `expand_path`, whose Windows implementation also expands `$NAME` and `${NAME}`. A custom cookie path such as `$ARCHIVE_COOKIE` can therefore compare as a harmless literal in the app but resolve to the native archive inside yt-dlp.
+
+**Required acceptance:** match Windows yt-dlp expansion for `%NAME%`, `$NAME`, and `${NAME}`; unknown variables remain unchanged; apply the same normalization to custom and app-auth cookie checks; add regressions for both dollar forms plus a non-colliding variable.
+
+### DH-A042 — Literal parent traversal in the filename schema can escape the active download root
+
+**Priority / state:** High protected-output boundary risk / VERIFIED against current standard/extended output construction and current yt-dlp Windows path sanitization.
+
+**Finding:** Both downloaders append the configured filename schema beneath the active download directory. Protected validation requires an active `%(id)s` token and rejects quotes/control characters, but it permits literal `..` or `../` components. yt-dlp's Windows `sanitize_path` deliberately normalizes `..` by popping the previous path component, so a schema such as `..\outside\%(id)s.%(ext)s` escapes the active download root.
+
+**Required acceptance:** reject literal parent-directory path components while Download History is enabled; keep ordinary nested schema directories and dots within names; check both slash forms; disabled behavior unchanged; add protected rejection and safe-subdirectory controls.
+
+### DH-A043 — Embedded NUL can truncate the Windows command line before protected suffix arguments
+
+**Priority / state:** High protected-argument boundary risk / VERIFIED from current raw custom-argument construction and Windows NUL-terminated command-line semantics.
+
+**Finding:** Custom arguments are appended before the app-owned Download History suffix. The protected validator checks quote balance and unsafe options but does not reject U+0000. Windows process creation consumes a NUL-terminated command-line buffer; an embedded NUL in the custom string terminates parsing before the later `--download-archive`, plugin/config isolation, and concat safeguards.
+
+**Required acceptance:** reject NUL in custom arguments before preparation/execution publication; do not unnecessarily reject ordinary whitespace/newlines already handled by tokenization; disabled behavior unchanged; add a regression proving the suffix cannot be truncated.

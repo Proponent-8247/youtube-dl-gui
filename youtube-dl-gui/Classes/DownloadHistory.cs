@@ -555,15 +555,59 @@ internal static class DownloadHistory {
         return !inQuotes;
     }
 
+    private static string ExpandYtDlpUserPath(string path) {
+        if (!path.StartsWith("~", StringComparison.Ordinal)) return path;
+        int separator = 1;
+        while (separator < path.Length && path[separator] != '\\' && path[separator] != '/') separator++;
+        string? userHome = Environment.GetEnvironmentVariable("USERPROFILE");
+        if (userHome.IsNullEmptyWhitespace()) {
+            string? homePath = Environment.GetEnvironmentVariable("HOMEPATH");
+            if (homePath.IsNullEmptyWhitespace()) return path;
+            userHome = (Environment.GetEnvironmentVariable("HOMEDRIVE") ?? string.Empty) + homePath;
+        }
+        if (separator != 1) {
+            string targetUser = path.Substring(1, separator - 1);
+            string? currentUser = Environment.GetEnvironmentVariable("USERNAME");
+            string trimmedHome = userHome!.TrimEnd('\\', '/');
+            if (!string.Equals(targetUser, currentUser, StringComparison.Ordinal)) {
+                if (!string.Equals(currentUser, Path.GetFileName(trimmedHome), StringComparison.Ordinal)) return path;
+                string? parent = Path.GetDirectoryName(trimmedHome);
+                if (parent.IsNullEmptyWhitespace()) return path;
+                userHome = Path.Combine(parent!, targetUser);
+            }
+        }
+        return userHome + path.Substring(separator);
+    }
+
+    private static string ExpandYtDlpEnvironmentVariables(string path) {
+        const string pattern = @"'[^']*'?|%(?<percent>%|[^%]*%?)|\$(?<dollar>\$|[-A-Za-z0-9_]+|\{[^}]*\}?)";
+        return Regex.Replace(path, pattern, match => {
+            if (match.Value.StartsWith("'", StringComparison.Ordinal)) return match.Value;
+            string name;
+            if (match.Groups["percent"].Success) {
+                string value = match.Groups["percent"].Value;
+                if (value == "%") return "%";
+                if (!value.EndsWith("%", StringComparison.Ordinal)) return match.Value;
+                name = value.Substring(0, value.Length - 1);
+            }
+            else {
+                string value = match.Groups["dollar"].Value;
+                if (value == "$") return "$";
+                if (value.StartsWith("{", StringComparison.Ordinal)) {
+                    if (!value.EndsWith("}", StringComparison.Ordinal)) return match.Value;
+                    name = value.Substring(1, value.Length - 2);
+                }
+                else name = value;
+            }
+            return Environment.GetEnvironmentVariable(name) ?? match.Value;
+        });
+    }
+
     private static bool TryNormalizeCookiePath(string path, out string normalized, out string error) {
         normalized = string.Empty;
         error = string.Empty;
         try {
-            string expanded = Environment.ExpandEnvironmentVariables(path);
-            if (expanded == "~" || expanded.StartsWith("~/", StringComparison.Ordinal) || expanded.StartsWith("~\\", StringComparison.Ordinal)) {
-                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                expanded = expanded.Length == 1 ? home : Path.Combine(home, expanded.Substring(2));
-            }
+            string expanded = ExpandYtDlpEnvironmentVariables(ExpandYtDlpUserPath(path));
             normalized = Path.GetFullPath(expanded);
             return true;
         }

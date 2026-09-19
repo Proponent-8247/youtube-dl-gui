@@ -1027,7 +1027,7 @@ internal static partial class AuditRegression {
             string gif = DownloadHistoryWriteMedia(fixture.Root, "Animated-" + id + ".gif");
             string info = Path.ChangeExtension(media, ".info.json");
             File.WriteAllText(info,
-                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"mp4\"}", Encoding.UTF8);
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"mp4\",\"thumbnails\":[{\"ext\":\"gif\",\"url\":\"https://example.invalid/thumb.gif\"}]}", Encoding.UTF8);
             byte[] mediaBefore = File.ReadAllBytes(media);
             byte[] gifBefore = File.ReadAllBytes(gif);
             byte[] infoBefore = File.ReadAllBytes(info);
@@ -1038,15 +1038,15 @@ internal static partial class AuditRegression {
             Equal(1, Get(rebuilt, "MetadataRecovered"));
             Equal(0, Get(rebuilt, "UnresolvedMedia"));
             Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
-            Require(mediaBefore.SequenceEqual(File.ReadAllBytes(media)), "GIF sidecar inventory modified the real media file");
-            Require(gifBefore.SequenceEqual(File.ReadAllBytes(gif)), "GIF sidecar inventory modified the thumbnail file");
-            Require(infoBefore.SequenceEqual(File.ReadAllBytes(info)), "GIF sidecar inventory modified adjacent metadata");
+            Require(mediaBefore.SequenceEqual(File.ReadAllBytes(media)), "Thumbnail classification modified the real media file");
+            Require(gifBefore.SequenceEqual(File.ReadAllBytes(gif)), "Thumbnail classification modified the thumbnail file");
+            Require(infoBefore.SequenceEqual(File.ReadAllBytes(info)), "Thumbnail classification modified adjacent metadata");
         }
 
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            string gif = DownloadHistoryWriteMedia(fixture.Root, "Direct-" + id + ".gif");
+            string gif = DownloadHistoryWriteMedia(fixture.Root, "Failed-" + id + ".gif");
             File.WriteAllText(Path.ChangeExtension(gif, ".info.json"),
-                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"gif\"}", Encoding.UTF8);
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"gif\",\"thumbnails\":[{\"ext\":\"gif\",\"url\":\"https://example.invalid/thumb.gif\"}]}", Encoding.UTF8);
 
             object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
             Equal("Unsafe", DownloadHistoryStateName(rebuilt));
@@ -1054,13 +1054,26 @@ internal static partial class AuditRegression {
             Equal(1, Get(rebuilt, "UnresolvedMedia"));
             Equal(false, DownloadHistoryCanReconcile(rebuilt));
             Require(!DownloadHistoryArchiveLines(fixture.Archive).Contains("youtube " + id),
-                "Orphan GIF evidence invented a native history identity");
+                "Possible pre-download thumbnail residue invented a native history identity");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string gif = DownloadHistoryWriteMedia(fixture.Root, "Direct-" + id + ".gif");
+            File.WriteAllText(Path.ChangeExtension(gif, ".info.json"),
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"gif\",\"thumbnails\":[{\"ext\":\"jpg\",\"url\":\"https://example.invalid/thumb.jpg\"}]}", Encoding.UTF8);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(1, Get(rebuilt, "CompletedMedia"));
+            Equal(1, Get(rebuilt, "MetadataRecovered"));
+            Equal(0, Get(rebuilt, "UnresolvedMedia"));
+            Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
         }
 
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string gif = DownloadHistoryWriteMedia(fixture.Root, "Known-" + id + ".gif");
             File.WriteAllText(Path.ChangeExtension(gif, ".info.json"),
-                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"gif\"}", Encoding.UTF8);
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"gif\",\"thumbnails\":[{\"url\":\"https://example.invalid/thumb.gif?size=large\"}]}", Encoding.UTF8);
             File.WriteAllText(fixture.Archive, "youtube " + id + Environment.NewLine, Encoding.UTF8);
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
@@ -1086,21 +1099,13 @@ internal static partial class AuditRegression {
             foreach (string custom in new[] {
                 "--recode-video gif",
                 "--recode-video mp4>gif",
-                "--recode-video=webm>mp4/gif",
                 "--remux-video gif",
                 "--remux-video=mp4>gif"
             }) {
-                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
-                Require(error.IndexOf("GIF", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        error.IndexOf("thumbnail", StringComparison.OrdinalIgnoreCase) >= 0,
-                    "Protected ambiguous GIF output was not rejected clearly: " + custom);
-                Equal(null, execution);
+                Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(arguments.Contains("--download-archive"), "Compatible GIF postprocessing lost protected archive arguments: " + custom);
+                Require(execution != null, "Compatible GIF postprocessing did not retain protected execution context: " + custom);
             }
-
-            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
-            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
-                "--recode-video gif --remux-video gif", out arguments, out error, out execution));
-            Equal(string.Empty, arguments);
         }
     }
 

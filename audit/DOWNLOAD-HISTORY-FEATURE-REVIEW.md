@@ -87,7 +87,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A030 | High | Fixed / regression-verified | Prepared execution now carries the validated ledger as an immutable lower bound and rejects any pre-start primary shrink while allowing supersets. |
 | DH-A031 | High | Fixed / regression-verified | Inventory now uses retained yt-dlp thumbnail-extension metadata to distinguish possible pre-download thumbnail residue from completed media without banning legitimate GIF media/postprocessing. |
 | DH-A032 | High | Fixed / regression-verified | Protected mode rejects custom and built-in partial time-range downloads whose source-level native archive identity cannot represent the requested section. |
-| DH-A033 | High | Verified | With backup retention off, a valid same-session archive shrink can be accepted by a later preparation because A030 retains a lower bound only inside each individual execution context. |
+| DH-A033 | High | Fixed / regression-verified | A shared in-memory per-archive floor now preserves same-session ledger knowledge across preparations and completed runs even when physical backup retention is off. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -903,3 +903,8 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 8. Preserve all DH-A019/A022/A030 backup semantics and explicit Reset/Rebuild behavior.
 9. Add regressions for (a) later preparation after a no-backup same-session shrink and (b) an old execution after a no-backup provider run advances the archive and the new identity is then removed.
 10. Re-run the complete guarded Windows Debug/Release/full-regression gates.
+
+- DH-A033: `841a67c8b73594292b54e4e4f8c1ad3e261875a5` (`fix: preserve same-session native ledger floor`), guarded workflow run `35462423856`, cleanup commit `5a6156feef0ece3ea0a319f029c289cd2a69e0b0`.
+- The guard showed `DOWNLOAD_HISTORY.PreservesSameSessionLedgerFloorWithoutBackup` failing at baseline and passing after repair; the complete Download History regression set passed afterward.
+- Evidence artifact `10590196558` has SHA-256 `084ae193e915f092cc2d0dc056c1ecaf3bf1bed76b329f39fd51492b1b49db88`.
+- The floor is intentionally process-local and does not create a hidden persistent backup when `KeepBackup=false`; Reset History clears it.

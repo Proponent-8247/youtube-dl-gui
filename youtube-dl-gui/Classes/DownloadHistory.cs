@@ -595,6 +595,10 @@ internal static class DownloadHistory {
                 error = "Download History is enabled and owns --download-archive. Remove the custom --download-archive argument or disable Download History.";
                 return false;
             }
+            if (ContainsOption(customArguments, "--no-write-info-json")) {
+                error = "Download History requires per-media --write-info-json metadata so native provider identities can be rebuilt after total archive loss. Remove --no-write-info-json or disable Download History.";
+                return false;
+            }
             if (ContainsOption(customArguments, "--break-on-existing") || ContainsOption(customArguments, "--break-per-input")) {
                 error = "--break-on-existing and --break-per-input are not allowed while Download History protection is enabled because they can stop collection traversal before new media is discovered.";
                 return false;
@@ -655,7 +659,7 @@ internal static class DownloadHistory {
             if (!RememberFileNameSchema(fileNameSchema, out error)) return false;
             string preparedArchive = EffectiveArchivePath;
             execution = new DownloadHistoryExecution(preparedArchive, KeepBackup, LastReportInternal.ArchiveSnapshot);
-            archiveArguments = $"--ignore-config --no-plugin-dirs --download-archive \"{preparedArchive}\" --no-break-on-existing --concat-playlist never";
+            archiveArguments = $"--ignore-config --no-plugin-dirs --write-info-json --download-archive \"{preparedArchive}\" --no-break-on-existing --concat-playlist never";
             return true;
         }
     }

@@ -70,7 +70,7 @@ internal sealed class frmDownloadHistory : Form {
         btnAddInventoryRoot.Click += AddInventoryRoot;
 
         Label recovery = new() {
-            Text = "The archive tracks native provider identities and remains valid if media moves. Additional libraries are scan-only; existing media and sidecars are never renamed, moved, or rewritten.",
+            Text = "History is path-agnostic. Existing libraries are scan-only and never modified. New protected downloads keep a .info.json identity sidecar so provider + ID can be rebuilt after archive loss.",
             AutoSize = false,
             Location = new(18, 273),
             Size = new(624, 48)

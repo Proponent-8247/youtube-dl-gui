@@ -714,6 +714,10 @@ internal static class DownloadHistory {
                 error = "Raw postprocessor and external-downloader arguments are not allowed while Download History protection is enabled because child tools can write outside the validated protected-state model. Use built-in yt-dlp postprocessing/downloader controls or disable Download History.";
                 return false;
             }
+            if (ContainsOption(customArguments, "--rm-cache-dir")) {
+                error = "--rm-cache-dir is not allowed while Download History protection is enabled because yt-dlp can recursively delete a user-selected cache tree. Run cache maintenance separately or disable Download History.";
+                return false;
+            }
             if (ContainsOption(customArguments, "--")) {
                 error = "A standalone -- option terminator is not allowed while Download History protection is enabled because it would turn the app's native archive protection arguments into positional inputs. Remove the terminator or disable Download History.";
                 return false;

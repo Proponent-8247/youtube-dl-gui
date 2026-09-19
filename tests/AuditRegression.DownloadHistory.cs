@@ -172,6 +172,16 @@ internal static partial class AuditRegression {
             Equal(false, Call(fixture.History, null, "HasRequiredIdTemplate", "%(title)s-%%%%(id)s.%(ext)s"));
             Equal(true, Call(fixture.History, null, "HasRequiredIdTemplate", "%%%(id)s.%(ext)s"));
 
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%%(id)s.%(ext)s", null, out arguments, out error, out execution));
+            Require(error.IndexOf("%(id)s", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    error.IndexOf("filename", StringComparison.OrdinalIgnoreCase) >= 0,
+                "Escaped literal ID token was rejected without identifying the filename-ID requirement");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             const string id = "aB_Cd-Ef123";
             string archive = Path.Combine(fixture.Root, "escaped-schema-history.txt");
             File.WriteAllText(archive, "youtube " + id + Environment.NewLine, Encoding.UTF8);

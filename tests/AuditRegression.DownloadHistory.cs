@@ -617,6 +617,36 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsDestructiveCacheRemoval() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            string cacheRoot = Path.Combine(fixture.Root, "cache-library");
+
+            Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--cache-dir \"" + cacheRoot + "\" --rm-cache-dir", out arguments, out error, out execution));
+            Require(error.IndexOf("cache", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                    (error.IndexOf("remove", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     error.IndexOf("delete", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     error.IndexOf("destructive", StringComparison.OrdinalIgnoreCase) >= 0),
+                "Recursive cache removal was not rejected clearly");
+            Equal(null, execution);
+
+            Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--rm-c", out arguments, out error, out execution));
+            Equal(null, execution);
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--cache-dir \"" + cacheRoot + "\"", out arguments, out error, out execution));
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--cache-dir \"" + cacheRoot + "\" --rm-cache-dir", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryRejectsArbitraryPostprocessorHooks() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -2401,6 +2431,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsArbitraryStateMutationHooks", DownloadHistoryRejectsArbitraryStateMutationHooks);
         Test("DOWNLOAD_HISTORY.RejectsCookieWritebackCollisions", DownloadHistoryRejectsCookieWritebackCollisions);
         Test("DOWNLOAD_HISTORY.RejectsRawChildProcessArguments", DownloadHistoryRejectsRawChildProcessArguments);
+        Test("DOWNLOAD_HISTORY.RejectsDestructiveCacheRemoval", DownloadHistoryRejectsDestructiveCacheRemoval);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryPostprocessorHooks", DownloadHistoryRejectsArbitraryPostprocessorHooks);
         Test("DOWNLOAD_HISTORY.RejectsIdOutputOverride", DownloadHistoryRejectsIdOutputOverride);
         Test("DOWNLOAD_HISTORY.RejectsInjectedMetadataArchiveRecords", DownloadHistoryRejectsInjectedMetadataArchiveRecords);

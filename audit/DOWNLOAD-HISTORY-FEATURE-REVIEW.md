@@ -84,7 +84,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A027 | High | Fixed / regression-verified | Protected mode now rejects unbalanced Windows-style quoting in raw custom arguments before publishing an execution context. |
 | DH-A028 | High | Fixed / regression-verified | ID-template validation and historical filename recovery now honor yt-dlp percent-escape semantics, rejecting even escaped runs while supporting active odd runs. |
 | DH-A029 | High | Fixed / regression-verified | Physical inventory now covers current yt-dlp safe video/audio direct-media extensions plus `.unknown_video`, while preserving sidecar/manifest exclusions. |
-| DH-A030 | High | Verified | A prepared execution context does not retain the validated ledger entries, so with no valid backup a syntactically valid archive shrink between preparation and process start is accepted. |
+| DH-A030 | High | Fixed / regression-verified | Prepared execution now carries the validated ledger as an immutable lower bound and rejects any pre-start primary shrink while allowing supersets. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -183,7 +183,11 @@ Repair evidence recorded so far:
 - Evidence artifact `10583480569` has SHA-256 `d77712b45b8ad084d539c4c6b43aa2a7424707d59f8e9e500df7edcf5d504cf1`.
 - The first A029 request `caa7c013797fef3f37c87fa6e2e1dc2a2df0dce1` was explicitly discarded by `2bf779d303c3a7b98a56b6e14af79e167570d2a6` because the new regression used target-typed collection syntax unsupported by the audit harness compiler. Only the test syntax was corrected before retrying the same production repair.
 
-DH-A030 remains open until its guarded repair batch and terminal re-audit pass.
+- DH-A030: `197a4b29cd315184df8e5169108f057c1f37b5b3` (`fix: retain prepared ledger lower bound through process start`), closed by guarded workflow run `35438168368`, cleanup commit `133927b43c3f92c1cb8f46eb7f2ca5f724876fc9`.
+- The guard showed `DOWNLOAD_HISTORY.ExecutionLeaseRejectsBackupFreePreparedTruncation` failing at baseline and passing after repair; the complete Download History regression set passed after repair, including the existing backup monotonicity and stale-backup cases.
+- Evidence artifact `10583316283` has SHA-256 `f659602496855fcfbbc04fcebe92ae818eef64bad61cb9c1129269e1ee15df41`.
+
+No verified issue remains open at this checkpoint. Terminal current-head re-audit continues below.
 
 ## Review scope / status
 

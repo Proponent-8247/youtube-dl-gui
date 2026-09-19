@@ -165,6 +165,29 @@ internal static partial class AuditRegression {
     }
 
 
+    private static void DownloadHistoryHonorsEscapedIdTemplateSemantics() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            Equal(true, Call(fixture.History, null, "HasRequiredIdTemplate", "%(title)s-%(id)s.%(ext)s"));
+            Equal(false, Call(fixture.History, null, "HasRequiredIdTemplate", "%(title)s-%%(id)s.%(ext)s"));
+            Equal(false, Call(fixture.History, null, "HasRequiredIdTemplate", "%(title)s-%%%%(id)s.%(ext)s"));
+            Equal(true, Call(fixture.History, null, "HasRequiredIdTemplate", "%%%(id)s.%(ext)s"));
+
+            const string id = "aB_Cd-Ef123";
+            string archive = Path.Combine(fixture.Root, "escaped-schema-history.txt");
+            File.WriteAllText(archive, "youtube " + id + Environment.NewLine, Encoding.UTF8);
+            DownloadHistoryWriteMedia(fixture.Root, "%" + id + ".mp4");
+            string oddRunSchema = "%%%(id)s.%(ext)s";
+            fixture.History.GetField("fKnownFileNameSchemas", All).SetValue(null,
+                "v2:" + Convert.ToBase64String(Encoding.UTF8.GetBytes(oddRunSchema)));
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", archive, false, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(1, Get(rebuilt, "CompletedMedia"));
+            Equal(1, Get(rebuilt, "FilenameRecovered"));
+            Equal(0, Get(rebuilt, "UnresolvedMedia"));
+        }
+    }
+
     private static void DownloadHistoryRejectsUnsafeProtectedFilenameSchemas() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -1904,6 +1927,7 @@ internal static partial class AuditRegression {
     private static void RunDownloadHistoryTests() {
         Test("DOWNLOAD_HISTORY.NeverEnabledIsNoOp", DownloadHistoryNeverEnabledIsNoOp);
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
+        Test("DOWNLOAD_HISTORY.HonorsEscapedIdTemplateSemantics", DownloadHistoryHonorsEscapedIdTemplateSemantics);
         Test("DOWNLOAD_HISTORY.RejectsUnsafeProtectedFilenameSchemas", DownloadHistoryRejectsUnsafeProtectedFilenameSchemas);
         Test("DOWNLOAD_HISTORY.DisablesPlaylistConcatenationWhileProtected", DownloadHistoryDisablesPlaylistConcatenationWhileProtected);
         Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);

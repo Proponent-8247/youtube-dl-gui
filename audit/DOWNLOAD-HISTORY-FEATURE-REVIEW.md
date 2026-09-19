@@ -88,6 +88,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A031 | High | Fixed / regression-verified | Inventory now uses retained yt-dlp thumbnail-extension metadata to distinguish possible pre-download thumbnail residue from completed media without banning legitimate GIF media/postprocessing. |
 | DH-A032 | High | Fixed / regression-verified | Protected mode rejects custom and built-in partial time-range downloads whose source-level native archive identity cannot represent the requested section. |
 | DH-A033 | High | Fixed / regression-verified | A shared in-memory per-archive floor now preserves same-session ledger knowledge across preparations and completed runs even when physical backup retention is off. |
+| DH-A034 | High | Verified | Protected downloads require an ID-bearing filename but do not require authoritative per-media extractor metadata, so total primary+backup loss can make newly protected media impossible to rebuild safely. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -908,3 +909,28 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 - The guard showed `DOWNLOAD_HISTORY.PreservesSameSessionLedgerFloorWithoutBackup` failing at baseline and passing after repair; the complete Download History regression set passed afterward.
 - Evidence artifact `10590196558` has SHA-256 `084ae193e915f092cc2d0dc056c1ecaf3bf1bed76b329f39fd51492b1b49db88`.
 - The floor is intentionally process-local and does not create a hidden persistent backup when `KeepBackup=false`; Reset History clears it.
+
+
+### DH-A034 — Protected downloads do not guarantee authoritative metadata for total-loss rebuild
+
+**Priority / state:** High recovery-correctness risk / VERIFIED against standard/extended argument generation and the non-inference recovery policy.
+
+**Affected code:** `TryGetArchiveArguments`, standard/extended generated arguments, and the Download History dialog disclosure.
+
+**Finding:** The feature mandates an active `%(id)s` filename token, but `Downloads.SaveVideoInfo` remains optional and protected arguments do not currently add `--write-info-json`. Filename-only recovery can match a known native archive identity, but after both primary and backup ledgers are lost there is no authoritative extractor/provider key to pair with the filename ID. The implementation correctly refuses to guess YouTube (or any other extractor) merely from ID shape, so protected downloads made without info JSON can become unrebuildable after total ledger loss.
+
+Current yt-dlp writes per-video `.info.json` before media transfer when `--write-info-json` is enabled; clean info JSON retains top-level `id`, `extractor_key` / `ie_key`, and thumbnail metadata used by A031. A failed media transfer leaving only metadata is not itself promoted because inventory enumerates completed-media candidates, not standalone JSON.
+
+**Impact:** The application can advertise/prepare protected downloads whose native archive works normally until both ledger copies are lost, at which point the physical media tree no longer carries enough authoritative identity to reconstruct the archive safely. This conflicts with the feature's explicit rebuild design.
+
+**Required acceptance:**
+
+1. Every protected yt-dlp command must include app-owned `--write-info-json` in the protected suffix, independent of the general `SaveVideoInfo` preference.
+2. Reject an explicit custom `--no-write-info-json` (including valid unambiguous abbreviations) while protection is enabled instead of silently overriding a conflicting request.
+3. A user-supplied compatible `--write-info-json` remains allowed; duplicate positive flags are harmless.
+4. Ambient configs/plugins/aliases must remain unable to turn the app-owned metadata requirement back off (preserve A007/A015 isolation).
+5. Download History disabled behavior remains unchanged; the general metadata preference again controls whether info JSON is written.
+6. Inventory/rebuild remains strictly non-destructive: forcing metadata applies only to new provider commands and never creates/rewrites sidecars while scanning an existing library.
+7. Keep the default clean-info-json behavior; do not force comments or other large/private optional metadata beyond yt-dlp's normal per-video info JSON. The UI must disclose that protected downloads retain an info JSON sidecar for recovery.
+8. Add regressions proving the protected suffix contains `--write-info-json`, explicit negative custom options are rejected, compatible positive use is allowed, and disabled mode does not force the sidecar.
+9. Re-run the complete guarded Windows Debug/Release/full-regression gates.

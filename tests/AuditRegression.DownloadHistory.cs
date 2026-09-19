@@ -242,18 +242,29 @@ internal static partial class AuditRegression {
             foreach (string schema in new[] {
                 "..\\outside\\%(id)s.%(ext)s",
                 "../outside/%(id)s.%(ext)s",
-                "creator\\..\\outside\\%(id)s.%(ext)s"
+                "creator\\..\\outside\\%(id)s.%(ext)s",
+                "%(uploader)s\\%(id)s.%(ext)s",
+                ".%(uploader)s\\%(id)s.%(ext)s",
+                "$YTDL_GUI_SCHEMA_ROOT\\%(id)s.%(ext)s",
+                "%YTDL_GUI_SCHEMA_ROOT%\\%(id)s.%(ext)s"
             }) {
                 Equal(false, DownloadHistoryArguments(fixture.History, schema, null, out arguments, out error, out execution));
                 Require(error.IndexOf("parent", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         error.IndexOf("path", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        error.IndexOf("directory", StringComparison.OrdinalIgnoreCase) >= 0,
-                    "Parent traversal schema was not rejected clearly: " + schema);
+                        error.IndexOf("directory", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("environment", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Potential parent traversal schema was not rejected clearly: " + schema);
                 Equal(null, execution);
             }
 
-            Equal(true, DownloadHistoryArguments(fixture.History, "creator\\series\\%(id)s.%(ext)s",
-                null, out arguments, out error, out execution));
+            foreach (string schema in new[] {
+                "creator\\series\\%(id)s.%(ext)s",
+                "creator-%(uploader)s\\%(id)s.%(ext)s",
+                "$literal\\%(id)s.%(ext)s",
+                "%%literal\\%(id)s.%(ext)s"
+            }) {
+                Equal(true, DownloadHistoryArguments(fixture.History, schema, null, out arguments, out error, out execution));
+            }
 
             Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
             Equal(true, DownloadHistoryArguments(fixture.History, "..\\outside\\%(id)s.%(ext)s",

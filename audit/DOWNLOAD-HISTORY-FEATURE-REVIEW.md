@@ -89,6 +89,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A032 | High | Fixed / regression-verified | Protected mode rejects custom and built-in partial time-range downloads whose source-level native archive identity cannot represent the requested section. |
 | DH-A033 | High | Fixed / regression-verified | A shared in-memory per-archive floor now preserves same-session ledger knowledge across preparations and completed runs even when physical backup retention is off. |
 | DH-A034 | High | Fixed / regression-verified | Protected commands now retain clean per-media info JSON as authoritative extractor+ID recovery evidence and reject explicit attempts to disable it. |
+| DH-A035 | Medium | Verified | yt-dlp `--write-all-thumbnails` can create `base.<thumbnail-id>.<ext>` sidecars whose media-like extension is inventoried as an unresolved completed file because the adjacent metadata belongs to `base.info.json`. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -938,3 +939,25 @@ Current yt-dlp writes per-video `.info.json` before media transfer when `--write
 - DH-A034: `520bf967b1e861d6884439f424b97a571cb73d9e` (`fix: retain authoritative metadata for protected recovery`), guarded workflow run `35462637348`, cleanup commit `1078bf97978945c0a98b5b582a553f602371cffe`.
 - The guard showed `DOWNLOAD_HISTORY.RequiresAuthoritativeMetadataForRebuild` failing at baseline and passing after repair; the complete Download History regression set passed afterward.
 - Evidence artifact `10589872709` has SHA-256 `d8d7598ec33ea9b4ccb46b9eb5d7f5f381a34e607327fb7ea9791bf013aa0231`.
+
+
+### DH-A035 — Indexed multi-thumbnail sidecars can masquerade as unresolved media
+
+**Priority / state:** Medium rebuild-availability risk / VERIFIED against current scanner and current yt-dlp multi-thumbnail naming.
+
+**Affected code:** completed-media inventory and thumbnail-sidecar classification.
+
+**Finding:** yt-dlp's `--write-all-thumbnails` names multiple thumbnail files by replacing the media extension with `<thumbnail-id>.<thumbnail-extension>`. For an output family rooted at `base`, this can produce `base.0.gif` while the authoritative metadata remains `base.info.json`. A031 correctly classifies same-stem thumbnail collisions, but an indexed thumbnail has no adjacent `base.0.info.json`. If its final extension is also in the media allowlist (GIF is the concrete current overlap), the scanner inventories it as a second media candidate. During total-loss Rebuild the real `base.mp4` recovers normally while `base.0.gif` is unresolved, so an otherwise fully recoverable library is reported Partial/Unsafe.
+
+**Impact:** A legitimate yt-dlp sidecar can block archive reconstruction even though the actual completed media and authoritative metadata are intact. The sidecar itself is not unsafe; the bug is failing to associate its indexed thumbnail filename with the owning info JSON.
+
+**Required acceptance:**
+
+1. Preserve `--write-all-thumbnails`; do not solve this by banning a normal yt-dlp feature.
+2. For a media-like candidate without its own adjacent info JSON, recognize it as a thumbnail sidecar only when a neighboring `base.info.json` contains a thumbnail whose exact `id` matches the inserted filename suffix and whose explicit `ext` (or URL-derived extension when `ext` is absent) matches the candidate extension.
+3. Support dot-bearing media stems and thumbnail IDs by testing candidate dot boundaries rather than assuming a fixed suffix shape.
+4. A candidate with its own adjacent authoritative info JSON remains a media candidate; do not let a neighboring file steal ownership.
+5. A suffix/extension mismatch must remain unresolved rather than being silently ignored.
+6. Keep inventory streaming/non-destructive and avoid a whole-library pre-index solely for this check.
+7. Add regression coverage for an exact indexed GIF thumbnail sidecar and a near-match that must not be skipped; assert all media/sidecar bytes and paths remain unchanged.
+8. Re-run the complete guarded Windows Debug/Release/full-regression gates.

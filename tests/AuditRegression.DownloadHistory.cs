@@ -307,6 +307,45 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsPartialSectionDownloads() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string custom in new[] {
+                "--download-sections \"*00:00:10-00:00:20\"",
+                "--download-sections=\"*00:01:00-inf\""
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(error.IndexOf("section", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("partial", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("range", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Protected partial-section request was not rejected clearly: " + custom);
+                Equal(null, execution);
+            }
+
+            object media = New("youtube_dl_gui.ExtendedMediaDetails", "https://www.youtube.com/watch?v=9qFjkwAElDs");
+            Set(media.GetType(), media, "FileNameSchema", "%(title)s-%(id)s.%(ext)s");
+            Set(media.GetType(), media, "SelectedType", Enum.Parse(T("youtube_dl_gui.DownloadType"), "Video"));
+            object format = New("youtube_dl_gui.YoutubeDlSubdata+Format");
+            Set(format.GetType(), format, "Identifier", "18");
+            Set(format.GetType(), format, "Extension", "mp4");
+            System.Windows.Forms.ListViewItem item = new System.Windows.Forms.ListViewItem();
+            item.Tag = format;
+            Set(media.GetType(), media, "SelectedVideoItem", item);
+            Set(media.GetType(), media, "StartTime", Time(10, 0));
+
+            Equal(false, Call(media.GetType(), media, "GenerateArguments"));
+            Equal(null, Get(media, "DownloadHistoryExecution"));
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, Call(media.GetType(), media, "GenerateArguments"));
+            Require(((string)Get(media, "Arguments")).Contains("--download-sections"),
+                "Disabling Download History unexpectedly removed the existing partial-section behavior");
+        }
+    }
+
     private static void DownloadHistoryRejectsClusteredShortOutputOverrides() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -2031,6 +2070,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.DisablesPlaylistConcatenationWhileProtected", DownloadHistoryDisablesPlaylistConcatenationWhileProtected);
         Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);
         Test("DOWNLOAD_HISTORY.RejectsUnbalancedCustomArgumentQuotes", DownloadHistoryRejectsUnbalancedCustomArgumentQuotes);
+        Test("DOWNLOAD_HISTORY.RejectsPartialSectionDownloads", DownloadHistoryRejectsPartialSectionDownloads);
         Test("DOWNLOAD_HISTORY.RejectsClusteredShortOutputOverrides", DownloadHistoryRejectsClusteredShortOutputOverrides);
         Test("DOWNLOAD_HISTORY.RejectsSourceAndExtractorIdentityOverrides", DownloadHistoryRejectsSourceAndExtractorIdentityOverrides);
         Test("DOWNLOAD_HISTORY.RejectsMetadataIdentityRewrites", DownloadHistoryRejectsMetadataIdentityRewrites);

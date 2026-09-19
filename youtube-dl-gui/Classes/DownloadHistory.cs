@@ -128,7 +128,8 @@ internal sealed class DownloadHistoryExecution {
     internal DownloadHistoryExecution(string archivePath, bool keepBackup, IEnumerable<string> preparedArchiveEntries) {
         ArchivePath = archivePath;
         KeepBackup = keepBackup;
-        PreparedArchiveEntries = preparedArchiveEntries.Distinct(StringComparer.Ordinal).ToArray();
+        PreparedArchiveEntries = preparedArchiveEntries as string[] ??
+            preparedArchiveEntries.Distinct(StringComparer.Ordinal).OrderBy(entry => entry, StringComparer.Ordinal).ToArray();
     }
 
     public DownloadHistoryLease AcquireValidatedLease() => DownloadHistory.AcquireValidatedExecutionLease(ArchivePath, KeepBackup, PreparedArchiveEntries, null);
@@ -152,6 +153,8 @@ internal sealed class DownloadHistorySettingsSnapshot {
     internal string BoundArchivePath { get; init; } = string.Empty;
     internal string InventoryRoots { get; init; } = string.Empty;
     internal string? PreparedKey { get; init; }
+    internal string? PreparedArchiveFloorPath { get; init; }
+    internal string[] PreparedArchiveFloor { get; init; } = Array.Empty<string>();
     internal DownloadHistoryReport LastReport { get; init; } = new();
 }
 
@@ -173,6 +176,8 @@ internal static class DownloadHistory {
     private const string ConfigName = "DownloadHistory";
     private static readonly object Sync = new();
     private static string? PreparedKey;
+    private static string? PreparedArchiveFloorPath;
+    private static string[] PreparedArchiveFloor = Array.Empty<string>();
     private static DownloadHistoryReport LastReportInternal = new() { State = DownloadHistoryState.Disabled };
 
     private static bool fEnabled = IniProvider.Read(false, false, ConfigName, nameof(Enabled));
@@ -388,6 +393,8 @@ internal static class DownloadHistory {
         BoundArchivePath = fBoundArchivePath,
         InventoryRoots = fInventoryRoots,
         PreparedKey = PreparedKey,
+        PreparedArchiveFloorPath = PreparedArchiveFloorPath,
+        PreparedArchiveFloor = PreparedArchiveFloor,
         LastReport = LastReportInternal
     };
 
@@ -402,6 +409,8 @@ internal static class DownloadHistory {
         fBoundArchivePath = snapshot.BoundArchivePath;
         fInventoryRoots = snapshot.InventoryRoots;
         PreparedKey = snapshot.PreparedKey;
+        PreparedArchiveFloorPath = snapshot.PreparedArchiveFloorPath;
+        PreparedArchiveFloor = snapshot.PreparedArchiveFloor;
         LastReportInternal = snapshot.LastReport;
         IniProvider.Write(fEnabled, ConfigName, nameof(Enabled));
         IniProvider.Write(fArchivePath, ConfigName, nameof(ArchivePath));
@@ -431,6 +440,8 @@ internal static class DownloadHistory {
         BoundArchivePath = string.Empty;
         NeedsReconciliation = true;
         PreparedKey = null;
+        PreparedArchiveFloorPath = null;
+        PreparedArchiveFloor = Array.Empty<string>();
         LastReportInternal = new DownloadHistoryReport {
             State = DownloadHistoryState.Dormant,
             CanReconcile = true,
@@ -446,27 +457,38 @@ internal static class DownloadHistory {
     }
 
     internal static void RefreshBackupAfterRun(string archive, bool keepBackup) {
-        if (!keepBackup) return;
         try {
             HashSet<string> entries = new(StringComparer.Ordinal);
             if (!TryReadArchive(archive, entries, out string error)) {
                 if (!error.IsNullEmptyWhitespace()) {
-                    Log.Write("Download History did not refresh its backup because the primary archive failed validation: " + error);
+                    Log.Write("Download History did not refresh its session ledger floor because the primary archive failed validation: " + error);
                 }
-                PreparedKey = null;
+                lock (Sync) PreparedKey = null;
                 return;
             }
+
+            lock (Sync) {
+                if (!TryValidatePreparedArchiveFloor(archive, entries, out string floorError)) {
+                    PreparedKey = null;
+                    Log.Write(floorError);
+                    return;
+                }
+                AdvancePreparedArchiveFloor(archive, entries);
+            }
+
+            if (!keepBackup) return;
+
             HashSet<string> backupEntries = new(StringComparer.Ordinal);
             if (TryReadArchive(archive + ".bak", backupEntries, out _) && backupEntries.Any(entry => !entries.Contains(entry))) {
-                PreparedKey = null;
+                lock (Sync) PreparedKey = null;
                 Log.Write("Download History preserved its previous backup because the primary archive lost existing entries. The next protected operation will reconcile the ledger before downloading.");
                 return;
             }
             CopyArchiveToBackupAtomically(archive);
         }
         catch (Exception ex) {
-            PreparedKey = null;
-            Log.Write("Download History could not refresh its backup after the provider exited: " + ex.Message);
+            lock (Sync) PreparedKey = null;
+            Log.Write("Download History could not refresh its backup/session ledger floor after the provider exited: " + ex.Message);
         }
     }
 
@@ -728,6 +750,13 @@ internal static class DownloadHistory {
             if (backupValid && backupEntries.Any(entry => !entries.Contains(entry))) {
                 lock (Sync) PreparedKey = null;
                 throw new InvalidOperationException("The prepared Download History archive lost entries that remain in its last-good backup. Regenerate the download command so the ledger can be reconciled before downloading.");
+            }
+            lock (Sync) {
+                if (!TryValidatePreparedArchiveFloor(archivePath, entries, out string floorError)) {
+                    PreparedKey = null;
+                    throw new InvalidOperationException(floorError);
+                }
+                AdvancePreparedArchiveFloor(archivePath, entries);
             }
             if (!CanWriteArchiveLocation(archivePath, out string writeError)) {
                 throw new InvalidOperationException("The prepared Download History archive is no longer writable: " + writeError);
@@ -1033,6 +1062,28 @@ internal static class DownloadHistory {
         return report;
     }
 
+    private static string[] GetPreparedArchiveFloor(string archive) =>
+        !PreparedArchiveFloorPath.IsNullEmptyWhitespace() && PathEquals(archive, PreparedArchiveFloorPath!)
+            ? PreparedArchiveFloor
+            : Array.Empty<string>();
+
+    private static bool TryValidatePreparedArchiveFloor(string archive, IReadOnlyCollection<string> entries, out string error) {
+        error = string.Empty;
+        string[] floor = GetPreparedArchiveFloor(archive);
+        if (floor.Length == 0 || floor.All(entries.Contains)) return true;
+        error = "The Download History archive lost identities that were already validated during this application session. Restore the ledger or run Rebuild Archive before protected downloading.";
+        return false;
+    }
+
+    private static string[] AdvancePreparedArchiveFloor(string archive, IReadOnlyCollection<string> entries) {
+        string[] current = GetPreparedArchiveFloor(archive);
+        if (current.Length == entries.Count && current.All(entries.Contains)) return current;
+        string[] updated = entries.OrderBy(entry => entry, StringComparer.Ordinal).ToArray();
+        PreparedArchiveFloorPath = archive;
+        PreparedArchiveFloor = updated;
+        return updated;
+    }
+
     private static bool EnsureReady(out string error) {
         if (NeedsReconciliation) {
             LastReportInternal = new DownloadHistoryReport {
@@ -1107,6 +1158,15 @@ internal static class DownloadHistory {
                 }
             }
 
+            if (!TryValidatePreparedArchiveFloor(archive, entries, out string floorError)) {
+                return new DownloadHistoryReport {
+                    State = DownloadHistoryState.Invalid,
+                    CanReconcile = true,
+                    ArchiveEntries = entries.Count,
+                    Message = floorError
+                };
+            }
+
             if (changed) {
                 try { WriteArchiveAtomically(archive, entries); }
                 catch (Exception ex) {
@@ -1130,11 +1190,12 @@ internal static class DownloadHistory {
                 }
             }
 
+            string[] archiveSnapshot = AdvancePreparedArchiveFloor(archive, entries);
             return new DownloadHistoryReport {
                 State = DownloadHistoryState.Healthy,
                 CanReconcile = true,
                 ArchiveEntries = entries.Count,
-                ArchiveSnapshot = entries.OrderBy(entry => entry, StringComparer.Ordinal).ToArray(),
+                ArchiveSnapshot = archiveSnapshot,
                 Message = $"Download History is healthy. {entries.Count:N0} native archive entr{(entries.Count == 1 ? "y" : "ies")} validated without scanning media roots."
             };
         }
@@ -1396,6 +1457,10 @@ internal static class DownloadHistory {
         else if (TryReadArchive(backup, analysis.ArchiveEntries, out _)) {
             analysis.UsedBackup = true;
             analysis.ArchiveNeedsRewrite = true;
+        }
+
+        foreach (string entry in GetPreparedArchiveFloor(archive)) {
+            if (analysis.ArchiveEntries.Add(entry)) analysis.ArchiveNeedsRewrite = true;
         }
 
         analysis.RecoverMissingEntries = recoverMissingEntries || !analysis.ArchiveExists || analysis.ArchiveWasInvalid || analysis.UsedBackup;

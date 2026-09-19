@@ -984,24 +984,43 @@ internal static partial class AuditRegression {
     private static void DownloadHistoryInventoriesGifMediaConservatively() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Animated-" + id + ".gif", "Youtube", id);
+            string gif = DownloadHistoryWriteMediaWithInfo(fixture.Root, "Animated-" + id + ".gif", "Youtube", id);
+            byte[] gifBefore = File.ReadAllBytes(gif);
+            byte[] infoBefore = File.ReadAllBytes(Path.ChangeExtension(gif, ".info.json"));
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
-            Equal(1, Get(analysis, "CompletedMedia"));
-            Equal(1, Get(analysis, "MetadataRecovered"));
+            Equal(0, Get(analysis, "CompletedMedia"));
+            Equal(0, Get(analysis, "MetadataRecovered"));
+            Equal(0, Get(analysis, "UnresolvedMedia"));
+
             object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
-            Equal("Healthy", DownloadHistoryStateName(rebuilt));
-            Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+            Require(!DownloadHistoryArchiveLines(fixture.Archive).Contains("youtube " + id),
+                "GIF thumbnail/sidecar residue was promoted into native Download History");
+            Require(gifBefore.SequenceEqual(File.ReadAllBytes(gif)), "GIF sidecar inventory modified the file");
+            Require(infoBefore.SequenceEqual(File.ReadAllBytes(Path.ChangeExtension(gif, ".info.json"))),
+                "GIF sidecar inventory modified adjacent metadata");
         }
 
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            DownloadHistoryWriteMedia(fixture.Root, "Unknown.gif");
-            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
-            Equal("Unsafe", DownloadHistoryStateName(analysis));
-            Equal(1, Get(analysis, "CompletedMedia"));
-            Equal(1, Get(analysis, "UnresolvedMedia"));
-            Equal(false, DownloadHistoryCanReconcile(analysis));
-            Require(!File.Exists(fixture.Archive), "Unidentified standalone GIF was silently ignored during rebuild safety analysis");
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            foreach (string custom in new[] {
+                "--recode-video gif",
+                "--recode-video mp4>gif",
+                "--recode-video=webm>mp4/gif"
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(error.IndexOf("GIF", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("thumbnail", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Protected GIF recode was not rejected clearly: " + custom);
+                Equal(null, execution);
+            }
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--recode-video gif", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
         }
     }
 

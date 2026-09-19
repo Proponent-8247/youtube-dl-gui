@@ -135,6 +135,12 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
             return false;
         }
         DownloadHistoryExecution = HistoryExecution;
+        if (!DownloadHistory.ValidateAuthenticationCookiePath(Authentication?.CookiesFile, HistoryExecution, out string CookiePathError)) {
+            Verbose(CookiePathError);
+            Status = DownloadStatus.ProgramError;
+            DownloadHistoryExecution = null;
+            return false;
+        }
 
         ArgumentList ArgumentsBuffer = [];
         ArgumentList PreviewArguments;

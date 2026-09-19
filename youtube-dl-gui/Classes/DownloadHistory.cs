@@ -555,6 +555,54 @@ internal static class DownloadHistory {
         return !inQuotes;
     }
 
+    private static bool TryNormalizeCookiePath(string path, out string normalized, out string error) {
+        normalized = string.Empty;
+        error = string.Empty;
+        try {
+            string expanded = Environment.ExpandEnvironmentVariables(path);
+            if (expanded == "~" || expanded.StartsWith("~/", StringComparison.Ordinal) || expanded.StartsWith("~\\", StringComparison.Ordinal)) {
+                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                expanded = expanded.Length == 1 ? home : Path.Combine(home, expanded.Substring(2));
+            }
+            normalized = Path.GetFullPath(expanded);
+            return true;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or System.Security.SecurityException) {
+            error = "The cookie file path is invalid for protected Download History: " + ex.Message;
+            return false;
+        }
+    }
+
+    private static bool IsProtectedStatePath(string cookiePath, string archivePath, out string error) {
+        error = string.Empty;
+        if (!TryNormalizeCookiePath(cookiePath, out string normalizedCookie, out error)) return true;
+
+        string normalizedArchive;
+        try { normalizedArchive = Path.GetFullPath(archivePath); }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or System.Security.SecurityException) {
+            error = "The protected Download History archive path is invalid: " + ex.Message;
+            return true;
+        }
+
+        return string.Equals(normalizedCookie, normalizedArchive, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(normalizedCookie, normalizedArchive + ".bak", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(normalizedCookie, normalizedArchive + ".lock", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool ValidateAuthenticationCookiePath(string? cookiePath, DownloadHistoryExecution? execution, out string error) {
+        error = string.Empty;
+        if (execution is null || cookiePath.IsNullEmptyWhitespace()) return true;
+        if (!IsProtectedStatePath(cookiePath!, execution.ArchivePath, out string pathError)) {
+            if (!pathError.IsNullEmptyWhitespace()) {
+                error = pathError;
+                return false;
+            }
+            return true;
+        }
+        error = "The authentication cookie file cannot use the Download History archive, backup, or lock path because yt-dlp writes the cookie jar back at shutdown.";
+        return false;
+    }
+
     public static bool TryGetArchiveArguments(string fileNameSchema, string? customArguments, out string archiveArguments, out string error) =>
         TryGetArchiveArguments(fileNameSchema, customArguments, out archiveArguments, out error, out _);
 
@@ -662,6 +710,18 @@ internal static class DownloadHistory {
             if (ContainsOption(customArguments, "--")) {
                 error = "A standalone -- option terminator is not allowed while Download History protection is enabled because it would turn the app's native archive protection arguments into positional inputs. Remove the terminator or disable Download History.";
                 return false;
+            }
+
+            string protectedArchive = EffectiveArchivePath;
+            foreach (string cookiePath in GetOptionValues(customArguments, "--cookies")) {
+                if (IsProtectedStatePath(cookiePath, protectedArchive, out string cookiePathError)) {
+                    error = "The custom cookie file cannot use the Download History archive, backup, or lock path because yt-dlp writes the cookie jar back at shutdown.";
+                    return false;
+                }
+                if (!cookiePathError.IsNullEmptyWhitespace()) {
+                    error = cookiePathError;
+                    return false;
+                }
             }
 
             if (!EnsureReady(out error)) return false;

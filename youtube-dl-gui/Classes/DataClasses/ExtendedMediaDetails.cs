@@ -514,6 +514,13 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
             return false;
         }
         DownloadHistoryExecution = HistoryExecution;
+        if (!DownloadHistory.ValidateAuthenticationCookiePath(Authentication?.CookiesFile, HistoryExecution, out string CookiePathError)) {
+            Log.Write(CookiePathError);
+            base.Arguments = null;
+            ArgumentsCensored = string.Empty;
+            DownloadHistoryExecution = null;
+            return false;
+        }
         ArgumentList ArgumentBuffer = [];
 
         #region Outuput path

@@ -1144,6 +1144,44 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryIgnoresIndexedThumbnailSidecars() {
+        const string id = "9qFjkwAElDs";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string media = DownloadHistoryWriteMedia(fixture.Root, "Indexed-" + id + ".mp4");
+            string info = Path.ChangeExtension(media, ".info.json");
+            string thumbnail = DownloadHistoryWriteMedia(fixture.Root, "Indexed-" + id + ".0.gif");
+            File.WriteAllText(info,
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"mp4\",\"thumbnails\":[{\"id\":0,\"ext\":\"gif\",\"url\":\"https://example.invalid/zero.gif\"},{\"id\":\"1\",\"ext\":\"jpg\",\"url\":\"https://example.invalid/one.jpg\"}]}", Encoding.UTF8);
+            byte[] mediaBefore = File.ReadAllBytes(media);
+            byte[] infoBefore = File.ReadAllBytes(info);
+            byte[] thumbnailBefore = File.ReadAllBytes(thumbnail);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(1, Get(rebuilt, "CompletedMedia"));
+            Equal(1, Get(rebuilt, "MetadataRecovered"));
+            Equal(0, Get(rebuilt, "UnresolvedMedia"));
+            Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+            Require(mediaBefore.SequenceEqual(File.ReadAllBytes(media)), "Indexed-thumbnail scan modified real media");
+            Require(infoBefore.SequenceEqual(File.ReadAllBytes(info)), "Indexed-thumbnail scan modified metadata");
+            Require(thumbnailBefore.SequenceEqual(File.ReadAllBytes(thumbnail)), "Indexed-thumbnail scan modified sidecar");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            const string mismatchId = "aB_Cd-Ef123";
+            string media = DownloadHistoryWriteMedia(fixture.Root, "Mismatch-" + mismatchId + ".mp4");
+            File.WriteAllText(Path.ChangeExtension(media, ".info.json"),
+                "{\"id\":\"" + mismatchId + "\",\"extractor_key\":\"Youtube\",\"ext\":\"mp4\",\"thumbnails\":[{\"id\":\"0\",\"ext\":\"gif\",\"url\":\"https://example.invalid/zero.gif\"},{\"id\":\"2\",\"ext\":\"jpg\",\"url\":\"https://example.invalid/two.jpg\"}]}", Encoding.UTF8);
+            DownloadHistoryWriteMedia(fixture.Root, "Mismatch-" + mismatchId + ".1.gif");
+
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Partial", DownloadHistoryStateName(analysis));
+            Equal(2, Get(analysis, "CompletedMedia"));
+            Equal(1, Get(analysis, "UnresolvedMedia"));
+            Equal(false, DownloadHistoryCanReconcile(analysis));
+        }
+    }
+
     private static void DownloadHistoryIgnoresFailedAndSidecarFiles() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             File.WriteAllText(Path.Combine(fixture.Root, "Video-9qFjkwAElDs.mp4.part"), "partial");
@@ -2235,6 +2273,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ValidArchiveDoesNotPromoteUnarchivedFile", DownloadHistoryValidArchiveDoesNotPromoteUnarchivedFile);
         Test("DOWNLOAD_HISTORY.ExplicitRebuildRecoversAuthoritativeMissingEntry", DownloadHistoryExplicitRebuildRecoversAuthoritativeMissingEntry);
         Test("DOWNLOAD_HISTORY.InventoriesGifMediaConservatively", DownloadHistoryInventoriesGifMediaConservatively);
+        Test("DOWNLOAD_HISTORY.IgnoresIndexedThumbnailSidecars", DownloadHistoryIgnoresIndexedThumbnailSidecars);
         Test("DOWNLOAD_HISTORY.IgnoresFailedAndSidecarFiles", DownloadHistoryIgnoresFailedAndSidecarFiles);
         Test("DOWNLOAD_HISTORY.DisabledIntervalWithoutIdsFailsSafe", DownloadHistoryDisabledIntervalWithoutIdsFailsSafe);
         Test("DOWNLOAD_HISTORY.MissingParentHardStopsWithoutPersistence", DownloadHistoryMissingParentHardStopsWithoutPersistence);

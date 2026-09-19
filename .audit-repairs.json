@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "base_sha": "dfd8d959aee21d4b90fc8af03778bb2433fb688c",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.InventoriesGifMediaConservatively"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A031-retry",
+      "message": "fix: fail safe on orphan GIF inventory",
+      "resolves": [
+        "DOWNLOAD_HISTORY.InventoriesGifMediaConservatively"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            if (RequestsGifVideoRecode(customArguments)) {\n                error = \"Download History cannot safely protect --recode-video mappings that produce GIF because GIF is also a yt-dlp thumbnail sidecar extension and cannot be reconstructed unambiguously after postprocessing. Use another final video format or disable Download History.\";\n                return false;\n            }",
+              "new": "            if (RequestsAmbiguousGifOutput(customArguments)) {\n                error = \"Download History cannot safely protect --recode-video or --remux-video mappings that produce GIF because GIF is also a yt-dlp thumbnail sidecar extension and cannot be reconstructed unambiguously after postprocessing. Use another final video format or disable Download History.\";\n                return false;\n            }"
+            },
+            {
+              "old": "                    string? entry = TryRecoverFromInfoJson(media, out _, out _, out string? metadataExtension);\n                    if (Path.GetExtension(media).Equals(\".gif\", StringComparison.OrdinalIgnoreCase) &&\n                        !metadataExtension.IsNullEmptyWhitespace() &&\n                        !metadataExtension.Equals(\"gif\", StringComparison.OrdinalIgnoreCase)) {\n                        continue;\n                    }\n                    bool fromMetadata = entry is not null;\n                    if (entry is null) entry = filenameMatcher.Match(media);\n\n                    // A current valid native archive is the success marker. An unarchived final-looking\n                    // file may be residue from a failed provider run and must remain eligible for retry.\n                    // Recovery states deliberately trust authoritative physical-library identities instead.\n                    if (!analysis.RecoverMissingEntries && analysis.ArchiveValid &&\n                        (entry is null || !analysis.ArchiveEntries.Contains(entry))) {\n                        continue;\n                    }",
+              "new": "                    string? entry = TryRecoverFromInfoJson(media, out _, out _);\n                    bool fromMetadata = entry is not null;\n                    if (entry is null) entry = filenameMatcher.Match(media);\n\n                    // GIF is also a yt-dlp thumbnail extension, and thumbnails plus info JSON can be\n                    // written before media completion. Never invent a native identity from an orphan GIF.\n                    if (Path.GetExtension(media).Equals(\".gif\", StringComparison.OrdinalIgnoreCase)) {\n                        if (HasSameStemNonGifMediaSibling(media)) continue;\n                        bool alreadyKnown = entry is not null && analysis.ArchiveEntries.Contains(entry);\n                        if (!alreadyKnown) {\n                            if (!analysis.RecoverMissingEntries && analysis.ArchiveValid) continue;\n                            report.CompletedMedia++;\n                            report.UnresolvedMedia++;\n                            continue;\n                        }\n                    }\n\n                    // A current valid native archive is the success marker. An unarchived final-looking\n                    // file may be residue from a failed provider run and must remain eligible for retry.\n                    // Recovery states deliberately trust authoritative physical-library identities instead.\n                    if (!analysis.RecoverMissingEntries && analysis.ArchiveValid &&\n                        (entry is null || !analysis.ArchiveEntries.Contains(entry))) {\n                        continue;\n                    }"
+            },
+            {
+              "old": "    private static string? TryRecoverFromInfoJson(string mediaPath, out string? sourceId, out string? infoPath, out string? metadataExtension) {\n        sourceId = null;\n        infoPath = null;\n        metadataExtension = null;",
+              "new": "    private static string? TryRecoverFromInfoJson(string mediaPath, out string? sourceId, out string? infoPath) {\n        sourceId = null;\n        infoPath = null;"
+            },
+            {
+              "old": "            if (serializer.DeserializeObject(json) is not Dictionary<string, object> root) return null;\n            metadataExtension = root.TryGetValue(\"ext\", out object? extensionValue) && extensionValue is string extensionText\n                ? extensionText.Trim()\n                : null;\n            string? recoveredId = root.TryGetValue(\"id\", out object? idValue) ? idValue as string : null;",
+              "new": "            if (serializer.DeserializeObject(json) is not Dictionary<string, object> root) return null;\n            string? recoveredId = root.TryGetValue(\"id\", out object? idValue) ? idValue as string : null;"
+            },
+            {
+              "old": "    private static IEnumerable<string> EnumerateCompletedMedia(string root) {\n        if (!Directory.Exists(root)) yield break;",
+              "new": "    private static bool IsCompletedMediaExtension(string ext) =>\n        ext is \".mp4\" or \".mkv\" or \".webm\" or \".mov\" or \".avi\" or \".flv\" or \".m4v\" or \".3gp\" or \".3g2\" or\n                    \".f4v\" or \".mk3d\" or \".divx\" or \".ogv\" or \".nut\" or \".swf\" or \".gif\" or\n                    \".ts\" or \".m2ts\" or \".mts\" or \".vob\" or \".wmv\" or \".asf\" or \".mpg\" or \".mpeg\" or \".mpe\" or \".mpv\" or \".m2v\" or\n                    \".3ga\" or \".asx\" or \".isma\" or \".ismv\" or \".m2t\" or \".m4s\" or \".mng\" or \".mp2v\" or \".mp4v\" or \".mpeg1\" or \".mpeg2\" or \".mpeg4\" or\n                    \".mxf\" or \".ogm\" or \".qt\" or \".rm\" or \".vid\" or \".vp9\" or \".unknown_video\" or\n                    \".mp3\" or \".mp2\" or \".m4a\" or \".m4b\" or \".m4r\" or \".aac\" or \".opus\" or \".ogg\" or \".oga\" or \".ogx\" or \".spx\" or \".vorbis\" or \".weba\" or\n                    \".wav\" or \".flac\" or \".wma\" or \".mka\" or \".ape\" or \".alac\" or \".aiff\" or \".aif\" or \".aifc\" or \".tta\" or\n                    \".f4a\" or \".f4b\" or \".ac3\" or \".eac3\" or \".dts\" or \".adts\" or \".au\" or \".it\" or \".mid\" or \".mod\" or \".mp1\" or\n                    \".mp4a\" or \".mpa\" or \".mpga\" or \".ra\" or \".shn\" or \".xm\";\n\n    private static bool HasSameStemNonGifMediaSibling(string gifPath) {\n        string directory = Path.GetDirectoryName(gifPath) ?? string.Empty;\n        string stem = Path.GetFileNameWithoutExtension(gifPath);\n        foreach (string sibling in Directory.EnumerateFiles(directory, stem + \".*\", SearchOption.TopDirectoryOnly)) {\n            if (string.Equals(sibling, gifPath, StringComparison.OrdinalIgnoreCase)) continue;\n            string siblingExtension = Path.GetExtension(sibling).ToLowerInvariant();\n            if (siblingExtension != \".gif\" && IsCompletedMediaExtension(siblingExtension)) return true;\n        }\n        return false;\n    }\n\n    private static IEnumerable<string> EnumerateCompletedMedia(string root) {\n        if (!Directory.Exists(root)) yield break;"
+            },
+            {
+              "old": "                if (ext is \".mp4\" or \".mkv\" or \".webm\" or \".mov\" or \".avi\" or \".flv\" or \".m4v\" or \".3gp\" or \".3g2\" or\n                    \".f4v\" or \".mk3d\" or \".divx\" or \".ogv\" or \".nut\" or \".swf\" or \".gif\" or\n                    \".ts\" or \".m2ts\" or \".mts\" or \".vob\" or \".wmv\" or \".asf\" or \".mpg\" or \".mpeg\" or \".mpe\" or \".mpv\" or \".m2v\" or\n                    \".3ga\" or \".asx\" or \".isma\" or \".ismv\" or \".m2t\" or \".m4s\" or \".mng\" or \".mp2v\" or \".mp4v\" or \".mpeg1\" or \".mpeg2\" or \".mpeg4\" or\n                    \".mxf\" or \".ogm\" or \".qt\" or \".rm\" or \".vid\" or \".vp9\" or \".unknown_video\" or\n                    \".mp3\" or \".mp2\" or \".m4a\" or \".m4b\" or \".m4r\" or \".aac\" or \".opus\" or \".ogg\" or \".oga\" or \".ogx\" or \".spx\" or \".vorbis\" or \".weba\" or\n                    \".wav\" or \".flac\" or \".wma\" or \".mka\" or \".ape\" or \".alac\" or \".aiff\" or \".aif\" or \".aifc\" or \".tta\" or\n                    \".f4a\" or \".f4b\" or \".ac3\" or \".eac3\" or \".dts\" or \".adts\" or \".au\" or \".it\" or \".mid\" or \".mod\" or \".mp1\" or\n                    \".mp4a\" or \".mpa\" or \".mpga\" or \".ra\" or \".shn\" or \".xm\") {\n                    yield return file;\n                }",
+              "new": "                if (IsCompletedMediaExtension(ext)) yield return file;"
+            },
+            {
+              "old": "    private static bool RequestsGifVideoRecode(string? arguments) {\n        foreach (string value in GetOptionValues(arguments, \"--recode-video\")) {\n            foreach (string mapping in value.Split('/')) {\n                int arrow = mapping.LastIndexOf('>');\n                string target = (arrow >= 0 ? mapping.Substring(arrow + 1) : mapping).Trim();\n                if (target.Equals(\"gif\", StringComparison.OrdinalIgnoreCase)) return true;\n            }\n        }\n        return false;\n    }",
+              "new": "    private static bool RequestsAmbiguousGifOutput(string? arguments) {\n        foreach (string option in new[] { \"--recode-video\", \"--remux-video\" }) {\n            foreach (string value in GetOptionValues(arguments, option)) {\n                foreach (string mapping in value.Split('/')) {\n                    int arrow = mapping.LastIndexOf('>');\n                    string target = (arrow >= 0 ? mapping.Substring(arrow + 1) : mapping).Trim();\n                    if (target.Equals(\"gif\", StringComparison.OrdinalIgnoreCase)) return true;\n                }\n            }\n        }\n        return false;\n    }"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

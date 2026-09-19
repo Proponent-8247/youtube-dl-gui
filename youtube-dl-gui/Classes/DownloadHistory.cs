@@ -783,6 +783,12 @@ internal static class DownloadHistory {
                 return false;
             }
 
+            if (customArguments != null && customArguments.IndexOf('\0') >= 0) {
+                LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "Custom arguments contain an embedded NUL that can truncate the Windows command line." };
+                error = "Download History cannot protect custom arguments containing an embedded NUL because Windows command-line processing can truncate the app-owned yt-dlp archive options.";
+                return false;
+            }
+
             if (!HasBalancedArgumentQuotes(customArguments)) {
                 LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "Custom arguments contain an unterminated quoted region that can escape the protected argument boundary." };
                 error = "Download History cannot protect custom arguments with unbalanced quotes because they can absorb the app-owned yt-dlp archive options. Balance or remove the quote, or disable Download History.";

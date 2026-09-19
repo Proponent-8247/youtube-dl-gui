@@ -246,6 +246,34 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsUnbalancedCustomArgumentQuotes() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string custom in new[] {
+                "--proxy \"http://example.invalid",
+                "--proxy \"http://example.invalid\\\""
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(error.IndexOf("quote", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("argument", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Unbalanced custom quoting was not rejected clearly: " + custom);
+                Equal(null, execution);
+            }
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--proxy \"http://example.invalid/path?q=a b\"", out arguments, out error, out execution));
+            Require(arguments.Contains("--download-archive"), "Balanced quoted custom value disturbed protected archive arguments");
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--proxy \"http://example.invalid", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryRejectsClusteredShortOutputOverrides() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -1879,6 +1907,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsUnsafeProtectedFilenameSchemas", DownloadHistoryRejectsUnsafeProtectedFilenameSchemas);
         Test("DOWNLOAD_HISTORY.DisablesPlaylistConcatenationWhileProtected", DownloadHistoryDisablesPlaylistConcatenationWhileProtected);
         Test("DOWNLOAD_HISTORY.RejectsCustomArgumentsThatBreakProtection", DownloadHistoryRejectsCustomArgumentsThatBreakProtection);
+        Test("DOWNLOAD_HISTORY.RejectsUnbalancedCustomArgumentQuotes", DownloadHistoryRejectsUnbalancedCustomArgumentQuotes);
         Test("DOWNLOAD_HISTORY.RejectsClusteredShortOutputOverrides", DownloadHistoryRejectsClusteredShortOutputOverrides);
         Test("DOWNLOAD_HISTORY.RejectsSourceAndExtractorIdentityOverrides", DownloadHistoryRejectsSourceAndExtractorIdentityOverrides);
         Test("DOWNLOAD_HISTORY.RejectsMetadataIdentityRewrites", DownloadHistoryRejectsMetadataIdentityRewrites);

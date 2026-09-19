@@ -246,7 +246,8 @@ internal static partial class AuditRegression {
                 "%(uploader)s\\%(id)s.%(ext)s",
                 ".%(uploader)s\\%(id)s.%(ext)s",
                 "$YTDL_GUI_SCHEMA_ROOT\\%(id)s.%(ext)s",
-                "%YTDL_GUI_SCHEMA_ROOT%\\%(id)s.%(ext)s"
+                "%YTDL_GUI_SCHEMA_ROOT%\\%(id)s.%(ext)s",
+                "$YTDL_GUI_SCHEMA_ROOT-%(id)s.%(ext)s"
             }) {
                 Equal(false, DownloadHistoryArguments(fixture.History, schema, null, out arguments, out error, out execution));
                 Require(error.IndexOf("parent", StringComparison.OrdinalIgnoreCase) >= 0 ||

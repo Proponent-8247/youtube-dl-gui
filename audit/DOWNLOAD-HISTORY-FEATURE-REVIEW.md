@@ -85,6 +85,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A028 | High | Fixed / regression-verified | ID-template validation and historical filename recovery now honor yt-dlp percent-escape semantics, rejecting even escaped runs while supporting active odd runs. |
 | DH-A029 | High | Fixed / regression-verified | Physical inventory now covers current yt-dlp safe video/audio direct-media extensions plus `.unknown_video`, while preserving sidecar/manifest exclusions. |
 | DH-A030 | High | Fixed / regression-verified | Prepared execution now carries the validated ledger as an immutable lower bound and rejects any pre-start primary shrink while allowing supersets. |
+| DH-A031 | High | Verified | GIF is ambiguous between final recoded media and same-stem yt-dlp thumbnail residue; inventory can rebuild history from a thumbnail after the actual media never completed or was removed. |
+| DH-A032 | High | Verified | yt-dlp time-range/`--download-sections` downloads still record the whole source's native archive ID, so protected clips can incorrectly suppress later full/other-section downloads. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -817,3 +819,44 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 6. Keep A022 behavior: a stale retained backup is not by itself sufficient to recreate a missing/invalid primary when retention is off.
 7. Add a regression with `KeepBackup=false`, no backup file, a prepared execution context, and a syntactically valid primary truncation; the lease must reject it. Also prove a post-preparation superset append remains acceptable.
 8. Re-run the complete guarded Windows Debug/Release/full-regression gates.
+
+
+### DH-A031 — GIF thumbnail residue can be mistaken for completed media
+
+**Priority / state:** High archive-rebuild correctness risk / VERIFIED against current app scanner and current yt-dlp thumbnail/write ordering.
+
+**Affected code:** `EnumerateCompletedMedia`, protected custom postprocessing policy, and the A025 GIF inventory behavior.
+
+**Finding:** A025 conservatively admitted `.gif` as possible final media because current yt-dlp can recode video to GIF. But yt-dlp can also write a thumbnail using the source thumbnail's extension, including GIF, and constructs that thumbnail by replacing the media extension with the thumbnail extension. The thumbnail and `.info.json` are written **before** the actual media download. Therefore a failed download may leave `<same stem>.gif` plus `<same stem>.info.json` even though no media completed. The current scanner enumerates the GIF, treats the adjacent metadata identity as authoritative, and can rebuild the native archive from the sidecar residue.
+
+**Impact:** Explicit Rebuild can falsely mark a source as downloaded from a surviving thumbnail alone. The next protected run then skips the source even though the actual media never completed or has been removed. This violates the required sidecar-vs-media distinction and fail-safe recovery model.
+
+**Required acceptance:**
+
+1. Thumbnail/image sidecars must never by themselves count as completed media evidence, including GIF.
+2. Because a standalone GIF cannot be reliably distinguished after the fact from a yt-dlp GIF thumbnail using filename/adjacent metadata alone, protected mode must not create final GIF media unless a separate unambiguous durable media marker is introduced.
+3. Keep ordinary app-supported video/audio formats unchanged; the built-in GUI does not currently expose GIF as a normal video output.
+4. Reject custom/preset behavior that explicitly requests final GIF video while Download History is enabled, with an actionable explanation; Download History disabled behavior remains unchanged.
+5. Remove GIF from completed-media inventory so failed/surviving GIF thumbnails remain sidecars.
+6. Replace the A025 regression semantics without deleting its test identity: it must now prove a GIF+same-stem `.info.json` sidecar family is ignored and protected GIF recode is refused.
+7. Re-run the complete guarded Windows Debug/Release/full-regression gates.
+
+### DH-A032 — Partial-section downloads cannot be represented safely by the native archive identity
+
+**Priority / state:** High duplicate-prevention semantic risk / VERIFIED against current extended argument generation and current yt-dlp archive-write flow.
+
+**Affected code:** protected custom-argument validation and `ExtendedMediaDetails.GenerateArguments` time-range handling.
+
+**Finding:** The extended UI emits `--download-sections` when StartTime/EndTime is set, and protected custom arguments may also supply `--download-sections`. Current yt-dlp processes the requested range(s) but records the parent source through the normal native archive key (extractor + source ID) once the requested downloads succeed. The archive format has no section/range component.
+
+**Impact:** Downloading only 00:10–00:20 under protection can mark the entire source ID as downloaded. A later attempt to fetch the full media, a different range, or another section can then be skipped as an archive duplicate. That is not a path/rebuild problem; it is an identity-granularity mismatch that native archive semantics cannot encode safely.
+
+**Required acceptance:**
+
+1. Reject `--download-sections` in custom arguments while Download History protection is enabled.
+2. Reject built-in Extended StartTime/EndTime downloads while Download History is enabled before command execution is prepared.
+3. Explain that native Download History is source-ID based and cannot safely distinguish partial ranges; users may disable Download History for intentional clip/range downloads.
+4. Download History disabled behavior remains unchanged.
+5. Do not change playlist-item, split-chapter, or ordinary full-media behavior unless separately proven unsafe.
+6. Add regressions for custom `--download-sections` and the Extended built-in section path.
+7. Re-run the complete guarded Windows Debug/Release/full-regression gates.

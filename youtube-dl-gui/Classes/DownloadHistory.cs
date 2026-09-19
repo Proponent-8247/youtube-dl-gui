@@ -707,6 +707,13 @@ internal static class DownloadHistory {
                 error = "Arbitrary file-write and shell-command hooks are not allowed while Download History protection is enabled because they can mutate the protected archive or other validated state. Use ordinary --print/static authentication options or disable Download History.";
                 return false;
             }
+            if (ContainsLongOptionOrAbbreviation(customArguments, "--postprocessor-args", "--postp") ||
+                ContainsLongOptionOrAbbreviation(customArguments, "--ppa", "--ppa") ||
+                ContainsLongOptionOrAbbreviation(customArguments, "--downloader-args", "--downloader-a") ||
+                ContainsLongOptionOrAbbreviation(customArguments, "--external-downloader-args", "--external-downloader-a")) {
+                error = "Raw postprocessor and external-downloader arguments are not allowed while Download History protection is enabled because child tools can write outside the validated protected-state model. Use built-in yt-dlp postprocessing/downloader controls or disable Download History.";
+                return false;
+            }
             if (ContainsOption(customArguments, "--")) {
                 error = "A standalone -- option terminator is not allowed while Download History protection is enabled because it would turn the app's native archive protection arguments into positional inputs. Remove the terminator or disable Download History.";
                 return false;

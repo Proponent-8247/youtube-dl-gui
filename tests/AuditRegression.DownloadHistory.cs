@@ -646,7 +646,7 @@ internal static partial class AuditRegression {
                 Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
                     "--cookies \"$" + variable + "\"", out arguments, out error, out execution));
                 Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
-                    "--cookies \" + variable + \"", out arguments, out error, out execution));
+                    "--cookies \"$" + "{" + variable + "}\"", out arguments, out error, out execution));
 
                 Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
                     null, out arguments, out error, out execution));

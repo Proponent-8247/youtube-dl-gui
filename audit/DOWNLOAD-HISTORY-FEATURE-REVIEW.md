@@ -87,6 +87,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A030 | High | Fixed / regression-verified | Prepared execution now carries the validated ledger as an immutable lower bound and rejects any pre-start primary shrink while allowing supersets. |
 | DH-A031 | High | Fixed / regression-verified | Inventory now uses retained yt-dlp thumbnail-extension metadata to distinguish possible pre-download thumbnail residue from completed media without banning legitimate GIF media/postprocessing. |
 | DH-A032 | High | Fixed / regression-verified | Protected mode rejects custom and built-in partial time-range downloads whose source-level native archive identity cannot represent the requested section. |
+| DH-A033 | High | Verified | With backup retention off, a valid same-session archive shrink can be accepted by a later preparation because A030 retains a lower bound only inside each individual execution context. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -878,3 +879,27 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 - Baseline evidence showed both A031/A032 locked regressions failing; after the first A031 repair only A032 still failed; after A032 the complete Download History regression set passed.
 - Evidence artifact `10590540088` has SHA-256 `6529a1ee1a757973bb23858d05f3f2426499fc83b721fc519b492b744537c9be`.
 - A031 is intentionally not closed from that run for the reason recorded above.
+
+
+### DH-A033 — Same-session ledger knowledge is not monotonic across preparations when backups are off
+
+**Priority / state:** High duplicate-prevention integrity risk / VERIFIED in terminal A030 follow-up audit.
+
+**Affected code:** `ValidateArchiveForProtectedExecution`, `DownloadHistoryExecution`, `AcquireValidatedExecutionLease`, and `RefreshBackupAfterRun`.
+
+**Finding:** DH-A030 correctly pins the native archive entries seen by one prepared command and rejects a shrink between that command's preparation and process start. However, the lower bound lives only inside that one `DownloadHistoryExecution`. When `KeepBackup=false` and no valid backup exists, a later preparation re-reads the current primary and replaces `LastReportInternal.ArchiveSnapshot` with whatever syntactically valid subset exists at that moment. The process therefore forgets identities it successfully validated earlier in the same application session. In addition, `RefreshBackupAfterRun` returns immediately when backup retention is off, so identities appended by a successful provider run do not advance any application-side lower bound that older/later prepared commands can enforce.
+
+**Impact:** A valid archive containing identities A+B can be prepared safely, then truncated to A, and a subsequent command can be prepared and run with B silently forgotten. Likewise, after a successful no-backup run appends C, an older prepared command can later start after C has disappeared because its private A+B snapshot has no knowledge of C. Both cases can redownload media that this process already knew was archived.
+
+**Required acceptance:**
+
+1. Maintain an in-memory, per-effective-archive monotonic lower bound for the current application session.
+2. Every protected preparation must reject a valid primary that omits any identity from that same-session lower bound, unless a valid backup/reconciliation path restores the missing identities first.
+3. Successful supersets advance the floor; unchanged ledgers may reuse the existing immutable snapshot rather than duplicating it per command.
+4. `RefreshBackupAfterRun` must validate and advance the in-memory floor after a successful provider run even when physical backup retention is disabled. It must not start writing a backup when `KeepBackup=false`.
+5. A prepared execution lease must enforce both its own preparation-time lower bound and the latest same-archive session floor so an older command cannot forget identities learned from a newer completed run.
+6. Reset History clears the floor; archive relocation starts a new floor only after normal relocation preservation has succeeded. Disabling/re-enabling does not silently discard same-session knowledge.
+7. Do not claim cross-process or cross-restart monotonicity when backups are disabled; the floor is deliberately an in-memory strengthening, not a hidden persistent backup.
+8. Preserve all DH-A019/A022/A030 backup semantics and explicit Reset/Rebuild behavior.
+9. Add regressions for (a) later preparation after a no-backup same-session shrink and (b) an old execution after a no-backup provider run advances the archive and the new identity is then removed.
+10. Re-run the complete guarded Windows Debug/Release/full-regression gates.

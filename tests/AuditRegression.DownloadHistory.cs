@@ -1237,6 +1237,53 @@ internal static partial class AuditRegression {
     }
 
 
+    private static void DownloadHistoryPreservesSameSessionLedgerFloorWithoutBackup() {
+        const string first = "9qFjkwAElDs";
+        const string second = "aB_Cd-Ef123";
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "First-" + first + ".mp4", "Youtube", first);
+            object prepared = Call(fixture.History, null, "ReconcileLibrary", string.Empty, false, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(prepared));
+            Call(fixture.History, null, "CommitSettings", true, string.Empty, false, prepared, string.Empty);
+            Require(!File.Exists(fixture.Archive + ".bak"), "Same-session floor fixture unexpectedly created a backup");
+
+            File.AppendAllText(fixture.Archive, "youtube " + second + Environment.NewLine, Encoding.UTF8);
+            string arguments, error;
+            object execution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
+
+            File.WriteAllText(fixture.Archive, "youtube " + first + Environment.NewLine, Encoding.UTF8);
+            object laterExecution;
+            Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out laterExecution));
+            Require(error.IndexOf("identit", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    error.IndexOf("rebuild", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    error.IndexOf("ledger", StringComparison.OrdinalIgnoreCase) >= 0,
+                "Later preparation did not explain the same-session ledger shrink");
+            Equal(null, laterExecution);
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "First-" + first + ".mp4", "Youtube", first);
+            object prepared = Call(fixture.History, null, "ReconcileLibrary", string.Empty, false, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(prepared));
+            Call(fixture.History, null, "CommitSettings", true, string.Empty, false, prepared, string.Empty);
+
+            string arguments, error;
+            object oldExecution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out oldExecution));
+
+            using (IDisposable lease = (IDisposable)Call(oldExecution.GetType(), oldExecution, "AcquireValidatedLease")) {
+                File.AppendAllText(fixture.Archive, "youtube " + second + Environment.NewLine, Encoding.UTF8);
+                Call(oldExecution.GetType(), oldExecution, "RefreshBackupAfterRun");
+            }
+            Require(!File.Exists(fixture.Archive + ".bak"), "No-backup provider completion unexpectedly created a backup");
+
+            File.WriteAllText(fixture.Archive, "youtube " + first + Environment.NewLine, Encoding.UTF8);
+            Throws<InvalidOperationException>(() => Call(oldExecution.GetType(), oldExecution, "AcquireValidatedLease"));
+        }
+    }
+
     private static void DownloadHistoryRetentionOffDoesNotRestoreFromStaleBackupAlone() {
         const string first = "9qFjkwAElDs";
         const string newer = "aB_Cd-Ef123";
@@ -2160,6 +2207,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ExecutionContextRejectsSettingChanges", DownloadHistoryExecutionContextRejectsSettingChanges);
         Test("DOWNLOAD_HISTORY.ExecutionLeaseRejectsArchiveTruncation", DownloadHistoryExecutionLeaseRejectsArchiveTruncation);
         Test("DOWNLOAD_HISTORY.ExecutionLeaseRejectsBackupFreePreparedTruncation", DownloadHistoryExecutionLeaseRejectsBackupFreePreparedTruncation);
+        Test("DOWNLOAD_HISTORY.PreservesSameSessionLedgerFloorWithoutBackup", DownloadHistoryPreservesSameSessionLedgerFloorWithoutBackup);
         Test("DOWNLOAD_HISTORY.RetentionOffDoesNotRestoreFromStaleBackupAlone", DownloadHistoryRetentionOffDoesNotRestoreFromStaleBackupAlone);
         Test("DOWNLOAD_HISTORY.ArchiveRelocationRejectsStaleBackupOnlySource", DownloadHistoryArchiveRelocationRejectsStaleBackupOnlySource);
         Test("DOWNLOAD_HISTORY.ExecutionLeaseUsesExistingBackupWhenRetentionOff", DownloadHistoryExecutionLeaseUsesExistingBackupWhenRetentionOff);

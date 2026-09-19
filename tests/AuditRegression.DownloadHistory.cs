@@ -466,6 +466,40 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryInventoriesCurrentDirectMediaExtensions() {
+        string[] extensions = {
+            ".3ga", ".adts", ".asx", ".au", ".isma", ".ismv", ".it", ".m2t", ".m4s", ".mid",
+            ".mng", ".mod", ".mp1", ".mp2v", ".mp4a", ".mp4v", ".mpa", ".mpeg1", ".mpeg2", ".mpeg4",
+            ".mpga", ".mxf", ".ogm", ".qt", ".ra", ".rm", ".shn", ".vid", ".vp9", ".xm", ".unknown_video"
+        };
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            List<string> mediaPaths = new();
+            List<byte[]> mediaBytes = new();
+            for (int i = 0; i < extensions.Length; i++) {
+                string id = "direct" + i.ToString("D4");
+                string media = DownloadHistoryWriteMediaWithInfo(fixture.Root, "Direct-" + id + extensions[i], "Generic", id);
+                mediaPaths.Add(media);
+                mediaBytes.Add(File.ReadAllBytes(media));
+            }
+
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal(extensions.Length, Get(analysis, "CompletedMedia"));
+            Equal(extensions.Length, Get(analysis, "MetadataRecovered"));
+            Equal(0, Get(analysis, "UnresolvedMedia"));
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(extensions.Length, Get(rebuilt, "ArchiveEntries"));
+            string[] lines = DownloadHistoryArchiveLines(fixture.Archive);
+            for (int i = 0; i < extensions.Length; i++) {
+                string id = "direct" + i.ToString("D4");
+                Require(lines.Contains("generic " + id), "Explicit rebuild omitted current direct-media extension " + extensions[i]);
+                Require(File.Exists(mediaPaths[i]) && mediaBytes[i].SequenceEqual(File.ReadAllBytes(mediaPaths[i])),
+                    "Direct-media inventory modified an existing " + extensions[i] + " file");
+            }
+        }
+    }
+
     private static void DownloadHistoryRebuildsDeletedArchiveFromIds() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -1951,6 +1985,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.IgnoresAmbientYtDlpConfig", DownloadHistoryIgnoresAmbientYtDlpConfig);
         Test("DOWNLOAD_HISTORY.DisablesAmbientYtDlpPlugins", DownloadHistoryDisablesAmbientYtDlpPlugins);
         Test("DOWNLOAD_HISTORY.RecoversSupportedMediaExtensions", DownloadHistoryRecoversSupportedMediaExtensions);
+        Test("DOWNLOAD_HISTORY.InventoriesCurrentDirectMediaExtensions", DownloadHistoryInventoriesCurrentDirectMediaExtensions);
         Test("DOWNLOAD_HISTORY.RebuildsDeletedArchiveFromIds", DownloadHistoryRebuildsDeletedArchiveFromIds);
         Test("DOWNLOAD_HISTORY.RecoversHistoricalProtectedSchemas", DownloadHistoryRecoversHistoricalProtectedSchemas);
         Test("DOWNLOAD_HISTORY.ParsesFormattedFilenameSchemas", DownloadHistoryParsesFormattedFilenameSchemas);

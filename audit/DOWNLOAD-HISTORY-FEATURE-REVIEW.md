@@ -1113,9 +1113,9 @@ DH-A041 through DH-A043 remain open until guarded repair and terminal re-audit.
 **Required acceptance:**
 
 1. Reject literal `..` path components in a protected filename schema.
-2. Reject active environment-variable expansion syntax anywhere in the protected schema because expansion occurs before path sanitization and can inject separators; escaped literal percent/dollar forms remain usable.
-3. A directory component containing active yt-dlp metadata placeholders must have a static literal anchor containing at least one character other than `.`; this prevents the fully sanitized component from becoming exactly `..` while preserving forms such as `creator-%(uploader)s`.
-4. Keep ordinary static nested directories and anchored dynamic directories available.
+2. Reject active environment-variable expansion syntax anywhere in the protected schema because expansion occurs before path sanitization and can inject separators. Mirror yt-dlp's actual `_outtmpl_expandpath` escape behavior: even percent runs before `%VAR%` are non-expanding; for dollar variables, a single dollar or an even run can still expand, while an odd run of at least three dollars remains literal.
+3. Reject a directory component containing active yt-dlp metadata placeholders whenever its static literal portion could still let the final sanitized component become exactly `..` (no literal anchor, or only one/two literal dots). Preserve non-dot anchors such as `creator-%(uploader)s` and dot-only anchors of length three or more, which yt-dlp sanitizes as ordinary names rather than parent traversal.
+4. Keep ordinary static nested directories and the safe anchored dynamic forms above available.
 5. The final filename component remains governed by the existing ID-template and argument-boundary checks; do not impose the dynamic-directory rule on the filename itself.
 6. Apply both slash forms and preserve Download History disabled behavior.
 7. Add regressions for literal traversal, dynamic-only `%(uploader)s`, dot-only+dynamic components, active environment expansion, safe static nested directories, and safe anchored dynamic directories.

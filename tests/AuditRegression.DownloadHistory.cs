@@ -659,6 +659,11 @@ internal static partial class AuditRegression {
                 Environment.SetEnvironmentVariable(variable, safe);
                 Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
                     "--cookies \"$" + variable + "\"", out arguments, out error, out execution));
+
+                Environment.SetEnvironmentVariable(variable, "~");
+                Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    "--cookies \"$" + variable + "\"", out arguments, out error, out execution));
+                Require(error.Length == 0, "Cookie normalization expanded '~' after environment substitution instead of matching yt-dlp expanduser-before-expandvars order");
             }
             finally {
                 Environment.SetEnvironmentVariable(variable, previous);

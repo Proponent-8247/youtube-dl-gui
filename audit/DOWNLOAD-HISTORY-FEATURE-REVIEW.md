@@ -96,7 +96,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A039 | High | Fixed / regression-verified | Protected mode rejects raw postprocessor/external-downloader child arguments while preserving built-in postprocessing and downloader selection. |
 | DH-A040 | High | Fixed / regression-verified | Protected mode blocks recursive yt-dlp cache removal while preserving ordinary cache-directory selection. |
 | DH-A041 | High | Verified | A038's cookie normalizer expands `%VAR%` but not yt-dlp/Python-supported `$VAR` / `${VAR}`, allowing an environment-expanded cookie path to alias protected state. |
-| DH-A042 | High | Verified | Protected filename schemas permit literal `..` path components; yt-dlp normalizes them, allowing output to escape the active download root despite blocked `-o/-P` overrides. |
+| DH-A042 | High | Verified | Protected filename schemas can produce parent traversal through literal `..`, environment-expanded directory text, or a dynamic directory component whose sanitized value becomes exactly `..`. |
 | DH-A043 | High | Verified | Raw custom arguments can contain NUL; Windows process command-line marshalling terminates at NUL, so the later app-owned archive protection suffix can be truncated. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
@@ -1104,13 +1104,22 @@ DH-A041 through DH-A043 remain open until guarded repair and terminal re-audit.
 
 **Required acceptance:** match Windows yt-dlp expansion for `%NAME%`, `$NAME`, and `${NAME}`; unknown variables remain unchanged; apply the same normalization to custom and app-auth cookie checks; add regressions for both dollar forms plus a non-colliding variable.
 
-### DH-A042 — Literal parent traversal in the filename schema can escape the active download root
+### DH-A042 — Filename-schema directory components can escape the active download root
 
-**Priority / state:** High protected-output boundary risk / VERIFIED against current standard/extended output construction and current yt-dlp Windows path sanitization.
+**Priority / state:** High protected-output boundary risk / VERIFIED against current standard/extended output construction and current yt-dlp template/path sanitization.
 
-**Finding:** Both downloaders append the configured filename schema beneath the active download directory. Protected validation requires an active `%(id)s` token and rejects quotes/control characters, but it permits literal `..` or `../` components. yt-dlp's Windows `sanitize_path` deliberately normalizes `..` by popping the previous path component, so a schema such as `..\outside\%(id)s.%(ext)s` escapes the active download root.
+**Finding:** Both downloaders append the configured filename schema beneath the active download directory. Protected validation requires an active `%(id)s` token and rejects quotes/control characters, but output containment is not guaranteed. There are three proven paths to a parent component: (a) literal `..` / `../`; (b) yt-dlp expands environment variables in the output template before metadata substitution, so a directory component containing `$VAR`, `${VAR}`, or `%VAR%` can inject `..` and separators; and (c) metadata values are filename-sanitized before path normalization, but the exact value `..` remains `..`, so a dynamic-only component such as `%(uploader)s` can become a parent traversal. yt-dlp then calls Windows `sanitize_path`, whose `..` handling pops the previous component.
 
-**Required acceptance:** reject literal parent-directory path components while Download History is enabled; keep ordinary nested schema directories and dots within names; check both slash forms; disabled behavior unchanged; add protected rejection and safe-subdirectory controls.
+**Required acceptance:**
+
+1. Reject literal `..` path components in a protected filename schema.
+2. Reject active environment-variable expansion syntax in **directory components** while protection is enabled; escaped literal percent/dollar forms remain usable.
+3. A directory component containing active yt-dlp metadata placeholders must have a static literal anchor containing at least one character other than `.`; this prevents the fully sanitized component from becoming exactly `..` while preserving forms such as `creator-%(uploader)s`.
+4. Keep ordinary static nested directories and anchored dynamic directories available.
+5. The final filename component remains governed by the existing ID-template and argument-boundary checks; do not impose the dynamic-directory rule on the filename itself.
+6. Apply both slash forms and preserve Download History disabled behavior.
+7. Add regressions for literal traversal, dynamic-only `%(uploader)s`, dot-only+dynamic components, active environment expansion, safe static nested directories, and safe anchored dynamic directories.
+8. Re-run the complete guarded Windows Debug/Release/full-regression gates.
 
 ### DH-A043 — Embedded NUL can truncate the Windows command line before protected suffix arguments
 

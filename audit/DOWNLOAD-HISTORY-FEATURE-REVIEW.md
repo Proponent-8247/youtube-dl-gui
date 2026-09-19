@@ -90,8 +90,9 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A033 | High | Fixed / regression-verified | A shared in-memory per-archive floor now preserves same-session ledger knowledge across preparations and completed runs even when physical backup retention is off. |
 | DH-A034 | High | Fixed / regression-verified | Protected commands now retain clean per-media info JSON as authoritative extractor+ID recovery evidence and reject explicit attempts to disable it. |
 | DH-A035 | Medium | Fixed / regression-verified | Indexed multi-thumbnail sidecars are now ignored only when neighboring authoritative metadata proves the exact thumbnail ID+extension ownership. |
-| DH-A036 | High | Verified | `--compat-options allow-unsafe-ext` disables yt-dlp's extension/path-separator safety, defeating the protected output namespace and the rebuild scanner's extension allowlist. |
-| DH-A037 | High | Verified | Protected custom arguments still permit direct arbitrary state-mutation hooks: `--print-to-file` can append forged records into the live archive, and `--netrc-cmd` executes an arbitrary shell command. |
+| DH-A036 | High | Fixed / regression-verified | Protected mode rejects unsafe-extension compatibility and appends a final `-allow-unsafe-ext` compatibility directive. |
+| DH-A037 | High | Fixed / regression-verified | Protected mode rejects direct arbitrary state-mutation hooks such as `--print-to-file` and `--netrc-cmd` while preserving ordinary `--print` and `--netrc`. |
+| DH-A038 | High | Verified | yt-dlp's cookie-file option is read/write; a custom or app-configured cookies path can collide with the live archive/backup/lock path and truncate protected state after lease validation. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -969,6 +970,14 @@ Current yt-dlp writes per-video `.info.json` before media transfer when `--write
 - The guard showed `DOWNLOAD_HISTORY.IgnoresIndexedThumbnailSidecars` failing at baseline and passing after repair; the complete Download History regression set passed afterward.
 - Evidence artifact `10590227152` has SHA-256 `e7213be1e1645e8b621e764a751f73b03e179d8e8d4359119507470f97172f6d`.
 
+- DH-A036: `501621859a6fcec647c9f7fc37d7f7f939c57573` (`fix: keep unsafe extensions outside protected mode`).
+- DH-A037: `b840c812bce4b31a422ae7172e993550bf99e4f8` (`fix: reject arbitrary protected state mutation hooks`).
+- Both were closed by guarded workflow run `35471396703`, cleanup commit `41b738f8eb7848ce14244038bb0ba5272b437cdc`. Baseline evidence showed both regressions failing; after A036 only the unsafe-extension regression passed; after A037 both passed and the complete Download History regression set was green.
+- Evidence artifact `10592449476` has SHA-256 `bff68aae200ba089df7d04a55644d3f4da13ee3c0b46ebc26ce3a20335ba2156`.
+- The first combined A036/A037 request was discarded after its A037 abbreviation check collided with safe exact `--print` / `--netrc`; the retry used yt-dlp's actual unique unsafe prefixes and preserved those safe controls.
+
+DH-A038 remains open until its guarded repair batch and terminal re-audit pass.
+
 ### DH-A036 — Unsafe-extension compatibility can escape protected output assumptions
 
 **Priority / state:** High protected-output and rebuild-integrity risk / VERIFIED against current app filtering and current yt-dlp extension-safety code.
@@ -1008,3 +1017,24 @@ Current yt-dlp writes per-video `.info.json` before media transfer when `--write
 5. Download History disabled behavior remains unchanged.
 6. Add regressions for both mutation hooks and safe neighboring controls.
 7. Re-run the complete guarded Windows Debug/Release/full-regression gates.
+
+### DH-A038 — Cookie-file writeback can overwrite protected archive state
+
+**Priority / state:** High protected-ledger integrity risk / VERIFIED against current app source and current yt-dlp cookie lifecycle.
+
+**Affected code:** protected custom-argument validation, `ProviderAuthenticationConfig` integration in standard/extended download argument generation, and protected archive path handling.
+
+**Finding:** yt-dlp's `--cookies FILE` option is explicitly a read/write cookie jar. `YoutubeDL.close()` calls `save_cookies()`, and `YoutubeDLCookieJar.save()` opens the configured cookie file for write/truncate. The protected argument filter currently permits custom `--cookies`, and the app's Authentication settings can also emit `--cookies <CookiesFile>` through its trusted temporary config. Neither path checks whether the cookies file resolves to the live Download History primary archive, `.bak`, or `.lock` path.
+
+**Impact:** If the configured cookie file collides with protected state, yt-dlp can truncate/replace that state after the application's pre-start archive validation. The process may have already consumed the correct native archive, but the durable ledger can be destroyed at shutdown; with backup retention off, a crash/restart can lose the only on-disk copy.
+
+**Required acceptance:**
+
+1. Resolve cookie-file paths using Windows/current-process path semantics and compare them case-insensitively to the prepared archive, its `.bak`, and `.lock` companions.
+2. Reject only colliding cookie paths; ordinary custom and app-configured cookie files remain supported.
+3. Validate raw custom `--cookies FILE` / `--cookies=FILE` before protected execution publication.
+4. Validate the app Authentication `CookiesFile` against the actual prepared execution archive before creating the temporary trusted auth config, in both standard and extended download paths.
+5. Keep `--cookies-from-browser` supported because yt-dlp does not use it as a writeback filename.
+6. Download History disabled behavior remains unchanged.
+7. Add regressions for primary, backup, and lock collisions plus a non-colliding cookie control and source-level wiring for both standard/extended authentication paths.
+8. Re-run the complete guarded Windows Debug/Release/full-regression gates, then continue the terminal write-target audit.

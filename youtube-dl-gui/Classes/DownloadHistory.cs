@@ -1474,6 +1474,7 @@ internal static class DownloadHistory {
             foreach (string scanRoot in scanRoots) {
                 foreach (string media in EnumerateCompletedMedia(scanRoot)) {
                     if (PathEquals(media, archive)) continue;
+                    if (IsIndexedThumbnailSidecar(media)) continue;
                     string? entry = TryRecoverFromInfoJson(media, out _, out _, out HashSet<string>? thumbnailExtensions);
                     bool fromMetadata = entry is not null;
                     if (entry is null) entry = filenameMatcher.Match(media);
@@ -1616,24 +1617,75 @@ internal static class DownloadHistory {
         return false;
     }
 
+    private static string GetThumbnailFileExtension(Dictionary<string, object> thumbnail) {
+        string? extension = thumbnail.TryGetValue("ext", out object? extValue) ? extValue as string : null;
+        if (extension.IsNullEmptyWhitespace() && thumbnail.TryGetValue("url", out object? urlValue) && urlValue is string url) {
+            int delimiter = url.IndexOfAny(new[] { '?', '#' });
+            string path = delimiter >= 0 ? url.Substring(0, delimiter) : url;
+            extension = Path.GetExtension(path);
+        }
+        if (extension.IsNullEmptyWhitespace()) extension = ".jpg";
+        string normalized = extension!.Trim();
+        if (!normalized.StartsWith(".", StringComparison.Ordinal)) normalized = "." + normalized;
+        return normalized.ToLowerInvariant();
+    }
+
     private static HashSet<string> GetMetadataThumbnailExtensions(Dictionary<string, object> root) {
         HashSet<string> extensions = new(StringComparer.OrdinalIgnoreCase);
         if (!root.TryGetValue("thumbnails", out object? value) || value is not object[] thumbnails) return extensions;
-
         foreach (object thumbnailValue in thumbnails) {
-            if (thumbnailValue is not Dictionary<string, object> thumbnail) continue;
-            string? extension = thumbnail.TryGetValue("ext", out object? extValue) ? extValue as string : null;
-            if (extension.IsNullEmptyWhitespace() && thumbnail.TryGetValue("url", out object? urlValue) && urlValue is string url) {
-                int delimiter = url.IndexOfAny(new[] { '?', '#' });
-                string path = delimiter >= 0 ? url.Substring(0, delimiter) : url;
-                extension = Path.GetExtension(path);
-            }
-            if (extension.IsNullEmptyWhitespace()) continue;
-            string normalized = extension!.Trim();
-            if (!normalized.StartsWith(".", StringComparison.Ordinal)) normalized = "." + normalized;
-            extensions.Add(normalized.ToLowerInvariant());
+            if (thumbnailValue is Dictionary<string, object> thumbnail) extensions.Add(GetThumbnailFileExtension(thumbnail));
         }
         return extensions;
+    }
+
+    private static bool IsIndexedThumbnailSidecar(string candidatePath) {
+        string directory = Path.GetDirectoryName(candidatePath) ?? string.Empty;
+        string candidateStem = Path.GetFileNameWithoutExtension(candidatePath);
+        string candidateExtension = Path.GetExtension(candidatePath).ToLowerInvariant();
+        if (File.Exists(Path.Combine(directory, candidateStem + ".info.json"))) return false;
+
+        for (int separator = candidateStem.LastIndexOf('.'); separator > 0; separator = candidateStem.LastIndexOf('.', separator - 1)) {
+            string ownerStem = candidateStem.Substring(0, separator);
+            string thumbnailId = candidateStem.Substring(separator + 1);
+            string ownerInfoPath = Path.Combine(directory, ownerStem + ".info.json");
+            if (!File.Exists(ownerInfoPath)) continue;
+
+            try {
+                string json = File.ReadAllText(ownerInfoPath);
+                JavaScriptSerializer serializer = new() {
+                    MaxJsonLength = Math.Max(2 * 1024 * 1024, json.Length),
+                    RecursionLimit = 256
+                };
+                if (serializer.DeserializeObject(json) is not Dictionary<string, object> root) continue;
+
+                string? recoveredId = root.TryGetValue("id", out object? idValue) ? idValue as string : null;
+                string? extractor = null;
+                foreach (string key in new[] { "extractor_key", "ie_key" }) {
+                    if (root.TryGetValue(key, out object? extractorValue) && extractorValue is string text && !text.IsNullEmptyWhitespace()) {
+                        extractor = text;
+                        break;
+                    }
+                }
+                if (recoveredId.IsNullEmptyWhitespace() || extractor.IsNullEmptyWhitespace() ||
+                    !TryCreateArchiveEntry(extractor!, recoveredId!, out _)) continue;
+                if (!root.TryGetValue("thumbnails", out object? thumbnailValue) ||
+                    thumbnailValue is not object[] thumbnails || thumbnails.Length <= 1) continue;
+
+                foreach (object value in thumbnails) {
+                    if (value is not Dictionary<string, object> thumbnail ||
+                        !thumbnail.TryGetValue("id", out object? thumbnailIdValue)) continue;
+                    string actualId = Convert.ToString(thumbnailIdValue, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+                    if (!string.Equals(actualId, thumbnailId, StringComparison.Ordinal)) continue;
+                    if (string.Equals(GetThumbnailFileExtension(thumbnail), candidateExtension, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            catch (ArgumentException) { }
+            catch (InvalidOperationException) { }
+        }
+        return false;
     }
 
     private static IEnumerable<string> EnumerateCompletedMedia(string root) {

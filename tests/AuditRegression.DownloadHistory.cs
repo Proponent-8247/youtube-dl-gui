@@ -559,8 +559,8 @@ internal static partial class AuditRegression {
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
                 "--cookies-from-browser firefox", out arguments, out error, out execution));
 
-            MethodInfo validateAuthCookie = fixture.History.GetMethod("ValidateAuthenticationCookiePath", All)
-                ?? throw new Exception("Missing protected authentication cookie-path validator");
+            MethodInfo validateAuthCookie = fixture.History.GetMethod("ValidateAuthenticationCookiePath", All);
+            if (validateAuthCookie is null) throw new Exception("Missing protected authentication cookie-path validator");
             object[] collisionArgs = { fixture.Archive, execution, string.Empty };
             Equal(false, validateAuthCookie.Invoke(null, collisionArgs));
             Require(((string)collisionArgs[2]).IndexOf("cookie", StringComparison.OrdinalIgnoreCase) >= 0,

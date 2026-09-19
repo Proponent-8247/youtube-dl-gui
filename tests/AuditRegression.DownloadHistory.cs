@@ -245,6 +245,7 @@ internal static partial class AuditRegression {
                 "creator\\..\\outside\\%(id)s.%(ext)s",
                 "%(uploader)s\\%(id)s.%(ext)s",
                 ".%(uploader)s\\%(id)s.%(ext)s",
+                "..%(uploader)s\\%(id)s.%(ext)s",
                 "$YTDL_GUI_SCHEMA_ROOT\\%(id)s.%(ext)s",
                 "%YTDL_GUI_SCHEMA_ROOT%\\%(id)s.%(ext)s",
                 "$YTDL_GUI_SCHEMA_ROOT-%(id)s.%(ext)s"
@@ -261,6 +262,7 @@ internal static partial class AuditRegression {
             foreach (string schema in new[] {
                 "creator\\series\\%(id)s.%(ext)s",
                 "creator-%(uploader)s\\%(id)s.%(ext)s",
+                "...%(uploader)s\\%(id)s.%(ext)s",
                 "$literal\\%(id)s.%(ext)s",
                 "%%literal\\%(id)s.%(ext)s"
             }) {

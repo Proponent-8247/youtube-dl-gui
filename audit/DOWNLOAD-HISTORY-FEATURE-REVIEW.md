@@ -1113,7 +1113,7 @@ DH-A041 through DH-A043 remain open until guarded repair and terminal re-audit.
 **Required acceptance:**
 
 1. Reject literal `..` path components in a protected filename schema.
-2. Reject active environment-variable expansion syntax in **directory components** while protection is enabled; escaped literal percent/dollar forms remain usable.
+2. Reject active environment-variable expansion syntax anywhere in the protected schema because expansion occurs before path sanitization and can inject separators; escaped literal percent/dollar forms remain usable.
 3. A directory component containing active yt-dlp metadata placeholders must have a static literal anchor containing at least one character other than `.`; this prevents the fully sanitized component from becoming exactly `..` while preserving forms such as `creator-%(uploader)s`.
 4. Keep ordinary static nested directories and anchored dynamic directories available.
 5. The final filename component remains governed by the existing ID-template and argument-boundary checks; do not impose the dynamic-directory rule on the filename itself.

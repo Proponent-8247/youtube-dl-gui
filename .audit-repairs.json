@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "base_sha": "83db403ab84e783285b2c5b53fd06331df7b2651",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.ExecutionLeaseRejectsBackupFreePreparedTruncation"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A030",
+      "message": "fix: retain prepared ledger lower bound through process start",
+      "resolves": [
+        "DOWNLOAD_HISTORY.ExecutionLeaseRejectsBackupFreePreparedTruncation"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "    public string Message { get; set; } = string.Empty;\n    internal string ArchiveDigest { get; set; } = string.Empty;",
+              "new": "    public string Message { get; set; } = string.Empty;\n    internal string ArchiveDigest { get; set; } = string.Empty;\n    internal string[] ArchiveSnapshot { get; set; } = Array.Empty<string>();"
+            },
+            {
+              "old": "internal sealed class DownloadHistoryExecution {\n    internal string ArchivePath { get; }\n    internal bool KeepBackup { get; }\n\n    internal DownloadHistoryExecution(string archivePath, bool keepBackup) {\n        ArchivePath = archivePath;\n        KeepBackup = keepBackup;\n    }\n\n    public DownloadHistoryLease AcquireValidatedLease() => DownloadHistory.AcquireValidatedExecutionLease(ArchivePath, KeepBackup, null);\n\n    public DownloadHistoryLease AcquireValidatedLease(Func<bool> cancellationRequested) =>\n        DownloadHistory.AcquireValidatedExecutionLease(ArchivePath, KeepBackup, cancellationRequested);",
+              "new": "internal sealed class DownloadHistoryExecution {\n    internal string ArchivePath { get; }\n    internal bool KeepBackup { get; }\n    private readonly string[] PreparedArchiveEntries;\n\n    internal DownloadHistoryExecution(string archivePath, bool keepBackup, IEnumerable<string> preparedArchiveEntries) {\n        ArchivePath = archivePath;\n        KeepBackup = keepBackup;\n        PreparedArchiveEntries = preparedArchiveEntries.Distinct(StringComparer.Ordinal).ToArray();\n    }\n\n    public DownloadHistoryLease AcquireValidatedLease() => DownloadHistory.AcquireValidatedExecutionLease(ArchivePath, KeepBackup, PreparedArchiveEntries, null);\n\n    public DownloadHistoryLease AcquireValidatedLease(Func<bool> cancellationRequested) =>\n        DownloadHistory.AcquireValidatedExecutionLease(ArchivePath, KeepBackup, PreparedArchiveEntries, cancellationRequested);"
+            },
+            {
+              "old": "            execution = new DownloadHistoryExecution(preparedArchive, KeepBackup);",
+              "new": "            execution = new DownloadHistoryExecution(preparedArchive, KeepBackup, LastReportInternal.ArchiveSnapshot);"
+            },
+            {
+              "old": "    internal static DownloadHistoryLease AcquireValidatedExecutionLease(string archivePath, bool keepBackup, Func<bool>? cancellationRequested = null) {",
+              "new": "    internal static DownloadHistoryLease AcquireValidatedExecutionLease(string archivePath, bool keepBackup, IReadOnlyCollection<string> preparedArchiveEntries, Func<bool>? cancellationRequested = null) {"
+            },
+            {
+              "old": "            bool backupValid = TryReadArchive(backupPath, backupEntries, out string backupError);\n            if (keepBackup && !backupValid) {",
+              "new": "            bool backupValid = TryReadArchive(backupPath, backupEntries, out string backupError);\n            if (preparedArchiveEntries.Any(entry => !entries.Contains(entry))) {\n                bool backupCoversPrepared = backupValid && preparedArchiveEntries.All(entry => backupEntries.Contains(entry));\n                lock (Sync) {\n                    PreparedKey = null;\n                    if (!backupCoversPrepared) NeedsReconciliation = true;\n                }\n                throw new InvalidOperationException(\"The prepared Download History archive lost identities after the download command was generated. Validate or rebuild Download History before starting the download.\");\n            }\n            if (keepBackup && !backupValid) {"
+            },
+            {
+              "old": "            return new DownloadHistoryReport {\n                State = DownloadHistoryState.Healthy,\n                CanReconcile = true,\n                ArchiveEntries = entries.Count,\n                Message = $\"Download History is healthy. {entries.Count:N0} native archive entr{(entries.Count == 1 ? \"y\" : \"ies\")} validated without scanning media roots.\"\n            };",
+              "new": "            return new DownloadHistoryReport {\n                State = DownloadHistoryState.Healthy,\n                CanReconcile = true,\n                ArchiveEntries = entries.Count,\n                ArchiveSnapshot = entries.OrderBy(entry => entry, StringComparer.Ordinal).ToArray(),\n                Message = $\"Download History is healthy. {entries.Count:N0} native archive entr{(entries.Count == 1 ? \"y\" : \"ies\")} validated without scanning media roots.\"\n            };"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

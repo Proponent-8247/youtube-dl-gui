@@ -92,7 +92,9 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A035 | Medium | Fixed / regression-verified | Indexed multi-thumbnail sidecars are now ignored only when neighboring authoritative metadata proves the exact thumbnail ID+extension ownership. |
 | DH-A036 | High | Fixed / regression-verified | Protected mode rejects unsafe-extension compatibility and appends a final `-allow-unsafe-ext` compatibility directive. |
 | DH-A037 | High | Fixed / regression-verified | Protected mode rejects direct arbitrary state-mutation hooks such as `--print-to-file` and `--netrc-cmd` while preserving ordinary `--print` and `--netrc`. |
-| DH-A038 | High | Verified | yt-dlp's cookie-file option is read/write; a custom or app-configured cookies path can collide with the live archive/backup/lock path and truncate protected state after lease validation. |
+| DH-A038 | High | Fixed / regression-verified | Custom and app-configured cookie files are path-checked against the prepared archive/backup/lock before protected execution. |
+| DH-A039 | High | Verified | Raw `--postprocessor-args` / `--ppa` and `--downloader-args` / `--external-downloader-args` let child tools choose arbitrary write targets outside the protected state model. |
+| DH-A040 | High | Verified | `--cache-dir` combined with `--rm-cache-dir` can recursively delete a user-selected tree, including an active library or protected archive directory. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -976,7 +978,12 @@ Current yt-dlp writes per-video `.info.json` before media transfer when `--write
 - Evidence artifact `10592449476` has SHA-256 `bff68aae200ba089df7d04a55644d3f4da13ee3c0b46ebc26ce3a20335ba2156`.
 - The first combined A036/A037 request was discarded after its A037 abbreviation check collided with safe exact `--print` / `--netrc`; the retry used yt-dlp's actual unique unsafe prefixes and preserved those safe controls.
 
-DH-A038 remains open until its guarded repair batch and terminal re-audit pass.
+- DH-A038: `322208dd62253b5ac1896920577de52859628e8a` (`fix: protect history state from cookie writeback`), closed by guarded workflow job `105974270309`, cleanup commit `e4df9a9d8716d80facc7e2d1bae9303fd4661033`.
+- The guard showed `DOWNLOAD_HISTORY.RejectsCookieWritebackCollisions` failing at baseline and passing after repair; the complete Download History suite was green after repair.
+- Evidence artifact `10593395373` has SHA-256 `0c4be533899a48339ad963cb099cf3615e7bd9cd5d7b95c1797beed3f3aca8cb`.
+- Two prior A038 requests were discarded before production code because the new regression used C# null syntax unsupported by the audit harness compiler; only test syntax changed between retries.
+
+DH-A039 and DH-A040 remain open until their guarded repair batch and terminal re-audit pass.
 
 ### DH-A036 — Unsafe-extension compatibility can escape protected output assumptions
 
@@ -1038,3 +1045,44 @@ DH-A038 remains open until its guarded repair batch and terminal re-audit pass.
 6. Download History disabled behavior remains unchanged.
 7. Add regressions for primary, backup, and lock collisions plus a non-colliding cookie control and source-level wiring for both standard/extended authentication paths.
 8. Re-run the complete guarded Windows Debug/Release/full-regression gates, then continue the terminal write-target audit.
+
+
+### DH-A039 — Raw child-process arguments escape the protected write boundary
+
+**Priority / state:** High protected-state integrity risk / VERIFIED against current app filtering and current yt-dlp subprocess argument plumbing.
+
+**Affected code:** protected custom-argument validation in `TryGetArchiveArguments`.
+
+**Finding:** yt-dlp accepts `--postprocessor-args` / `--ppa` and passes the parsed payload directly to ffmpeg/ffprobe/AtomicParsley positions. It likewise accepts `--downloader-args` / `--external-downloader-args` and passes those arguments to external downloader processes. Those child programs expose their own arbitrary file-output switches (for example ffmpeg progress/report targets or downloader trace/log/output controls). Download History currently validates yt-dlp's direct write/exec hooks but does not sandbox these nested command lines.
+
+**Impact:** A command can pass every current protected-mode check, then a child tool invoked by yt-dlp can overwrite/append the native archive, backup, lock, or other protected state outside the application's pre/post validation assumptions.
+
+**Required acceptance:**
+
+1. Reject custom `--postprocessor-args` and alias `--ppa` while Download History is enabled.
+2. Reject custom `--downloader-args` and alias `--external-downloader-args` while Download History is enabled.
+3. Keep built-in postprocessing controls such as `--remux-video`, `--recode-video`, and `--split-chapters` available.
+4. Keep ordinary external-downloader selection available; this repair targets unsandboxed raw child arguments, not downloader choice itself.
+5. Long-option abbreviations accepted by yt-dlp must not bypass the long-form checks; aliases must be handled explicitly.
+6. Download History disabled behavior remains unchanged.
+7. Add regressions for all four names/aliases plus safe built-in controls.
+8. Re-run the complete guarded Windows Debug/Release/full-regression gates.
+
+### DH-A040 — Cache-removal options can recursively delete a protected library tree
+
+**Priority / state:** High destructive-data risk / VERIFIED against current app filtering and current yt-dlp `Cache.remove()`.
+
+**Affected code:** protected custom-argument validation.
+
+**Finding:** yt-dlp lets the user choose `--cache-dir DIR` and invoke `--rm-cache-dir`. `Cache.remove()` resolves the chosen root and calls `shutil.rmtree(cachedir)` if the pathname merely contains `cache` or `tmp`. Protected mode currently permits both options. A user can therefore point the cache root at a download/library tree whose path contains one of those substrings and have yt-dlp recursively delete it before/alongside the requested download.
+
+**Impact:** This bypasses the feature's strict non-destructive media-tree requirement more severely than an archive-only mutation: existing media and sidecars can be recursively removed.
+
+**Required acceptance:**
+
+1. Reject `--rm-cache-dir` while Download History is enabled. Cache removal is a maintenance action and is not required for a protected download.
+2. Keep ordinary `--cache-dir` available when no removal is requested.
+3. yt-dlp long-option abbreviation behavior must not bypass the removal check.
+4. Download History disabled behavior remains unchanged.
+5. Add a regression proving the destructive pair is rejected while a cache-directory selection alone remains allowed.
+6. Re-run the complete guarded Windows Debug/Release/full-regression gates.

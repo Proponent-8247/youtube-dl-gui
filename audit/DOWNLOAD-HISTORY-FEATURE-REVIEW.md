@@ -85,7 +85,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A028 | High | Fixed / regression-verified | ID-template validation and historical filename recovery now honor yt-dlp percent-escape semantics, rejecting even escaped runs while supporting active odd runs. |
 | DH-A029 | High | Fixed / regression-verified | Physical inventory now covers current yt-dlp safe video/audio direct-media extensions plus `.unknown_video`, while preserving sidecar/manifest exclusions. |
 | DH-A030 | High | Fixed / regression-verified | Prepared execution now carries the validated ledger as an immutable lower bound and rejects any pre-start primary shrink while allowing supersets. |
-| DH-A031 | High | Verified / second retry required | The first two repairs narrowed GIF recovery, but terminal re-audit found a better exact discriminator in yt-dlp's retained `thumbnails` metadata; blanket orphan-GIF rejection and GIF postprocess bans are unnecessarily broad. |
+| DH-A031 | High | Fixed / regression-verified | Inventory now uses retained yt-dlp thumbnail-extension metadata to distinguish possible pre-download thumbnail residue from completed media without banning legitimate GIF media/postprocessing. |
 | DH-A032 | High | Fixed / regression-verified | Protected mode rejects custom and built-in partial time-range downloads whose source-level native archive identity cannot represent the requested section. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
@@ -848,6 +848,11 @@ Current upstream yt-dlp short options that consume the remainder/next token incl
 
 - `d6703d39fbf6890db0c8e648f4d52d5fc354b06d` passed the original A031 regression in guarded workflow `35461564792`, but the regression assumed top-level `ext=gif` proved completion. Terminal re-audit showed that is not sufficient because thumbnail/info artifacts precede media completion. Superseded.
 - `991f7eca9bd623953e03c14e44d081947b176856` passed the first retry regression in guarded workflow `35461893289`, cleanup `98346003001d0c89429480c252306e9538741e8e`, artifact `10590200322`, SHA-256 `7ea70b46ba07527dfae7255be87320f2b41e1ed98013494735a77ab70a0320d4`. The immediately following terminal audit found that yt-dlp retains exact thumbnail extension evidence in `thumbnails`, allowing a narrower and more compatible fix. This retry is therefore also superseded rather than accepted as closure evidence.
+
+- Final accepted repair: `49043bdcf8c64d390430a7b3bb75d8a8a0663c4d` (`fix: classify media-thumbnail extension collisions from metadata`), guarded workflow run `35462135373`, cleanup commit `9a710d04642fca1d6bbe4898b4d18f7dbcf9c193`.
+- The final locked regression `DOWNLOAD_HISTORY.InventoriesGifMediaConservatively` failed at baseline and passed after the repair; the complete Download History regression set passed afterward.
+- Evidence artifact `10590810082` has SHA-256 `814fe7c935d55b39d6e0b9c5337172291a23ab23eae1858f537ee0efe5d43012`.
+- Terminal postprocessor-order re-audit found no additional built-in late-stage media deletion path: app-owned concat is forced off, and user-selectable arbitrary late-stage `--exec` / `--use-postprocessor` hooks are already rejected.
 
 ### DH-A032 — Partial-section downloads cannot be represented safely by the native archive identity
 

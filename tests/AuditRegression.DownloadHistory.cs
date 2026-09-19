@@ -461,6 +461,45 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsUnsafeExtensionCompatibility() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string custom in new[] {
+                "--compat-options allow-unsafe-ext",
+                "--compat-options=all",
+                "--compat-options=-youtube-dl",
+                "--compat-opt youtube-dl,allow-unsafe-ext"
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(error.IndexOf("extension", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("unsafe", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("compat", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Unsafe extension compatibility was not rejected clearly: " + custom);
+                Equal(null, execution);
+            }
+
+            foreach (string custom in new[] {
+                "--compat-options -allow-unsafe-ext",
+                "--compat-options youtube-dl",
+                "--compat-options youtube-dlc",
+                "--compat-options allow-unsafe-ext,-allow-unsafe-ext",
+                "--compat-options all,-all"
+            }) {
+                Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", custom, out arguments, out error, out execution));
+                Require(arguments.Contains("--compat-options -allow-unsafe-ext"),
+                    "Protected suffix did not force unsafe extensions off: " + custom);
+            }
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--compat-options allow-unsafe-ext", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryRejectsArbitraryPostprocessorHooks() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -2241,6 +2280,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsClusteredShortOutputOverrides", DownloadHistoryRejectsClusteredShortOutputOverrides);
         Test("DOWNLOAD_HISTORY.RejectsSourceAndExtractorIdentityOverrides", DownloadHistoryRejectsSourceAndExtractorIdentityOverrides);
         Test("DOWNLOAD_HISTORY.RejectsMetadataIdentityRewrites", DownloadHistoryRejectsMetadataIdentityRewrites);
+        Test("DOWNLOAD_HISTORY.RejectsUnsafeExtensionCompatibility", DownloadHistoryRejectsUnsafeExtensionCompatibility);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryPostprocessorHooks", DownloadHistoryRejectsArbitraryPostprocessorHooks);
         Test("DOWNLOAD_HISTORY.RejectsIdOutputOverride", DownloadHistoryRejectsIdOutputOverride);
         Test("DOWNLOAD_HISTORY.RejectsInjectedMetadataArchiveRecords", DownloadHistoryRejectsInjectedMetadataArchiveRecords);

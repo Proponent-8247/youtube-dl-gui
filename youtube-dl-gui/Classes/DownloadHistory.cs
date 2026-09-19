@@ -601,10 +601,6 @@ internal static class DownloadHistory {
                 error = "Custom metadata rewriting is not allowed while Download History protection is enabled because changing source identity fields can corrupt archive identity. Remove the metadata rewrite or disable Download History.";
                 return false;
             }
-            if (RequestsAmbiguousGifOutput(customArguments)) {
-                error = "Download History cannot safely protect --recode-video or --remux-video mappings that produce GIF because GIF is also a yt-dlp thumbnail sidecar extension and cannot be reconstructed unambiguously after postprocessing. Use another final video format or disable Download History.";
-                return false;
-            }
             if (ContainsOption(customArguments, "--force-write-archive") ||
                 ContainsOption(customArguments, "--force-write-download-archive") ||
                 ContainsOption(customArguments, "--force-download-archive")) {
@@ -1409,14 +1405,18 @@ internal static class DownloadHistory {
             foreach (string scanRoot in scanRoots) {
                 foreach (string media in EnumerateCompletedMedia(scanRoot)) {
                     if (PathEquals(media, archive)) continue;
-                    string? entry = TryRecoverFromInfoJson(media, out _, out _);
+                    string? entry = TryRecoverFromInfoJson(media, out _, out _, out HashSet<string>? thumbnailExtensions);
                     bool fromMetadata = entry is not null;
                     if (entry is null) entry = filenameMatcher.Match(media);
 
-                    // GIF is also a yt-dlp thumbnail extension, and thumbnails plus info JSON can be
-                    // written before media completion. Never invent a native identity from an orphan GIF.
-                    if (Path.GetExtension(media).Equals(".gif", StringComparison.OrdinalIgnoreCase)) {
-                        if (HasSameStemNonGifMediaSibling(media)) continue;
+                    // yt-dlp writes thumbnails and info JSON before the media download. If the metadata
+                    // says this exact extension can be a thumbnail, the file cannot invent a new history
+                    // identity by itself. A real, same-stem media sibling or an already-known ledger
+                    // identity resolves the ambiguity without modifying either file.
+                    string mediaExtension = Path.GetExtension(media).ToLowerInvariant();
+                    bool couldBeThumbnail = thumbnailExtensions?.Contains(mediaExtension) == true;
+                    if (couldBeThumbnail) {
+                        if (HasSameStemUnambiguousMediaSibling(media, thumbnailExtensions!)) continue;
                         bool alreadyKnown = entry is not null && analysis.ArchiveEntries.Contains(entry);
                         if (!alreadyKnown) {
                             if (!analysis.RecoverMissingEntries && analysis.ArchiveValid) continue;
@@ -1536,15 +1536,35 @@ internal static class DownloadHistory {
                     ".f4a" or ".f4b" or ".ac3" or ".eac3" or ".dts" or ".adts" or ".au" or ".it" or ".mid" or ".mod" or ".mp1" or
                     ".mp4a" or ".mpa" or ".mpga" or ".ra" or ".shn" or ".xm";
 
-    private static bool HasSameStemNonGifMediaSibling(string gifPath) {
-        string directory = Path.GetDirectoryName(gifPath) ?? string.Empty;
-        string stem = Path.GetFileNameWithoutExtension(gifPath);
+    private static bool HasSameStemUnambiguousMediaSibling(string candidatePath, HashSet<string> thumbnailExtensions) {
+        string directory = Path.GetDirectoryName(candidatePath) ?? string.Empty;
+        string stem = Path.GetFileNameWithoutExtension(candidatePath);
         foreach (string sibling in Directory.EnumerateFiles(directory, stem + ".*", SearchOption.TopDirectoryOnly)) {
-            if (string.Equals(sibling, gifPath, StringComparison.OrdinalIgnoreCase)) continue;
+            if (string.Equals(sibling, candidatePath, StringComparison.OrdinalIgnoreCase)) continue;
             string siblingExtension = Path.GetExtension(sibling).ToLowerInvariant();
-            if (siblingExtension != ".gif" && IsCompletedMediaExtension(siblingExtension)) return true;
+            if (IsCompletedMediaExtension(siblingExtension) && !thumbnailExtensions.Contains(siblingExtension)) return true;
         }
         return false;
+    }
+
+    private static HashSet<string> GetMetadataThumbnailExtensions(Dictionary<string, object> root) {
+        HashSet<string> extensions = new(StringComparer.OrdinalIgnoreCase);
+        if (!root.TryGetValue("thumbnails", out object? value) || value is not object[] thumbnails) return extensions;
+
+        foreach (object thumbnailValue in thumbnails) {
+            if (thumbnailValue is not Dictionary<string, object> thumbnail) continue;
+            string? extension = thumbnail.TryGetValue("ext", out object? extValue) ? extValue as string : null;
+            if (extension.IsNullEmptyWhitespace() && thumbnail.TryGetValue("url", out object? urlValue) && urlValue is string url) {
+                int delimiter = url.IndexOfAny(new[] { '?', '#' });
+                string path = delimiter >= 0 ? url.Substring(0, delimiter) : url;
+                extension = Path.GetExtension(path);
+            }
+            if (extension.IsNullEmptyWhitespace()) continue;
+            string normalized = extension!.Trim();
+            if (!normalized.StartsWith(".", StringComparison.Ordinal)) normalized = "." + normalized;
+            extensions.Add(normalized.ToLowerInvariant());
+        }
+        return extensions;
     }
 
     private static IEnumerable<string> EnumerateCompletedMedia(string root) {
@@ -1577,9 +1597,10 @@ internal static class DownloadHistory {
         }
     }
 
-    private static string? TryRecoverFromInfoJson(string mediaPath, out string? sourceId, out string? infoPath) {
+    private static string? TryRecoverFromInfoJson(string mediaPath, out string? sourceId, out string? infoPath, out HashSet<string>? thumbnailExtensions) {
         sourceId = null;
         infoPath = null;
+        thumbnailExtensions = null;
         string directory = Path.GetDirectoryName(mediaPath) ?? string.Empty;
         string stem = Path.Combine(directory, Path.GetFileNameWithoutExtension(mediaPath));
         string candidate = stem + ".info.json";
@@ -1591,6 +1612,7 @@ internal static class DownloadHistory {
                 RecursionLimit = 256
             };
             if (serializer.DeserializeObject(json) is not Dictionary<string, object> root) return null;
+            thumbnailExtensions = GetMetadataThumbnailExtensions(root);
             string? recoveredId = root.TryGetValue("id", out object? idValue) ? idValue as string : null;
             string? extractor = null;
             // Native yt-dlp archive IDs are keyed from extractor_key/ie_key. The display-style
@@ -2021,38 +2043,6 @@ internal static class DownloadHistory {
         finally {
             if (File.Exists(temp)) File.Delete(temp);
         }
-    }
-
-    private static IEnumerable<string> GetOptionValues(string? arguments, string option) {
-        if (arguments.IsNullEmptyWhitespace()) yield break;
-        string[] tokens = TokenizeArguments(arguments!).ToArray();
-        for (int index = 0; index < tokens.Length; index++) {
-            string token = tokens[index];
-            int equals = token.IndexOf('=');
-            string name = equals >= 0 ? token.Substring(0, equals) : token;
-            bool matches = name.Equals(option, StringComparison.OrdinalIgnoreCase) ||
-                (name.StartsWith("--", StringComparison.Ordinal) && option.StartsWith(name, StringComparison.OrdinalIgnoreCase));
-            if (!matches) continue;
-            if (equals >= 0) {
-                yield return token.Substring(equals + 1);
-            }
-            else if (index + 1 < tokens.Length) {
-                yield return tokens[index + 1];
-            }
-        }
-    }
-
-    private static bool RequestsAmbiguousGifOutput(string? arguments) {
-        foreach (string option in new[] { "--recode-video", "--remux-video" }) {
-            foreach (string value in GetOptionValues(arguments, option)) {
-                foreach (string mapping in value.Split('/')) {
-                    int arrow = mapping.LastIndexOf('>');
-                    string target = (arrow >= 0 ? mapping.Substring(arrow + 1) : mapping).Trim();
-                    if (target.Equals("gif", StringComparison.OrdinalIgnoreCase)) return true;
-                }
-            }
-        }
-        return false;
     }
 
     private static bool ContainsOption(string? arguments, string option) {

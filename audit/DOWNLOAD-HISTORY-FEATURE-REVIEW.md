@@ -1369,6 +1369,10 @@ A second proof boundary exists when `requested_formats` is present: it is the ex
 
 **Baseline proof:** Test commit `ebf652c122833e3bdbfaa52a4de9bcd0e488791d` adds `DOWNLOAD_HISTORY.ValidatesRetainedFormatComponents` and makes the earlier retained-component fixture carry realistic selected-format metadata. Windows Audit build `35509901729` succeeds, while verification run `35509901740` fails only the new retained-component regression (`Healthy` expected, `Unsafe` actual on a valid punctuation-bearing component).
 
+**Rejected first repair attempt:** Guarded run `35510062534` applied the proposed A052 source change in its temporary workspace and made `DOWNLOAD_HISTORY.ValidatesRetainedFormatComponents` pass, but then failed the previously closed A049 regression. The failure was traced to the older A049 test fixture rather than to a valid yt-dlp output family: it modeled a retained `.f137` component with a different basename from its owner `.info.json` and only one selected format. No production repair commit from that failed batch was pushed; request commit `8345d48d3edd523c768a643256c904f2fcbee340` was explicitly discarded by `f233b9e5382569b0d196aebe3f2bddfd48c68bad`.
+
+Test-only commit `773460b5aefdbc38590cb77631d244e5c0803c37` corrects that fixture to yt-dlp's actual merge-component shape: the retained component shares the owner's basename and the metadata identifies multiple selected formats. Windows Audit build `35514621819` passes, and verification run `35514621818` passes A049 while failing only A052. This is the accepted retry baseline.
+
 
 
 

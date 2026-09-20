@@ -98,11 +98,11 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A041 | High | Fixed / regression-verified | Cookie collision normalization now mirrors yt-dlp path expansion for `%VAR%`, `$VAR`, `${VAR}`, and user-home semantics. |
 | DH-A042 | High | Fixed / regression-verified | Protected filename schemas now reject literal/environment/dynamic parent traversal while preserving yt-dlp-safe escaped and anchored forms. |
 | DH-A043 | High | Fixed / regression-verified | Protected custom arguments now reject embedded NUL before execution-context publication. |
-| DH-A044 | High | Verified | yt-dlp `--test` downloads only a small sample but still reaches the native archive-write success path, so protected test runs can suppress later full downloads. |
-| DH-A045 | High | Verified | Protected custom arguments can select path-qualified child executables/runtimes or self-update yt-dlp, bypassing the validated provider/process boundary. |
-| DH-A046 | High | Verified | Download History resolves active/download archive paths with .NET expansion while yt-dlp applies `expand_path`/output-template expansion, so `$VAR`, `${VAR}`, `~`, and escaped literal sigils can target different physical paths. |
-| DH-A047 | High | Verified | A dangling value-taking custom option can consume the first app-owned protected suffix token, weakening config/plugin/archive isolation without using a blocked option. |
-| DH-A048 | High | Verified | Archive validation uses BOM-detecting/replacement-tolerant .NET text decoding instead of yt-dlp's strict UTF-8 archive semantics, so the app can accept a ledger yt-dlp will misread or reject. |
+| DH-A044 | High | Fixed / regression-verified | yt-dlp `--test` downloads only a small sample but still reaches the native archive-write success path, so protected test runs can suppress later full downloads. |
+| DH-A045 | High | Fixed / regression-verified | Protected custom arguments can select path-qualified child executables/runtimes or self-update yt-dlp, bypassing the validated provider/process boundary. |
+| DH-A046 | High | Fixed / regression-verified | Download History resolves active/download archive paths with .NET expansion while yt-dlp applies `expand_path`/output-template expansion, so `$VAR`, `${VAR}`, `~`, and escaped literal sigils can target different physical paths. |
+| DH-A047 | High | Fixed / regression-verified | A dangling value-taking custom option can consume the first app-owned protected suffix token, weakening config/plugin/archive isolation without using a blocked option. |
+| DH-A048 | High | Fixed / regression-verified | Archive validation uses BOM-detecting/replacement-tolerant .NET text decoding instead of yt-dlp's strict UTF-8 archive semantics, so the app can accept a ledger yt-dlp will misread or reject. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1003,7 +1003,16 @@ Current yt-dlp writes per-video `.info.json` before media transfer when `--write
 - Evidence artifact `10594472660` has SHA-256 `7fb260e24e968d26c69555bde9c5eb1184e45f5824aa60fae038e29f358d0a74`.
 - Several A042 requests were deliberately discarded while the regression was refined against yt-dlp's actual percent/dollar expansion semantics; no discarded production result was accepted. A separate updater rollback regression was observed as flaky and added to the guarded-run allowlist.
 
-DH-A044 through DH-A048 remain open until guarded repair and terminal re-audit.
+DH-A044 through DH-A048 are closed by guarded repair run `35500105864` and remain subject to the terminal current-head re-audit.
+
+- DH-A044: `bcd50f33d6f5121ac3e0506f58ae95fd17423085` (`fix: reject partial yt-dlp test downloads under history`).
+- DH-A045: `9ca0322015581a763b37f71294d3117bbd2e23fe` (`fix: keep executable overrides outside protected mode`).
+- DH-A046: `e3533d15eb748d3736c587081f2a6d0bd970b983` (`fix: mirror yt-dlp protected path expansion`).
+- DH-A047: `f5baeeda556ddaecf85449e959c1d6126d2bb0fc` (`fix: establish protected isolation before custom arguments`).
+- DH-A048: `5e42efda850fe8d9df7616e01a2a7fcb05a0a1d4` (`fix: validate native archive as strict UTF-8`).
+- All five were closed by guarded workflow run `35500105864`, cleanup commit `695cbd636b951e584b0553512a84ef47544f65ca`. The guard proved all five targeted regressions failing at baseline and passing after their respective conceptual repairs while completing the Windows Debug solution, Release updater, Release application, and complete AuditRegression gates after each repair.
+- Retained evidence artifact `10601861852` has SHA-256 `cffa24ea476e3f5ffca607255149f02373f831f646bec7c2d91c66a0d414462e`.
+- The first strict-UTF-8 pass correctly exposed that older regression fixtures used .NET's BOM-emitting `Encoding.UTF8` rather than yt-dlp's native BOM-less UTF-8. Test-only commit `462068002eb7cc66755b36650b1199a7937d29dd` corrected those fixtures without weakening production validation; its normal Windows Audit build `35500058966` passed before the final guarded retry.
 
 ### DH-A036 — Unsafe-extension compatibility can escape protected output assumptions
 

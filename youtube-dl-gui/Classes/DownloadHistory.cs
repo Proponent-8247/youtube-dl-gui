@@ -959,6 +959,7 @@ internal static class DownloadHistory {
                 return false;
             }
             if (ContainsOption(customArguments, "--load-info-json") ||
+                ContainsLongOptionOrAbbreviation(customArguments, "--load-pages", "--load-p") ||
                 ContainsOption(customArguments, "--use-extractors") || ContainsOption(customArguments, "--ies") ||
                 ContainsOption(customArguments, "--force-generic-extractor")) {
                 error = "Custom source or extractor identity overrides are not allowed while Download History protection is enabled because the native archive must use the app-requested source and authoritative extractor identity. Remove the override or disable Download History.";

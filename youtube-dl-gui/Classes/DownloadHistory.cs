@@ -835,6 +835,10 @@ internal static class DownloadHistory {
                 error = "--download-sections is not allowed while Download History protection is enabled because yt-dlp's native archive records only the parent source ID and cannot distinguish partial time ranges. Disable Download History for intentional section/range downloads.";
                 return false;
             }
+            if (ContainsLongOptionOrAbbreviation(customArguments, "--test", "--tes")) {
+                error = "--test is not allowed while Download History protection is enabled because yt-dlp records the native source identity after a successful partial test sample. Disable Download History for extractor test downloads.";
+                return false;
+            }
             if (ContainsShortOption(customArguments, "-o") || ContainsOption(customArguments, "--output") || ContainsOption(customArguments, "--id") ||
                 ContainsShortOption(customArguments, "-P") || ContainsOption(customArguments, "--paths")) {
                 error = "Custom output templates or paths are not allowed while Download History protection is enabled because the app must keep %(id)s-bearing media inside the validated library namespace.";

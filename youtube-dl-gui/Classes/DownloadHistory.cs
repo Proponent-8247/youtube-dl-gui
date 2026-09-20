@@ -1830,6 +1830,7 @@ internal static class DownloadHistory {
         analysis.RecoverMissingEntries = recoverMissingEntries || !analysis.ArchiveExists || analysis.ArchiveWasInvalid || analysis.UsedBackup;
 
         FileNameIdentityMatcher filenameMatcher = new(analysis.ArchiveEntries);
+        List<string> deferredDerivativeMedia = [];
         try {
             foreach (string scanRoot in scanRoots) {
                 foreach (string media in EnumerateCompletedMedia(scanRoot)) {
@@ -1838,6 +1839,10 @@ internal static class DownloadHistory {
                     string? entry = TryRecoverFromInfoJson(media, out _, out _, out HashSet<string>? thumbnailExtensions);
                     bool fromMetadata = entry is not null;
                     if (entry is null) entry = filenameMatcher.Match(media);
+                    if (entry is null && analysis.RecoverMissingEntries) {
+                        entry = TryRecoverRetainedFormatComponent(media);
+                        if (entry is not null) fromMetadata = true;
+                    }
 
                     // yt-dlp writes thumbnails and info JSON before the media download. If the metadata
                     // says this exact extension can be a thumbnail, the file cannot invent a new history
@@ -1864,6 +1869,11 @@ internal static class DownloadHistory {
                         continue;
                     }
 
+                    if (entry is null && analysis.RecoverMissingEntries && IsSameScanDerivativeCandidate(media)) {
+                        deferredDerivativeMedia.Add(media);
+                        continue;
+                    }
+
                     report.CompletedMedia++;
                     if (entry is null) {
                         report.UnresolvedMedia++;
@@ -1873,6 +1883,22 @@ internal static class DownloadHistory {
                     if (fromMetadata) report.MetadataRecovered++;
                     else report.FilenameRecovered++;
 
+                    report.IdentifiedMedia++;
+                    analysis.RecoveredEntries.Add(entry);
+                }
+            }
+
+            if (deferredDerivativeMedia.Count > 0) {
+                FileNameIdentityMatcher recoveredMatcher = new(analysis.ArchiveEntries.Concat(analysis.RecoveredEntries));
+                foreach (string media in deferredDerivativeMedia) {
+                    report.CompletedMedia++;
+                    string? entry = recoveredMatcher.Match(media);
+                    if (entry is null) {
+                        report.UnresolvedMedia++;
+                        continue;
+                    }
+
+                    report.FilenameRecovered++;
                     report.IdentifiedMedia++;
                     analysis.RecoveredEntries.Add(entry);
                 }
@@ -2042,6 +2068,61 @@ internal static class DownloadHistory {
             catch (InvalidOperationException) { }
         }
         return false;
+    }
+
+    private static bool IsSameScanDerivativeCandidate(string mediaPath) {
+        string stem = Path.GetFileNameWithoutExtension(mediaPath);
+        if (Regex.IsMatch(stem, @"\.f[A-Za-z0-9_-]+$", RegexOptions.CultureInvariant)) return true;
+        int close = stem.LastIndexOf(']');
+        if (close != stem.Length - 1) return false;
+        int open = stem.LastIndexOf('[', close);
+        return open >= 0 && open < close - 1;
+    }
+
+    private static bool MetadataSelectsFormatId(string infoPath, string formatId) {
+        try {
+            string json = File.ReadAllText(infoPath);
+            JavaScriptSerializer serializer = new() {
+                MaxJsonLength = Math.Max(2 * 1024 * 1024, json.Length),
+                RecursionLimit = 256
+            };
+            if (serializer.DeserializeObject(json) is not Dictionary<string, object> root) return false;
+
+            if (root.TryGetValue("requested_formats", out object? requestedValue) && requestedValue is object[] requestedFormats) {
+                foreach (object value in requestedFormats) {
+                    if (value is Dictionary<string, object> format &&
+                        format.TryGetValue("format_id", out object? idValue) &&
+                        string.Equals(Convert.ToString(idValue, System.Globalization.CultureInfo.InvariantCulture), formatId, StringComparison.Ordinal)) {
+                        return true;
+                    }
+                }
+            }
+
+            if (root.TryGetValue("format_id", out object? combinedValue) && combinedValue is string combined) {
+                return combined.Split(new[] { '+' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Any(value => string.Equals(value, formatId, StringComparison.Ordinal));
+            }
+            return false;
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+        catch (ArgumentException) { return false; }
+        catch (InvalidOperationException) { return false; }
+    }
+
+    private static string? TryRecoverRetainedFormatComponent(string mediaPath) {
+        string directory = Path.GetDirectoryName(mediaPath) ?? string.Empty;
+        string stem = Path.GetFileNameWithoutExtension(mediaPath);
+        Match component = Regex.Match(stem, @"^(?<owner>.+)\.f(?<format>[A-Za-z0-9_-]+)$", RegexOptions.CultureInvariant);
+        if (!component.Success) return null;
+
+        string ownerStem = component.Groups["owner"].Value;
+        string formatId = component.Groups["format"].Value;
+        string syntheticOwnerMedia = Path.Combine(directory, ownerStem + Path.GetExtension(mediaPath));
+        string? entry = TryRecoverFromInfoJson(syntheticOwnerMedia, out string? sourceId, out string? infoPath, out _);
+        if (entry is null || sourceId.IsNullEmptyWhitespace() || infoPath.IsNullEmptyWhitespace()) return null;
+        if (!FileNameMatchesSourceId(mediaPath, sourceId!)) return null;
+        return MetadataSelectsFormatId(infoPath!, formatId) ? entry : null;
     }
 
     private static IEnumerable<string> EnumerateCompletedMedia(string root) {

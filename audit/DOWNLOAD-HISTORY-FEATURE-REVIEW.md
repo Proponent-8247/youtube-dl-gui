@@ -98,11 +98,12 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A041 | High | Fixed / regression-verified | Cookie collision normalization now mirrors yt-dlp path expansion for `%VAR%`, `$VAR`, `${VAR}`, and user-home semantics. |
 | DH-A042 | High | Fixed / regression-verified | Protected filename schemas now reject literal/environment/dynamic parent traversal while preserving yt-dlp-safe escaped and anchored forms. |
 | DH-A043 | High | Fixed / regression-verified | Protected custom arguments now reject embedded NUL before execution-context publication. |
-| DH-A044 | High | Fixed / regression-verified | yt-dlp `--test` downloads only a small sample but still reaches the native archive-write success path, so protected test runs can suppress later full downloads. |
-| DH-A045 | High | Fixed / regression-verified | Protected custom arguments can select path-qualified child executables/runtimes or self-update yt-dlp, bypassing the validated provider/process boundary. |
-| DH-A046 | High | Fixed / regression-verified | Download History resolves active/download archive paths with .NET expansion while yt-dlp applies `expand_path`/output-template expansion, so `$VAR`, `${VAR}`, `~`, and escaped literal sigils can target different physical paths. |
+| DH-A044 | High | Reopened / terminal regression verified | The first repair blocked `--test`/`--tes`, but current yt-dlp also accepts unambiguous `--te`, which still bypasses protected rejection. |
+| DH-A045 | High | Reopened / terminal regression verified | The first repair blocks exact `--ffmpeg-location`, but current yt-dlp also accepts unambiguous `--ffmpeg`, which still reaches the path-qualified executable override. |
+| DH-A046 | High | Reopened / terminal regression verified | The first repair mirrors ordinary expansion but its fixed sentinel deletes a legitimate U+E000 path character, and its literal archive escaping does not preserve yt-dlp's single-quoted `expandvars` semantics. |
 | DH-A047 | High | Fixed / regression-verified | A dangling value-taking custom option can consume the first app-owned protected suffix token, weakening config/plugin/archive isolation without using a blocked option. |
 | DH-A048 | High | Fixed / regression-verified | Archive validation uses BOM-detecting/replacement-tolerant .NET text decoding instead of yt-dlp's strict UTF-8 archive semantics, so the app can accept a ledger yt-dlp will misread or reject. |
+| DH-A049 | High | Verified / repair pending | After total archive loss, identities recovered from authoritative `.info.json` are not added to the immutable filename matcher, so yt-dlp split-chapter and retained-format derivatives without their own metadata remain unresolved even when their parent identity is recoverable. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1003,7 +1004,7 @@ Current yt-dlp writes per-video `.info.json` before media transfer when `--write
 - Evidence artifact `10594472660` has SHA-256 `7fb260e24e968d26c69555bde9c5eb1184e45f5824aa60fae038e29f358d0a74`.
 - Several A042 requests were deliberately discarded while the regression was refined against yt-dlp's actual percent/dollar expansion semantics; no discarded production result was accepted. A separate updater rollback regression was observed as flaky and added to the guarded-run allowlist.
 
-DH-A044 through DH-A048 are closed by guarded repair run `35500105864` and remain subject to the terminal current-head re-audit.
+Guarded repair run `35500105864` landed the first A044-A048 repair set. Terminal current-head re-audit keeps A047-A048 closed but reopens A044-A046 for narrower provider-equivalence misses documented above; DH-A049 is newly verified.
 
 - DH-A044: `bcd50f33d6f5121ac3e0506f58ae95fd17423085` (`fix: reject partial yt-dlp test downloads under history`).
 - DH-A045: `9ca0322015581a763b37f71294d3117bbd2e23fe` (`fix: keep executable overrides outside protected mode`).
@@ -1013,6 +1014,7 @@ DH-A044 through DH-A048 are closed by guarded repair run `35500105864` and remai
 - All five were closed by guarded workflow run `35500105864`, cleanup commit `695cbd636b951e584b0553512a84ef47544f65ca`. The guard proved all five targeted regressions failing at baseline and passing after their respective conceptual repairs while completing the Windows Debug solution, Release updater, Release application, and complete AuditRegression gates after each repair.
 - Retained evidence artifact `10601861852` has SHA-256 `cffa24ea476e3f5ffca607255149f02373f831f646bec7c2d91c66a0d414462e`.
 - The first strict-UTF-8 pass correctly exposed that older regression fixtures used .NET's BOM-emitting `Encoding.UTF8` rather than yt-dlp's native BOM-less UTF-8. Test-only commit `462068002eb7cc66755b36650b1199a7937d29dd` corrected those fixtures without weakening production validation; its normal Windows Audit build `35500058966` passed before the final guarded retry.
+- Terminal regression commit `dae139b9fe5cef205f5390b0ab28d015d6e607bb` has a green normal Audit build (`35500608800`). Full verification `35500608781` fails on exactly four Download History cases: A044, A045, A046, and A049. All other Download History cases pass; the Release packaging step also completes.
 
 ### DH-A036 — Unsafe-extension compatibility can escape protected output assumptions
 
@@ -1166,6 +1168,8 @@ DH-A044 through DH-A048 are closed by guarded repair run `35500105864` and remai
 3. Download History disabled behavior remains unchanged.
 4. Add regression coverage and rerun the complete guarded Windows gates.
 
+**Terminal re-audit:** Initial repair `bcd50f33d6f5121ac3e0506f58ae95fd17423085` used `--tes` as the minimum blocked prefix. Current yt-dlp exposes no competing `--te...` option, so Python optparse accepts `--te` as an unambiguous abbreviation of `--test`. Regression commit `dae139b9fe5cef205f5390b0ab28d015d6e607bb` extends the test to `--te`; Windows verification run `35500608781` fails only at the intended protected rejection for this test family. A follow-up repair must block `--te` without widening unrelated option rejection.
+
 ### DH-A045 — Path-qualified executable/runtime overrides escape the protected process boundary
 
 **Priority / state:** High execution-integrity risk / VERIFIED against current yt-dlp external downloader, FFmpeg, JS runtime, and updater code.
@@ -1180,6 +1184,8 @@ DH-A044 through DH-A048 are closed by guarded repair run `35500105864` and remai
 4. For \`--js-runtimes\`, allow supported bare runtime names without an explicit path and keep \`--no-js-runtimes\`; reject \`runtime:path\`.
 5. Preserve Download History disabled behavior and add neighboring safe controls.
 6. Rerun the complete guarded Windows gates.
+
+**Terminal re-audit:** Initial repair `9ca0322015581a763b37f71294d3117bbd2e23fe` required the `--ffmpeg-` prefix. Current yt-dlp exposes `--ffmpeg-location` as the only `--ffmpeg...` option, so `--ffmpeg` is accepted unambiguously and still bypasses protected rejection. Regression commit `dae139b9fe5cef205f5390b0ab28d015d6e607bb` proves the bypass in Windows run `35500608781`.
 
 ### DH-A046 — Download/archive path expansion does not mirror yt-dlp
 
@@ -1199,6 +1205,30 @@ DH-A044 through DH-A048 are closed by guarded repair run `35500105864` and remai
 6. Apply the same normalization in the Download History dialog's implicit/custom archive comparisons.
 7. Add regressions for \`$VAR\`, \`\${VAR}\`, \`%VAR%\`, \`~\`, literal escaped sigils, and a dynamic-template active root.
 8. Rerun the complete guarded Windows gates.
+
+**Terminal re-audit:** The initial repair `e3533d15eb748d3736c587081f2a6d0bd970b983` has two provider-equivalence gaps:
+
+- `ExpandYtDlpOutputTemplateEnvironmentPath` uses fixed sentinel U+E000 and strips every occurrence after expansion. A legitimate Windows path containing U+E000 is therefore changed, while yt-dlp uses a fresh random separator specifically to avoid a fixed user-path collision.
+- `EscapeYtDlpLiteralPathForArgument` doubles every `### DH-A046 — Download/archive path expansion does not mirror yt-dlp
+
+**Priority / state:** High path-boundary and rebuild-consistency risk / VERIFIED against current app output construction and current yt-dlp \`expand_path\` / \`_outtmpl_expandpath\`.
+
+**Finding:** The app passes \`Downloads.downloadPath\` into the yt-dlp output template, where yt-dlp expands user-home and environment-variable syntax before metadata substitution. Download History resolves the same active root with .NET \`Environment.ExpandEnvironmentVariables\`, which handles \`%NAME%\` but not yt-dlp's \`$NAME\`, \`\${NAME}\`, or \`~\` semantics. Direct archive paths have the same mismatch because yt-dlp applies \`expand_path\` to \`--download-archive\`.
+
+**Impact:** The provider can place media or its archive at a different physical path from the one protected management, locking, inventory, and rebuild logic believes it owns.
+
+**Required acceptance:**
+
+1. Resolve the active download root using the same Windows yt-dlp output-template user/env expansion semantics before history inventory/default-archive decisions.
+2. Resolve configured archive paths using yt-dlp direct \`expand_path\` semantics.
+3. When passing the already-resolved app-owned archive path back to yt-dlp, quote/escape literal \`%\` / \`$\` so yt-dlp resolves to the exact locked path rather than performing a second expansion.
+4. Reject metadata-template fields inside \`Downloads.downloadPath\` while protection is enabled because a single dynamic active inventory root cannot represent per-entry output roots safely.
+5. Keep additional user-selected scan-only roots as ordinary app filesystem paths; they are not yt-dlp output templates.
+6. Apply the same normalization in the Download History dialog's implicit/custom archive comparisons.
+7. Add regressions for \`$VAR\`, \`\${VAR}\`, \`%VAR%\`, \`~\`, literal escaped sigils, and a dynamic-template active root.
+ / `%`. Windows Python `ntpath.expandvars` leaves text inside single quotes unexpanded; doubling a sigil inside a single-quoted path segment therefore changes the physical path instead of protecting it.
+
+Regression commit `dae139b9fe5cef205f5390b0ab28d015d6e607bb` adds both equivalence cases. Windows run `35500608781` reaches and fails the U+E000 case first; the follow-up repair must also make the quote-aware round trip pass in the same conceptual repair.
 
 ### DH-A047 — A dangling value-taking custom option can consume the first protected suffix token
 
@@ -1231,3 +1261,27 @@ DH-A044 through DH-A048 are closed by guarded repair run `35500105864` and remai
 4. Stream validation rather than materializing the entire file where practical.
 5. Add regressions for plain UTF-8, UTF-8 BOM, UTF-16, and malformed UTF-8; protected prep must fail closed for the latter three.
 6. Rerun the complete guarded Windows gates.
+
+### DH-A049 — Same-scan recovered identities are unavailable to derivative filename recovery after total archive loss
+
+**Priority / state:** High rebuild correctness risk / VERIFIED against current scanner/matcher construction and current yt-dlp split-chapter / retained-format behavior.
+
+**Finding:** `AnalyzeCore` constructs one immutable `FileNameIdentityMatcher` from the archive identities available **before** scanning. During an explicit rebuild, authoritative parent identities recovered from adjacent `.info.json` are added only to `RecoveredEntries`; the already-built matcher never learns them. With a completely missing archive, the matcher is empty for the entire scan.
+
+Current yt-dlp legitimately creates completed derivative media that does not receive its own adjacent info JSON. `--split-chapters` writes chapter files using a template that includes the parent `%(id)s`. With retained source/merge components, yt-dlp can also preserve files named with `.f<format_id>.<ext>`. The existing matcher can recognize those filenames **when the native identity is already known**, but after total archive loss it cannot use the identity recovered from the canonical parent in the same scan.
+
+**Impact:** A fully recoverable library can report `Partial` and refuse archive reconstruction solely because valid derivatives of an authoritatively identified parent are encountered after total ledger loss. This is fail-safe, not destructive, but it defeats the required rebuild path for supported yt-dlp output modes.
+
+**Required acceptance:**
+
+1. During explicit recovery states, retain unresolved non-thumbnail media candidates until authoritative same-scan identities have been collected.
+2. Build one indexed matcher from the union of pre-existing archive entries and same-scan authoritative recoveries, then classify only the deferred candidates; do not rescan the filesystem.
+3. Keep unknown/unrelated media unresolved. A derivative may match only a native identity already available from the ledger or authoritative metadata; do not infer providers or identities from filename shape alone.
+4. Preserve the existing thumbnail ambiguity safeguards and normal valid-archive retry semantics.
+5. Preserve A005 large-library behavior: one filesystem walk, one additional matcher construction, and memory proportional only to unresolved candidates rather than the full media tree.
+6. Inventory/rebuild remains byte-for-byte non-destructive to media and sidecars.
+7. Add a total-loss regression containing a canonical parent with authoritative metadata plus split-chapter and retained-format derivatives, and a fail-closed control containing unrelated media.
+8. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Regression commit `dae139b9fe5cef205f5390b0ab28d015d6e607bb` produces `DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss: Expected [Healthy]; actual [Partial]` in Windows verification run `35500608781`. The same run passes every other Download History regression except the three deliberately reopened terminal cases A044-A046; normal Audit build run `35500608800` succeeds.
+

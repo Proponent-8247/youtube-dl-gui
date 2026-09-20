@@ -1283,5 +1283,7 @@ Current yt-dlp legitimately creates completed derivative media that does not rec
 7. Add a total-loss regression containing a canonical parent with authoritative metadata plus split-chapter and retained-format derivatives, and a fail-closed control containing unrelated media.
 8. Rerun the complete guarded Windows Debug/Release/full-regression gates.
 
-**Baseline proof:** Regression commit `dae139b9fe5cef205f5390b0ab28d015d6e607bb` produces `DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss: Expected [Healthy]; actual [Partial]` in Windows verification run `35500608781`. The same run passes every other Download History regression except the three deliberately reopened terminal cases A044-A046; normal Audit build run `35500608800` succeeds.
+**Baseline proof:** Regression commit `dae139b9fe5cef205f5390b0ab28d015d6e607bb` produces `DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss: Expected [Healthy]; actual [Partial]` in Windows verification run `35500608781`.
+
+**Discarded first repair wave:** Guarded run `35500914221` proved the terminal A044, A045, and A046 repairs individually satisfy their target regressions, then rejected the proposed A049 repair. The A049 change made `DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss` pass but regressed `DOWNLOAD_HISTORY.IgnoresIndexedThumbnailSidecars` from the required fail-closed `Partial` state to `Missing`. No production commits from that failed batch were pushed; repair request `b15e5c9592200b2230dae0624c2076d8ce8dba1` was explicitly discarded by `531dbc64fa1c8462ad65e4824886bd7c9d045bb5`. The same run passes every other Download History regression except the three deliberately reopened terminal cases A044-A046; normal Audit build run `35500608800` succeeds.
 

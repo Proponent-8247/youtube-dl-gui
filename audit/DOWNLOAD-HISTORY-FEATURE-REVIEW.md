@@ -105,7 +105,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A048 | High | Fixed / regression-verified | Archive validation uses BOM-detecting/replacement-tolerant .NET text decoding instead of yt-dlp's strict UTF-8 archive semantics, so the app can accept a ledger yt-dlp will misread or reject. |
 | DH-A049 | High | Fixed / regression-verified | After total archive loss, same-scan authoritative identities now recover only proven split-chapter/retained-format derivatives; unrelated, thumbnail-like, or unselected-format files remain fail-closed. |
 | DH-A050 | High | Fixed / regression-verified | Protected mode now rejects error-suppression controls that can publish native history without a completed requested media artifact. |
-| DH-A051 | High | Verified / repair pending | yt-dlp skips unavailable fragments by default (and the app normally requests that behavior), yet a fragmented download with missing pieces can still reach native archive success. |
+| DH-A051 | High | Fixed / regression-verified | Protected mode now rejects fragment-skipping requests and appends a final fail-closed unavailable-fragment directive after standard/extended settings. |
+| DH-A052 | High | Verified / repair pending | Retained `.f<format_id>` recovery both under-matches legitimate punctuation-bearing format IDs and can over-match an unselected component through generic same-scan filename recovery. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1342,6 +1343,32 @@ Current yt-dlp legitimately creates completed derivative media that does not rec
 6. Rerun the complete guarded Windows Debug/Release/full-regression gates.
 
 **Baseline proof:** Test commit `d79e4856a455e5288b093538eb58389dbd0c20ea` adds `DOWNLOAD_HISTORY.ForcesCompleteFragmentDownloads`. Windows Audit build `35509561195` succeeds, while verification run `35509561205` fails on exactly that Download History regression: expected protected rejection, actual acceptance.
+
+**Closure:** Guarded run `35509731703` landed `6eed8f61e1c606e48d8081f3e5d05d2d73240951` (`fix: require complete fragmented media under history`) and cleanup `b008e8abf59e3b7e92c3fc821e3e19a7dcdd3646`. The accepted repair rejects the two fragment-skip spellings/abbreviations and appends a final `--abort-on-unavailable-fragments`, so both standard and extended builders remain fail-closed even when their earlier setting requests skipping. Evidence artifact `10605135313` has SHA-256 `b4b685a5995ce07a05b2107bbd4ec50732d5d582f25ebfbdee744e5cf175ccad`.
+
+### DH-A052 — Retained-format component proof is too narrow and can be bypassed by generic derivative recovery
+
+**Priority / state:** High rebuild correctness/integrity risk / VERIFIED against the accepted A049 repair and current yt-dlp format-ID construction.
+
+**Finding:** A049 recognizes retained merge/source components with a hard-coded `[A-Za-z0-9_-]+` suffix. Current yt-dlp can construct `format_id` directly from HLS group/name strings, and retained component filenames insert the resulting `f<format_id>` without that alphanumeric restriction; Windows-valid IDs can therefore contain spaces, dots, or parentheses and remain unrecoverable after total archive loss. Conversely, A049 also treats any alphanumeric `.f...` filename as a generic same-scan derivative. If a canonical parent has already recovered the source identity, an unselected `.f999` file containing that source ID can then be promoted by filename match even when adjacent metadata explicitly says only another format was selected.
+
+A second proof boundary exists when `requested_formats` is present: it is the explicit selected-format list. Falling back to a conflicting combined top-level `format_id` after `requested_formats` does not contain the candidate can promote a component that authoritative selection metadata excludes.
+
+**Impact:** Rebuild can either fail on a legitimate retained component or, more seriously, accept a media-like component that the authoritative owner metadata does not prove belongs to the completed download.
+
+**Required acceptance:**
+
+1. Retained `.f<format_id>` files must never use generic same-scan filename deferral; they recover only from adjacent authoritative owner metadata that proves the exact format ID.
+2. Support the full filename-valid format ID string produced by yt-dlp rather than limiting it to alphanumeric/underscore/hyphen.
+3. If multiple `.f` split points could identify different adjacent owner metadata, accept only an unambiguous native identity.
+4. When `requested_formats` exists, treat its exact `format_id` values as authoritative; do not fall back to a conflicting combined top-level `format_id`.
+5. Preserve split-chapter same-scan recovery, ordinary parent metadata recovery, unknown-media fail-closed behavior, and the one-filesystem-walk performance property.
+6. Keep every media/sidecar byte and path unchanged.
+7. Add regression coverage for punctuation-bearing valid format IDs, an unselected component beside a valid canonical parent, and inconsistent `requested_formats` versus top-level `format_id`.
+8. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test commit `ebf652c122833e3bdbfaa52a4de9bcd0e488791d` adds `DOWNLOAD_HISTORY.ValidatesRetainedFormatComponents` and makes the earlier retained-component fixture carry realistic selected-format metadata. Windows Audit build `35509901729` succeeds, while verification run `35509901740` fails only the new retained-component regression (`Healthy` expected, `Unsafe` actual on a valid punctuation-bearing component).
+
 
 
 

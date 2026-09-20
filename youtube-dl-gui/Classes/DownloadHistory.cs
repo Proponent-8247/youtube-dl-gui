@@ -2083,7 +2083,6 @@ internal static class DownloadHistory {
 
     private static bool IsSameScanDerivativeCandidate(string mediaPath) {
         string stem = Path.GetFileNameWithoutExtension(mediaPath);
-        if (Regex.IsMatch(stem, @"\.f[A-Za-z0-9_-]+$", RegexOptions.CultureInvariant)) return true;
         int close = stem.LastIndexOf(']');
         if (close != stem.Length - 1) return false;
         int open = stem.LastIndexOf('[', close);
@@ -2099,7 +2098,8 @@ internal static class DownloadHistory {
             };
             if (serializer.DeserializeObject(json) is not Dictionary<string, object> root) return false;
 
-            if (root.TryGetValue("requested_formats", out object? requestedValue) && requestedValue is object[] requestedFormats) {
+            if (root.TryGetValue("requested_formats", out object? requestedValue)) {
+                if (requestedValue is not object[] requestedFormats) return false;
                 foreach (object value in requestedFormats) {
                     if (value is Dictionary<string, object> format &&
                         format.TryGetValue("format_id", out object? idValue) &&
@@ -2107,6 +2107,7 @@ internal static class DownloadHistory {
                         return true;
                     }
                 }
+                return false;
             }
 
             if (root.TryGetValue("format_id", out object? combinedValue) && combinedValue is string combined) {
@@ -2124,16 +2125,26 @@ internal static class DownloadHistory {
     private static string? TryRecoverRetainedFormatComponent(string mediaPath) {
         string directory = Path.GetDirectoryName(mediaPath) ?? string.Empty;
         string stem = Path.GetFileNameWithoutExtension(mediaPath);
-        Match component = Regex.Match(stem, @"^(?<owner>.+)\.f(?<format>[A-Za-z0-9_-]+)$", RegexOptions.CultureInvariant);
-        if (!component.Success) return null;
+        string extension = Path.GetExtension(mediaPath);
+        string? match = null;
 
-        string ownerStem = component.Groups["owner"].Value;
-        string formatId = component.Groups["format"].Value;
-        string syntheticOwnerMedia = Path.Combine(directory, ownerStem + Path.GetExtension(mediaPath));
-        string? entry = TryRecoverFromInfoJson(syntheticOwnerMedia, out string? sourceId, out string? infoPath, out _);
-        if (entry is null || sourceId.IsNullEmptyWhitespace() || infoPath.IsNullEmptyWhitespace()) return null;
-        if (!FileNameMatchesSourceId(mediaPath, sourceId!)) return null;
-        return MetadataSelectsFormatId(infoPath!, formatId) ? entry : null;
+        for (int marker = stem.LastIndexOf(".f", StringComparison.Ordinal);
+             marker > 0;
+             marker = stem.LastIndexOf(".f", marker - 1, StringComparison.Ordinal)) {
+            string ownerStem = stem.Substring(0, marker);
+            string formatId = stem.Substring(marker + 2);
+            if (formatId.Length == 0) continue;
+
+            string syntheticOwnerMedia = Path.Combine(directory, ownerStem + extension);
+            string? entry = TryRecoverFromInfoJson(syntheticOwnerMedia, out string? sourceId, out string? infoPath, out _);
+            if (entry is null || sourceId.IsNullEmptyWhitespace() || infoPath.IsNullEmptyWhitespace()) continue;
+            if (!FileNameMatchesSourceId(mediaPath, sourceId!) || !MetadataSelectsFormatId(infoPath!, formatId)) continue;
+
+            if (match is not null && !string.Equals(match, entry, StringComparison.Ordinal)) return null;
+            match = entry;
+        }
+
+        return match;
     }
 
     private static IEnumerable<string> EnumerateCompletedMedia(string root) {

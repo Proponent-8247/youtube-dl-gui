@@ -2419,7 +2419,15 @@ internal static class DownloadHistory {
         if (!File.Exists(path)) return false;
         HashSet<string> parsed = new(StringComparer.Ordinal);
         try {
-            foreach (string line in File.ReadAllLines(path)) {
+            using StreamReader reader = new(path, new UTF8Encoding(false, true), false);
+            bool firstLine = true;
+            string? line;
+            while ((line = reader.ReadLine()) is not null) {
+                if (firstLine && line.Length > 0 && line[0] == '\uFEFF') {
+                    error = "Download History archives must be plain UTF-8 without a byte-order mark.";
+                    return false;
+                }
+                firstLine = false;
                 string entry = line.Trim();
                 if (entry.Length == 0) continue;
                 if (!IsValidArchiveEntry(entry)) {
@@ -2431,7 +2439,7 @@ internal static class DownloadHistory {
             foreach (string entry in parsed) entries.Add(entry);
             return true;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DecoderFallbackException) {
             error = ex.Message;
             return false;
         }

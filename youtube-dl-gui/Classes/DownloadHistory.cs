@@ -912,7 +912,7 @@ internal static class DownloadHistory {
                 error = "Provider self-update options are not allowed while Download History protection is enabled because the validated yt-dlp executable must not be replaced or restarted inside a protected run.";
                 return false;
             }
-            if (ContainsLongOptionOrAbbreviation(customArguments, "--ffmpeg-location", "--ffmpeg-")) {
+            if (ContainsLongOptionOrAbbreviation(customArguments, "--ffmpeg-location", "--ffmpeg")) {
                 error = "Custom --ffmpeg-location is not allowed while Download History protection is enabled because protected runs use the app-owned verified FFmpeg executable.";
                 return false;
             }

@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "base_sha": "337c1e7b87ec5ecd8cf4ac4694c8600f7b56167a",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.ValidatesRetainedFormatComponents"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched",
+    "V011.ActualUpdaterRollbackRestoresApplication"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A052",
+      "message": "fix: require authoritative retained format proof",
+      "resolves": [
+        "DOWNLOAD_HISTORY.ValidatesRetainedFormatComponents"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "    private static bool IsSameScanDerivativeCandidate(string mediaPath) {\n        string stem = Path.GetFileNameWithoutExtension(mediaPath);\n        if (Regex.IsMatch(stem, @\"\\.f[A-Za-z0-9_-]+$\", RegexOptions.CultureInvariant)) return true;\n        int close = stem.LastIndexOf(']');\n        if (close != stem.Length - 1) return false;\n        int open = stem.LastIndexOf('[', close);\n        return open >= 0 && open < close - 1;\n    }",
+              "new": "    private static bool IsSameScanDerivativeCandidate(string mediaPath) {\n        string stem = Path.GetFileNameWithoutExtension(mediaPath);\n        int close = stem.LastIndexOf(']');\n        if (close != stem.Length - 1) return false;\n        int open = stem.LastIndexOf('[', close);\n        return open >= 0 && open < close - 1;\n    }"
+            },
+            {
+              "old": "            if (root.TryGetValue(\"requested_formats\", out object? requestedValue) && requestedValue is object[] requestedFormats) {\n                foreach (object value in requestedFormats) {\n                    if (value is Dictionary<string, object> format &&\n                        format.TryGetValue(\"format_id\", out object? idValue) &&\n                        string.Equals(Convert.ToString(idValue, System.Globalization.CultureInfo.InvariantCulture), formatId, StringComparison.Ordinal)) {\n                        return true;\n                    }\n                }\n            }\n\n            if (root.TryGetValue(\"format_id\", out object? combinedValue) && combinedValue is string combined) {",
+              "new": "            if (root.TryGetValue(\"requested_formats\", out object? requestedValue)) {\n                if (requestedValue is not object[] requestedFormats) return false;\n                foreach (object value in requestedFormats) {\n                    if (value is Dictionary<string, object> format &&\n                        format.TryGetValue(\"format_id\", out object? idValue) &&\n                        string.Equals(Convert.ToString(idValue, System.Globalization.CultureInfo.InvariantCulture), formatId, StringComparison.Ordinal)) {\n                        return true;\n                    }\n                }\n                return false;\n            }\n\n            if (root.TryGetValue(\"format_id\", out object? combinedValue) && combinedValue is string combined) {"
+            },
+            {
+              "old": "    private static string? TryRecoverRetainedFormatComponent(string mediaPath) {\n        string directory = Path.GetDirectoryName(mediaPath) ?? string.Empty;\n        string stem = Path.GetFileNameWithoutExtension(mediaPath);\n        Match component = Regex.Match(stem, @\"^(?<owner>.+)\\.f(?<format>[A-Za-z0-9_-]+)$\", RegexOptions.CultureInvariant);\n        if (!component.Success) return null;\n\n        string ownerStem = component.Groups[\"owner\"].Value;\n        string formatId = component.Groups[\"format\"].Value;\n        string syntheticOwnerMedia = Path.Combine(directory, ownerStem + Path.GetExtension(mediaPath));\n        string? entry = TryRecoverFromInfoJson(syntheticOwnerMedia, out string? sourceId, out string? infoPath, out _);\n        if (entry is null || sourceId.IsNullEmptyWhitespace() || infoPath.IsNullEmptyWhitespace()) return null;\n        if (!FileNameMatchesSourceId(mediaPath, sourceId!)) return null;\n        return MetadataSelectsFormatId(infoPath!, formatId) ? entry : null;\n    }",
+              "new": "    private static string? TryRecoverRetainedFormatComponent(string mediaPath) {\n        string directory = Path.GetDirectoryName(mediaPath) ?? string.Empty;\n        string stem = Path.GetFileNameWithoutExtension(mediaPath);\n        string extension = Path.GetExtension(mediaPath);\n        string? match = null;\n\n        for (int marker = stem.LastIndexOf(\".f\", StringComparison.Ordinal);\n             marker > 0;\n             marker = stem.LastIndexOf(\".f\", marker - 1, StringComparison.Ordinal)) {\n            string ownerStem = stem.Substring(0, marker);\n            string formatId = stem.Substring(marker + 2);\n            if (formatId.Length == 0) continue;\n\n            string syntheticOwnerMedia = Path.Combine(directory, ownerStem + extension);\n            string? entry = TryRecoverFromInfoJson(syntheticOwnerMedia, out string? sourceId, out string? infoPath, out _);\n            if (entry is null || sourceId.IsNullEmptyWhitespace() || infoPath.IsNullEmptyWhitespace()) continue;\n            if (!FileNameMatchesSourceId(mediaPath, sourceId!) || !MetadataSelectsFormatId(infoPath!, formatId)) continue;\n\n            if (match is not null && !string.Equals(match, entry, StringComparison.Ordinal)) return null;\n            match = entry;\n        }\n\n        return match;\n    }"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

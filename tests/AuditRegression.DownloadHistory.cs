@@ -858,7 +858,13 @@ internal static partial class AuditRegression {
                 string escaped = (string)Call(fixture.History, null, "EscapeYtDlpLiteralPathForArgument", literalPhysical);
                 Equal(literalPhysical, Call(fixture.History, null, "ResolveYtDlpDirectPath", escaped));
 
-                Set(fixture.Downloads, null, "downloadPath", Path.Combine(fixture.Root, "%(uploader)s"));
+                string dynamicRoot = Path.Combine(fixture.Root, "%(uploader)s");
+                Throws<InvalidOperationException>(delegate {
+                    Call(fixture.History, null, "ResolveActiveDownloadRoot", dynamicRoot);
+                });
+
+                fixture.History.GetField("fArchivePath", All).SetValue(null, string.Empty);
+                Set(fixture.Downloads, null, "downloadPath", dynamicRoot);
                 string arguments, error;
                 object execution;
                 Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",

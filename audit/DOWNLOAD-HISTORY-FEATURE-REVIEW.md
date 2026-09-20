@@ -98,9 +98,9 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A041 | High | Fixed / regression-verified | Cookie collision normalization now mirrors yt-dlp path expansion for `%VAR%`, `$VAR`, `${VAR}`, and user-home semantics. |
 | DH-A042 | High | Fixed / regression-verified | Protected filename schemas now reject literal/environment/dynamic parent traversal while preserving yt-dlp-safe escaped and anchored forms. |
 | DH-A043 | High | Fixed / regression-verified | Protected custom arguments now reject embedded NUL before execution-context publication. |
-| DH-A044 | High | Reopened / terminal regression verified | The first repair blocked `--test`/`--tes`, but current yt-dlp also accepts unambiguous `--te`, which still bypasses protected rejection. |
-| DH-A045 | High | Reopened / terminal regression verified | The first repair blocks exact `--ffmpeg-location`, but current yt-dlp also accepts unambiguous `--ffmpeg`, which still reaches the path-qualified executable override. |
-| DH-A046 | High | Reopened / terminal regression verified | The first repair mirrors ordinary expansion but its fixed sentinel deletes a legitimate U+E000 path character, and its literal archive escaping does not preserve yt-dlp's single-quoted `expandvars` semantics. |
+| DH-A044 | High | Fixed / regression-verified | The first repair blocked `--test`/`--tes`, but current yt-dlp also accepts unambiguous `--te`, which still bypasses protected rejection. |
+| DH-A045 | High | Fixed / regression-verified | The first repair blocks exact `--ffmpeg-location`, but current yt-dlp also accepts unambiguous `--ffmpeg`, which still reaches the path-qualified executable override. |
+| DH-A046 | High | Fixed / regression-verified | The first repair mirrors ordinary expansion but its fixed sentinel deletes a legitimate U+E000 path character, and its literal archive escaping does not preserve yt-dlp's single-quoted `expandvars` semantics. |
 | DH-A047 | High | Fixed / regression-verified | A dangling value-taking custom option can consume the first app-owned protected suffix token, weakening config/plugin/archive isolation without using a blocked option. |
 | DH-A048 | High | Fixed / regression-verified | Archive validation uses BOM-detecting/replacement-tolerant .NET text decoding instead of yt-dlp's strict UTF-8 archive semantics, so the app can accept a ledger yt-dlp will misread or reject. |
 | DH-A049 | High | Verified / repair pending | After total archive loss, identities recovered from authoritative `.info.json` are not added to the immutable filename matcher, so yt-dlp split-chapter and retained-format derivatives without their own metadata remain unresolved even when their parent identity is recoverable. |
@@ -1003,6 +1003,17 @@ Current yt-dlp writes per-video `.info.json` before media transfer when `--write
 - All three were closed by guarded workflow run `35477418322`, cleanup commit `87fc044b0244a2f4eb1f355d4329bc3c4173111b`. The final run proved the three targeted Download History regressions passing and completed the full guarded Windows build/regression gates.
 - Evidence artifact `10594472660` has SHA-256 `7fb260e24e968d26c69555bde9c5eb1184e45f5824aa60fae038e29f358d0a74`.
 - Several A042 requests were deliberately discarded while the regression was refined against yt-dlp's actual percent/dollar expansion semantics; no discarded production result was accepted. A separate updater rollback regression was observed as flaky and added to the guarded-run allowlist.
+
+
+
+**Terminal A044-A046 closure:** Isolated guarded run `35501227990` closed the three reopened terminal gaps while leaving A049 explicitly listed as the only remaining expected Download History failure.
+
+- DH-A044: `be541804fe5f19cdf292c8671f460174f2e3350b` (`fix: close yt-dlp test abbreviation gap`) blocks the current provider's shortest unambiguous `--te` spelling.
+- DH-A045: `8533e58d67b2cfcb5d49851959dfd81b020df930` (`fix: close ffmpeg location abbreviation gap`) blocks current yt-dlp's unambiguous `--ffmpeg` abbreviation.
+- DH-A046: `ba18fa0558a0d0a5ccae85c6f7310148ba418e05` (`fix: preserve exact protected path expansion`) replaces the fixed U+E000 sentinel with a per-call random sentinel and preserves single-quoted sigil semantics when passing the resolved archive path back to yt-dlp.
+- Cleanup: `d7a5b6516b7a1bb8de863d71f250eec30e0ad144`.
+- Evidence artifact: `10602940660`, SHA-256 `766ddfd2268e306b959624c0c562ad50f04fa5dbf2ae564c025d10a5bf5cb0eb`.
+- Provider-version check for DH-A046: this application's updater selects the official friendly-name asset `yt-dlp.exe` rather than `yt-dlp_arm64.exe`. The official yt-dlp `2026.08.19` stable Windows x64 build job `96261378230` ran CPython 3.10.11. CPython 3.10.11 `ntpath.expandvars` preserves single-quoted text without environment expansion, matching the repaired protected-path logic. This distinction matters because newer ARM64/Python branches use different `expandvars` internals.
 
 Guarded repair run `35500105864` landed the first A044-A048 repair set. Terminal current-head re-audit keeps A047-A048 closed but reopens A044-A046 for narrower provider-equivalence misses documented above; DH-A049 is newly verified.
 

@@ -828,6 +828,7 @@ internal static partial class AuditRegression {
 
     private static void DownloadHistoryMatchesYtDlpPathExpansion() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
             const string variable = "YTDL_GUI_HISTORY_ROOT";
             const string dollarVariable = "YTDL_GUI_DOLLAR_TARGET";
             const string percentVariable = "YTDL_GUI_PERCENT_TARGET";

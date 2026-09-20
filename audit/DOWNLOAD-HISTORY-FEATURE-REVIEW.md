@@ -103,12 +103,14 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A046 | High | Fixed / regression-verified | The first repair mirrors ordinary expansion but its fixed sentinel deletes a legitimate U+E000 path character, and its literal archive escaping does not preserve yt-dlp's single-quoted `expandvars` semantics. |
 | DH-A047 | High | Fixed / regression-verified | A dangling value-taking custom option can consume the first app-owned protected suffix token, weakening config/plugin/archive isolation without using a blocked option. |
 | DH-A048 | High | Fixed / regression-verified | Archive validation uses BOM-detecting/replacement-tolerant .NET text decoding instead of yt-dlp's strict UTF-8 archive semantics, so the app can accept a ledger yt-dlp will misread or reject. |
-| DH-A049 | High | Verified / repair pending | After total archive loss, identities recovered from authoritative `.info.json` are not added to the immutable filename matcher, so yt-dlp split-chapter and retained-format derivatives without their own metadata remain unresolved even when their parent identity is recoverable. |
+| DH-A049 | High | Fixed / regression-verified | After total archive loss, same-scan authoritative identities now recover only proven split-chapter/retained-format derivatives; unrelated, thumbnail-like, or unselected-format files remain fail-closed. |
+| DH-A050 | High | Verified / repair pending | Protected error-suppression controls can let yt-dlp publish a native archive identity after failed postprocessing or when no downloadable format exists. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
 | DH-L006 | — | Closed / intended fail-safe behavior | Media without authoritative `.info.json` identity or an unambiguous filename match to a known native archive identity is reported unresolved; the implementation deliberately does not infer YouTube merely from an 11-character ID shape. |
 | DH-L007 | — | Closed / classifier verified | Completed-media enumeration is allowlisted to media extensions. Known sidecars including `.info.json`, generic `.json`/`.live_chat.json`, descriptions, common thumbnails, subtitles, `.part`, `.ytdl`, and text files are not counted as media. Regression coverage will be expanded with the supplied real-world family shape. |
+| DH-L008 | — | Closed / no separate library-mutation defect | `--force-overwrites` remains an active-download behavior: protected output/path ownership keeps writes inside the active download destination and never targets configured scan-only inventory roots. Banning it would change downloader behavior without proving an inventory/rebuild mutation path. |
 
 Repair evidence recorded so far:
 - DH-A001: `8de689b98653f02975ae8559da85018e8b45a739` (`fix: validate recovered download archive identities`), closed by guarded batch `ba28f8a634510615b2c421d6c02d2b73c84fca6a`.
@@ -1297,4 +1299,26 @@ Current yt-dlp legitimately creates completed derivative media that does not rec
 **Baseline proof:** Regression commit `dae139b9fe5cef205f5390b0ab28d015d6e607bb` produces `DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss: Expected [Healthy]; actual [Partial]` in Windows verification run `35500608781`.
 
 **Discarded first repair wave:** Guarded run `35500914221` proved the terminal A044, A045, and A046 repairs individually satisfy their target regressions, then rejected the proposed A049 repair. The A049 change made `DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss` pass but regressed `DOWNLOAD_HISTORY.IgnoresIndexedThumbnailSidecars` from the required fail-closed `Partial` state to `Missing`. No production commits from that failed batch were pushed; repair request `b15e5c9592200b2230dae0624c2076d8ce8dba1` was explicitly discarded by `531dbc64fa1c8462ad65e4824886bd7c9d045bb5`. The same run passes every other Download History regression except the three deliberately reopened terminal cases A044-A046; normal Audit build run `35500608800` succeeds.
+
+**Closure:** The regression was strengthened by `01d922df901a842169143dd4ff753795eaa35631` to cover component-only retained formats and an unselected-format fail-closed control. Guarded run `35508998096` then landed `ec0a1e808ab1564926a4dfb219263c0f3a9c702c` (`fix: recover proven same-scan derivative media`) and cleanup `39d0cf98bec9969abde87f9d6ee9b2924e54d7ca`. The accepted repair defers only derivative-shaped candidates, requires adjacent authoritative metadata to prove retained format IDs, performs no second filesystem walk, and preserves the indexed-thumbnail mismatch as unresolved. Evidence artifact `10604743486` has SHA-256 `e03513b000e7b54603651ed3c69c975685e38d19ae305d0ca158d4dee2486447`.
+
+### DH-A050 — Error-suppression controls can create false completed archive records
+
+**Priority / state:** High duplicate-prevention correctness risk / VERIFIED against current yt-dlp postprocessing and no-format flows.
+
+**Finding:** Protected mode currently allows `-i/--ignore-errors` and `--ignore-no-formats-error`. With full `--ignore-errors`, yt-dlp catches a `PostProcessingError`, records an error return code, but returns the info dictionary to `process_info`; execution then reaches `__write_download_archive = True`. Separately, `--ignore-no-formats-error` converts a no-format condition into an empty format placeholder, permits sidecar-only processing to continue, and can likewise reach the normal archive-write success path without a completed requested media file.
+
+**Impact:** A protected run can add the source extractor+ID to the native archive even though the requested postprocessed artifact failed or no downloadable media existed. Later normal protected runs can then skip that source as already downloaded.
+
+**Required acceptance:**
+
+1. Reject `-i`, `--ignore-errors`, and current unambiguous long abbreviations while Download History is enabled.
+2. Reject `--ignore-no-formats-error` and current unambiguous long abbreviations while Download History is enabled.
+3. Preserve fail-closed neighboring controls: `--abort-on-error`, `--no-abort-on-error` (download-only continuation), `--no-ignore-errors`, and `--no-ignore-no-formats-error`.
+4. Download History disabled behavior remains unchanged.
+5. Add regression coverage for the unsafe aliases/abbreviations and safe neighboring controls.
+6. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test commit `9af0e2c510f10102d4c3d59016ffd7d0e71c2165` adds `DOWNLOAD_HISTORY.RejectsFalseCompletionErrorControls`. Windows Audit build `35509192480` succeeds, while verification run `35509192471` fails on exactly that Download History regression: expected protected rejection, actual acceptance.
+
 

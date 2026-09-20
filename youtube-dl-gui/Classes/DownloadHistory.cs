@@ -924,6 +924,11 @@ internal static class DownloadHistory {
                 error = "Error-suppression modes that can publish a native archive identity without a completed requested media artifact are not allowed while Download History protection is enabled. Remove --ignore-errors/--ignore-no-formats-error or disable Download History.";
                 return false;
             }
+            if (ContainsLongOptionOrAbbreviation(customArguments, "--skip-unavailable-fragments", "--skip-u") ||
+                ContainsLongOptionOrAbbreviation(customArguments, "--no-abort-on-unavailable-fragments", "--no-abort-on-u")) {
+                error = "Skipping unavailable media fragments is not allowed while Download History protection is enabled because yt-dlp can record the native source identity after producing an incomplete fragmented file. Use --abort-on-unavailable-fragments or disable Download History.";
+                return false;
+            }
             if (ContainsShortOption(customArguments, "-U") ||
                 ContainsLongOptionOrAbbreviation(customArguments, "--update", "--update") ||
                 ContainsLongOptionOrAbbreviation(customArguments, "--update-to", "--update-")) {
@@ -1025,7 +1030,7 @@ internal static class DownloadHistory {
             string preparedArchive = EffectiveArchivePath;
             execution = new DownloadHistoryExecution(preparedArchive, KeepBackup, LastReportInternal.ArchiveSnapshot);
             string preparedArchiveArgument = EscapeYtDlpLiteralPathForArgument(preparedArchive);
-            archiveArguments = $"{ProtectedIsolationArguments} --compat-options -allow-unsafe-ext --write-info-json --download-archive \"{preparedArchiveArgument}\" --no-break-on-existing --concat-playlist never";
+            archiveArguments = $"{ProtectedIsolationArguments} --compat-options -allow-unsafe-ext --write-info-json --download-archive \"{preparedArchiveArgument}\" --no-break-on-existing --concat-playlist never --abort-on-unavailable-fragments";
             return true;
         }
     }

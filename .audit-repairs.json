@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "base_sha": "7ff6a78620d4a42aed2c308388cc928d2cd2780c",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.RejectsFalseCompletionErrorControls"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched",
+    "V011.ActualUpdaterRollbackRestoresApplication"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A050",
+      "message": "fix: reject false-completion error controls",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RejectsFalseCompletionErrorControls"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            if (ContainsLongOptionOrAbbreviation(customArguments, \"--test\", \"--te\")) {\n                error = \"--test is not allowed while Download History protection is enabled because yt-dlp records the native source identity after a successful partial test sample. Disable Download History for extractor test downloads.\";\n                return false;\n            }",
+              "new": "            if (ContainsLongOptionOrAbbreviation(customArguments, \"--test\", \"--te\")) {\n                error = \"--test is not allowed while Download History protection is enabled because yt-dlp records the native source identity after a successful partial test sample. Disable Download History for extractor test downloads.\";\n                return false;\n            }\n            if (ContainsShortOption(customArguments, \"-i\") ||\n                ContainsLongOptionOrAbbreviation(customArguments, \"--ignore-errors\", \"--ignore-e\") ||\n                ContainsLongOptionOrAbbreviation(customArguments, \"--ignore-no-formats-error\", \"--ignore-n\")) {\n                error = \"Error-suppression modes that can publish a native archive identity without a completed requested media artifact are not allowed while Download History protection is enabled. Remove --ignore-errors/--ignore-no-formats-error or disable Download History.\";\n                return false;\n            }"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -76,14 +76,14 @@ internal static partial class AuditRegression {
     private static string DownloadHistoryWriteMedia(string root, string name) {
         string path = Path.Combine(root, name);
         Directory.CreateDirectory(Path.GetDirectoryName(path));
-        File.WriteAllText(path, "fixture", Encoding.UTF8);
+        File.WriteAllText(path, "fixture", new UTF8Encoding(false));
         return path;
     }
 
     private static string DownloadHistoryWriteMediaWithInfo(string root, string name, string extractorKey, string id) {
         string media = DownloadHistoryWriteMedia(root, name);
         string stem = Path.Combine(Path.GetDirectoryName(media), Path.GetFileNameWithoutExtension(media));
-        File.WriteAllText(stem + ".info.json", "{\"id\":\"" + id + "\",\"extractor_key\":\"" + extractorKey + "\"}", Encoding.UTF8);
+        File.WriteAllText(stem + ".info.json", "{\"id\":\"" + id + "\",\"extractor_key\":\"" + extractorKey + "\"}", new UTF8Encoding(false));
         return media;
     }
 
@@ -219,11 +219,11 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             const string id = "aB_Cd-Ef123";
             string archive = Path.Combine(fixture.Root, "escaped-schema-history.txt");
-            File.WriteAllText(archive, "youtube " + id + Environment.NewLine, Encoding.UTF8);
+            File.WriteAllText(archive, "youtube " + id + Environment.NewLine, new UTF8Encoding(false));
             DownloadHistoryWriteMedia(fixture.Root, "%" + id + ".mp4");
             string oddRunSchema = "%%%(id)s.%(ext)s";
             fixture.History.GetField("fKnownFileNameSchemas", All).SetValue(null,
-                "v2:" + Convert.ToBase64String(Encoding.UTF8.GetBytes(oddRunSchema)));
+                "v2:" + Convert.ToBase64String(new UTF8Encoding(false).GetBytes(oddRunSchema)));
 
             object rebuilt = Call(fixture.History, null, "RebuildLibrary", archive, false, false, string.Empty);
             Equal("Healthy", DownloadHistoryStateName(rebuilt));
@@ -1000,7 +1000,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string media = DownloadHistoryWriteMedia(fixture.Root, "Injected-legityoutube evil.mp4");
             string stem = Path.Combine(Path.GetDirectoryName(media), Path.GetFileNameWithoutExtension(media));
-            File.WriteAllText(stem + ".info.json", "{\"id\":\"legit\\nyoutube evil\",\"extractor_key\":\"Youtube\"}", Encoding.UTF8);
+            File.WriteAllText(stem + ".info.json", "{\"id\":\"legit\\nyoutube evil\",\"extractor_key\":\"Youtube\"}", new UTF8Encoding(false));
 
             object report = Call(fixture.History, null, "ReconcileLibrary", string.Empty, true, true);
             Equal("Unsafe", DownloadHistoryStateName(report));
@@ -1012,7 +1012,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string media = DownloadHistoryWriteMedia(fixture.Root, "Injected extractor.mp4");
             string stem = Path.Combine(Path.GetDirectoryName(media), Path.GetFileNameWithoutExtension(media));
-            File.WriteAllText(stem + ".info.json", "{\"id\":\"evilId\",\"extractor_key\":\"Youtube legitId\\nyoutube\"}", Encoding.UTF8);
+            File.WriteAllText(stem + ".info.json", "{\"id\":\"evilId\",\"extractor_key\":\"Youtube legitId\\nyoutube\"}", new UTF8Encoding(false));
 
             object report = Call(fixture.History, null, "ReconcileLibrary", string.Empty, true, true);
             Equal("Unsafe", DownloadHistoryStateName(report));
@@ -1102,7 +1102,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             Set(fixture.Downloads, null, "fileNameSchema", "%(title).200B-%(id)s-%(upload_date)s.%(ext)s");
             DownloadHistoryWriteMedia(fixture.Root, "Title-" + id + "-20260915.mp4");
-            File.WriteAllText(fixture.Archive, "youtube " + id + "\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube " + id + "\r\n", new UTF8Encoding(false));
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal(1, Get(analysis, "FilenameRecovered"));
             Equal(0, Get(analysis, "UnresolvedMedia"));
@@ -1142,7 +1142,7 @@ internal static partial class AuditRegression {
             Require(persisted.StartsWith("v2:", StringComparison.Ordinal), "Protected filename schema history was not migrated to unambiguous encoding");
 
             DownloadHistoryWriteMedia(fixture.Root, "has chapters-" + id + ".mp4");
-            File.WriteAllText(fixture.Archive, "youtube " + id + "\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube " + id + "\r\n", new UTF8Encoding(false));
             Set(fixture.Downloads, null, "fileNameSchema", "NEW-%(id)s.%(ext)s");
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal(0, Get(analysis, "UnresolvedMedia"));
@@ -1155,7 +1155,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             Set(fixture.Downloads, null, "fileNameSchema", "%(id)s--%(title)s.%(ext)s");
             DownloadHistoryWriteMedia(fixture.Root, id + "--Title.webm");
-            File.WriteAllText(fixture.Archive, "youtube " + id + "\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube " + id + "\r\n", new UTF8Encoding(false));
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal(1, Get(analysis, "FilenameRecovered"));
             Equal(0, Get(analysis, "UnresolvedMedia"));
@@ -1198,7 +1198,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             const string accentedId = "äabc";
             DownloadHistoryWriteMedia(fixture.Root, "Restricted-aabc.mp4");
-            File.WriteAllText(fixture.Archive, "rokfin " + accentedId + Environment.NewLine, Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "rokfin " + accentedId + Environment.NewLine, new UTF8Encoding(false));
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Healthy", DownloadHistoryStateName(analysis));
@@ -1209,7 +1209,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             const string leadingInvalidId = "/abc";
             DownloadHistoryWriteMedia(fixture.Root, "Restricted-abc.mp4");
-            File.WriteAllText(fixture.Archive, "rokfin " + leadingInvalidId + Environment.NewLine, Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "rokfin " + leadingInvalidId + Environment.NewLine, new UTF8Encoding(false));
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Healthy", DownloadHistoryStateName(analysis));
@@ -1240,7 +1240,7 @@ internal static partial class AuditRegression {
 
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryWriteMedia(fixture.Root, "Restricted-stream_31332.mp4");
-            File.WriteAllText(fixture.Archive, "rokfin " + id + "\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "rokfin " + id + "\r\n", new UTF8Encoding(false));
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Healthy", DownloadHistoryStateName(analysis));
             Equal(1, Get(analysis, "FilenameRecovered"));
@@ -1251,7 +1251,7 @@ internal static partial class AuditRegression {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryWriteMedia(fixture.Root, "Video - 001 Intro [" + id + "].mp4");
-            File.WriteAllText(fixture.Archive, "youtube " + id + "\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube " + id + "\r\n", new UTF8Encoding(false));
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Healthy", DownloadHistoryStateName(analysis));
             Equal(1, Get(analysis, "FilenameRecovered"));
@@ -1278,7 +1278,7 @@ internal static partial class AuditRegression {
             string media = DownloadHistoryWriteMedia(fixture.Root, "Clip metadata.mp4");
             string stem = Path.Combine(Path.GetDirectoryName(media), Path.GetFileNameWithoutExtension(media));
             File.WriteAllText(stem + ".info.json",
-                "{\"id\":\"" + id + "\",\"extractor\":\"youtube:clip\"}", Encoding.UTF8);
+                "{\"id\":\"" + id + "\",\"extractor\":\"youtube:clip\"}", new UTF8Encoding(false));
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Unsafe", DownloadHistoryStateName(analysis));
@@ -1292,7 +1292,7 @@ internal static partial class AuditRegression {
             string media = DownloadHistoryWriteMedia(fixture.Root, "Clip native key.mp4");
             string stem = Path.Combine(Path.GetDirectoryName(media), Path.GetFileNameWithoutExtension(media));
             File.WriteAllText(stem + ".info.json",
-                "{\"id\":\"" + id + "\",\"extractor\":\"youtube:clip\",\"ie_key\":\"YoutubeClip\"}", Encoding.UTF8);
+                "{\"id\":\"" + id + "\",\"extractor\":\"youtube:clip\",\"ie_key\":\"YoutubeClip\"}", new UTF8Encoding(false));
 
             object reconciled = Call(fixture.History, null, "ReconcileLibrary", string.Empty, true, false);
             Equal("Healthy", DownloadHistoryStateName(reconciled));
@@ -1305,7 +1305,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string media = DownloadHistoryWriteMedia(fixture.Root, "Nested Metadata.mp4");
             string stem = Path.Combine(Path.GetDirectoryName(media), Path.GetFileNameWithoutExtension(media));
-            File.WriteAllText(stem + ".info.json", "{\"formats\":[{\"id\":\"WRONG_ID_01\",\"extractor_key\":\"WrongExtractor\"}],\"id\":\"" + correctId + "\",\"extractor_key\":\"Youtube\"}", Encoding.UTF8);
+            File.WriteAllText(stem + ".info.json", "{\"formats\":[{\"id\":\"WRONG_ID_01\",\"extractor_key\":\"WrongExtractor\"}],\"id\":\"" + correctId + "\",\"extractor_key\":\"Youtube\"}", new UTF8Encoding(false));
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Missing", DownloadHistoryStateName(analysis));
@@ -1348,11 +1348,11 @@ internal static partial class AuditRegression {
             Directory.CreateDirectory(directory);
             string media = DownloadHistoryWriteMediaWithInfo(directory, "Animal Facts That I Got WRONG-" + id + ".webm", "Youtube", id);
             string stem = Path.Combine(directory, "Animal Facts That I Got WRONG-" + id);
-            File.WriteAllText(stem + ".description", "description", Encoding.UTF8);
-            File.WriteAllText(stem + ".webp", "thumbnail", Encoding.UTF8);
-            File.WriteAllText(stem + ".vtt", "subtitle", Encoding.UTF8);
-            File.WriteAllText(stem + ".live_chat.json", "{\"chat\":true}", Encoding.UTF8);
-            File.WriteAllText(Path.Combine(directory, "Casual Geographic - Videos-channel.info.json"), "{\"id\":\"channel\"}", Encoding.UTF8);
+            File.WriteAllText(stem + ".description", "description", new UTF8Encoding(false));
+            File.WriteAllText(stem + ".webp", "thumbnail", new UTF8Encoding(false));
+            File.WriteAllText(stem + ".vtt", "subtitle", new UTF8Encoding(false));
+            File.WriteAllText(stem + ".live_chat.json", "{\"chat\":true}", new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(directory, "Casual Geographic - Videos-channel.info.json"), "{\"id\":\"channel\"}", new UTF8Encoding(false));
             string[] paths = Directory.GetFiles(directory, "*", SearchOption.TopDirectoryOnly);
             Dictionary<string, byte[]> before = paths.ToDictionary(path => path, path => File.ReadAllBytes(path), StringComparer.OrdinalIgnoreCase);
 
@@ -1410,19 +1410,19 @@ internal static partial class AuditRegression {
     private static void DownloadHistoryBackupRefreshRejectsCorruption() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
-            File.WriteAllText(fixture.Archive, "youtube 9qFjkwAElDs\r\nyoutube aB_Cd-Ef123\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube 9qFjkwAElDs\r\nyoutube aB_Cd-Ef123\r\n", new UTF8Encoding(false));
             Call(fixture.History, null, "RefreshBackupAfterRun");
-            string backupBefore = File.ReadAllText(fixture.Archive + ".bak", Encoding.UTF8);
+            string backupBefore = File.ReadAllText(fixture.Archive + ".bak", new UTF8Encoding(false));
             Require(backupBefore.Contains("youtube aB_Cd-Ef123"), "Successful native archive append was not copied to backup");
 
-            File.WriteAllText(fixture.Archive, "youtube poisoned123\r\ninvalid-line-without-space\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube poisoned123\r\ninvalid-line-without-space\r\n", new UTF8Encoding(false));
             Call(fixture.History, null, "RefreshBackupAfterRun");
-            Equal(backupBefore, File.ReadAllText(fixture.Archive + ".bak", Encoding.UTF8));
+            Equal(backupBefore, File.ReadAllText(fixture.Archive + ".bak", new UTF8Encoding(false)));
 
             string arguments, error;
             object execution;
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
-            string repaired = File.ReadAllText(fixture.Archive, Encoding.UTF8);
+            string repaired = File.ReadAllText(fixture.Archive, new UTF8Encoding(false));
             Require(repaired.Contains("youtube 9qFjkwAElDs") && repaired.Contains("youtube aB_Cd-Ef123"), "Valid backup was not restored after primary corruption");
             Require(repaired.IndexOf("poisoned123", StringComparison.Ordinal) < 0, "Corrupt primary content survived backup recovery");
         }
@@ -1431,11 +1431,11 @@ internal static partial class AuditRegression {
     private static void DownloadHistoryValidArchiveTruncationPreservesBackup() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
-            File.WriteAllText(fixture.Archive, "youtube oldEntry001\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube oldEntry001\r\n", new UTF8Encoding(false));
             Call(fixture.History, null, "RefreshBackupAfterRun");
             Require(DownloadHistoryArchiveLines(fixture.Archive + ".bak").Contains("youtube oldEntry001"), "Known-good archive entry was not backed up");
 
-            File.WriteAllText(fixture.Archive, "youtube newEntry002\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube newEntry002\r\n", new UTF8Encoding(false));
             Call(fixture.History, null, "RefreshBackupAfterRun");
             string[] preserved = DownloadHistoryArchiveLines(fixture.Archive + ".bak");
             Require(preserved.Contains("youtube oldEntry001") && !preserved.Contains("youtube newEntry002"), "A truncated primary archive overwrote the last good backup");
@@ -1455,7 +1455,7 @@ internal static partial class AuditRegression {
             DownloadHistoryWriteMediaWithInfo(fixture.Root, "Recovered-" + id + ".mp4", "Youtube", id);
             DownloadHistoryEnable(fixture, string.Empty);
             Require(File.Exists(fixture.Archive + ".bak"), "Established default archive did not create its expected backup");
-            File.WriteAllText(fixture.Archive, "youtube poisoned123\r\ninvalid-line-without-space\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube poisoned123\r\ninvalid-line-without-space\r\n", new UTF8Encoding(false));
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Invalid", DownloadHistoryStateName(analysis));
@@ -1472,7 +1472,7 @@ internal static partial class AuditRegression {
         const string id = "aB_Cd-Ef123";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryWriteMediaWithInfo(fixture.Root, "Existing-" + id + ".mp4", "Youtube", id);
-            byte[] collision = Encoding.UTF8.GetBytes("THIS DEFAULT-NAMED FILE WAS NOT CREATED BY DOWNLOAD HISTORY\r\n");
+            byte[] collision = new UTF8Encoding(false).GetBytes("THIS DEFAULT-NAMED FILE WAS NOT CREATED BY DOWNLOAD HISTORY\r\n");
             File.WriteAllBytes(fixture.Archive, collision);
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
@@ -1495,7 +1495,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryWriteMediaWithInfo(fixture.Root, "First-" + first + ".mp4", "Youtube", first);
             DownloadHistoryEnable(fixture, string.Empty);
-            string beforeDisable = File.ReadAllText(fixture.Archive, Encoding.UTF8);
+            string beforeDisable = File.ReadAllText(fixture.Archive, new UTF8Encoding(false));
             Require(File.Exists(fixture.Archive + ".bak"), "Backup was not preserved before disable test");
 
             Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
@@ -1503,7 +1503,7 @@ internal static partial class AuditRegression {
             object execution;
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
             Equal(string.Empty, arguments);
-            Equal(beforeDisable, File.ReadAllText(fixture.Archive, Encoding.UTF8));
+            Equal(beforeDisable, File.ReadAllText(fixture.Archive, new UTF8Encoding(false)));
             Require(File.Exists(fixture.Archive + ".bak"), "Disabling history deleted the backup");
             Equal("Dormant", fixture.History.GetProperty("LastReport", All).GetValue(null, null).GetType().GetProperty("State", All).GetValue(fixture.History.GetProperty("LastReport", All).GetValue(null, null), null).ToString());
 
@@ -1565,7 +1565,7 @@ internal static partial class AuditRegression {
             string gif = DownloadHistoryWriteMedia(fixture.Root, "Animated-" + id + ".gif");
             string info = Path.ChangeExtension(media, ".info.json");
             File.WriteAllText(info,
-                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"mp4\",\"thumbnails\":[{\"ext\":\"gif\",\"url\":\"https://example.invalid/thumb.gif\"}]}", Encoding.UTF8);
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"mp4\",\"thumbnails\":[{\"ext\":\"gif\",\"url\":\"https://example.invalid/thumb.gif\"}]}", new UTF8Encoding(false));
             byte[] mediaBefore = File.ReadAllBytes(media);
             byte[] gifBefore = File.ReadAllBytes(gif);
             byte[] infoBefore = File.ReadAllBytes(info);
@@ -1584,7 +1584,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string gif = DownloadHistoryWriteMedia(fixture.Root, "Failed-" + id + ".gif");
             File.WriteAllText(Path.ChangeExtension(gif, ".info.json"),
-                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"gif\",\"thumbnails\":[{\"ext\":\"gif\",\"url\":\"https://example.invalid/thumb.gif\"}]}", Encoding.UTF8);
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"gif\",\"thumbnails\":[{\"ext\":\"gif\",\"url\":\"https://example.invalid/thumb.gif\"}]}", new UTF8Encoding(false));
 
             object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
             Equal("Unsafe", DownloadHistoryStateName(rebuilt));
@@ -1598,7 +1598,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string gif = DownloadHistoryWriteMedia(fixture.Root, "Direct-" + id + ".gif");
             File.WriteAllText(Path.ChangeExtension(gif, ".info.json"),
-                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"gif\",\"thumbnails\":[{\"ext\":\"jpg\",\"url\":\"https://example.invalid/thumb.jpg\"}]}", Encoding.UTF8);
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"gif\",\"thumbnails\":[{\"ext\":\"jpg\",\"url\":\"https://example.invalid/thumb.jpg\"}]}", new UTF8Encoding(false));
 
             object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
             Equal("Healthy", DownloadHistoryStateName(rebuilt));
@@ -1611,8 +1611,8 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string gif = DownloadHistoryWriteMedia(fixture.Root, "Known-" + id + ".gif");
             File.WriteAllText(Path.ChangeExtension(gif, ".info.json"),
-                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"gif\",\"thumbnails\":[{\"url\":\"https://example.invalid/thumb.gif?size=large\"}]}", Encoding.UTF8);
-            File.WriteAllText(fixture.Archive, "youtube " + id + Environment.NewLine, Encoding.UTF8);
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"gif\",\"thumbnails\":[{\"url\":\"https://example.invalid/thumb.gif?size=large\"}]}", new UTF8Encoding(false));
+            File.WriteAllText(fixture.Archive, "youtube " + id + Environment.NewLine, new UTF8Encoding(false));
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Healthy", DownloadHistoryStateName(analysis));
@@ -1654,7 +1654,7 @@ internal static partial class AuditRegression {
             string info = Path.ChangeExtension(media, ".info.json");
             string thumbnail = DownloadHistoryWriteMedia(fixture.Root, "Indexed-" + id + ".0.gif");
             File.WriteAllText(info,
-                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"mp4\",\"thumbnails\":[{\"id\":0,\"ext\":\"gif\",\"url\":\"https://example.invalid/zero.gif\"},{\"id\":\"1\",\"ext\":\"jpg\",\"url\":\"https://example.invalid/one.jpg\"}]}", Encoding.UTF8);
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"ext\":\"mp4\",\"thumbnails\":[{\"id\":0,\"ext\":\"gif\",\"url\":\"https://example.invalid/zero.gif\"},{\"id\":\"1\",\"ext\":\"jpg\",\"url\":\"https://example.invalid/one.jpg\"}]}", new UTF8Encoding(false));
             byte[] mediaBefore = File.ReadAllBytes(media);
             byte[] infoBefore = File.ReadAllBytes(info);
             byte[] thumbnailBefore = File.ReadAllBytes(thumbnail);
@@ -1674,7 +1674,7 @@ internal static partial class AuditRegression {
             const string mismatchId = "aB_Cd-Ef123";
             string media = DownloadHistoryWriteMedia(fixture.Root, "Mismatch-" + mismatchId + ".mp4");
             File.WriteAllText(Path.ChangeExtension(media, ".info.json"),
-                "{\"id\":\"" + mismatchId + "\",\"extractor_key\":\"Youtube\",\"ext\":\"mp4\",\"thumbnails\":[{\"id\":\"0\",\"ext\":\"gif\",\"url\":\"https://example.invalid/zero.gif\"},{\"id\":\"2\",\"ext\":\"jpg\",\"url\":\"https://example.invalid/two.jpg\"}]}", Encoding.UTF8);
+                "{\"id\":\"" + mismatchId + "\",\"extractor_key\":\"Youtube\",\"ext\":\"mp4\",\"thumbnails\":[{\"id\":\"0\",\"ext\":\"gif\",\"url\":\"https://example.invalid/zero.gif\"},{\"id\":\"2\",\"ext\":\"jpg\",\"url\":\"https://example.invalid/two.jpg\"}]}", new UTF8Encoding(false));
             DownloadHistoryWriteMedia(fixture.Root, "Mismatch-" + mismatchId + ".1.gif");
 
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
@@ -1689,7 +1689,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             File.WriteAllText(Path.Combine(fixture.Root, "Video-9qFjkwAElDs.mp4.part"), "partial");
             File.WriteAllText(Path.Combine(fixture.Root, "Video-9qFjkwAElDs.mp4.ytdl"), "partial");
-            File.WriteAllText(Path.Combine(fixture.Root, "Video-9qFjkwAElDs.info.json"), "{}", Encoding.UTF8);
+            File.WriteAllText(Path.Combine(fixture.Root, "Video-9qFjkwAElDs.info.json"), "{}", new UTF8Encoding(false));
             File.WriteAllText(Path.Combine(fixture.Root, "thumbnail.jpg"), "image");
             File.WriteAllText(Path.Combine(fixture.Root, "subtitle.vtt"), "subtitle");
             object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
@@ -1758,13 +1758,13 @@ internal static partial class AuditRegression {
     private static void DownloadHistoryExecutionLeaseRejectsArchiveTruncation() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
-            File.WriteAllText(fixture.Archive, "youtube oldEntry001\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube oldEntry001\r\n", new UTF8Encoding(false));
             Call(fixture.History, null, "RefreshBackupAfterRun");
 
             string arguments, error;
             object execution;
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
-            File.WriteAllText(fixture.Archive, "youtube newEntry002\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube newEntry002\r\n", new UTF8Encoding(false));
             Throws<InvalidOperationException>(() => Call(execution.GetType(), execution, "AcquireValidatedLease"));
 
             object repairedExecution;
@@ -1789,7 +1789,7 @@ internal static partial class AuditRegression {
             string arguments, error;
             object execution;
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
-            File.WriteAllText(fixture.Archive, string.Empty, Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, string.Empty, new UTF8Encoding(false));
 
             Throws<InvalidOperationException>(() => Call(execution.GetType(), execution, "AcquireValidatedLease"));
             Equal(true, fixture.History.GetProperty("NeedsReconciliation", All).GetValue(null, null));
@@ -1804,7 +1804,7 @@ internal static partial class AuditRegression {
             string arguments, error;
             object execution;
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
-            File.AppendAllText(fixture.Archive, "youtube aB_Cd-Ef123" + Environment.NewLine, Encoding.UTF8);
+            File.AppendAllText(fixture.Archive, "youtube aB_Cd-Ef123" + Environment.NewLine, new UTF8Encoding(false));
 
             using (IDisposable lease = (IDisposable)Call(execution.GetType(), execution, "AcquireValidatedLease")) { }
             Require(DownloadHistoryArchiveLines(fixture.Archive).Contains("youtube " + first),
@@ -1824,12 +1824,12 @@ internal static partial class AuditRegression {
             Call(fixture.History, null, "CommitSettings", true, string.Empty, false, prepared, string.Empty);
             Require(!File.Exists(fixture.Archive + ".bak"), "Same-session floor fixture unexpectedly created a backup");
 
-            File.AppendAllText(fixture.Archive, "youtube " + second + Environment.NewLine, Encoding.UTF8);
+            File.AppendAllText(fixture.Archive, "youtube " + second + Environment.NewLine, new UTF8Encoding(false));
             string arguments, error;
             object execution;
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
 
-            File.WriteAllText(fixture.Archive, "youtube " + first + Environment.NewLine, Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube " + first + Environment.NewLine, new UTF8Encoding(false));
             object laterExecution;
             Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out laterExecution));
             Require(error.IndexOf("identit", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -1850,12 +1850,12 @@ internal static partial class AuditRegression {
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out oldExecution));
 
             using (IDisposable lease = (IDisposable)Call(oldExecution.GetType(), oldExecution, "AcquireValidatedLease")) {
-                File.AppendAllText(fixture.Archive, "youtube " + second + Environment.NewLine, Encoding.UTF8);
+                File.AppendAllText(fixture.Archive, "youtube " + second + Environment.NewLine, new UTF8Encoding(false));
                 Call(oldExecution.GetType(), oldExecution, "RefreshBackupAfterRun");
             }
             Require(!File.Exists(fixture.Archive + ".bak"), "No-backup provider completion unexpectedly created a backup");
 
-            File.WriteAllText(fixture.Archive, "youtube " + first + Environment.NewLine, Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube " + first + Environment.NewLine, new UTF8Encoding(false));
             Throws<InvalidOperationException>(() => Call(oldExecution.GetType(), oldExecution, "AcquireValidatedLease"));
         }
     }
@@ -1869,7 +1869,7 @@ internal static partial class AuditRegression {
             Require(File.Exists(fixture.Archive + ".bak"), "Retention-off stale-backup test did not establish a valid backup");
 
             fixture.History.GetField("fKeepBackup", All).SetValue(null, false);
-            File.AppendAllText(fixture.Archive, "youtube " + newer + Environment.NewLine, Encoding.UTF8);
+            File.AppendAllText(fixture.Archive, "youtube " + newer + Environment.NewLine, new UTF8Encoding(false));
             string[] beforeLoss = DownloadHistoryArchiveLines(fixture.Archive);
             Require(beforeLoss.Contains("youtube " + first) && beforeLoss.Contains("youtube " + newer),
                 "Retention-off stale-backup test did not establish a newer primary-only identity");
@@ -1899,7 +1899,7 @@ internal static partial class AuditRegression {
             Require(File.Exists(oldArchive + ".bak"), "Archive-relocation stale-backup test did not establish a valid backup");
 
             fixture.History.GetField("fKeepBackup", All).SetValue(null, false);
-            File.AppendAllText(oldArchive, "youtube " + newer + Environment.NewLine, Encoding.UTF8);
+            File.AppendAllText(oldArchive, "youtube " + newer + Environment.NewLine, new UTF8Encoding(false));
             File.Delete(oldArchive);
 
             string replacement = Path.Combine(fixture.Root, "replacement-history.txt");
@@ -1919,7 +1919,7 @@ internal static partial class AuditRegression {
     private static void DownloadHistoryExecutionLeaseUsesExistingBackupWhenRetentionOff() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
-            File.WriteAllText(fixture.Archive, "youtube oldEntry001\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube oldEntry001\r\n", new UTF8Encoding(false));
             Call(fixture.History, null, "RefreshBackupAfterRun");
             Require(File.Exists(fixture.Archive + ".bak"), "Last-good backup was not established for retention-off execution test");
 
@@ -1928,7 +1928,7 @@ internal static partial class AuditRegression {
             object execution;
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out execution));
 
-            File.WriteAllText(fixture.Archive, "youtube newEntry002\r\n", Encoding.UTF8);
+            File.WriteAllText(fixture.Archive, "youtube newEntry002\r\n", new UTF8Encoding(false));
             Throws<InvalidOperationException>(() => Call(execution.GetType(), execution, "AcquireValidatedLease"));
 
             object repairedExecution;
@@ -2182,7 +2182,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string custom = Path.Combine(fixture.Root, "companion-history.txt");
             string lockPath = custom + ".lock";
-            byte[] lockBytes = Encoding.UTF8.GetBytes("user-lock-sentinel");
+            byte[] lockBytes = new UTF8Encoding(false).GetBytes("user-lock-sentinel");
             File.WriteAllBytes(lockPath, lockBytes);
             fixture.History.GetField("fArchivePath", All).SetValue(null, custom);
 
@@ -2191,7 +2191,7 @@ internal static partial class AuditRegression {
             Require(lockBytes.SequenceEqual(File.ReadAllBytes(lockPath)), "Archive lease modified a pre-existing lock-path file");
 
             string tempPath = custom + ".tmp";
-            byte[] tempBytes = Encoding.UTF8.GetBytes("user-temp-sentinel");
+            byte[] tempBytes = new UTF8Encoding(false).GetBytes("user-temp-sentinel");
             File.WriteAllBytes(tempPath, tempBytes);
 
             object rebuilt = Call(fixture.History, null, "RebuildLibrary", custom, false, false, string.Empty);
@@ -2204,11 +2204,11 @@ internal static partial class AuditRegression {
     private static void DownloadHistoryResetPreservesUnownedTempCompanions() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string custom = Path.Combine(fixture.Root, "reset-history.txt");
-            File.WriteAllText(custom, "youtube 9qFjkwAElDs" + Environment.NewLine, Encoding.UTF8);
+            File.WriteAllText(custom, "youtube 9qFjkwAElDs" + Environment.NewLine, new UTF8Encoding(false));
             string temp = custom + ".tmp";
             string backupTemp = custom + ".bak.tmp";
-            byte[] tempBytes = Encoding.UTF8.GetBytes("user-primary-temp");
-            byte[] backupTempBytes = Encoding.UTF8.GetBytes("user-backup-temp");
+            byte[] tempBytes = new UTF8Encoding(false).GetBytes("user-primary-temp");
+            byte[] backupTempBytes = new UTF8Encoding(false).GetBytes("user-backup-temp");
             File.WriteAllBytes(temp, tempBytes);
             File.WriteAllBytes(backupTemp, backupTempBytes);
 
@@ -2228,7 +2228,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string custom = Path.Combine(fixture.Root, "backup-collision-history.txt");
             string backup = custom + ".bak";
-            byte[] backupBytes = Encoding.UTF8.GetBytes("THIS IS USER DATA, NOT A NATIVE ARCHIVE" + Environment.NewLine);
+            byte[] backupBytes = new UTF8Encoding(false).GetBytes("THIS IS USER DATA, NOT A NATIVE ARCHIVE" + Environment.NewLine);
             File.WriteAllBytes(backup, backupBytes);
             DownloadHistoryWriteMediaWithInfo(fixture.Root, "Existing-" + id + ".mp4", "Youtube", id);
 
@@ -2258,7 +2258,7 @@ internal static partial class AuditRegression {
             Require(File.Exists(custom + ".bak"), "Bound custom archive backup was not created");
 
             File.Delete(custom + ".bak");
-            byte[] corrupt = Encoding.UTF8.GetBytes("THIS IS NOT A NATIVE ARCHIVE\r\n");
+            byte[] corrupt = new UTF8Encoding(false).GetBytes("THIS IS NOT A NATIVE ARCHIVE\r\n");
             File.WriteAllBytes(custom, corrupt);
             byte[] mediaBefore = File.ReadAllBytes(media);
 
@@ -2304,7 +2304,7 @@ internal static partial class AuditRegression {
             string metadata = Path.Combine(initial, "Original-" + physical + ".info.json");
             DownloadHistoryEnable(fixture, string.Empty);
             string oldArchive = (string)fixture.History.GetProperty("EffectiveArchivePath", All).GetValue(null, null);
-            File.AppendAllText(oldArchive, "youtube " + ledgerOnly + Environment.NewLine, Encoding.UTF8);
+            File.AppendAllText(oldArchive, "youtube " + ledgerOnly + Environment.NewLine, new UTF8Encoding(false));
             Call(fixture.History, null, "RefreshBackupAfterRun");
             Require(DownloadHistoryArchiveLines(oldArchive).Contains("youtube " + ledgerOnly),
                 "Archive-only historical identity was not established before relocation");
@@ -2444,8 +2444,8 @@ internal static partial class AuditRegression {
             DownloadHistoryWriteMediaWithInfo(existing, "Duplicate-" + first + ".webm", "Youtube", first);
             string nestedMedia = DownloadHistoryWriteMediaWithInfo(nested, "Existing library item.webm", "Youtube", second);
             string nestedStem = Path.Combine(nested, "Existing library item");
-            File.WriteAllText(nestedStem + ".description", "description", Encoding.UTF8);
-            File.WriteAllText(nestedStem + ".webp", "thumbnail", Encoding.UTF8);
+            File.WriteAllText(nestedStem + ".description", "description", new UTF8Encoding(false));
+            File.WriteAllText(nestedStem + ".webp", "thumbnail", new UTF8Encoding(false));
             Dictionary<string, byte[]> before = Directory.GetFiles(existing, "*", SearchOption.AllDirectories)
                 .ToDictionary(path => path, path => File.ReadAllBytes(path), StringComparer.OrdinalIgnoreCase);
 

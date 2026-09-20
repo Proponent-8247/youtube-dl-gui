@@ -752,6 +752,211 @@ internal static partial class AuditRegression {
         }
     }
 
+
+    private static void DownloadHistoryRejectsTestModePartialCompletion() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string custom in new[] { "--test", "--tes" }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    custom, out arguments, out error, out execution));
+                Require(error.IndexOf("test", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("partial", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("sample", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Protected test mode was not rejected clearly: " + custom);
+                Equal(null, execution);
+            }
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--check-formats", out arguments, out error, out execution));
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--test", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
+    private static void DownloadHistoryRejectsExecutablePathAndSelfUpdateOverrides() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string custom in new[] {
+                "-U",
+                "--update",
+                "--update-to custom@example",
+                "--ffmpeg-location \"C:\\audit\\ffmpeg.exe\"",
+                "--downloader \"C:\\audit\\aria2c.exe\"",
+                "--external-downloader \"..\\audit\\curl.exe\"",
+                "--js-runtimes \"node:C:\\audit\\node.exe\""
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    custom, out arguments, out error, out execution));
+                Require(error.IndexOf("executable", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("update", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("runtime", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("downloader", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("ffmpeg", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("process", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Executable/provider override was not rejected clearly: " + custom);
+                Equal(null, execution);
+            }
+
+            foreach (string custom in new[] {
+                "--no-update",
+                "--downloader aria2c",
+                "--external-downloader \"dash,m3u8:native\"",
+                "--js-runtimes node",
+                "--no-js-runtimes"
+            }) {
+                Require(DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    custom, out arguments, out error, out execution),
+                    "Safe built-in provider/runtime selection was rejected: " + custom + " :: " + error);
+            }
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--update-to custom@example --downloader \"C:\\audit\\aria2c.exe\"",
+                out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
+    private static void DownloadHistoryMatchesYtDlpPathExpansion() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            const string variable = "YTDL_GUI_HISTORY_ROOT";
+            const string dollarVariable = "YTDL_GUI_DOLLAR_TARGET";
+            const string percentVariable = "YTDL_GUI_PERCENT_TARGET";
+            string previous = Environment.GetEnvironmentVariable(variable);
+            string previousDollar = Environment.GetEnvironmentVariable(dollarVariable);
+            string previousPercent = Environment.GetEnvironmentVariable(percentVariable);
+            try {
+                Environment.SetEnvironmentVariable(variable, fixture.Root);
+                Environment.SetEnvironmentVariable(dollarVariable, "expanded-dollar");
+                Environment.SetEnvironmentVariable(percentVariable, "expanded-percent");
+
+                string expectedMediaRoot = Path.GetFullPath(Path.Combine(fixture.Root, "media"));
+                Equal(expectedMediaRoot, Call(fixture.History, null, "ResolveActiveDownloadRoot", "$" + variable + "\\media"));
+                Equal(expectedMediaRoot, Call(fixture.History, null, "ResolveActiveDownloadRoot", " + variable + \\media"));
+                Equal(expectedMediaRoot, Call(fixture.History, null, "ResolveActiveDownloadRoot", "%" + variable + "%\\media"));
+
+                string home = Environment.GetEnvironmentVariable("USERPROFILE");
+                if (!string.IsNullOrEmpty(home)) {
+                    Equal(Path.GetFullPath(Path.Combine(home, "media")),
+                        Call(fixture.History, null, "ResolveActiveDownloadRoot", "~\\media"));
+                }
+
+                string expectedArchive = Path.Combine(fixture.Root, "history.txt");
+                fixture.History.GetField("fArchivePath", All).SetValue(null, "$" + variable + "\\history.txt");
+                Equal(Path.GetFullPath(expectedArchive), fixture.History.GetProperty("EffectiveArchivePath", All).GetValue(null, null));
+
+                string literalPhysical = Path.Combine(fixture.Root, "$" + dollarVariable + "%" + percentVariable + "%", "history.txt");
+                string escaped = (string)Call(fixture.History, null, "EscapeYtDlpLiteralPathForArgument", literalPhysical);
+                Equal(literalPhysical, Call(fixture.History, null, "ResolveYtDlpDirectPath", escaped));
+
+                Set(fixture.Downloads, null, "downloadPath", Path.Combine(fixture.Root, "%(uploader)s"));
+                string arguments, error;
+                object execution;
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    null, out arguments, out error, out execution));
+                Require(error.IndexOf("download", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("path", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("template", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Dynamic active download root was not rejected clearly");
+
+                string sourceRoot = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
+                string historySource = File.ReadAllText(Path.Combine(sourceRoot, "youtube-dl-gui", "Classes", "DownloadHistory.cs"));
+                string dialogSource = File.ReadAllText(Path.Combine(sourceRoot, "youtube-dl-gui", "Forms", "frmDownloadHistory.cs"));
+                Require(historySource.Contains("EscapeYtDlpLiteralPathForArgument(preparedArchive)"),
+                    "Protected archive arguments are not escaped back to the exact locked physical path");
+                Require(dialogSource.Contains("DownloadHistory.NormalizeConfiguredArchivePathForUi"),
+                    "Download History dialog path normalization does not use provider-compatible archive expansion");
+            }
+            finally {
+                Environment.SetEnvironmentVariable(variable, previous);
+                Environment.SetEnvironmentVariable(dollarVariable, previousDollar);
+                Environment.SetEnvironmentVariable(percentVariable, previousPercent);
+            }
+        }
+    }
+
+    private static void DownloadHistoryIsolationPrecedesDanglingCustomOptions() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+
+            object standard = New("youtube_dl_gui.DownloadInfo", "https://www.youtube.com/watch?v=9qFjkwAElDs");
+            Set(standard.GetType(), standard, "Type", Enum.Parse(T("youtube_dl_gui.DownloadType"), "Custom"));
+            Set(standard.GetType(), standard, "CustomArguments", "--proxy");
+            Set(standard.GetType(), standard, "FileNameSchema", "%(title)s-%(id)s.%(ext)s");
+            Require((bool)Call(standard.GetType(), standard, "GenerateArguments", (Action<string>)(delegate(string ignored) { })),
+                "Standard dangling-option control did not generate arguments");
+            string standardArgs = (string)Get(standard, "Arguments");
+            int standardCustom = standardArgs.IndexOf("--proxy", StringComparison.Ordinal);
+            int standardFirstIsolation = standardArgs.IndexOf("--ignore-config", StringComparison.Ordinal);
+            int standardLastIsolation = standardArgs.LastIndexOf("--ignore-config", StringComparison.Ordinal);
+            Require(standardFirstIsolation >= 0 && standardFirstIsolation < standardCustom && standardLastIsolation > standardCustom,
+                "Standard protected isolation does not bracket raw custom arguments");
+
+            object mostlyCustom = New("youtube_dl_gui.DownloadInfo", "https://www.youtube.com/watch?v=9qFjkwAElDs");
+            Set(mostlyCustom.GetType(), mostlyCustom, "Type", Enum.Parse(T("youtube_dl_gui.DownloadType"), "Custom"));
+            Set(mostlyCustom.GetType(), mostlyCustom, "MostlyCustomArguments", true);
+            Set(mostlyCustom.GetType(), mostlyCustom, "CustomArguments", "--proxy");
+            Set(mostlyCustom.GetType(), mostlyCustom, "FileNameSchema", "%(title)s-%(id)s.%(ext)s");
+            Require((bool)Call(mostlyCustom.GetType(), mostlyCustom, "GenerateArguments", (Action<string>)(delegate(string ignored) { })),
+                "Mostly-custom dangling-option control did not generate arguments");
+            string mostlyArgs = (string)Get(mostlyCustom, "Arguments");
+            int mostlyCustomIndex = mostlyArgs.IndexOf("--proxy", StringComparison.Ordinal);
+            Require(mostlyArgs.IndexOf("--ignore-config", StringComparison.Ordinal) < mostlyCustomIndex &&
+                    mostlyArgs.LastIndexOf("--ignore-config", StringComparison.Ordinal) > mostlyCustomIndex,
+                "Mostly-custom protected isolation does not survive argument-buffer replacement");
+
+            object extended = New("youtube_dl_gui.ExtendedMediaDetails", "https://www.youtube.com/watch?v=9qFjkwAElDs");
+            Set(extended.GetType(), extended, "FileNameSchema", "%(title)s-%(id)s.%(ext)s");
+            Set(extended.GetType(), extended, "SelectedType", Enum.Parse(T("youtube_dl_gui.DownloadType"), "Custom"));
+            Set(extended.GetType(), extended, "CustomArguments", "--proxy");
+            Require((bool)Call(extended.GetType(), extended, "GenerateArguments"),
+                "Extended dangling-option control did not generate arguments");
+            string extendedArgs = (string)Get(extended, "Arguments");
+            int extendedCustom = extendedArgs.IndexOf("--proxy", StringComparison.Ordinal);
+            Require(extendedArgs.IndexOf("--ignore-config", StringComparison.Ordinal) < extendedCustom &&
+                    extendedArgs.LastIndexOf("--ignore-config", StringComparison.Ordinal) > extendedCustom,
+                "Extended protected isolation does not bracket raw custom arguments");
+        }
+    }
+
+    private static void DownloadHistoryRejectsNonNativeArchiveEncodings() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            MethodInfo readArchive = fixture.History.GetMethod("TryReadArchive", All);
+            if (readArchive == null) throw new Exception("Missing native archive reader");
+
+            Func<string, bool> read = delegate(string file) {
+                object[] args = { file, new HashSet<string>(StringComparer.Ordinal), string.Empty };
+                return (bool)readArchive.Invoke(null, args);
+            };
+
+            string plain = Path.Combine(fixture.Root, "plain-utf8.txt");
+            File.WriteAllText(plain, "youtube 9qFjkwAElDs\n", new UTF8Encoding(false));
+            Equal(true, read(plain));
+
+            string bom = Path.Combine(fixture.Root, "utf8-bom.txt");
+            File.WriteAllText(bom, "youtube 9qFjkwAElDs\n", new UTF8Encoding(true));
+            Equal(false, read(bom));
+
+            string utf16 = Path.Combine(fixture.Root, "utf16.txt");
+            File.WriteAllText(utf16, "youtube 9qFjkwAElDs\n", Encoding.Unicode);
+            Equal(false, read(utf16));
+
+            string malformed = Path.Combine(fixture.Root, "malformed-utf8.txt");
+            byte[] prefix = Encoding.ASCII.GetBytes("youtube 9qFjkwAElDs");
+            File.WriteAllBytes(malformed, prefix.Concat(new byte[] { 0xC3, 0x28, 0x0A }).ToArray());
+            Equal(false, read(malformed));
+        }
+    }
+
     private static void DownloadHistoryRejectsArbitraryPostprocessorHooks() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -2540,6 +2745,11 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ExpandsDollarCookiePathsLikeYtDlp", DownloadHistoryExpandsDollarCookiePathsLikeYtDlp);
         Test("DOWNLOAD_HISTORY.RejectsRawChildProcessArguments", DownloadHistoryRejectsRawChildProcessArguments);
         Test("DOWNLOAD_HISTORY.RejectsDestructiveCacheRemoval", DownloadHistoryRejectsDestructiveCacheRemoval);
+        Test("DOWNLOAD_HISTORY.RejectsTestModePartialCompletion", DownloadHistoryRejectsTestModePartialCompletion);
+        Test("DOWNLOAD_HISTORY.RejectsExecutablePathAndSelfUpdateOverrides", DownloadHistoryRejectsExecutablePathAndSelfUpdateOverrides);
+        Test("DOWNLOAD_HISTORY.MatchesYtDlpPathExpansion", DownloadHistoryMatchesYtDlpPathExpansion);
+        Test("DOWNLOAD_HISTORY.IsolationPrecedesDanglingCustomOptions", DownloadHistoryIsolationPrecedesDanglingCustomOptions);
+        Test("DOWNLOAD_HISTORY.RejectsNonNativeArchiveEncodings", DownloadHistoryRejectsNonNativeArchiveEncodings);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryPostprocessorHooks", DownloadHistoryRejectsArbitraryPostprocessorHooks);
         Test("DOWNLOAD_HISTORY.RejectsIdOutputOverride", DownloadHistoryRejectsIdOutputOverride);
         Test("DOWNLOAD_HISTORY.RejectsInjectedMetadataArchiveRecords", DownloadHistoryRejectsInjectedMetadataArchiveRecords);

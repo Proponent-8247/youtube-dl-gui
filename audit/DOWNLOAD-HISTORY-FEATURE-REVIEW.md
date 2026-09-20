@@ -109,6 +109,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A052 | High | Fixed / regression-verified | Retained `.f<format_id>` recovery now supports filename-valid format IDs only when adjacent authoritative metadata proves the exact selected format, without generic `.f…` promotion. |
 | DH-A053 | High | Fixed / regression-verified | Protected mode rejects local extractor page substitution through hidden yt-dlp `--load-pages` while preserving page-dump debugging. |
 | DH-A054 | High | Fixed / regression-verified | Clean merged `format_id` recovery now proves selected component IDs against the persisted format catalogue and fails closed on ambiguous `+` decompositions. |
+| DH-A055 | High | Verified / repair pending | yt-dlp `--write-pages` opens deterministic `.dump` files with truncate semantics in the provider working directory and can collide with a custom protected archive path. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1427,3 +1428,24 @@ A052 currently falls back to `combined.Split('+')` when `requested_formats` is a
 **Baseline proof:** Test commit `731838bf173254b7a33cf09e061b2d3811856dfa` adds `DOWNLOAD_HISTORY.DisambiguatesCleanMergedFormatIds` and makes the earlier clean component-only fixtures carry a realistic preserved `formats` catalogue. Windows Audit build `35515302319` succeeds. Verification run `35515302359` fails only the new Download History regression (`Healthy` expected, `Unsafe` actual).
 
 **Closure:** Guarded run `35515426328` landed `d4f506edab22a6a7e7c8a152207b58925ac7ea58` (`fix: prove clean merged retained formats`) and cleanup `d478c15beee8b232b9c7c9d301de818c5fb9ba4a`. The targeted regression passes after repair and the complete guarded Windows gates remain green. Evidence artifact `10606777382` has SHA-256 `9003b28a451440eee92997fbbbf31bd0b11f78e9900682d1895b6abf561af9a4`.
+
+
+### DH-A055 — Extractor debug page writes can clobber protected state
+
+**Priority / state:** High protected-ledger integrity risk / VERIFIED against current protected filtering and current yt-dlp extractor debug-write path.
+
+**Finding:** yt-dlp's `--write-pages` is not a console-only debugging option. For every extractor response it derives a deterministic `.dump` filename from video ID/request data/URL, resolves it relative to the provider working directory, and opens that file with `wb`. Download History permits a custom native archive path in the same filesystem namespace and currently permits `--write-pages`.
+
+**Impact:** A custom protected archive can collide with one of those deterministic debug filenames. The provider can then truncate the already validated native ledger during extraction, outside the application's pre-start integrity check. This is an archive-state mutation problem distinct from A053's `--load-pages` source substitution.
+
+**Required acceptance:**
+
+1. Reject `--write-pages` and current unambiguous abbreviation `--write-pa` while Download History protection is enabled.
+2. Preserve console-only `--dump-pages`.
+3. Preserve disabled-history behavior.
+4. Keep A053 `--load-pages` rejection and all prior write-target protections intact.
+5. Add regression coverage and rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test commit `6fcc1fec41336cece66641830c6ae84f08167846` separates filesystem page writes from console page dumping and adds `DOWNLOAD_HISTORY.RejectsExtractorPageDumpWrites`. Windows Audit build `35515580616` succeeds. Verification run `35515580648` fails only that Download History regression (`False` expected for protected `--write-pages`, actual `True`).
+
+**A053 clarification:** The original A053 acceptance text treated `--write-pages` as a safe neighboring control. That characterization was incorrect because upstream opens deterministic dump files for write/truncate. A053's landed production repair remains correct and scoped to local response substitution; A055 separately corrects the write-side boundary without rewriting history.

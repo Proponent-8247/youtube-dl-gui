@@ -820,6 +820,87 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryForcesCompleteFragmentDownloads() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string custom in new[] {
+                "--skip-unavailable-fragments",
+                "--skip-u",
+                "--no-abort-on-unavailable-fragments",
+                "--no-abort-on-u"
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    custom, out arguments, out error, out execution));
+                Require(error.IndexOf("fragment", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("complete", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("archive", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Partial-fragment control was not rejected clearly: " + custom);
+                Equal(null, execution);
+            }
+
+            foreach (string custom in new[] {
+                "--abort-on-unavailable-fragments",
+                "--no-skip-unavailable-fragments"
+            }) {
+                Require(DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    custom, out arguments, out error, out execution),
+                    "Fail-closed fragment control was rejected: " + custom + " :: " + error);
+                Require(arguments.Contains("--abort-on-unavailable-fragments"),
+                    "Protected suffix did not force fail-closed fragment handling");
+            }
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                null, out arguments, out error, out execution));
+            Require(arguments.Contains("--abort-on-unavailable-fragments"),
+                "Protected suffix does not override yt-dlp's default fragment-skipping behavior");
+
+            bool oldSkip = (bool)fixture.Downloads.GetProperty("SkipUnavailableFragments", All).GetValue(null, null);
+            try {
+                Set(fixture.Downloads, null, "SkipUnavailableFragments", true);
+
+                object standard = New("youtube_dl_gui.DownloadInfo", "https://www.youtube.com/watch?v=9qFjkwAElDs");
+                Set(standard.GetType(), standard, "Type", Enum.Parse(T("youtube_dl_gui.DownloadType"), "Video"));
+                Set(standard.GetType(), standard, "FileNameSchema", "%(title)s-%(id)s.%(ext)s");
+                Require((bool)Call(standard.GetType(), standard, "GenerateArguments",
+                    (Action<string>)(delegate(string ignored) { })), "Standard protected fragment arguments failed to generate");
+                string standardArgs = (string)Get(standard, "Arguments");
+                int standardSkip = standardArgs.IndexOf("--skip-unavailable-fragments", StringComparison.Ordinal);
+                int standardAbort = standardArgs.LastIndexOf("--abort-on-unavailable-fragments", StringComparison.Ordinal);
+                Require(standardSkip >= 0 && standardAbort > standardSkip,
+                    "Standard protected suffix did not override the app's fragment-skip setting");
+
+                object extended = New("youtube_dl_gui.ExtendedMediaDetails", "https://www.youtube.com/watch?v=9qFjkwAElDs");
+                Set(extended.GetType(), extended, "FileNameSchema", "%(title)s-%(id)s.%(ext)s");
+                Set(extended.GetType(), extended, "SelectedType", Enum.Parse(T("youtube_dl_gui.DownloadType"), "Video"));
+                Set(extended.GetType(), extended, "SkipUnavailableFragments", true);
+                object format = New("youtube_dl_gui.YoutubeDlSubdata+Format");
+                Set(format.GetType(), format, "Identifier", "18");
+                Set(format.GetType(), format, "Extension", "mp4");
+                System.Windows.Forms.ListViewItem item = new System.Windows.Forms.ListViewItem();
+                item.Tag = format;
+                Set(extended.GetType(), extended, "SelectedVideoItem", item);
+                Require((bool)Call(extended.GetType(), extended, "GenerateArguments"),
+                    "Extended protected fragment arguments failed to generate");
+                string extendedArgs = (string)Get(extended, "Arguments");
+                int extendedSkip = extendedArgs.IndexOf("--skip-unavailable-fragments", StringComparison.Ordinal);
+                int extendedAbort = extendedArgs.LastIndexOf("--abort-on-unavailable-fragments", StringComparison.Ordinal);
+                Require(extendedSkip >= 0 && extendedAbort > extendedSkip,
+                    "Extended protected suffix did not override the per-download fragment-skip setting");
+            }
+            finally {
+                Set(fixture.Downloads, null, "SkipUnavailableFragments", oldSkip);
+            }
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--skip-unavailable-fragments", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryRejectsExecutablePathAndSelfUpdateOverrides() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -2888,6 +2969,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsDestructiveCacheRemoval", DownloadHistoryRejectsDestructiveCacheRemoval);
         Test("DOWNLOAD_HISTORY.RejectsTestModePartialCompletion", DownloadHistoryRejectsTestModePartialCompletion);
         Test("DOWNLOAD_HISTORY.RejectsFalseCompletionErrorControls", DownloadHistoryRejectsFalseCompletionErrorControls);
+        Test("DOWNLOAD_HISTORY.ForcesCompleteFragmentDownloads", DownloadHistoryForcesCompleteFragmentDownloads);
         Test("DOWNLOAD_HISTORY.RejectsExecutablePathAndSelfUpdateOverrides", DownloadHistoryRejectsExecutablePathAndSelfUpdateOverrides);
         Test("DOWNLOAD_HISTORY.MatchesYtDlpPathExpansion", DownloadHistoryMatchesYtDlpPathExpansion);
         Test("DOWNLOAD_HISTORY.IsolationPrecedesDanglingCustomOptions", DownloadHistoryIsolationPrecedesDanglingCustomOptions);

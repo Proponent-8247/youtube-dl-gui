@@ -1,0 +1,78 @@
+{
+  "version": 2,
+  "base_sha": "eb29cb657e00248634ffa7540a6891f2159dba1e",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.RejectsTestModePartialCompletion",
+    "DOWNLOAD_HISTORY.RejectsExecutablePathAndSelfUpdateOverrides",
+    "DOWNLOAD_HISTORY.MatchesYtDlpPathExpansion",
+    "DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched",
+    "V011.ActualUpdaterRollbackRestoresApplication"
+  ],
+  "remaining_failures": [
+    "DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss"
+  ],
+  "repairs": [
+    {
+      "id": "DH-A044-terminal",
+      "message": "fix: close yt-dlp test abbreviation gap",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RejectsTestModePartialCompletion"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            if (ContainsLongOptionOrAbbreviation(customArguments, \"--test\", \"--tes\")) {",
+              "new": "            if (ContainsLongOptionOrAbbreviation(customArguments, \"--test\", \"--te\")) {"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DH-A045-terminal",
+      "message": "fix: close ffmpeg location abbreviation gap",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RejectsExecutablePathAndSelfUpdateOverrides"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            if (ContainsLongOptionOrAbbreviation(customArguments, \"--ffmpeg-location\", \"--ffmpeg-\")) {",
+              "new": "            if (ContainsLongOptionOrAbbreviation(customArguments, \"--ffmpeg-location\", \"--ffmpeg\")) {"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DH-A046-terminal",
+      "message": "fix: preserve exact protected path expansion",
+      "resolves": [
+        "DOWNLOAD_HISTORY.MatchesYtDlpPathExpansion"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "    private static string ExpandYtDlpOutputTemplateEnvironmentPath(string path) {\n        const string sentinel = \"\\uE000\";\n        string protectedPath = path.Replace(\"%%\", \"%\" + sentinel + \"%\").Replace(\"$$\", \"$\" + sentinel + \"$\");\n        return ExpandYtDlpEnvironmentVariables(ExpandYtDlpUserPath(protectedPath)).Replace(sentinel, string.Empty);\n    }",
+              "new": "    private static string ExpandYtDlpOutputTemplateEnvironmentPath(string path) {\n        string sentinel = Guid.NewGuid().ToString(\"N\");\n        string protectedPath = path.Replace(\"%%\", \"%\" + sentinel + \"%\").Replace(\"$$\", \"$\" + sentinel + \"$\");\n        return ExpandYtDlpEnvironmentVariables(ExpandYtDlpUserPath(protectedPath)).Replace(sentinel, string.Empty);\n    }"
+            },
+            {
+              "old": "    internal static string EscapeYtDlpLiteralPathForArgument(string path) =>\n        path.Replace(\"$\", \"$$\").Replace(\"%\", \"%%\");",
+              "new": "    internal static string EscapeYtDlpLiteralPathForArgument(string path) {\n        StringBuilder escaped = new(path.Length + 8);\n        bool inSingleQuotes = false;\n        foreach (char character in path) {\n            if (character == '\\'') {\n                inSingleQuotes = !inSingleQuotes;\n                escaped.Append(character);\n                continue;\n            }\n            if (!inSingleQuotes && (character == '$' || character == '%')) escaped.Append(character);\n            escaped.Append(character);\n        }\n        return escaped.ToString();\n    }"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

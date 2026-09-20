@@ -522,6 +522,7 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
             return false;
         }
         ArgumentList ArgumentBuffer = [];
+        if (HistoryExecution is not null) ArgumentBuffer.Add(DownloadHistory.ProtectedIsolationArguments);
 
         #region Outuput path
         StringBuilder OutputPath = new("-o \"");

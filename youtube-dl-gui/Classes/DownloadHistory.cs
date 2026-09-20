@@ -174,6 +174,7 @@ internal sealed class DownloadHistoryAnalysis {
 
 internal static class DownloadHistory {
     private const string ConfigName = "DownloadHistory";
+    internal const string ProtectedIsolationArguments = "--ignore-config --no-plugin-dirs";
     private static readonly object Sync = new();
     private static string? PreparedKey;
     private static string? PreparedArchiveFloorPath;
@@ -1006,7 +1007,7 @@ internal static class DownloadHistory {
             string preparedArchive = EffectiveArchivePath;
             execution = new DownloadHistoryExecution(preparedArchive, KeepBackup, LastReportInternal.ArchiveSnapshot);
             string preparedArchiveArgument = EscapeYtDlpLiteralPathForArgument(preparedArchive);
-            archiveArguments = $"--ignore-config --no-plugin-dirs --compat-options -allow-unsafe-ext --write-info-json --download-archive \"{preparedArchiveArgument}\" --no-break-on-existing --concat-playlist never";
+            archiveArguments = $"{ProtectedIsolationArguments} --compat-options -allow-unsafe-ext --write-info-json --download-archive \"{preparedArchiveArgument}\" --no-break-on-existing --concat-playlist never";
             return true;
         }
     }

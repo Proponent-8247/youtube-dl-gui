@@ -143,6 +143,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
         }
 
         ArgumentList ArgumentsBuffer = [];
+        if (HistoryExecution is not null) ArgumentsBuffer.Add(DownloadHistory.ProtectedIsolationArguments);
         ArgumentList PreviewArguments;
 
         #region youtube-dl path
@@ -245,7 +246,9 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
             case DownloadType.Custom: {
                 Verbose("Custom was requested, skipping quality + format");
                 if (MostlyCustomArguments) {
-                    ArgumentsBuffer = new($"{CustomArguments} -o {OutputDirectory}");
+                    ArgumentsBuffer = HistoryExecution is null
+                        ? new($"{CustomArguments} -o {OutputDirectory}")
+                        : new($"{DownloadHistory.ProtectedIsolationArguments} {CustomArguments} -o {OutputDirectory}");
                     break;
                 }
 

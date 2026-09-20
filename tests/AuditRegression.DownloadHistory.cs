@@ -841,7 +841,7 @@ internal static partial class AuditRegression {
 
                 string expectedMediaRoot = Path.GetFullPath(Path.Combine(fixture.Root, "media"));
                 Equal(expectedMediaRoot, Call(fixture.History, null, "ResolveActiveDownloadRoot", "$" + variable + "\\media"));
-                Equal(expectedMediaRoot, Call(fixture.History, null, "ResolveActiveDownloadRoot", " + variable + \\media"));
+                Equal(expectedMediaRoot, Call(fixture.History, null, "ResolveActiveDownloadRoot", "$" + "{" + variable + "}\\media"));
                 Equal(expectedMediaRoot, Call(fixture.History, null, "ResolveActiveDownloadRoot", "%" + variable + "%\\media"));
 
                 string home = Environment.GetEnvironmentVariable("USERPROFILE");

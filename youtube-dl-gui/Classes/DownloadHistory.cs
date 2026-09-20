@@ -839,6 +839,30 @@ internal static class DownloadHistory {
                 error = "--test is not allowed while Download History protection is enabled because yt-dlp records the native source identity after a successful partial test sample. Disable Download History for extractor test downloads.";
                 return false;
             }
+            if (ContainsShortOption(customArguments, "-U") ||
+                ContainsLongOptionOrAbbreviation(customArguments, "--update", "--update") ||
+                ContainsLongOptionOrAbbreviation(customArguments, "--update-to", "--update-")) {
+                error = "Provider self-update options are not allowed while Download History protection is enabled because the validated yt-dlp executable must not be replaced or restarted inside a protected run.";
+                return false;
+            }
+            if (ContainsLongOptionOrAbbreviation(customArguments, "--ffmpeg-location", "--ffmpeg-")) {
+                error = "Custom --ffmpeg-location is not allowed while Download History protection is enabled because protected runs use the app-owned verified FFmpeg executable.";
+                return false;
+            }
+            foreach (string downloader in GetOptionValues(customArguments, "--downloader")
+                .Concat(GetOptionValues(customArguments, "--external-downloader"))) {
+                if (!IsAllowedProtectedDownloaderValue(downloader)) {
+                    error = "Path-qualified or unknown external downloader executables are not allowed while Download History protection is enabled. Use a built-in downloader name such as native, aria2c, curl, ffmpeg, wget, axel, or http.";
+                    return false;
+                }
+            }
+            foreach (string runtime in GetOptionValues(customArguments, "--js-runtimes")) {
+                if (JsRuntimeUsesExplicitPath(runtime)) {
+                    error = "Path-qualified JavaScript runtimes are not allowed while Download History protection is enabled because they can execute an arbitrary user-selected binary. Use the runtime name without a path.";
+                    return false;
+                }
+            }
+
             if (ContainsShortOption(customArguments, "-o") || ContainsOption(customArguments, "--output") || ContainsOption(customArguments, "--id") ||
                 ContainsShortOption(customArguments, "-P") || ContainsOption(customArguments, "--paths")) {
                 error = "Custom output templates or paths are not allowed while Download History protection is enabled because the app must keep %(id)s-bearing media inside the validated library namespace.";
@@ -2439,6 +2463,28 @@ internal static class DownloadHistory {
                 yield return tokens[index + 1];
             }
         }
+    }
+
+    private static bool IsAllowedProtectedDownloaderValue(string rawValue) {
+        string value = rawValue.Trim();
+        int separator = value.IndexOf(':');
+        if (separator >= 0) {
+            string protocolList = value.Substring(0, separator);
+            if (protocolList.Split(',').Any(protocol =>
+                protocol.Trim().ToLowerInvariant() is not ("http" or "ftp" or "m3u8" or "dash" or "rtmp"))) {
+                return false;
+            }
+            value = value.Substring(separator + 1).Trim();
+        }
+
+        return value.ToLowerInvariant() is
+            "native" or "aria2c" or "axel" or "curl" or "ffmpeg" or "http" or "httpie" or "wget";
+    }
+
+    private static bool JsRuntimeUsesExplicitPath(string rawValue) {
+        string value = rawValue.Trim();
+        int separator = value.IndexOf(':');
+        return separator >= 0 && separator < value.Length - 1;
     }
 
     private static bool RequestsUnsafeExtensionCompatibility(string? arguments) {

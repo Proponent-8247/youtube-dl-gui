@@ -109,7 +109,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A052 | High | Fixed / regression-verified | Retained `.f<format_id>` recovery now supports filename-valid format IDs only when adjacent authoritative metadata proves the exact selected format, without generic `.f…` promotion. |
 | DH-A053 | High | Fixed / regression-verified | Protected mode rejects local extractor page substitution through hidden yt-dlp `--load-pages` while preserving page-dump debugging. |
 | DH-A054 | High | Fixed / regression-verified | Clean merged `format_id` recovery now proves selected component IDs against the persisted format catalogue and fails closed on ambiguous `+` decompositions. |
-| DH-A055 | High | Verified / repair pending | yt-dlp `--write-pages` opens deterministic `.dump` files with truncate semantics in the provider working directory and can collide with a custom protected archive path. |
+| DH-A055 | High | Fixed / regression-verified | Protected mode blocks deterministic extractor `.dump` filesystem writes while preserving console-only page dumping. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1447,5 +1447,7 @@ A052 currently falls back to `combined.Split('+')` when `requested_formats` is a
 5. Add regression coverage and rerun the complete guarded Windows Debug/Release/full-regression gates.
 
 **Baseline proof:** Test commit `6fcc1fec41336cece66641830c6ae84f08167846` separates filesystem page writes from console page dumping and adds `DOWNLOAD_HISTORY.RejectsExtractorPageDumpWrites`. Windows Audit build `35515580616` succeeds. Verification run `35515580648` fails only that Download History regression (`False` expected for protected `--write-pages`, actual `True`).
+
+**Closure:** Guarded run `35515725724` landed `2235a51efa5222b4a072a19141048570bc57fd6b` (`fix: block extractor page dump state writes`) and cleanup `ab0e9def271dd0e3671473ad2e8761abafbff373`. The targeted regression passes after repair and the complete guarded Windows gates remain green. Evidence artifact `10606129867` has SHA-256 `fae23969bc75dbe5f22b89c4ce651ed26a4cc123e9ddcafc579cc07efa03a1f8`.
 
 **A053 clarification:** The original A053 acceptance text treated `--write-pages` as a safe neighboring control. That characterization was incorrect because upstream opens deterministic dump files for write/truncate. A053's landed production repair remains correct and scoped to local response substitution; A055 separately corrects the write-side boundary without rewriting history.

@@ -2093,6 +2093,47 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryIgnoresPlaylistMediaLikeThumbnailSidecars() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string stem = Path.Combine(fixture.Root, "Playlist Cover");
+            string info = stem + ".info.json";
+            string thumbnail = stem + ".gif";
+            File.WriteAllText(info,
+                "{\"_type\":\"playlist\",\"id\":\"PL-audit\",\"extractor_key\":\"YoutubeTab\",\"thumbnails\":[{\"ext\":\"gif\",\"url\":\"https://example.invalid/playlist.gif\"}]}",
+                new UTF8Encoding(false));
+            File.WriteAllText(thumbnail, "playlist-thumbnail", new UTF8Encoding(false));
+            byte[] infoBefore = File.ReadAllBytes(info);
+            byte[] thumbnailBefore = File.ReadAllBytes(thumbnail);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(true, DownloadHistoryCanReconcile(rebuilt));
+            Equal(0, Get(rebuilt, "CompletedMedia"));
+            Equal(0, Get(rebuilt, "UnresolvedMedia"));
+            Equal(0, DownloadHistoryArchiveLines(fixture.Archive).Length);
+            Require(infoBefore.SequenceEqual(File.ReadAllBytes(info)), "Playlist thumbnail classification rewrote playlist metadata");
+            Require(thumbnailBefore.SequenceEqual(File.ReadAllBytes(thumbnail)), "Playlist thumbnail classification rewrote playlist thumbnail");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string stem = Path.Combine(fixture.Root, "Playlist Mismatch");
+            File.WriteAllText(stem + ".info.json",
+                "{\"_type\":\"playlist\",\"id\":\"PL-mismatch\",\"extractor_key\":\"YoutubeTab\",\"thumbnails\":[{\"ext\":\"jpg\",\"url\":\"https://example.invalid/playlist.jpg\"}]}",
+                new UTF8Encoding(false));
+            string candidate = stem + ".gif";
+            File.WriteAllText(candidate, "unknown-gif", new UTF8Encoding(false));
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Require(DownloadHistoryStateName(rebuilt) == "Partial" || DownloadHistoryStateName(rebuilt) == "Unsafe",
+                "Playlist metadata with a mismatched thumbnail extension hid an unknown media-like file");
+            Equal(false, DownloadHistoryCanReconcile(rebuilt));
+            Equal(1, Get(rebuilt, "UnresolvedMedia"));
+            Require(!File.Exists(fixture.Archive), "Mismatched playlist thumbnail metadata caused an archive rewrite");
+            Require(File.Exists(candidate), "Mismatched playlist thumbnail candidate was modified");
+        }
+    }
+
+
     private static void DownloadHistoryIgnoresFailedAndSidecarFiles() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             File.WriteAllText(Path.Combine(fixture.Root, "Video-9qFjkwAElDs.mp4.part"), "partial");
@@ -3205,6 +3246,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ExplicitRebuildRecoversAuthoritativeMissingEntry", DownloadHistoryExplicitRebuildRecoversAuthoritativeMissingEntry);
         Test("DOWNLOAD_HISTORY.InventoriesGifMediaConservatively", DownloadHistoryInventoriesGifMediaConservatively);
         Test("DOWNLOAD_HISTORY.IgnoresIndexedThumbnailSidecars", DownloadHistoryIgnoresIndexedThumbnailSidecars);
+        Test("DOWNLOAD_HISTORY.IgnoresPlaylistMediaLikeThumbnailSidecars", DownloadHistoryIgnoresPlaylistMediaLikeThumbnailSidecars);
         Test("DOWNLOAD_HISTORY.IgnoresFailedAndSidecarFiles", DownloadHistoryIgnoresFailedAndSidecarFiles);
         Test("DOWNLOAD_HISTORY.DisabledIntervalWithoutIdsFailsSafe", DownloadHistoryDisabledIntervalWithoutIdsFailsSafe);
         Test("DOWNLOAD_HISTORY.MissingParentHardStopsWithoutPersistence", DownloadHistoryMissingParentHardStopsWithoutPersistence);

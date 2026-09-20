@@ -759,7 +759,7 @@ internal static partial class AuditRegression {
             string arguments, error;
             object execution;
 
-            foreach (string custom in new[] { "--test", "--tes" }) {
+            foreach (string custom in new[] { "--test", "--tes", "--te" }) {
                 Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
                     custom, out arguments, out error, out execution));
                 Require(error.IndexOf("test", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -790,6 +790,7 @@ internal static partial class AuditRegression {
                 "--update",
                 "--update-to custom@example",
                 "--ffmpeg-location \"C:\\audit\\ffmpeg.exe\"",
+                "--ffmpeg \"C:\\audit\\ffmpeg.exe\"",
                 "--downloader \"C:\\audit\\aria2c.exe\"",
                 "--external-downloader \"..\\audit\\curl.exe\"",
                 "--js-runtimes \"node:C:\\audit\\node.exe\""
@@ -858,6 +859,19 @@ internal static partial class AuditRegression {
                 string literalPhysical = Path.Combine(fixture.Root, "$" + dollarVariable + "%" + percentVariable + "%", "history.txt");
                 string escaped = (string)Call(fixture.History, null, "EscapeYtDlpLiteralPathForArgument", literalPhysical);
                 Equal(literalPhysical, Call(fixture.History, null, "ResolveYtDlpDirectPath", escaped));
+
+                string privateUseRoot = Path.Combine(fixture.Root, "\uE000literal", "media");
+                Equal(Path.GetFullPath(privateUseRoot),
+                    Call(fixture.History, null, "ResolveActiveDownloadRoot", privateUseRoot));
+
+                string quotedLiteralPhysical = Path.Combine(
+                    fixture.Root,
+                    "'$" + dollarVariable + "%" + percentVariable + "%'",
+                    "$" + dollarVariable + "%" + percentVariable + "%",
+                    "history.txt");
+                string quotedEscaped = (string)Call(fixture.History, null, "EscapeYtDlpLiteralPathForArgument", quotedLiteralPhysical);
+                Equal(Path.GetFullPath(quotedLiteralPhysical),
+                    Call(fixture.History, null, "ResolveYtDlpDirectPath", quotedEscaped));
 
                 string dynamicRoot = Path.Combine(fixture.Root, "%(uploader)s");
                 Throws<InvalidOperationException>(delegate {
@@ -1256,6 +1270,45 @@ internal static partial class AuditRegression {
             Equal("Healthy", DownloadHistoryStateName(analysis));
             Equal(1, Get(analysis, "FilenameRecovered"));
             Equal(0, Get(analysis, "UnresolvedMedia"));
+        }
+    }
+
+    private static void DownloadHistoryRebuildsDerivedMediaAfterTotalArchiveLoss() {
+        const string id = "9qFjkwAElDs";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string parent = DownloadHistoryWriteMediaWithInfo(fixture.Root, "Z Parent-" + id + ".mp4", "Youtube", id);
+            string info = Path.ChangeExtension(parent, ".info.json");
+            string chapter = DownloadHistoryWriteMedia(fixture.Root, "A Chapter - 001 Intro [" + id + "].mp4");
+            string keptFormat = DownloadHistoryWriteMedia(fixture.Root, "B Parent-" + id + ".f137.webm");
+            byte[] parentBefore = File.ReadAllBytes(parent);
+            byte[] infoBefore = File.ReadAllBytes(info);
+            byte[] chapterBefore = File.ReadAllBytes(chapter);
+            byte[] keptBefore = File.ReadAllBytes(keptFormat);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(true, DownloadHistoryCanReconcile(rebuilt));
+            Equal(3, Get(rebuilt, "CompletedMedia"));
+            Equal(1, Get(rebuilt, "MetadataRecovered"));
+            Equal(2, Get(rebuilt, "FilenameRecovered"));
+            Equal(0, Get(rebuilt, "UnresolvedMedia"));
+            Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+            Require(parentBefore.SequenceEqual(File.ReadAllBytes(parent)), "Derived-media rebuild rewrote canonical media");
+            Require(infoBefore.SequenceEqual(File.ReadAllBytes(info)), "Derived-media rebuild rewrote canonical metadata");
+            Require(chapterBefore.SequenceEqual(File.ReadAllBytes(chapter)), "Derived-media rebuild rewrote split chapter output");
+            Require(keptBefore.SequenceEqual(File.ReadAllBytes(keptFormat)), "Derived-media rebuild rewrote retained format output");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMediaWithInfo(fixture.Root, "Parent-" + id + ".mp4", "Youtube", id);
+            string unrelated = DownloadHistoryWriteMedia(fixture.Root, "Unrelated-UNKNOWN_MEDIA.mp4");
+            byte[] unrelatedBefore = File.ReadAllBytes(unrelated);
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Require(DownloadHistoryStateName(rebuilt) == "Partial" || DownloadHistoryStateName(rebuilt) == "Unsafe",
+                "Unrelated unresolved media did not keep rebuild fail-closed");
+            Equal(false, DownloadHistoryCanReconcile(rebuilt));
+            Require(!File.Exists(fixture.Archive), "Fail-closed derived-media rebuild wrote an archive despite unrelated unresolved media");
+            Require(unrelatedBefore.SequenceEqual(File.ReadAllBytes(unrelated)), "Fail-closed derived-media rebuild modified unrelated media");
         }
     }
 
@@ -2773,6 +2826,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RecoversRestrictedYtDlpIdSanitization", DownloadHistoryRecoversRestrictedYtDlpIdSanitization);
         Test("DOWNLOAD_HISTORY.RecoversSanitizedProviderIds", DownloadHistoryRecoversSanitizedProviderIds);
         Test("DOWNLOAD_HISTORY.RecognizesSplitChapterIds", DownloadHistoryRecognizesSplitChapterIds);
+        Test("DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss", DownloadHistoryRebuildsDerivedMediaAfterTotalArchiveLoss);
         Test("DOWNLOAD_HISTORY.DoesNotInferYoutubeFromIdShape", DownloadHistoryDoesNotInferYoutubeFromIdShape);
         Test("DOWNLOAD_HISTORY.RejectsDisplayExtractorAsNativeIdentity", DownloadHistoryRejectsDisplayExtractorAsNativeIdentity);
         Test("DOWNLOAD_HISTORY.UsesTopLevelInfoJsonIdentity", DownloadHistoryUsesTopLevelInfoJsonIdentity);

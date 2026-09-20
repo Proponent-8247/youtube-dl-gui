@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "base_sha": "b1949cafa3b2a4799127493d9694a6d670e3d793",
+  "base_sha": "462068002eb7cc66755b36650b1199a7937d29dd",
   "expected_failures": [
     "DOWNLOAD_HISTORY.RejectsTestModePartialCompletion",
     "DOWNLOAD_HISTORY.RejectsExecutablePathAndSelfUpdateOverrides",

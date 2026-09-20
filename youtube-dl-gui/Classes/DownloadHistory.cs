@@ -958,6 +958,10 @@ internal static class DownloadHistory {
                 error = "Custom output templates or paths are not allowed while Download History protection is enabled because the app must keep %(id)s-bearing media inside the validated library namespace.";
                 return false;
             }
+            if (ContainsLongOptionOrAbbreviation(customArguments, "--write-pages", "--write-pa")) {
+                error = "Extractor page-file writes are not allowed while Download History protection is enabled because yt-dlp writes deterministic .dump files in the provider working directory and can overwrite protected state. Use --dump-pages for console debugging or disable Download History.";
+                return false;
+            }
             if (ContainsOption(customArguments, "--load-info-json") ||
                 ContainsLongOptionOrAbbreviation(customArguments, "--load-pages", "--load-p") ||
                 ContainsOption(customArguments, "--use-extractors") || ContainsOption(customArguments, "--ies") ||

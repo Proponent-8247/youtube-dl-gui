@@ -1542,6 +1542,38 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsLocalExtractorPageSubstitution() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string custom in new[] { "--load-pages", "--load-p" }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    custom, out arguments, out error, out execution));
+                Require(error.IndexOf("page", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("source", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("extract", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Local extractor-page substitution was rejected without an actionable explanation: " + custom);
+                Equal(null, execution);
+            }
+
+            foreach (string custom in new[] { "--write-pages", "--dump-pages" }) {
+                Require(DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    custom, out arguments, out error, out execution),
+                    "Read-only extractor page debugging was unnecessarily blocked: " + custom + " :: " + error);
+                Require(execution != null, "Safe page-debug option lost the protected execution context: " + custom);
+            }
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--load-pages", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+            Equal(null, execution);
+        }
+    }
+
+
     private static void DownloadHistoryDoesNotInferYoutubeFromIdShape() {
         const string ambiguousId = "ABCDEFGHIJK";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -3060,6 +3092,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RecognizesSplitChapterIds", DownloadHistoryRecognizesSplitChapterIds);
         Test("DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss", DownloadHistoryRebuildsDerivedMediaAfterTotalArchiveLoss);
         Test("DOWNLOAD_HISTORY.ValidatesRetainedFormatComponents", DownloadHistoryValidatesRetainedFormatComponents);
+        Test("DOWNLOAD_HISTORY.RejectsLocalExtractorPageSubstitution", DownloadHistoryRejectsLocalExtractorPageSubstitution);
         Test("DOWNLOAD_HISTORY.DoesNotInferYoutubeFromIdShape", DownloadHistoryDoesNotInferYoutubeFromIdShape);
         Test("DOWNLOAD_HISTORY.RejectsDisplayExtractorAsNativeIdentity", DownloadHistoryRejectsDisplayExtractorAsNativeIdentity);
         Test("DOWNLOAD_HISTORY.UsesTopLevelInfoJsonIdentity", DownloadHistoryUsesTopLevelInfoJsonIdentity);

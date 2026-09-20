@@ -104,7 +104,8 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A047 | High | Fixed / regression-verified | A dangling value-taking custom option can consume the first app-owned protected suffix token, weakening config/plugin/archive isolation without using a blocked option. |
 | DH-A048 | High | Fixed / regression-verified | Archive validation uses BOM-detecting/replacement-tolerant .NET text decoding instead of yt-dlp's strict UTF-8 archive semantics, so the app can accept a ledger yt-dlp will misread or reject. |
 | DH-A049 | High | Fixed / regression-verified | After total archive loss, same-scan authoritative identities now recover only proven split-chapter/retained-format derivatives; unrelated, thumbnail-like, or unselected-format files remain fail-closed. |
-| DH-A050 | High | Verified / repair pending | Protected error-suppression controls can let yt-dlp publish a native archive identity after failed postprocessing or when no downloadable format exists. |
+| DH-A050 | High | Fixed / regression-verified | Protected mode now rejects error-suppression controls that can publish native history without a completed requested media artifact. |
+| DH-A051 | High | Verified / repair pending | yt-dlp skips unavailable fragments by default (and the app normally requests that behavior), yet a fragmented download with missing pieces can still reach native archive success. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1320,5 +1321,27 @@ Current yt-dlp legitimately creates completed derivative media that does not rec
 6. Rerun the complete guarded Windows Debug/Release/full-regression gates.
 
 **Baseline proof:** Test commit `9af0e2c510f10102d4c3d59016ffd7d0e71c2165` adds `DOWNLOAD_HISTORY.RejectsFalseCompletionErrorControls`. Windows Audit build `35509192480` succeeds, while verification run `35509192471` fails on exactly that Download History regression: expected protected rejection, actual acceptance.
+
+**Closure:** Guarded run `35509324524` landed `f0625eb0970178dae0088db5ab046f8a3f599d4d` (`fix: reject false-completion error controls`) and cleanup `a78deb0c49e1dfaf527bf11d075e393228562c28`. The accepted filter blocks `-i/--ignore-errors` and `--ignore-no-formats-error`, including current unambiguous abbreviations, while preserving the fail-closed neighboring controls and disabled-history behavior. Evidence artifact `10604828868` has SHA-256 `178c5cf4d5d8d872695f6112f3cdb3884c2195a64110e97aa4276962f83a5dc1`.
+
+### DH-A051 — Fragment skipping can archive incomplete fragmented media
+
+**Priority / state:** High duplicate-prevention correctness risk / VERIFIED against current yt-dlp fragment downloader behavior and both app argument builders.
+
+**Finding:** Current yt-dlp defaults `skip_unavailable_fragments` to enabled for fragmented media. When a nonfatal DASH/HLS fragment cannot be downloaded, the native fragment downloader logs that the fragment is skipped, continues assembling the remaining fragments, returns success for the non-empty output, and the normal `process_info` path can set `__write_download_archive = True`. The app also normally emits `--skip-unavailable-fragments` when its Skip Unavailable Fragments setting is enabled, which is the stored default.
+
+**Impact:** A protected download can permanently record the source extractor+ID after producing media with missing fragments. Later protected runs can then skip that source as already downloaded, preventing an automatic retry that could produce the complete artifact.
+
+**Required acceptance:**
+
+1. Reject custom `--skip-unavailable-fragments` and alias `--no-abort-on-unavailable-fragments`, including current accepted long abbreviations, while Download History is enabled.
+2. Preserve `--abort-on-unavailable-fragments` and `--no-skip-unavailable-fragments` as compatible fail-closed controls.
+3. Append a final app-owned `--abort-on-unavailable-fragments` to the protected suffix so it overrides yt-dlp's default and the app's earlier standard/extended fragment-skip setting.
+4. Preserve the existing app setting and disabled-history behavior outside protected runs; do not globally change normal downloader defaults.
+5. Add regression coverage for custom aliases/abbreviations and for both standard and extended argument builders with fragment skipping enabled, proving the final protected abort directive occurs after the earlier skip directive.
+6. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test commit `d79e4856a455e5288b093538eb58389dbd0c20ea` adds `DOWNLOAD_HISTORY.ForcesCompleteFragmentDownloads`. Windows Audit build `35509561195` succeeds, while verification run `35509561205` fails on exactly that Download History regression: expected protected rejection, actual acceptance.
+
 
 

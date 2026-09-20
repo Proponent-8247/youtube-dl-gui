@@ -2111,11 +2111,51 @@ internal static class DownloadHistory {
                 return false;
             }
 
-            if (root.TryGetValue("format_id", out object? combinedValue) && combinedValue is string combined) {
-                return combined.Split(new[] { '+' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Any(value => string.Equals(value, formatId, StringComparison.Ordinal));
+            if (!root.TryGetValue("format_id", out object? combinedValue) || combinedValue is not string combined ||
+                !root.TryGetValue("formats", out object? formatsValue) || formatsValue is not object[] formats) {
+                return false;
             }
-            return false;
+
+            HashSet<string> knownFormatIds = new(StringComparer.Ordinal);
+            foreach (object value in formats) {
+                if (value is not Dictionary<string, object> format ||
+                    !format.TryGetValue("format_id", out object? idValue)) continue;
+                string? knownId = Convert.ToString(idValue, System.Globalization.CultureInfo.InvariantCulture);
+                if (!knownId.IsNullEmptyWhitespace()) knownFormatIds.Add(knownId!);
+            }
+            if (!knownFormatIds.Contains(formatId) || combined.Length == 0) return false;
+
+            bool[] withoutTarget = new bool[combined.Length + 1];
+            bool[] withTarget = new bool[combined.Length + 1];
+            withoutTarget[0] = true;
+
+            for (int position = 0; position < combined.Length; position++) {
+                if (!withoutTarget[position] && !withTarget[position]) continue;
+
+                foreach (string candidate in knownFormatIds) {
+                    if (candidate.Length == 0 || position + candidate.Length > combined.Length ||
+                        string.CompareOrdinal(combined, position, candidate, 0, candidate.Length) != 0) {
+                        continue;
+                    }
+
+                    int end = position + candidate.Length;
+                    int next;
+                    if (end == combined.Length) next = end;
+                    else {
+                        if (combined[end] != '+') continue;
+                        next = end + 1;
+                    }
+
+                    bool isTarget = string.Equals(candidate, formatId, StringComparison.Ordinal);
+                    if (withoutTarget[position]) {
+                        if (isTarget) withTarget[next] = true;
+                        else withoutTarget[next] = true;
+                    }
+                    if (withTarget[position]) withTarget[next] = true;
+                }
+            }
+
+            return withTarget[combined.Length] && !withoutTarget[combined.Length];
         }
         catch (IOException) { return false; }
         catch (UnauthorizedAccessException) { return false; }

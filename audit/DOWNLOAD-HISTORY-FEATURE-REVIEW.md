@@ -108,6 +108,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A051 | High | Fixed / regression-verified | Protected mode now rejects fragment-skipping requests and appends a final fail-closed unavailable-fragment directive after standard/extended settings. |
 | DH-A052 | High | Fixed / regression-verified | Retained `.f<format_id>` recovery now supports filename-valid format IDs only when adjacent authoritative metadata proves the exact selected format, without generic `.f…` promotion. |
 | DH-A053 | High | Fixed / regression-verified | Protected mode rejects local extractor page substitution through hidden yt-dlp `--load-pages` while preserving page-dump debugging. |
+| DH-A054 | High | Verified / repair pending | Clean info JSON strips `requested_formats`; blindly splitting merged top-level `format_id` on `+` cannot prove retained component selection when a real format ID itself contains `+`. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1400,3 +1401,27 @@ Test-only commit `773460b5aefdbc38590cb77631d244e5c0803c37` corrects that fixtur
 **Baseline proof:** Test commit `d197326167f7a0dd41194470090ee3f6727cc281` adds `DOWNLOAD_HISTORY.RejectsLocalExtractorPageSubstitution`. Windows Audit build `35514974374` succeeds. Verification run `35514974398` fails on exactly that Download History regression (`False` expected for protected `--load-pages`, actual `True`).
 
 **Closure:** Guarded run `35515082750` landed `e88cc40c301be14cf15a971a2991373d20cd20cc` (`fix: reject local extractor page substitution`) and cleanup `60775289c91a325b89eb57f1c5f4fcc899699fc3`. The targeted regression passes after repair and the complete guarded Windows Debug/Release/full-regression gates are green. Evidence artifact `10606891305` has SHA-256 `22b88fff72b4f417c4a6e3b3cec618f28cd4bc2aeb8f2f28a5c14fe18ea6e5bd`.
+
+
+### DH-A054 — Clean merged format IDs are ambiguous when selected IDs contain plus signs
+
+**Priority / state:** High rebuild correctness/integrity risk / VERIFIED against current A052 recovery logic and current yt-dlp clean-info serialization.
+
+**Finding:** Protected mode relies on clean per-media info JSON. yt-dlp's clean-info serialization removes `requested_formats` but preserves the top-level selected `format_id` and the `formats` catalogue. For merged downloads, yt-dlp builds the top-level value by joining selected format IDs with `+`. Individual format IDs are not restricted from containing `+`; source-derived HLS group/name values can legitimately include it, and retained component filenames prepend the exact individual ID as `.f<format_id>`.
+
+A052 currently falls back to `combined.Split('+')` when `requested_formats` is absent. Therefore a selected ID such as `audio+main` cannot be recovered from `video+audio+main`; conversely, an unselected available ID such as `main` can be falsely treated as selected solely because it appears after a separator inside another selected ID.
+
+**Impact:** After total archive loss, legitimate retained components can make an otherwise recoverable library fail, or an unproven component can be promoted into the recovered native identity family. The latter weakens the authoritative-metadata boundary established by A052.
+
+**Required acceptance:**
+
+1. Keep `requested_formats` authoritative when it is present.
+2. For clean info JSON without `requested_formats`, require the preserved `formats` catalogue and parse the top-level combined `format_id` only as complete catalogue IDs separated by `+`.
+3. A candidate format is proven selected only when at least one valid complete decomposition exists and **every** valid decomposition contains that exact candidate.
+4. If the combined string has multiple valid decompositions that disagree about the candidate, fail closed.
+5. If no persisted catalogue can prove a retained `.f<format_id>` component, fail closed rather than blindly splitting.
+6. Preserve A049/A052 split-chapter/component behavior, one-pass filesystem inventory, and byte-for-byte media/sidecar immutability.
+7. Add end-to-end regressions for a legitimate selected `audio+main` component, an ambiguous/unselected `main` component, and missing-catalogue fail-closed behavior.
+8. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test commit `731838bf173254b7a33cf09e061b2d3811856dfa` adds `DOWNLOAD_HISTORY.DisambiguatesCleanMergedFormatIds` and makes the earlier clean component-only fixtures carry a realistic preserved `formats` catalogue. Windows Audit build `35515302319` succeeds. Verification run `35515302359` fails only the new Download History regression (`Healthy` expected, `Unsafe` actual).

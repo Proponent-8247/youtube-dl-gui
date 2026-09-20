@@ -1398,13 +1398,13 @@ internal static partial class AuditRegression {
     private static void DownloadHistoryRebuildsDerivedMediaAfterTotalArchiveLoss() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            string parent = DownloadHistoryWriteMediaWithInfo(fixture.Root, "Z Parent-" + id + ".mp4", "Youtube", id);
+            string parent = DownloadHistoryWriteMedia(fixture.Root, "Z Parent-" + id + ".mp4");
             string info = Path.ChangeExtension(parent, ".info.json");
             File.WriteAllText(info,
-                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"requested_formats\":[{\"format_id\":\"137\"}],\"format_id\":\"137\"}",
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"requested_formats\":[{\"format_id\":\"137\"},{\"format_id\":\"140\"}],\"format_id\":\"137+140\"}",
                 new UTF8Encoding(false));
             string chapter = DownloadHistoryWriteMedia(fixture.Root, "A Chapter - 001 Intro [" + id + "].mp4");
-            string keptFormat = DownloadHistoryWriteMedia(fixture.Root, "B Parent-" + id + ".f137.webm");
+            string keptFormat = DownloadHistoryWriteMedia(fixture.Root, "Z Parent-" + id + ".f137.webm");
             byte[] parentBefore = File.ReadAllBytes(parent);
             byte[] infoBefore = File.ReadAllBytes(info);
             byte[] chapterBefore = File.ReadAllBytes(chapter);

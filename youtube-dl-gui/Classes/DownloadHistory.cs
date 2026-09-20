@@ -918,6 +918,12 @@ internal static class DownloadHistory {
                 error = "--test is not allowed while Download History protection is enabled because yt-dlp records the native source identity after a successful partial test sample. Disable Download History for extractor test downloads.";
                 return false;
             }
+            if (ContainsShortOption(customArguments, "-i") ||
+                ContainsLongOptionOrAbbreviation(customArguments, "--ignore-errors", "--ignore-e") ||
+                ContainsLongOptionOrAbbreviation(customArguments, "--ignore-no-formats-error", "--ignore-n")) {
+                error = "Error-suppression modes that can publish a native archive identity without a completed requested media artifact are not allowed while Download History protection is enabled. Remove --ignore-errors/--ignore-no-formats-error or disable Download History.";
+                return false;
+            }
             if (ContainsShortOption(customArguments, "-U") ||
                 ContainsLongOptionOrAbbreviation(customArguments, "--update", "--update") ||
                 ContainsLongOptionOrAbbreviation(customArguments, "--update-to", "--update-")) {

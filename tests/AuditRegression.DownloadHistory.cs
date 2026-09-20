@@ -1427,7 +1427,7 @@ internal static partial class AuditRegression {
             string ownerStem = Path.Combine(fixture.Root, "Components-" + id);
             string info = ownerStem + ".info.json";
             File.WriteAllText(info,
-                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"format_id\":\"137+140\"}",
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"format_id\":\"137+140\",\"formats\":[{\"format_id\":\"137\"},{\"format_id\":\"140\"},{\"format_id\":\"999\"}]}",
                 new UTF8Encoding(false));
             string videoComponent = DownloadHistoryWriteMedia(fixture.Root, "Components-" + id + ".f137.webm");
             string audioComponent = DownloadHistoryWriteMedia(fixture.Root, "Components-" + id + ".f140.m4a");
@@ -1450,7 +1450,7 @@ internal static partial class AuditRegression {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string ownerStem = Path.Combine(fixture.Root, "Unexpected-" + id);
             File.WriteAllText(ownerStem + ".info.json",
-                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"format_id\":\"137+140\"}",
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"format_id\":\"137+140\",\"formats\":[{\"format_id\":\"137\"},{\"format_id\":\"140\"},{\"format_id\":\"999\"}]}",
                 new UTF8Encoding(false));
             string unexpected = DownloadHistoryWriteMedia(fixture.Root, "Unexpected-" + id + ".f999.webm");
             byte[] unexpectedBefore = File.ReadAllBytes(unexpected);
@@ -1541,6 +1541,71 @@ internal static partial class AuditRegression {
             Require(File.Exists(unexpected), "Inconsistent retained-format metadata modified the candidate");
         }
     }
+
+    private static void DownloadHistoryDisambiguatesCleanMergedFormatIds() {
+        const string id = "9qFjkwAElDs";
+
+        // Clean yt-dlp info JSON removes requested_formats. A selected format ID may itself
+        // contain '+', so the merged top-level format_id must be decomposed against the
+        // preserved formats catalogue instead of blindly splitting on every plus sign.
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string ownerStem = Path.Combine(fixture.Root, "Plus-" + id);
+            string info = ownerStem + ".info.json";
+            File.WriteAllText(info,
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"format_id\":\"video+audio+main\",\"formats\":[{\"format_id\":\"video\"},{\"format_id\":\"audio+main\"},{\"format_id\":\"main\"}]}",
+                new UTF8Encoding(false));
+            string component = DownloadHistoryWriteMedia(fixture.Root, "Plus-" + id + ".faudio+main.m4a");
+            byte[] infoBefore = File.ReadAllBytes(info);
+            byte[] componentBefore = File.ReadAllBytes(component);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(true, DownloadHistoryCanReconcile(rebuilt));
+            Equal(1, Get(rebuilt, "CompletedMedia"));
+            Equal(1, Get(rebuilt, "IdentifiedMedia"));
+            Equal(0, Get(rebuilt, "UnresolvedMedia"));
+            Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+            Require(infoBefore.SequenceEqual(File.ReadAllBytes(info)), "Plus-bearing format proof rewrote clean metadata");
+            Require(componentBefore.SequenceEqual(File.ReadAllBytes(component)), "Plus-bearing format proof rewrote retained media");
+        }
+
+        // If the same combined string has multiple valid decompositions, a component is
+        // recoverable only when every decomposition proves that exact format was selected.
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string ownerStem = Path.Combine(fixture.Root, "Ambiguous-" + id);
+            File.WriteAllText(ownerStem + ".info.json",
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"format_id\":\"video+audio+main\",\"formats\":[{\"format_id\":\"video\"},{\"format_id\":\"audio+main\"},{\"format_id\":\"audio\"},{\"format_id\":\"main\"}]}",
+                new UTF8Encoding(false));
+            string ambiguous = DownloadHistoryWriteMedia(fixture.Root, "Ambiguous-" + id + ".fmain.m4a");
+            byte[] ambiguousBefore = File.ReadAllBytes(ambiguous);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Require(DownloadHistoryStateName(rebuilt) == "Partial" || DownloadHistoryStateName(rebuilt) == "Unsafe",
+                "Ambiguous clean format_id decomposition promoted an unproven component");
+            Equal(false, DownloadHistoryCanReconcile(rebuilt));
+            Equal(1, Get(rebuilt, "UnresolvedMedia"));
+            Require(!File.Exists(fixture.Archive), "Ambiguous clean format proof caused an archive rewrite");
+            Require(ambiguousBefore.SequenceEqual(File.ReadAllBytes(ambiguous)), "Ambiguous clean format proof modified retained media");
+        }
+
+        // A .f<format> component needs persisted catalogue evidence after clean-info stripping.
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string ownerStem = Path.Combine(fixture.Root, "NoCatalogue-" + id);
+            File.WriteAllText(ownerStem + ".info.json",
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"format_id\":\"137+140\"}",
+                new UTF8Encoding(false));
+            string component = DownloadHistoryWriteMedia(fixture.Root, "NoCatalogue-" + id + ".f137.webm");
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Require(DownloadHistoryStateName(rebuilt) == "Partial" || DownloadHistoryStateName(rebuilt) == "Unsafe",
+                "Retained component without a persisted formats catalogue was treated as authoritatively selected");
+            Equal(false, DownloadHistoryCanReconcile(rebuilt));
+            Equal(1, Get(rebuilt, "UnresolvedMedia"));
+            Require(!File.Exists(fixture.Archive), "Unproven clean retained component caused an archive rewrite");
+            Require(File.Exists(component), "Unproven clean retained component was modified");
+        }
+    }
+
 
     private static void DownloadHistoryRejectsLocalExtractorPageSubstitution() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -3092,6 +3157,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RecognizesSplitChapterIds", DownloadHistoryRecognizesSplitChapterIds);
         Test("DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss", DownloadHistoryRebuildsDerivedMediaAfterTotalArchiveLoss);
         Test("DOWNLOAD_HISTORY.ValidatesRetainedFormatComponents", DownloadHistoryValidatesRetainedFormatComponents);
+        Test("DOWNLOAD_HISTORY.DisambiguatesCleanMergedFormatIds", DownloadHistoryDisambiguatesCleanMergedFormatIds);
         Test("DOWNLOAD_HISTORY.RejectsLocalExtractorPageSubstitution", DownloadHistoryRejectsLocalExtractorPageSubstitution);
         Test("DOWNLOAD_HISTORY.DoesNotInferYoutubeFromIdShape", DownloadHistoryDoesNotInferYoutubeFromIdShape);
         Test("DOWNLOAD_HISTORY.RejectsDisplayExtractorAsNativeIdentity", DownloadHistoryRejectsDisplayExtractorAsNativeIdentity);

@@ -779,6 +779,47 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsFalseCompletionErrorControls() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string custom in new[] {
+                "-i",
+                "--ignore-errors",
+                "--ignore-e",
+                "--ignore-no-formats-error",
+                "--ignore-n"
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    custom, out arguments, out error, out execution));
+                Require(error.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("archive", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("complete", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("format", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "False-completion error control was not rejected clearly: " + custom);
+                Equal(null, execution);
+            }
+
+            foreach (string custom in new[] {
+                "--no-abort-on-error",
+                "--abort-on-error",
+                "--no-ignore-errors",
+                "--no-ignore-no-formats-error"
+            }) {
+                Require(DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    custom, out arguments, out error, out execution),
+                    "Fail-closed neighboring error control was rejected: " + custom + " :: " + error);
+            }
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "-i --ignore-no-formats-error", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryRejectsExecutablePathAndSelfUpdateOverrides() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -2846,6 +2887,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsRawChildProcessArguments", DownloadHistoryRejectsRawChildProcessArguments);
         Test("DOWNLOAD_HISTORY.RejectsDestructiveCacheRemoval", DownloadHistoryRejectsDestructiveCacheRemoval);
         Test("DOWNLOAD_HISTORY.RejectsTestModePartialCompletion", DownloadHistoryRejectsTestModePartialCompletion);
+        Test("DOWNLOAD_HISTORY.RejectsFalseCompletionErrorControls", DownloadHistoryRejectsFalseCompletionErrorControls);
         Test("DOWNLOAD_HISTORY.RejectsExecutablePathAndSelfUpdateOverrides", DownloadHistoryRejectsExecutablePathAndSelfUpdateOverrides);
         Test("DOWNLOAD_HISTORY.MatchesYtDlpPathExpansion", DownloadHistoryMatchesYtDlpPathExpansion);
         Test("DOWNLOAD_HISTORY.IsolationPrecedesDanglingCustomOptions", DownloadHistoryIsolationPrecedesDanglingCustomOptions);

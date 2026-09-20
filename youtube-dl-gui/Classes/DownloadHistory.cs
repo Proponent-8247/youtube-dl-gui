@@ -605,7 +605,7 @@ internal static class DownloadHistory {
     }
 
     private static string ExpandYtDlpOutputTemplateEnvironmentPath(string path) {
-        const string sentinel = "\uE000";
+        string sentinel = Guid.NewGuid().ToString("N");
         string protectedPath = path.Replace("%%", "%" + sentinel + "%").Replace("$$", "$" + sentinel + "$");
         return ExpandYtDlpEnvironmentVariables(ExpandYtDlpUserPath(protectedPath)).Replace(sentinel, string.Empty);
     }
@@ -649,8 +649,20 @@ internal static class DownloadHistory {
         return Path.GetFullPath(expanded);
     }
 
-    internal static string EscapeYtDlpLiteralPathForArgument(string path) =>
-        path.Replace("$", "$$").Replace("%", "%%");
+    internal static string EscapeYtDlpLiteralPathForArgument(string path) {
+        StringBuilder escaped = new(path.Length + 8);
+        bool inSingleQuotes = false;
+        foreach (char character in path) {
+            if (character == '\'') {
+                inSingleQuotes = !inSingleQuotes;
+                escaped.Append(character);
+                continue;
+            }
+            if (!inSingleQuotes && (character == '$' || character == '%')) escaped.Append(character);
+            escaped.Append(character);
+        }
+        return escaped.ToString();
+    }
 
     internal static string NormalizeConfiguredArchivePathForUi(string value) {
         if (value.IsNullEmptyWhitespace()) return string.Empty;

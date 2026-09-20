@@ -1,0 +1,98 @@
+{
+  "version": 2,
+  "base_sha": "75564589aca982c2b99c40d8436d148ca8cdc846",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.RejectsTestModePartialCompletion",
+    "DOWNLOAD_HISTORY.RejectsExecutablePathAndSelfUpdateOverrides",
+    "DOWNLOAD_HISTORY.MatchesYtDlpPathExpansion",
+    "DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched",
+    "V011.ActualUpdaterRollbackRestoresApplication"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A044-terminal",
+      "message": "fix: close yt-dlp test abbreviation gap",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RejectsTestModePartialCompletion"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            if (ContainsLongOptionOrAbbreviation(customArguments, \"--test\", \"--tes\")) {",
+              "new": "            if (ContainsLongOptionOrAbbreviation(customArguments, \"--test\", \"--te\")) {"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DH-A045-terminal",
+      "message": "fix: close ffmpeg location abbreviation gap",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RejectsExecutablePathAndSelfUpdateOverrides"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            if (ContainsLongOptionOrAbbreviation(customArguments, \"--ffmpeg-location\", \"--ffmpeg-\")) {",
+              "new": "            if (ContainsLongOptionOrAbbreviation(customArguments, \"--ffmpeg-location\", \"--ffmpeg\")) {"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DH-A046-terminal",
+      "message": "fix: preserve exact protected path expansion",
+      "resolves": [
+        "DOWNLOAD_HISTORY.MatchesYtDlpPathExpansion"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "    private static string ExpandYtDlpOutputTemplateEnvironmentPath(string path) {\n        const string sentinel = \"\\uE000\";\n        string protectedPath = path.Replace(\"%%\", \"%\" + sentinel + \"%\").Replace(\"$$\", \"$\" + sentinel + \"$\");\n        return ExpandYtDlpEnvironmentVariables(ExpandYtDlpUserPath(protectedPath)).Replace(sentinel, string.Empty);\n    }",
+              "new": "    private static string ExpandYtDlpOutputTemplateEnvironmentPath(string path) {\n        string sentinel = Guid.NewGuid().ToString(\"N\");\n        string protectedPath = path.Replace(\"%%\", \"%\" + sentinel + \"%\").Replace(\"$$\", \"$\" + sentinel + \"$\");\n        return ExpandYtDlpEnvironmentVariables(ExpandYtDlpUserPath(protectedPath)).Replace(sentinel, string.Empty);\n    }"
+            },
+            {
+              "old": "    internal static string EscapeYtDlpLiteralPathForArgument(string path) =>\n        path.Replace(\"$\", \"$$\").Replace(\"%\", \"%%\");",
+              "new": "    internal static string EscapeYtDlpLiteralPathForArgument(string path) {\n        StringBuilder escaped = new(path.Length + 8);\n        bool inSingleQuotes = false;\n        foreach (char character in path) {\n            if (character == '\\'') {\n                inSingleQuotes = !inSingleQuotes;\n                escaped.Append(character);\n                continue;\n            }\n            if (!inSingleQuotes && (character == '$' || character == '%')) escaped.Append(character);\n            escaped.Append(character);\n        }\n        return escaped.ToString();\n    }"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DH-A049",
+      "message": "fix: recover same-scan derivative media identities",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "        FileNameIdentityMatcher filenameMatcher = new(analysis.ArchiveEntries);\n        try {",
+              "new": "        FileNameIdentityMatcher filenameMatcher = new(analysis.ArchiveEntries);\n        List<string> deferredMedia = [];\n        try {"
+            },
+            {
+              "old": "                    report.CompletedMedia++;\n                    if (entry is null) {\n                        report.UnresolvedMedia++;\n                        continue;\n                    }\n\n                    if (fromMetadata) report.MetadataRecovered++;\n                    else report.FilenameRecovered++;\n\n                    report.IdentifiedMedia++;\n                    analysis.RecoveredEntries.Add(entry);\n                }\n            }",
+              "new": "                    if (entry is null && analysis.RecoverMissingEntries) {\n                        deferredMedia.Add(media);\n                        continue;\n                    }\n\n                    report.CompletedMedia++;\n                    if (entry is null) {\n                        report.UnresolvedMedia++;\n                        continue;\n                    }\n\n                    if (fromMetadata) report.MetadataRecovered++;\n                    else report.FilenameRecovered++;\n\n                    report.IdentifiedMedia++;\n                    analysis.RecoveredEntries.Add(entry);\n                }\n            }\n\n            if (deferredMedia.Count > 0) {\n                FileNameIdentityMatcher recoveredMatcher = new(analysis.ArchiveEntries.Concat(analysis.RecoveredEntries));\n                foreach (string media in deferredMedia) {\n                    report.CompletedMedia++;\n                    string? entry = recoveredMatcher.Match(media);\n                    if (entry is null) {\n                        report.UnresolvedMedia++;\n                        continue;\n                    }\n\n                    report.FilenameRecovered++;\n                    report.IdentifiedMedia++;\n                    analysis.RecoveredEntries.Add(entry);\n                }\n            }"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

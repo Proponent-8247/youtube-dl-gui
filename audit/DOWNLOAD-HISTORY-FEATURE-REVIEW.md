@@ -95,9 +95,14 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A038 | High | Fixed / regression-verified | Custom and app-configured cookie files are path-checked against the prepared archive/backup/lock before protected execution. |
 | DH-A039 | High | Fixed / regression-verified | Protected mode rejects raw postprocessor/external-downloader child arguments while preserving built-in postprocessing and downloader selection. |
 | DH-A040 | High | Fixed / regression-verified | Protected mode blocks recursive yt-dlp cache removal while preserving ordinary cache-directory selection. |
-| DH-A041 | High | Verified | A038's cookie normalizer expands `%VAR%` but not yt-dlp/Python-supported `$VAR` / `${VAR}`, allowing an environment-expanded cookie path to alias protected state. |
-| DH-A042 | High | Verified | Protected filename schemas can produce parent traversal through literal `..`, environment-expanded directory text, or a dynamic directory component whose sanitized value becomes exactly `..`. |
-| DH-A043 | High | Verified | Raw custom arguments can contain NUL; Windows process command-line marshalling terminates at NUL, so the later app-owned archive protection suffix can be truncated. |
+| DH-A041 | High | Fixed / regression-verified | Cookie collision normalization now mirrors yt-dlp path expansion for `%VAR%`, `$VAR`, `${VAR}`, and user-home semantics. |
+| DH-A042 | High | Fixed / regression-verified | Protected filename schemas now reject literal/environment/dynamic parent traversal while preserving yt-dlp-safe escaped and anchored forms. |
+| DH-A043 | High | Fixed / regression-verified | Protected custom arguments now reject embedded NUL before execution-context publication. |
+| DH-A044 | High | Verified | yt-dlp `--test` downloads only a small sample but still reaches the native archive-write success path, so protected test runs can suppress later full downloads. |
+| DH-A045 | High | Verified | Protected custom arguments can select path-qualified child executables/runtimes or self-update yt-dlp, bypassing the validated provider/process boundary. |
+| DH-A046 | High | Verified | Download History resolves active/download archive paths with .NET expansion while yt-dlp applies `expand_path`/output-template expansion, so `$VAR`, `${VAR}`, `~`, and escaped literal sigils can target different physical paths. |
+| DH-A047 | High | Verified | A dangling value-taking custom option can consume the first app-owned protected suffix token, weakening config/plugin/archive isolation without using a blocked option. |
+| DH-A048 | High | Verified | Archive validation uses BOM-detecting/replacement-tolerant .NET text decoding instead of yt-dlp's strict UTF-8 archive semantics, so the app can accept a ledger yt-dlp will misread or reject. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -991,7 +996,14 @@ Current yt-dlp writes per-video `.info.json` before media transfer when `--write
 - Both were closed by guarded workflow job `105974742010`, cleanup commit `c63b966d5e6d04c7f32e6e92979640328dba27ca`. Baseline evidence showed both regressions failing; after A039 only the raw-child regression passed; after A040 both passed and the full Download History suite was green.
 - Evidence artifact `10593375218` has SHA-256 `1d5c9c833d8efe5fb9164c8229baee2c7a8787efd471a58392b0ea18606d85dc`.
 
-DH-A041 through DH-A043 remain open until guarded repair and terminal re-audit.
+- DH-A041: `86682dc27da451ed49cf6714cd750792f93f7c74` (`fix: mirror yt-dlp cookie path expansion`).
+- DH-A042: `220e45b65008fcbbb053eb8c4d0228808b25edb1` (`fix: contain protected filename schemas`).
+- DH-A043: `a65c66faf350f9f187e36fe43af99febbe72542d` (`fix: reject NUL in protected custom arguments`).
+- All three were closed by guarded workflow run `35477418322`, cleanup commit `87fc044b0244a2f4eb1f355d4329bc3c4173111b`. The final run proved the three targeted Download History regressions passing and completed the full guarded Windows build/regression gates.
+- Evidence artifact `10594472660` has SHA-256 `7fb260e24e968d26c69555bde9c5eb1184e45f5824aa60fae038e29f358d0a74`.
+- Several A042 requests were deliberately discarded while the regression was refined against yt-dlp's actual percent/dollar expansion semantics; no discarded production result was accepted. A separate updater rollback regression was observed as flaky and added to the guarded-run allowlist.
+
+DH-A044 through DH-A048 remain open until guarded repair and terminal re-audit.
 
 ### DH-A036 — Unsafe-extension compatibility can escape protected output assumptions
 
@@ -1128,3 +1140,85 @@ DH-A041 through DH-A043 remain open until guarded repair and terminal re-audit.
 **Finding:** Custom arguments are appended before the app-owned Download History suffix. The protected validator checks quote balance and unsafe options but does not reject U+0000. Windows process creation consumes a NUL-terminated command-line buffer; an embedded NUL in the custom string terminates parsing before the later `--download-archive`, plugin/config isolation, and concat safeguards.
 
 **Required acceptance:** reject NUL in custom arguments before preparation/execution publication; do not unnecessarily reject ordinary whitespace/newlines already handled by tokenization; disabled behavior unchanged; add a regression proving the suffix cannot be truncated.
+
+
+### DH-A044 — Test mode records a partial sample as a completed native identity
+
+**Priority / state:** High duplicate-prevention correctness risk / VERIFIED against current yt-dlp downloader and archive-write flow.
+
+**Finding:** yt-dlp's hidden \`--test\` downloader mode intentionally limits media acquisition to a small sample (for HTTP, the downloader uses \`_TEST_FILE_SIZE\`; FFmpeg test mode also applies a file-size cap). A successful test-mode download still follows the normal success/postprocessing path and sets \`__write_download_archive = True\`. Download History currently permits custom \`--test\`.
+
+**Impact:** A protected test invocation can add the source's native extractor+ID to the archive after only a sample is saved. Later normal protected runs then skip the full media as already downloaded.
+
+**Required acceptance:**
+
+1. Reject \`--test\` and its unambiguous long abbreviation while Download History is enabled.
+2. Do not block unrelated format checking/probing mechanisms that do not create a false completed archive record.
+3. Download History disabled behavior remains unchanged.
+4. Add regression coverage and rerun the complete guarded Windows gates.
+
+### DH-A045 — Path-qualified executable/runtime overrides escape the protected process boundary
+
+**Priority / state:** High execution-integrity risk / VERIFIED against current yt-dlp external downloader, FFmpeg, JS runtime, and updater code.
+
+**Finding:** Protected mode blocks explicit exec/plugin/raw-child-argument hooks, but still permits options that select executable paths or replace/restart the provider. Current yt-dlp accepts a downloader name **or executable path**; supported downloader classes validate then execute that selected path. \`--ffmpeg-location\` accepts an executable or containing directory. \`--js-runtimes runtime:path\` passes an explicit executable path into runtime discovery/execution. \`-U/--update\` and \`--update-to\` may replace/restart yt-dlp, with \`--update-to\` accepting alternate update channels/repositories.
+
+**Required acceptance:**
+
+1. Reject custom \`-U\`, \`--update\`, and \`--update-to\` while protected; allow \`--no-update\`.
+2. Reject custom \`--ffmpeg-location\` while protected; the app-owned verified FFmpeg location remains available.
+3. For \`--downloader\` / \`--external-downloader\`, allow only known built-in downloader names (including protocol-prefixed forms and \`native\`); reject path-qualified/arbitrary executable values.
+4. For \`--js-runtimes\`, allow supported bare runtime names without an explicit path and keep \`--no-js-runtimes\`; reject \`runtime:path\`.
+5. Preserve Download History disabled behavior and add neighboring safe controls.
+6. Rerun the complete guarded Windows gates.
+
+### DH-A046 — Download/archive path expansion does not mirror yt-dlp
+
+**Priority / state:** High path-boundary and rebuild-consistency risk / VERIFIED against current app output construction and current yt-dlp \`expand_path\` / \`_outtmpl_expandpath\`.
+
+**Finding:** The app passes \`Downloads.downloadPath\` into the yt-dlp output template, where yt-dlp expands user-home and environment-variable syntax before metadata substitution. Download History resolves the same active root with .NET \`Environment.ExpandEnvironmentVariables\`, which handles \`%NAME%\` but not yt-dlp's \`$NAME\`, \`\${NAME}\`, or \`~\` semantics. Direct archive paths have the same mismatch because yt-dlp applies \`expand_path\` to \`--download-archive\`.
+
+**Impact:** The provider can place media or its archive at a different physical path from the one protected management, locking, inventory, and rebuild logic believes it owns.
+
+**Required acceptance:**
+
+1. Resolve the active download root using the same Windows yt-dlp output-template user/env expansion semantics before history inventory/default-archive decisions.
+2. Resolve configured archive paths using yt-dlp direct \`expand_path\` semantics.
+3. When passing the already-resolved app-owned archive path back to yt-dlp, quote/escape literal \`%\` / \`$\` so yt-dlp resolves to the exact locked path rather than performing a second expansion.
+4. Reject metadata-template fields inside \`Downloads.downloadPath\` while protection is enabled because a single dynamic active inventory root cannot represent per-entry output roots safely.
+5. Keep additional user-selected scan-only roots as ordinary app filesystem paths; they are not yt-dlp output templates.
+6. Apply the same normalization in the Download History dialog's implicit/custom archive comparisons.
+7. Add regressions for \`$VAR\`, \`\${VAR}\`, \`%VAR%\`, \`~\`, literal escaped sigils, and a dynamic-template active root.
+8. Rerun the complete guarded Windows gates.
+
+### DH-A047 — A dangling value-taking custom option can consume the first protected suffix token
+
+**Priority / state:** High protected-argument boundary risk / VERIFIED from current argument ordering and Python optparse value consumption.
+
+**Finding:** Standard and extended builders append raw custom arguments immediately before the app-owned Download History suffix. An otherwise allowed option that requires a value can be left dangling (for example \`--proxy\`); Python's option parser consumes the next argv token as that value even when it begins with \`--\`. The first protected token (\`--ignore-config\`) can therefore be consumed and no longer acts as an option.
+
+**Required acceptance:**
+
+1. Establish the non-negotiable config/plugin isolation prefix before user custom arguments in standard and extended protected commands.
+2. Retain the full app-owned suffix after custom arguments so archive/info-json/concat/compat protections remain authoritative after ordinary user options.
+3. Handle standard custom/mostly-custom and extended custom paths, including any buffer replacement.
+4. Add a regression with a dangling one-value option proving isolation exists before custom input and the protected suffix remains after it.
+5. Download History disabled behavior remains unchanged.
+6. Rerun the complete guarded Windows gates.
+
+### DH-A048 — Native archive decoding is more permissive than yt-dlp
+
+**Priority / state:** High fail-closed ledger-format risk / VERIFIED against current \`TryReadArchive\` and current yt-dlp archive loading.
+
+**Finding:** yt-dlp opens its archive as strict UTF-8 text and strips each line. The app currently calls \`File.ReadAllLines(path)\`, whose StreamReader defaults may detect UTF BOMs (including UTF-16) and use replacement decoding rather than strict UTF-8. A UTF-8 BOM can likewise be hidden from app validation even though yt-dlp treats its leading U+FEFF as part of the first archive record.
+
+**Impact:** Download History can report an archive healthy, prepare/lock it, and then hand yt-dlp bytes that represent different strings or fail native decoding. Duplicate prevention is no longer based on the ledger the app actually validated.
+
+**Required acceptance:**
+
+1. Read archive bytes/lines with strict UTF-8 decoding, no BOM auto-detection, and fail on invalid byte sequences.
+2. Reject a leading UTF-8 BOM/UTF-16 BOM as non-native archive content rather than silently normalizing it.
+3. Keep blank-line handling and exact native \`extractor id\` validation.
+4. Stream validation rather than materializing the entire file where practical.
+5. Add regressions for plain UTF-8, UTF-8 BOM, UTF-16, and malformed UTF-8; protected prep must fail closed for the latter three.
+6. Rerun the complete guarded Windows gates.

@@ -1623,16 +1623,44 @@ internal static partial class AuditRegression {
                 Equal(null, execution);
             }
 
-            foreach (string custom in new[] { "--write-pages", "--dump-pages" }) {
-                Require(DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
-                    custom, out arguments, out error, out execution),
-                    "Read-only extractor page debugging was unnecessarily blocked: " + custom + " :: " + error);
-                Require(execution != null, "Safe page-debug option lost the protected execution context: " + custom);
-            }
+            Require(DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--dump-pages", out arguments, out error, out execution),
+                "Console-only extractor page dumping was unnecessarily blocked: " + error);
+            Require(execution != null, "Console-only page-debug option lost the protected execution context");
 
             Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
                 "--load-pages", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+            Equal(null, execution);
+        }
+    }
+
+
+    private static void DownloadHistoryRejectsExtractorPageDumpWrites() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string custom in new[] { "--write-pages", "--write-pa" }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    custom, out arguments, out error, out execution));
+                Require(error.IndexOf("page", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("write", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("state", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Extractor page-dump write was rejected without an actionable explanation: " + custom);
+                Equal(null, execution);
+            }
+
+            Require(DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--dump-pages", out arguments, out error, out execution),
+                "Console-only page dumping was unnecessarily blocked: " + error);
+            Require(execution != null, "Console-only page dumping lost the protected execution context");
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--write-pages", out arguments, out error, out execution));
             Equal(string.Empty, arguments);
             Equal(null, execution);
         }
@@ -3159,6 +3187,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ValidatesRetainedFormatComponents", DownloadHistoryValidatesRetainedFormatComponents);
         Test("DOWNLOAD_HISTORY.DisambiguatesCleanMergedFormatIds", DownloadHistoryDisambiguatesCleanMergedFormatIds);
         Test("DOWNLOAD_HISTORY.RejectsLocalExtractorPageSubstitution", DownloadHistoryRejectsLocalExtractorPageSubstitution);
+        Test("DOWNLOAD_HISTORY.RejectsExtractorPageDumpWrites", DownloadHistoryRejectsExtractorPageDumpWrites);
         Test("DOWNLOAD_HISTORY.DoesNotInferYoutubeFromIdShape", DownloadHistoryDoesNotInferYoutubeFromIdShape);
         Test("DOWNLOAD_HISTORY.RejectsDisplayExtractorAsNativeIdentity", DownloadHistoryRejectsDisplayExtractorAsNativeIdentity);
         Test("DOWNLOAD_HISTORY.UsesTopLevelInfoJsonIdentity", DownloadHistoryUsesTopLevelInfoJsonIdentity);

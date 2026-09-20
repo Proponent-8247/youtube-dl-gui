@@ -1289,14 +1289,54 @@ internal static partial class AuditRegression {
             Equal("Healthy", DownloadHistoryStateName(rebuilt));
             Equal(true, DownloadHistoryCanReconcile(rebuilt));
             Equal(3, Get(rebuilt, "CompletedMedia"));
-            Equal(1, Get(rebuilt, "MetadataRecovered"));
-            Equal(2, Get(rebuilt, "FilenameRecovered"));
+            Equal(3, Get(rebuilt, "IdentifiedMedia"));
             Equal(0, Get(rebuilt, "UnresolvedMedia"));
             Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
             Require(parentBefore.SequenceEqual(File.ReadAllBytes(parent)), "Derived-media rebuild rewrote canonical media");
             Require(infoBefore.SequenceEqual(File.ReadAllBytes(info)), "Derived-media rebuild rewrote canonical metadata");
             Require(chapterBefore.SequenceEqual(File.ReadAllBytes(chapter)), "Derived-media rebuild rewrote split chapter output");
             Require(keptBefore.SequenceEqual(File.ReadAllBytes(keptFormat)), "Derived-media rebuild rewrote retained format output");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string ownerStem = Path.Combine(fixture.Root, "Components-" + id);
+            string info = ownerStem + ".info.json";
+            File.WriteAllText(info,
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"format_id\":\"137+140\"}",
+                new UTF8Encoding(false));
+            string videoComponent = DownloadHistoryWriteMedia(fixture.Root, "Components-" + id + ".f137.webm");
+            string audioComponent = DownloadHistoryWriteMedia(fixture.Root, "Components-" + id + ".f140.m4a");
+            byte[] infoBefore = File.ReadAllBytes(info);
+            byte[] videoBefore = File.ReadAllBytes(videoComponent);
+            byte[] audioBefore = File.ReadAllBytes(audioComponent);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(true, DownloadHistoryCanReconcile(rebuilt));
+            Equal(2, Get(rebuilt, "CompletedMedia"));
+            Equal(2, Get(rebuilt, "IdentifiedMedia"));
+            Equal(0, Get(rebuilt, "UnresolvedMedia"));
+            Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+            Require(infoBefore.SequenceEqual(File.ReadAllBytes(info)), "Component-only rebuild rewrote owner metadata");
+            Require(videoBefore.SequenceEqual(File.ReadAllBytes(videoComponent)), "Component-only rebuild rewrote retained video format");
+            Require(audioBefore.SequenceEqual(File.ReadAllBytes(audioComponent)), "Component-only rebuild rewrote retained audio format");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string ownerStem = Path.Combine(fixture.Root, "Unexpected-" + id);
+            File.WriteAllText(ownerStem + ".info.json",
+                "{\"id\":\"" + id + "\",\"extractor_key\":\"Youtube\",\"format_id\":\"137+140\"}",
+                new UTF8Encoding(false));
+            string unexpected = DownloadHistoryWriteMedia(fixture.Root, "Unexpected-" + id + ".f999.webm");
+            byte[] unexpectedBefore = File.ReadAllBytes(unexpected);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary", string.Empty, true, false, string.Empty);
+            Require(DownloadHistoryStateName(rebuilt) == "Partial" || DownloadHistoryStateName(rebuilt) == "Unsafe",
+                "Unselected format component did not keep rebuild fail-closed");
+            Equal(false, DownloadHistoryCanReconcile(rebuilt));
+            Equal(1, Get(rebuilt, "UnresolvedMedia"));
+            Require(!File.Exists(fixture.Archive), "Unselected format component caused an archive rewrite");
+            Require(unexpectedBefore.SequenceEqual(File.ReadAllBytes(unexpected)), "Unselected format component was modified");
         }
 
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {

@@ -174,13 +174,7 @@ internal sealed class frmDownloadHistory : Form {
 
     private static string NormalizeConfiguredPath(string value) {
         if (value.IsNullEmptyWhitespace()) return string.Empty;
-        try {
-            string full = Path.GetFullPath(Environment.ExpandEnvironmentVariables(value));
-            string implicitPath = DownloadHistory.EverEnabled && !DownloadHistory.BoundArchivePath.IsNullEmptyWhitespace()
-                ? Path.GetFullPath(Environment.ExpandEnvironmentVariables(DownloadHistory.BoundArchivePath))
-                : Path.GetFullPath(DownloadHistory.DefaultArchivePath);
-            return string.Equals(full, implicitPath, StringComparison.OrdinalIgnoreCase) ? string.Empty : value.Trim();
-        }
+        try { return DownloadHistory.NormalizeConfiguredArchivePathForUi(value); }
         catch { return value.Trim(); }
     }
 

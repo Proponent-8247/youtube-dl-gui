@@ -495,7 +495,7 @@ internal static class DownloadHistory {
     public static bool IsCurrentLibraryPath(string? candidateDownloadPath) {
         try {
             string candidate = candidateDownloadPath.IsNullEmptyWhitespace() ? Downloads.DefaultDownloadPath : candidateDownloadPath!;
-            return PathEquals(GetLibraryRoot(), ResolveLibraryRoot(candidate));
+            return PathEquals(GetLibraryRoot(), ResolveActiveDownloadRoot(candidate));
         }
         catch { return false; }
     }
@@ -505,10 +505,10 @@ internal static class DownloadHistory {
     public static string EffectiveArchivePath {
         get {
             if (!ArchivePath.IsNullEmptyWhitespace()) {
-                return Path.GetFullPath(Environment.ExpandEnvironmentVariables(ArchivePath));
+                return ResolveYtDlpDirectPath(ArchivePath);
             }
             if (EverEnabled && !BoundArchivePath.IsNullEmptyWhitespace()) {
-                return Path.GetFullPath(Environment.ExpandEnvironmentVariables(BoundArchivePath));
+                return Path.GetFullPath(BoundArchivePath);
             }
             return DefaultArchivePath;
         }
@@ -601,6 +601,63 @@ internal static class DownloadHistory {
             }
             return Environment.GetEnvironmentVariable(name) ?? match.Value;
         });
+    }
+
+    private static string ExpandYtDlpOutputTemplateEnvironmentPath(string path) {
+        const string sentinel = "\uE000";
+        string protectedPath = path.Replace("%%", "%" + sentinel + "%").Replace("$$", "$" + sentinel + "$");
+        return ExpandYtDlpEnvironmentVariables(ExpandYtDlpUserPath(protectedPath)).Replace(sentinel, string.Empty);
+    }
+
+    private static bool HasActiveOutputTemplateField(string value) {
+        const string conversionTypes = "diouxXeEfFgGcrsBjhlqDSU";
+        int search = 0;
+        while (search < value.Length) {
+            int tokenStart = value.IndexOf("%(", search, StringComparison.Ordinal);
+            if (tokenStart < 0) return false;
+            int percentStart = tokenStart;
+            while (percentStart > 0 && value[percentStart - 1] == '%') percentStart--;
+            int percentCount = tokenStart - percentStart + 1;
+
+            int close = value.IndexOf(')', tokenStart + 2);
+            if (close < 0) return false;
+            int tokenEnd = close + 1;
+            while (tokenEnd < value.Length && conversionTypes.IndexOf(value[tokenEnd]) < 0) tokenEnd++;
+            if ((percentCount & 1) == 1 && tokenEnd < value.Length) return true;
+            search = tokenEnd < value.Length ? tokenEnd + 1 : close + 1;
+        }
+        return false;
+    }
+
+    internal static string ResolveYtDlpDirectPath(string path) =>
+        Path.GetFullPath(ExpandYtDlpEnvironmentVariables(ExpandYtDlpUserPath(path)));
+
+    internal static string ResolveActiveDownloadRoot(string path) {
+        string candidate = path;
+        if (candidate.StartsWith("./") || candidate.StartsWith(".\\")) {
+            candidate = Path.Combine(Program.ProgramPath, candidate.Substring(2));
+        }
+
+        string expanded = ExpandYtDlpOutputTemplateEnvironmentPath(candidate);
+        if (HasActiveOutputTemplateField(expanded)) {
+            throw new InvalidOperationException("The active download path contains an yt-dlp metadata template field and cannot be represented as one protected inventory root.");
+        }
+
+        // After environment/user expansion, yt-dlp's output-template formatting converts %% to a literal %.
+        expanded = expanded.Replace("%%", "%");
+        return Path.GetFullPath(expanded);
+    }
+
+    internal static string EscapeYtDlpLiteralPathForArgument(string path) =>
+        path.Replace("$", "$$").Replace("%", "%%");
+
+    internal static string NormalizeConfiguredArchivePathForUi(string value) {
+        if (value.IsNullEmptyWhitespace()) return string.Empty;
+        string full = ResolveYtDlpDirectPath(value);
+        string implicitPath = EverEnabled && !BoundArchivePath.IsNullEmptyWhitespace()
+            ? Path.GetFullPath(BoundArchivePath)
+            : DefaultArchivePath;
+        return PathEquals(full, implicitPath) ? string.Empty : value.Trim();
     }
 
     private static bool TryNormalizeCookiePath(string path, out string normalized, out string error) {
@@ -795,6 +852,15 @@ internal static class DownloadHistory {
                 return false;
             }
 
+            try {
+                _ = GetLibraryRoot();
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException or PathTooLongException or System.Security.SecurityException) {
+                LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "The active download path cannot be represented as a single protected inventory root." };
+                error = "Download History cannot protect the active download path: " + ex.Message;
+                return false;
+            }
+
             if (fileNameSchema.IndexOf('"') >= 0 || fileNameSchema.Any(char.IsControl)) {
                 LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "The filename format contains characters that can escape the protected output argument." };
                 error = "Download History cannot protect a filename schema containing quotes or control characters because they can escape the yt-dlp output argument boundary. Remove those characters or disable Download History.";
@@ -939,7 +1005,8 @@ internal static class DownloadHistory {
             if (!RememberFileNameSchema(fileNameSchema, out error)) return false;
             string preparedArchive = EffectiveArchivePath;
             execution = new DownloadHistoryExecution(preparedArchive, KeepBackup, LastReportInternal.ArchiveSnapshot);
-            archiveArguments = $"--ignore-config --no-plugin-dirs --compat-options -allow-unsafe-ext --write-info-json --download-archive \"{preparedArchive}\" --no-break-on-existing --concat-playlist never";
+            string preparedArchiveArgument = EscapeYtDlpLiteralPathForArgument(preparedArchive);
+            archiveArguments = $"--ignore-config --no-plugin-dirs --compat-options -allow-unsafe-ext --write-info-json --download-archive \"{preparedArchiveArgument}\" --no-break-on-existing --concat-playlist never";
             return true;
         }
     }
@@ -1210,7 +1277,7 @@ internal static class DownloadHistory {
             string nextBoundArchivePath = enabled
                 ? (configuredArchivePath.IsNullEmptyWhitespace()
                     ? (oldEverEnabled && !oldBoundArchivePath.IsNullEmptyWhitespace() ? oldBoundArchivePath : Path.Combine(nextBoundLibraryRoot, "yt-dlp-archive.txt"))
-                    : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configuredArchivePath)))
+                    : ResolveYtDlpDirectPath(configuredArchivePath))
                 : oldBoundArchivePath;
             bool nextNeedsReconciliation = enabled
                 ? false
@@ -1586,9 +1653,9 @@ internal static class DownloadHistory {
             libraryRoot = GetLibraryRoot();
             archive = configuredArchivePath.IsNullEmptyWhitespace()
                 ? (EverEnabled && !BoundArchivePath.IsNullEmptyWhitespace()
-                    ? Path.GetFullPath(Environment.ExpandEnvironmentVariables(BoundArchivePath))
+                    ? Path.GetFullPath(BoundArchivePath)
                     : Path.Combine(libraryRoot, "yt-dlp-archive.txt"))
-                : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configuredArchivePath));
+                : ResolveYtDlpDirectPath(configuredArchivePath);
             return true;
         }
         catch (Exception ex) {
@@ -1866,14 +1933,10 @@ internal static class DownloadHistory {
         return @"Local\youtube-dl-gui-download-history-" + string.Concat(digest.Take(12).Select(value => value.ToString("x2")));
     }
 
-    private static string GetLibraryRoot() => ResolveLibraryRoot(Downloads.downloadPath);
+    private static string GetLibraryRoot() => ResolveActiveDownloadRoot(Downloads.downloadPath);
 
-    private static string ResolveLibraryRoot(string path) {
-        if (path.StartsWith("./") || path.StartsWith(".\\")) {
-            path = Path.Combine(Program.ProgramPath, path.Substring(2));
-        }
-        return Path.GetFullPath(Environment.ExpandEnvironmentVariables(path));
-    }
+    private static string ResolveLibraryRoot(string path) =>
+        Path.GetFullPath(Environment.ExpandEnvironmentVariables(path));
 
     private static bool IsCompletedMediaExtension(string ext) =>
         ext is ".mp4" or ".mkv" or ".webm" or ".mov" or ".avi" or ".flv" or ".m4v" or ".3gp" or ".3g2" or

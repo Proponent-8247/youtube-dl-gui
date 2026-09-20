@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "base_sha": "b7a286a125cdb12c9977eb934a769dc2371ec63e",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.DisambiguatesCleanMergedFormatIds"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched",
+    "V011.ActualUpdaterRollbackRestoresApplication"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A054",
+      "message": "fix: prove clean merged retained formats",
+      "resolves": [
+        "DOWNLOAD_HISTORY.DisambiguatesCleanMergedFormatIds"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "    private static bool MetadataSelectsFormatId(string infoPath, string formatId) {\n        try {\n            string json = File.ReadAllText(infoPath);\n            JavaScriptSerializer serializer = new() {\n                MaxJsonLength = Math.Max(2 * 1024 * 1024, json.Length),\n                RecursionLimit = 256\n            };\n            if (serializer.DeserializeObject(json) is not Dictionary<string, object> root) return false;\n\n            if (root.TryGetValue(\"requested_formats\", out object? requestedValue)) {\n                if (requestedValue is not object[] requestedFormats) return false;\n                foreach (object value in requestedFormats) {\n                    if (value is Dictionary<string, object> format &&\n                        format.TryGetValue(\"format_id\", out object? idValue) &&\n                        string.Equals(Convert.ToString(idValue, System.Globalization.CultureInfo.InvariantCulture), formatId, StringComparison.Ordinal)) {\n                        return true;\n                    }\n                }\n                return false;\n            }\n\n            if (root.TryGetValue(\"format_id\", out object? combinedValue) && combinedValue is string combined) {\n                return combined.Split(new[] { '+' }, StringSplitOptions.RemoveEmptyEntries)\n                    .Any(value => string.Equals(value, formatId, StringComparison.Ordinal));\n            }\n            return false;\n        }\n        catch (IOException) { return false; }\n        catch (UnauthorizedAccessException) { return false; }\n        catch (ArgumentException) { return false; }\n        catch (InvalidOperationException) { return false; }\n    }\n",
+              "new": "    private static bool MetadataSelectsFormatId(string infoPath, string formatId) {\n        try {\n            string json = File.ReadAllText(infoPath);\n            JavaScriptSerializer serializer = new() {\n                MaxJsonLength = Math.Max(2 * 1024 * 1024, json.Length),\n                RecursionLimit = 256\n            };\n            if (serializer.DeserializeObject(json) is not Dictionary<string, object> root) return false;\n\n            if (root.TryGetValue(\"requested_formats\", out object? requestedValue)) {\n                if (requestedValue is not object[] requestedFormats) return false;\n                foreach (object value in requestedFormats) {\n                    if (value is Dictionary<string, object> format &&\n                        format.TryGetValue(\"format_id\", out object? idValue) &&\n                        string.Equals(Convert.ToString(idValue, System.Globalization.CultureInfo.InvariantCulture), formatId, StringComparison.Ordinal)) {\n                        return true;\n                    }\n                }\n                return false;\n            }\n\n            if (!root.TryGetValue(\"format_id\", out object? combinedValue) || combinedValue is not string combined ||\n                !root.TryGetValue(\"formats\", out object? formatsValue) || formatsValue is not object[] formats) {\n                return false;\n            }\n\n            HashSet<string> knownFormatIds = new(StringComparer.Ordinal);\n            foreach (object value in formats) {\n                if (value is not Dictionary<string, object> format ||\n                    !format.TryGetValue(\"format_id\", out object? idValue)) continue;\n                string? knownId = Convert.ToString(idValue, System.Globalization.CultureInfo.InvariantCulture);\n                if (!knownId.IsNullEmptyWhitespace()) knownFormatIds.Add(knownId!);\n            }\n            if (!knownFormatIds.Contains(formatId) || combined.Length == 0) return false;\n\n            bool[] withoutTarget = new bool[combined.Length + 1];\n            bool[] withTarget = new bool[combined.Length + 1];\n            withoutTarget[0] = true;\n\n            for (int position = 0; position < combined.Length; position++) {\n                if (!withoutTarget[position] && !withTarget[position]) continue;\n\n                foreach (string candidate in knownFormatIds) {\n                    if (candidate.Length == 0 || position + candidate.Length > combined.Length ||\n                        string.CompareOrdinal(combined, position, candidate, 0, candidate.Length) != 0) {\n                        continue;\n                    }\n\n                    int end = position + candidate.Length;\n                    int next;\n                    if (end == combined.Length) next = end;\n                    else {\n                        if (combined[end] != '+') continue;\n                        next = end + 1;\n                    }\n\n                    bool isTarget = string.Equals(candidate, formatId, StringComparison.Ordinal);\n                    if (withoutTarget[position]) {\n                        if (isTarget) withTarget[next] = true;\n                        else withoutTarget[next] = true;\n                    }\n                    if (withTarget[position]) withTarget[next] = true;\n                }\n            }\n\n            return withTarget[combined.Length] && !withoutTarget[combined.Length];\n        }\n        catch (IOException) { return false; }\n        catch (UnauthorizedAccessException) { return false; }\n        catch (ArgumentException) { return false; }\n        catch (InvalidOperationException) { return false; }\n    }\n"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1685,6 +1685,15 @@ internal static class DownloadHistory {
                     ? Path.GetFullPath(BoundArchivePath)
                     : Path.Combine(libraryRoot, "yt-dlp-archive.txt"))
                 : ResolveYtDlpDirectPath(configuredArchivePath);
+            if (IsPathWithin(libraryRoot, archive) &&
+                !string.Equals(Path.GetExtension(archive), ".txt", StringComparison.OrdinalIgnoreCase)) {
+                error = new DownloadHistoryReport {
+                    State = DownloadHistoryState.Invalid,
+                    CanReconcile = false,
+                    Message = "A Download History archive stored inside the active download directory must use a .txt filename so yt-dlp media and sidecar outputs cannot overwrite the protected ledger."
+                };
+                return false;
+            }
             return true;
         }
         catch (Exception ex) {

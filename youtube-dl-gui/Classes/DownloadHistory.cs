@@ -1031,8 +1031,16 @@ internal static class DownloadHistory {
             }
 
             if (!EnsureReady(out error)) return false;
-            if (!RememberFileNameSchema(fileNameSchema, out error)) return false;
             string preparedArchive = EffectiveArchivePath;
+            if (!TryResolveEffectiveYtDlpCacheRoot(customArguments, out string? cacheRoot, out string cacheError)) {
+                error = cacheError;
+                return false;
+            }
+            if (cacheRoot is not null && IsPotentialYtDlpCacheEntry(preparedArchive, cacheRoot)) {
+                error = "The Download History archive cannot use a yt-dlp cache entry path because built-in cache writes can replace that JSON file. Move the archive outside the effective cache entry namespace, choose a non-colliding cache root, or disable filesystem caching.";
+                return false;
+            }
+            if (!RememberFileNameSchema(fileNameSchema, out error)) return false;
             execution = new DownloadHistoryExecution(preparedArchive, KeepBackup, LastReportInternal.ArchiveSnapshot);
             string preparedArchiveArgument = EscapeYtDlpLiteralPathForArgument(preparedArchive);
             archiveArguments = $"{ProtectedIsolationArguments} --compat-options -allow-unsafe-ext --write-info-json --download-archive \"{preparedArchiveArgument}\" --no-break-on-existing --concat-playlist never --abort-on-unavailable-fragments";
@@ -2734,6 +2742,80 @@ internal static class DownloadHistory {
                 yield return tokens[index + 1];
             }
         }
+    }
+
+    private static bool TryResolveEffectiveYtDlpCacheRoot(string? arguments, out string? cacheRoot, out string error) {
+        error = string.Empty;
+        try {
+            string cacheBase = Environment.GetEnvironmentVariable("XDG_CACHE_HOME") ?? "~/.cache";
+            cacheRoot = ResolveYtDlpDirectPath(Path.Combine(cacheBase, "yt-dlp"));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or System.Security.SecurityException) {
+            cacheRoot = null;
+            error = "The yt-dlp cache path is invalid for protected Download History: " + ex.Message;
+            return false;
+        }
+
+        if (arguments.IsNullEmptyWhitespace()) return true;
+        string[] tokens = TokenizeArguments(arguments!).ToArray();
+        for (int index = 0; index < tokens.Length; index++) {
+            string token = tokens[index];
+            int equals = token.IndexOf('=');
+            string name = equals >= 0 ? token.Substring(0, equals) : token;
+
+            bool disablesCache = name.Equals("--no-cache-dir", StringComparison.OrdinalIgnoreCase) ||
+                (name.StartsWith("--", StringComparison.Ordinal) &&
+                 "--no-cache-dir".StartsWith(name, StringComparison.OrdinalIgnoreCase));
+            if (disablesCache) {
+                cacheRoot = null;
+                continue;
+            }
+
+            bool configuresCache = name.Equals("--cache-dir", StringComparison.OrdinalIgnoreCase) ||
+                (name.StartsWith("--", StringComparison.Ordinal) &&
+                 "--cache-dir".StartsWith(name, StringComparison.OrdinalIgnoreCase));
+            if (!configuresCache) continue;
+
+            string value;
+            if (equals >= 0) {
+                value = token.Substring(equals + 1);
+            }
+            else {
+                if (index + 1 >= tokens.Length) {
+                    cacheRoot = null;
+                    error = "Custom --cache-dir requires an explicit path while Download History protection is enabled.";
+                    return false;
+                }
+                value = tokens[++index];
+            }
+
+            try {
+                cacheRoot = ResolveYtDlpDirectPath(value);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or System.Security.SecurityException) {
+                cacheRoot = null;
+                error = "The custom yt-dlp cache path is invalid for protected Download History: " + ex.Message;
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool IsPotentialYtDlpCacheEntry(string archivePath, string cacheRoot) {
+        string normalizedRoot = Path.GetFullPath(cacheRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string normalizedArchive = Path.GetFullPath(archivePath);
+        if (string.Equals(normalizedRoot, normalizedArchive, StringComparison.OrdinalIgnoreCase)) return false;
+
+        string prefix = normalizedRoot + Path.DirectorySeparatorChar;
+        if (!normalizedArchive.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+
+        string relative = normalizedArchive.Substring(prefix.Length);
+        string[] parts = relative.Split(
+            new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+            StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 2 &&
+            Regex.IsMatch(parts[0], @"^[\w.-]+$", RegexOptions.CultureInvariant) &&
+            string.Equals(Path.GetExtension(parts[1]), ".json", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsAllowedProtectedDownloaderValue(string rawValue) {

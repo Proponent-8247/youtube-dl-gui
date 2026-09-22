@@ -110,7 +110,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A053 | High | Fixed / regression-verified | Protected mode rejects local extractor page substitution through hidden yt-dlp `--load-pages` while preserving page-dump debugging. |
 | DH-A054 | High | Fixed / regression-verified | Clean merged `format_id` recovery now proves selected component IDs against the persisted format catalogue and fails closed on ambiguous `+` decompositions. |
 | DH-A055 | High | Fixed / regression-verified | Protected mode blocks deterministic extractor `.dump` filesystem writes while preserving console-only page dumping. |
-| DH-A056 | High | Verified / repair pending | Playlist/multi-video `.info.json` can be misused as completed-media identity, while same-stem media-like playlist thumbnails are counted as unresolved media. |
+| DH-A056 | High | Fixed / regression-verified | Playlist/multi-video metadata is excluded from completed-media identity recovery while metadata-proven media-like playlist thumbnails remain sidecars. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1473,4 +1473,6 @@ A052 currently falls back to `combined.Split('+')` when `requested_formats` is a
 8. Rerun the complete guarded Windows Debug/Release/full-regression gates.
 
 **Baseline proof:** Test commit `496eeeec2867564ca9736776f92f671f303a48ab` adds `DOWNLOAD_HISTORY.IgnoresPlaylistMediaLikeThumbnailSidecars`. Windows Audit build `35515896158` succeeds. Verification run `35515896136` fails on that Download History regression (`Healthy` expected for the proven playlist GIF thumbnail; actual `Unsafe`). The method also contains a mismatched-extension fail-closed control that prevents fixing this by blindly ignoring same-stem playlist media-like files.
+
+**Closure:** Guarded run `35713472420` landed `8db13b79b56fc4e1061f6f0754938a650729f64a` (`fix: distinguish playlist thumbnail metafiles from media`) and cleanup `47cdac7d443ff6a16df9ae08262c4facce4675f7`. The targeted regression passes after repair and the complete guarded Windows Debug/Release/full-regression gates are green. Retained evidence artifact `10688101407` has SHA-256 `9c0bd87d6004336d40522cbbd307552758277250f2dfa902e0867dcc5acc9506`.
 

@@ -1851,7 +1851,7 @@ internal static class DownloadHistory {
             foreach (string scanRoot in scanRoots) {
                 foreach (string media in EnumerateCompletedMedia(scanRoot)) {
                     if (PathEquals(media, archive)) continue;
-                    if (IsIndexedThumbnailSidecar(media)) continue;
+                    if (IsPlaylistThumbnailSidecar(media) || IsIndexedThumbnailSidecar(media)) continue;
                     string? entry = TryRecoverFromInfoJson(media, out _, out _, out HashSet<string>? thumbnailExtensions);
                     bool fromMetadata = entry is not null;
                     if (entry is null) entry = filenameMatcher.Match(media);
@@ -2035,6 +2035,35 @@ internal static class DownloadHistory {
             if (thumbnailValue is Dictionary<string, object> thumbnail) extensions.Add(GetThumbnailFileExtension(thumbnail));
         }
         return extensions;
+    }
+
+    private static bool IsPlaylistContainerMetadata(Dictionary<string, object> root) {
+        if (!root.TryGetValue("_type", out object? value) || value is not string type) return false;
+        return string.Equals(type, "playlist", StringComparison.Ordinal) ||
+            string.Equals(type, "multi_video", StringComparison.Ordinal);
+    }
+
+    private static bool IsPlaylistThumbnailSidecar(string candidatePath) {
+        string directory = Path.GetDirectoryName(candidatePath) ?? string.Empty;
+        string infoPath = Path.Combine(directory, Path.GetFileNameWithoutExtension(candidatePath) + ".info.json");
+        if (!File.Exists(infoPath)) return false;
+
+        try {
+            string json = File.ReadAllText(infoPath);
+            JavaScriptSerializer serializer = new() {
+                MaxJsonLength = Math.Max(2 * 1024 * 1024, json.Length),
+                RecursionLimit = 256
+            };
+            if (serializer.DeserializeObject(json) is not Dictionary<string, object> root ||
+                !IsPlaylistContainerMetadata(root)) return false;
+
+            string extension = Path.GetExtension(candidatePath).ToLowerInvariant();
+            return GetMetadataThumbnailExtensions(root).Contains(extension);
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+        catch (ArgumentException) { return false; }
+        catch (InvalidOperationException) { return false; }
     }
 
     private static bool IsIndexedThumbnailSidecar(string candidatePath) {
@@ -2238,6 +2267,7 @@ internal static class DownloadHistory {
             };
             if (serializer.DeserializeObject(json) is not Dictionary<string, object> root) return null;
             thumbnailExtensions = GetMetadataThumbnailExtensions(root);
+            if (IsPlaylistContainerMetadata(root)) return null;
             string? recoveredId = root.TryGetValue("id", out object? idValue) ? idValue as string : null;
             string? extractor = null;
             // Native yt-dlp archive IDs are keyed from extractor_key/ie_key. The display-style

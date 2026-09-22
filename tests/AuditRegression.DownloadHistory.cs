@@ -756,6 +756,77 @@ internal static partial class AuditRegression {
     }
 
 
+    private static void DownloadHistoryRejectsCacheWritebackCollisions() {
+        string oldXdgCacheHome = Environment.GetEnvironmentVariable("XDG_CACHE_HOME");
+        string externalRoot = Path.Combine(Environment.CurrentDirectory,
+            "download-history-cache-collision-" + Guid.NewGuid().ToString("N"));
+        string defaultBase = Path.Combine(externalRoot, "default");
+        string defaultCache = Path.Combine(defaultBase, "yt-dlp");
+        string customCache = Path.Combine(externalRoot, "custom");
+        string safeCache = Path.Combine(externalRoot, "safe");
+        Directory.CreateDirectory(Path.Combine(defaultCache, "soundcloud"));
+        Directory.CreateDirectory(Path.Combine(customCache, "soundcloud"));
+        Directory.CreateDirectory(safeCache);
+
+        try {
+            Environment.SetEnvironmentVariable("XDG_CACHE_HOME", defaultBase);
+
+            using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+                string archive = Path.Combine(defaultCache, "soundcloud", "client_id.json");
+                DownloadHistoryEnable(fixture, archive);
+                string arguments, error;
+                object execution;
+
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    null, out arguments, out error, out execution));
+                Require(error.IndexOf("cache", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Default yt-dlp cache collision was not rejected clearly");
+                Equal(null, execution);
+
+                Require(DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    "--no-cache-dir", out arguments, out error, out execution),
+                    "Explicit cache disable did not make the default-cache collision safe: " + error);
+            }
+
+            using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+                string archive = Path.Combine(customCache, "soundcloud", "client_id.json");
+                DownloadHistoryEnable(fixture, archive);
+                string arguments, error;
+                object execution;
+                string colliding = "--cache-dir \"" + customCache + "\"";
+
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    colliding, out arguments, out error, out execution));
+                Require(error.IndexOf("cache", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Custom yt-dlp cache collision was not rejected clearly");
+                Equal(null, execution);
+
+                Require(DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    colliding + " --no-cache-dir", out arguments, out error, out execution),
+                    "A later --no-cache-dir did not disable the colliding custom cache: " + error);
+
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    "--no-cache-dir " + colliding, out arguments, out error, out execution));
+                Equal(null, execution);
+
+                Require(DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    "--cache-dir \"" + safeCache + "\"", out arguments, out error, out execution),
+                    "Non-colliding custom cache root was rejected: " + error);
+
+                Call(fixture.History, null, "CommitSettings", false, archive, true, null);
+                Require(DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    colliding, out arguments, out error, out execution),
+                    "Disabling Download History unexpectedly kept cache-collision enforcement active");
+                Equal(string.Empty, arguments);
+            }
+        }
+        finally {
+            Environment.SetEnvironmentVariable("XDG_CACHE_HOME", oldXdgCacheHome);
+            if (Directory.Exists(externalRoot)) Directory.Delete(externalRoot, true);
+        }
+    }
+
+
     private static void DownloadHistoryRejectsTestModePartialCompletion() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -3246,6 +3317,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ExpandsDollarCookiePathsLikeYtDlp", DownloadHistoryExpandsDollarCookiePathsLikeYtDlp);
         Test("DOWNLOAD_HISTORY.RejectsRawChildProcessArguments", DownloadHistoryRejectsRawChildProcessArguments);
         Test("DOWNLOAD_HISTORY.RejectsDestructiveCacheRemoval", DownloadHistoryRejectsDestructiveCacheRemoval);
+        Test("DOWNLOAD_HISTORY.RejectsCacheWritebackCollisions", DownloadHistoryRejectsCacheWritebackCollisions);
         Test("DOWNLOAD_HISTORY.RejectsTestModePartialCompletion", DownloadHistoryRejectsTestModePartialCompletion);
         Test("DOWNLOAD_HISTORY.RejectsFalseCompletionErrorControls", DownloadHistoryRejectsFalseCompletionErrorControls);
         Test("DOWNLOAD_HISTORY.ForcesCompleteFragmentDownloads", DownloadHistoryForcesCompleteFragmentDownloads);

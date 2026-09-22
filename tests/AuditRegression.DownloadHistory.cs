@@ -2093,6 +2093,40 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsArchiveOutputCollisions() {
+        const string id = "9qFjkwAElDs";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string colliding = Path.Combine(fixture.Root, "Future-" + id + ".info.json");
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", colliding, string.Empty);
+            Equal("Invalid", DownloadHistoryStateName(analysis));
+            Equal(false, DownloadHistoryCanReconcile(analysis));
+            Require(!File.Exists(colliding), "Collision validation created the dangerous in-tree archive target");
+
+            string safe = Path.Combine(fixture.Root, "custom-history.txt");
+            object reconciled = Call(fixture.History, null, "ReconcileLibrary", safe, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(reconciled));
+            Equal(true, DownloadHistoryCanReconcile(reconciled));
+            Require(File.Exists(safe), "Safe in-tree .txt archive was not initialized");
+        }
+
+        string outsideRoot = Path.Combine(Environment.CurrentDirectory,
+            "download-history-external-archive-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(outsideRoot);
+        try {
+            using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+                string outside = Path.Combine(outsideRoot, "history.info.json");
+                object reconciled = Call(fixture.History, null, "ReconcileLibrary", outside, true, false, string.Empty);
+                Equal("Healthy", DownloadHistoryStateName(reconciled));
+                Equal(true, DownloadHistoryCanReconcile(reconciled));
+                Require(File.Exists(outside), "Out-of-tree custom archive was rejected unnecessarily");
+            }
+        }
+        finally {
+            if (Directory.Exists(outsideRoot)) Directory.Delete(outsideRoot, true);
+        }
+    }
+
+
     private static void DownloadHistoryIgnoresPlaylistMediaLikeThumbnailSidecars() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             string stem = Path.Combine(fixture.Root, "Playlist Cover");
@@ -3246,6 +3280,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ExplicitRebuildRecoversAuthoritativeMissingEntry", DownloadHistoryExplicitRebuildRecoversAuthoritativeMissingEntry);
         Test("DOWNLOAD_HISTORY.InventoriesGifMediaConservatively", DownloadHistoryInventoriesGifMediaConservatively);
         Test("DOWNLOAD_HISTORY.IgnoresIndexedThumbnailSidecars", DownloadHistoryIgnoresIndexedThumbnailSidecars);
+        Test("DOWNLOAD_HISTORY.RejectsArchiveOutputCollisions", DownloadHistoryRejectsArchiveOutputCollisions);
         Test("DOWNLOAD_HISTORY.IgnoresPlaylistMediaLikeThumbnailSidecars", DownloadHistoryIgnoresPlaylistMediaLikeThumbnailSidecars);
         Test("DOWNLOAD_HISTORY.IgnoresFailedAndSidecarFiles", DownloadHistoryIgnoresFailedAndSidecarFiles);
         Test("DOWNLOAD_HISTORY.DisabledIntervalWithoutIdsFailsSafe", DownloadHistoryDisabledIntervalWithoutIdsFailsSafe);

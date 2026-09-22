@@ -112,6 +112,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A055 | High | Fixed / regression-verified | Protected mode blocks deterministic extractor `.dump` filesystem writes while preserving console-only page dumping. |
 | DH-A056 | High | Fixed / regression-verified | Playlist/multi-video metadata is excluded from completed-media identity recovery while metadata-proven media-like playlist thumbnails remain sidecars. |
 | DH-A057 | High | Fixed / regression-verified | In-tree archives are constrained to `.txt`, preventing collisions with protected provider media/sidecar outputs while preserving out-of-tree custom archive extensions. |
+| DH-A058 | High | Verified / repair pending | yt-dlp cache writes can atomically replace an out-of-tree `.json` archive when the effective cache root maps that archive to `<section>/<key>.json`. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1503,4 +1504,27 @@ The protected suffix already keeps yt-dlp's safe-extension guard enabled (`--com
 **Rejected first repair / regression-contract correction:** Guarded run `35714574674` applied the proposed in-tree `.txt` restriction and made A057 pass, but correctly rejected the batch because the older `DOWNLOAD_HISTORY.ArchiveFileIsNotInventoryMedia` regression still created a media-extension archive inside the active output root. No production repair commit from that failed batch was accepted. Request `863af643c429562fdfde608cf60c9431f1027a14` was explicitly discarded by `1fd0adec5bc7d3decabf4f1e3811a77a36d418d6`. Test commit `cf59989ad66cc9cc58eea44935555bc758403af8` preserves the older regression's actual A010 purpose by placing the media-extension archive in a separate scan-only root, where it must still be excluded from inventory without being a provider output target. Windows Audit build `35714896167` succeeds and verification run `35714896119` passes `ArchiveFileIsNotInventoryMedia` while failing only A057.
 
 **Closure:** Guarded run `35715132259` landed `5d8608cee42152a432627997efa0a8ef5706fa3a` (`fix: isolate in-tree archive from provider outputs`) and cleanup `db562062201bf6b4f95b08d4eac4a849bf7072de`. The complete guarded Windows Debug/Release/full-regression gates pass. Retained evidence artifact `10688018733` has SHA-256 `00c2d001693aa2cfafe7d881840aa8d7ad117f5b7bb7d57b3710cb687656f21c`.
+
+### DH-A058 — yt-dlp cache writeback can replace an out-of-tree archive
+
+**Priority / state:** High protected-ledger integrity risk / VERIFIED against current yt-dlp cache implementation and protected custom-argument behavior.
+
+**Finding:** A040 blocks recursive `--rm-cache-dir`, but ordinary filesystem caching remains intentionally available. Current yt-dlp resolves an effective cache root (default `${XDG_CACHE_HOME}/yt-dlp`, falling back to `~/.cache/yt-dlp`) and writes cache entries as `<root>/<section>/<quoted-key>.json`. `Cache.store()` calls `write_json_file`, which on Windows explicitly unlinks an existing destination before renaming the new JSON file into place.
+
+Download History currently permits both default caching and custom `--cache-dir`. A custom archive outside the active output tree may therefore be a valid `.json` path such as `<cache-root>/soundcloud/client_id.json`. A protected SoundCloud extraction that refreshes the cached client ID can replace the native archive even though output-path, cookie, exec, plugin, and child-process protections all pass.
+
+**Impact:** The provider can destroy a validated native ledger through a normal built-in cache write. This bypasses A057 because cache storage is not confined to the active media output tree.
+
+**Required acceptance:**
+
+1. Resolve the effective yt-dlp cache root using current provider semantics: default `XDG_CACHE_HOME`/home expansion plus ordered custom `--cache-dir` and `--no-cache-dir` overrides.
+2. Reject protected execution when the prepared archive is structurally a possible current yt-dlp cache entry: exactly `<cache-root>/<valid-section>/<filename>.json`.
+3. Preserve ordinary cache use when the archive cannot be a cache target.
+4. Preserve a later `--no-cache-dir` override; if a later `--cache-dir` re-enables the colliding root, reject again.
+5. Do not ban `--cache-dir` globally or change disabled-history behavior.
+6. Reuse yt-dlp-compatible user/environment path expansion and Windows case-insensitive path comparison.
+7. Do not mutate the archive or cache tree while validating the collision.
+8. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test commit `020ab1ad339c3ca54feb7e28200d34912e484714` adds `DOWNLOAD_HISTORY.RejectsCacheWritebackCollisions`, covering the default cache root, ordered custom cache enable/disable behavior, a non-colliding custom-cache control, and disabled-history behavior. Windows Audit build `35715431474` succeeds. Verification run `35715431332` fails only the new cache-collision regression (`False` expected from protected preparation; actual `True`) while A040 `RejectsDestructiveCacheRemoval` and A057 `RejectsArchiveOutputCollisions` remain green.
 

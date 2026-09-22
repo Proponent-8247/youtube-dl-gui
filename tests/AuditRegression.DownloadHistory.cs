@@ -2760,16 +2760,24 @@ internal static partial class AuditRegression {
     }
 
     private static void DownloadHistoryArchiveFileIsNotInventoryMedia() {
-        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
-            string archive = Path.Combine(fixture.Root, "application-history.mp4");
-            object prepared = Call(fixture.History, null, "RebuildLibrary", archive, true, false, string.Empty);
-            Equal("Healthy", DownloadHistoryStateName(prepared));
-            Call(fixture.History, null, "CommitSettings", true, archive, true, prepared, string.Empty);
+        string scanRoot = Path.Combine(Environment.CurrentDirectory,
+            "download-history-archive-scan-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(scanRoot);
+        try {
+            using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+                string archive = Path.Combine(scanRoot, "application-history.mp4");
+                object prepared = Call(fixture.History, null, "RebuildLibrary", archive, true, false, scanRoot);
+                Equal("Healthy", DownloadHistoryStateName(prepared));
+                Call(fixture.History, null, "CommitSettings", true, archive, true, prepared, scanRoot);
 
-            object rebuilt = Call(fixture.History, null, "RebuildLibrary", archive, true, false, string.Empty);
-            Equal("Healthy", DownloadHistoryStateName(rebuilt));
-            Equal(0, Get(rebuilt, "CompletedMedia"));
-            Require(File.Exists(archive), "Explicit rebuild removed the application-owned archive");
+                object rebuilt = Call(fixture.History, null, "RebuildLibrary", archive, true, false, scanRoot);
+                Equal("Healthy", DownloadHistoryStateName(rebuilt));
+                Equal(0, Get(rebuilt, "CompletedMedia"));
+                Require(File.Exists(archive), "Explicit rebuild removed the application-owned archive");
+            }
+        }
+        finally {
+            if (Directory.Exists(scanRoot)) Directory.Delete(scanRoot, true);
         }
     }
 

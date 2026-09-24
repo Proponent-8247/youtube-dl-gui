@@ -119,6 +119,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A062 | High | Fixed / regression-verified | Required recovery fields and historical schema matching now use yt-dlp’s case-exact output-template key semantics, including exact schema-history deduplication. |
 | DH-A063 | High | Fixed / regression-verified | Current yt-dlp `.mhtml` storyboard formats are inventoried as completed media and rebuild through authoritative adjacent metadata without broadening sidecar/manifest classes. |
 | DH-A064 | High | Fixed / regression-verified | Protected split-chapter outputs are rooted with an app-owned `chapter:` path beneath the active library while preserving yt-dlp's chapter filename semantics. |
+| DH-A065 | High | Verified / repair pending | Prepared protected execution does not recheck that the selected provider is still in the yt-dlp family immediately before process start. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1692,4 +1693,27 @@ The protected suffix currently contains no app-owned `chapter:` path. That leave
 **Baseline proof:** Test commit `9f66919774ade22566ab613f4722a64fcfb8691a` adds `DOWNLOAD_HISTORY.ContainsSplitChapterOutputs`. Windows Audit build run `35962305315` succeeds. Verification run `35962305261` fails only the new containment assertion ("Protected split chapters do not have an app-owned chapter output path") while the pre-existing `DOWNLOAD_HISTORY.RecognizesSplitChapterIds` regression remains green.
 
 **Closure:** Guarded run `36017332073` landed `9f2b423bb23b233818723c4ac7f34ecab4da5924` (`fix: contain protected split chapter outputs`) and cleanup `e286fe8dc0e1461ca8d2669ef0f364b4457abf29`. The repair appends an escaped app-owned `chapter:` path rooted at the resolved active library after raw custom arguments without changing yt-dlp's chapter filename template. The targeted regression and complete guarded Debug/Release/full-regression gates pass. Evidence artifact `10814743726` has SHA-256 `3c1b3dbad85ad5f120d21745f6ff4a33db02da01dd63ce9918a0c746990958f5`.
+
+### DH-A065 — Prepared execution can cross into an incompatible provider before launch
+
+**Priority / state:** High protected-execution integrity risk / VERIFIED by runtime regression.
+
+**Finding:** Protected command preparation rejects providers outside yt-dlp / yt-dlp-nightly and builds yt-dlp-specific archive, plugin-isolation, output-containment, and compatibility arguments. The returned `DownloadHistoryExecution` is then revalidated immediately before the provider process starts, but `ValidatePreparedExecution` currently rechecks only enabled/archive/backup state. It does not recheck the selected provider family.
+
+The downloader resolves `Verification.YoutubeDlPath` separately from the prepared execution context. If `Downloads.YtdlType` changes after argument generation but before `AcquireValidatedLease`, an old yt-dlp-protected command can therefore be launched through a youtube-dl provider without forcing regeneration.
+
+**Impact:** The process-start guard can approve an execution whose provider no longer implements the semantics that were audited when the command was prepared. Even if a particular incompatible provider rejects some flags, protection must fail before launch rather than depending on downstream option errors.
+
+**Required acceptance:**
+
+1. At every prepared-execution validation point, require the current provider to remain yt-dlp or yt-dlp-nightly.
+2. A switch between stable yt-dlp and yt-dlp-nightly remains compatible; do not require exact provider identity.
+3. Reject a switch to youtube-dl/youtube-dl-nightly before process start with an actionable regenerate-command failure.
+4. Preserve existing enabled/archive/backup/snapshot/floor validation and locking order.
+5. Do not make active media-root or filename-schema edits retroactively invalidate a command whose concrete output arguments were already generated.
+6. Preserve disabled-history behavior.
+7. Extend the existing execution-context regression rather than creating redundant runtime coverage.
+8. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test-only commit `a491fb4f8bf0773f0cce186117597dfb606b96dd` extends `DOWNLOAD_HISTORY.ExecutionContextRejectsSettingChanges` with a yt-dlp → youtube-dl provider flip before lease acquisition. Audit build run `36018496834` succeeds. Verification run `36018496741` fails only the two registrations of that same legacy/current execution-context method (`ExecutionContextRejectsSettingChanges` and `ExecutionContextSurvivesDisableButNotReset`), each because the expected `InvalidOperationException` is not thrown.
 

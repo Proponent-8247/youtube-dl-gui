@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "base_sha": "a212452c24e12a9dea9c39a7a695edba11628378",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.RequiresRecoverableMediaExtensionTemplate"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched",
+    "V011.ActualUpdaterRollbackRestoresApplication"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A061",
+      "message": "fix: normalize extended schema before protected validation",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RequiresRecoverableMediaExtensionTemplate"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DataClasses/ExtendedMediaDetails.cs",
+          "edits": [
+            {
+              "old": "        string Schema = FileNameSchema.IsNullEmptyWhitespace() ? \"%(title)s-%(id)s.%(ext)s\" : FileNameSchema;\n        if (!DownloadHistory.TryGetArchiveArguments(Schema, CustomArguments, out string DownloadArchiveArguments, out string DownloadHistoryError, out DownloadHistoryExecution? HistoryExecution)) {",
+              "new": "        string Schema = FileNameSchema.IsNullEmptyWhitespace() ? \"%(title)s-%(id)s.%(ext)s\" : FileNameSchema;\n        if (!Schema.EndsWith(\".%(ext)s\", StringComparison.InvariantCultureIgnoreCase)) {\n            Schema += \".%(ext)s\";\n        }\n        if (!DownloadHistory.TryGetArchiveArguments(Schema, CustomArguments, out string DownloadArchiveArguments, out string DownloadHistoryError, out DownloadHistoryExecution? HistoryExecution)) {"
+            },
+            {
+              "old": "        if (!Schema.EndsWith(\".%(ext)s\", StringComparison.InvariantCultureIgnoreCase)) {\n            Schema += \".%(ext)s\";\n        }\n\n        switch (SelectedType) {",
+              "new": "        switch (SelectedType) {"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

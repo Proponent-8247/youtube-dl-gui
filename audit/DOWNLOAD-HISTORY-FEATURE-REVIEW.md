@@ -113,7 +113,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A056 | High | Fixed / regression-verified | Playlist/multi-video metadata is excluded from completed-media identity recovery while metadata-proven media-like playlist thumbnails remain sidecars. |
 | DH-A057 | High | Fixed / regression-verified | In-tree archives are constrained to `.txt`, preventing collisions with protected provider media/sidecar outputs while preserving out-of-tree custom archive extensions. |
 | DH-A058 | High | Fixed / regression-verified | Effective default/custom yt-dlp cache roots are modeled in option order and protected execution rejects archive paths that can be cache JSON targets. |
-| DH-A059 | High | Verified / repair pending | A dangling custom `--cookies` can consume an app-owned following token as its cookie filename, bypassing raw custom cookie-path collision validation and creating a provider writeback target. |
+| DH-A059 | High | Fixed / regression-verified | Protected mode rejects a dangling custom `--cookies` before an app-owned following token can become its cookie writeback filename. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1552,4 +1552,6 @@ The current A038/A041 collision check calls `GetOptionValues` only on the **raw 
 7. Rerun the complete guarded Windows Debug/Release/full-regression gates.
 
 **Baseline proof:** Test commit `41cc7020928f719ed498b04e92c6649b9d1aa376` adds `DOWNLOAD_HISTORY.RejectsDanglingCookieWritebackOption`. Windows Audit build `35949401155` succeeds. Verification run `35949401156` fails on exactly that Download History regression (protected rejection expected; actual acceptance); Debug/Release builds and packaging complete successfully.
+
+**Closure:** Guarded run `35949682442` landed `753739e420a21f385b0ecd3648323c6d117ebd8e` (`fix: reject dangling protected cookie writeback`) and cleanup `9260e0df91cd31f15d7830d31f3e00936b24c4da`. The targeted regression passes after repair and the complete guarded Windows Debug/Release/full-regression gates are green. Retained evidence artifact `10787784052` has SHA-256 `87d2027699f018867c75a6e6ca881345c3eeb27d26cbdd11a75954462bb361e6`.
 

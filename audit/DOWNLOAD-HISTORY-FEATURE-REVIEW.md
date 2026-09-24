@@ -118,7 +118,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A061 | High | Fixed / regression-verified | Protected schemas require a terminal real extension, while the extended downloader preserves its prior safe `.%(ext)s` normalization before protected validation. |
 | DH-A062 | High | Fixed / regression-verified | Required recovery fields and historical schema matching now use yt-dlp’s case-exact output-template key semantics, including exact schema-history deduplication. |
 | DH-A063 | High | Fixed / regression-verified | Current yt-dlp `.mhtml` storyboard formats are inventoried as completed media and rebuild through authoritative adjacent metadata without broadening sidecar/manifest classes. |
-| DH-A064 | High | Verified / repair pending | Protected split-chapter outputs need an app-owned `chapter:` path so yt-dlp cannot emit derivative media outside the active library namespace. |
+| DH-A064 | High | Fixed / regression-verified | Protected split-chapter outputs are rooted with an app-owned `chapter:` path beneath the active library while preserving yt-dlp's chapter filename semantics. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1690,4 +1690,6 @@ The protected suffix currently contains no app-owned `chapter:` path. That leave
 9. Rerun the complete guarded Windows Debug/Release/full-regression gates.
 
 **Baseline proof:** Test commit `9f66919774ade22566ab613f4722a64fcfb8691a` adds `DOWNLOAD_HISTORY.ContainsSplitChapterOutputs`. Windows Audit build run `35962305315` succeeds. Verification run `35962305261` fails only the new containment assertion ("Protected split chapters do not have an app-owned chapter output path") while the pre-existing `DOWNLOAD_HISTORY.RecognizesSplitChapterIds` regression remains green.
+
+**Closure:** Guarded run `36017332073` landed `9f2b423bb23b233818723c4ac7f34ecab4da5924` (`fix: contain protected split chapter outputs`) and cleanup `e286fe8dc0e1461ca8d2669ef0f364b4457abf29`. The repair appends an escaped app-owned `chapter:` path rooted at the resolved active library after raw custom arguments without changing yt-dlp's chapter filename template. The targeted regression and complete guarded Debug/Release/full-regression gates pass. Evidence artifact `10814743726` has SHA-256 `3c1b3dbad85ad5f120d21745f6ff4a33db02da01dd63ce9918a0c746990958f5`.
 

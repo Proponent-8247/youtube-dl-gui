@@ -200,6 +200,37 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRequiresRecoverableMediaExtensionTemplate() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            foreach (string unsafeSchema in new[] {
+                "%(title)s-%(id)s.txt",
+                "%(title)s-%(id)s",
+                "%(title)s-%(id)s.%%(ext)s",
+                "%(title)s-%(id)s.%(ext)s.backup"
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, unsafeSchema, null,
+                    out arguments, out error, out execution));
+                Require(error.IndexOf("extension", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("%(ext)s", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("rebuild", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Unrecoverable media-extension schema was rejected without an actionable explanation: " + unsafeSchema);
+                Equal(null, execution);
+            }
+
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                null, out arguments, out error, out execution));
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.txt",
+                null, out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryHonorsEscapedIdTemplateSemantics() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             Equal(true, Call(fixture.History, null, "HasRequiredIdTemplate", "%(title)s-%(id)s.%(ext)s"));
@@ -3357,6 +3388,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.NeverEnabledIsNoOp", DownloadHistoryNeverEnabledIsNoOp);
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
         Test("DOWNLOAD_HISTORY.RequiresAuthoritativeMetadataForRebuild", DownloadHistoryRequiresAuthoritativeMetadataForRebuild);
+        Test("DOWNLOAD_HISTORY.RequiresRecoverableMediaExtensionTemplate", DownloadHistoryRequiresRecoverableMediaExtensionTemplate);
         Test("DOWNLOAD_HISTORY.HonorsEscapedIdTemplateSemantics", DownloadHistoryHonorsEscapedIdTemplateSemantics);
         Test("DOWNLOAD_HISTORY.RejectsParentTraversalFilenameSchemas", DownloadHistoryRejectsParentTraversalFilenameSchemas);
         Test("DOWNLOAD_HISTORY.RejectsUnsafeProtectedFilenameSchemas", DownloadHistoryRejectsUnsafeProtectedFilenameSchemas);

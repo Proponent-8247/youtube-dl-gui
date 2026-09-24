@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "base_sha": "27cd23b8c60e5e1bd949e3164d85e35d825020f2",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.ResetRequiresOwnedBoundArchive"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched",
+    "V011.ActualUpdaterRollbackRestoresApplication"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A070",
+      "message": "fix: require owned bound archive for reset",
+      "resolves": [
+        "DOWNLOAD_HISTORY.ResetRequiresOwnedBoundArchive"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "    public static void ResetHistory() {\n        if (Enabled) throw new InvalidOperationException(\"Disable Download History before resetting it.\");\n        string archive = EffectiveArchivePath;\n        string? parent = Path.GetDirectoryName(archive);",
+              "new": "    public static void ResetHistory() {\n        if (Enabled) throw new InvalidOperationException(\"Disable Download History before resetting it.\");\n        if (!EverEnabled || BoundArchivePath.IsNullEmptyWhitespace()) {\n            throw new InvalidOperationException(\"Download History has no previously enabled, bound archive to reset.\");\n        }\n        string archive = Path.GetFullPath(BoundArchivePath);\n        string? parent = Path.GetDirectoryName(archive);"
+            },
+            {
+              "old": "            string normalizedInventoryRoots;\n            try { normalizedInventoryRoots = NormalizeInventoryRootsForStorage(configuredInventoryRoots); }\n            catch (Exception ex) { throw new InvalidOperationException(\"Download History inventory path is invalid: \" + ex.Message, ex); }\n            string? preparedKey = null;",
+              "new": "            string normalizedInventoryRoots;\n            try { normalizedInventoryRoots = NormalizeInventoryRootsForStorage(configuredInventoryRoots); }\n            catch (Exception ex) { throw new InvalidOperationException(\"Download History inventory path is invalid: \" + ex.Message, ex); }\n\n            if (!enabled && fEverEnabled && !fBoundArchivePath.IsNullEmptyWhitespace()) {\n                string candidateArchive;\n                try {\n                    candidateArchive = configuredArchivePath.IsNullEmptyWhitespace()\n                        ? Path.GetFullPath(fBoundArchivePath)\n                        : ResolveYtDlpDirectPath(configuredArchivePath);\n                }\n                catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or System.Security.SecurityException) {\n                    throw new InvalidOperationException(\"Download History archive path is invalid: \" + ex.Message, ex);\n                }\n                if (!PathEquals(candidateArchive, fBoundArchivePath)) {\n                    throw new InvalidOperationException(\"The Download History archive path cannot be changed while preserved history remains disabled. Re-enable and reconcile to relocate the ledger safely, or reset the bound history before configuring a new archive.\");\n                }\n            }\n\n            string? preparedKey = null;"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

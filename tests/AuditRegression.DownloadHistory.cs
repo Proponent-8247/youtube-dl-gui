@@ -224,6 +224,21 @@ internal static partial class AuditRegression {
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
                 null, out arguments, out error, out execution));
 
+            object prepared = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(prepared));
+            Set(fixture.Downloads, null, "fileNameSchema", "%(title)s-%(id)s.txt");
+            Throws<InvalidOperationException>(() =>
+                Call(fixture.History, null, "CommitSettings", true, string.Empty, true, prepared));
+            Set(fixture.Downloads, null, "fileNameSchema", "%(title)s-%(id)s.%(ext)s");
+
+            string sourceRoot = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
+            string settingsSource = File.ReadAllText(Path.Combine(sourceRoot, "youtube-dl-gui", "Forms", "frmSettings.cs"));
+            string historyDialogSource = File.ReadAllText(Path.Combine(sourceRoot, "youtube-dl-gui", "Forms", "frmDownloadHistory.cs"));
+            Require(settingsSource.Contains("DownloadHistory.HasRequiredExtensionTemplate"),
+                "Parent Settings does not enforce the protected terminal media-extension template");
+            Require(historyDialogSource.Contains("DownloadHistory.HasRequiredExtensionTemplate"),
+                "Download History dialog does not enforce the protected terminal media-extension template");
+
             Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.txt",
                 null, out arguments, out error, out execution));

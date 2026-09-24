@@ -118,6 +118,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A061 | High | Fixed / regression-verified | Protected schemas require a terminal real extension, while the extended downloader preserves its prior safe `.%(ext)s` normalization before protected validation. |
 | DH-A062 | High | Fixed / regression-verified | Required recovery fields and historical schema matching now use yt-dlp’s case-exact output-template key semantics, including exact schema-history deduplication. |
 | DH-A063 | High | Fixed / regression-verified | Current yt-dlp `.mhtml` storyboard formats are inventoried as completed media and rebuild through authoritative adjacent metadata without broadening sidecar/manifest classes. |
+| DH-A064 | High | Verified / repair pending | Protected split-chapter outputs need an app-owned `chapter:` path so yt-dlp cannot emit derivative media outside the active library namespace. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1665,4 +1666,28 @@ Download History's physical-media allowlist covers current audio/video and addit
 **Baseline proof:** Test commit `43d053357ee12f6f18230902d6cc170139279656` adds `DOWNLOAD_HISTORY.InventoriesStoryboardMedia`. Windows Audit build `35961878290` succeeds. Verification run `35961878023` fails only the new Download History regression (`CompletedMedia=1` expected; actual `0`).
 
 **Closure:** Guarded run `35962070685` landed `10b191b94726a71c09b6ad3a297a77e571ed2968` (`fix: inventory current MHTML storyboard media`) and cleanup `eeba54ef2e45ba8088884a699de8d713dd18cb2a`. The targeted storyboard regression and complete guarded Debug/Release/full-regression gates pass. Evidence artifact `10793106244` has SHA-256 `b212a5f31837ae7645f2ab2a066f19dada4fff7346ccf263ed46fa484181513a`.
+
+### DH-A064 — Split-chapter derivatives are not explicitly contained in the active library
+
+**Priority / state:** High protected-output containment and rebuild-integrity risk / VERIFIED against current protected arguments and current yt-dlp chapter output semantics.
+
+**Finding:** Protected mode blocks user `-P/--paths` and `-o/--output` overrides and owns the default media output template, but it permits the built-in `--split-chapters` postprocessor. Current yt-dlp gives split chapters an independent `chapter` output-template/path namespace; `FFmpegSplitChaptersPP` calls `prepare_filename(..., 'chapter')`, and both `--paths chapter:...` and `--output chapter:...` can control that derivative family.
+
+The protected suffix currently contains no app-owned `chapter:` path. That leaves split-chapter placement dependent on yt-dlp's generic path resolution instead of explicitly proving that every derivative remains beneath the active Download History library. The existing chapter filename itself is suitable for recovery because current yt-dlp's default chapter template includes the parent source `[%(id)s].%(ext)s`; the gap is containment, not identity.
+
+**Impact:** Protected execution can create a media derivative whose path is not established by the same active-root invariant used for normal media. A derivative outside configured inventory roots can disappear from explicit rebuild evidence, while an unexpected write outside the active library also violates the protected-output boundary.
+
+**Required acceptance:**
+
+1. Protected arguments must append an app-owned `chapter:` path rooted in the resolved active download library.
+2. The app-owned chapter path must occur after raw custom arguments so the final protected value wins.
+3. Continue rejecting user `-P/--paths` and `-o/--output` overrides while protection is enabled.
+4. Preserve yt-dlp's current chapter filename template; do not rename or rewrite split outputs merely to satisfy containment.
+5. Escape literal `%` / `$` in the resolved path consistently with other app-owned yt-dlp path arguments.
+6. Preserve disabled-history behavior and ordinary `--split-chapters` availability.
+7. Preserve existing split-chapter ID recovery and total-loss derivative rebuild behavior.
+8. Add regression coverage proving the protected suffix contains a rooted `chapter:` path and follows raw `--split-chapters` arguments.
+9. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test commit `9f66919774ade22566ab613f4722a64fcfb8691a` adds `DOWNLOAD_HISTORY.ContainsSplitChapterOutputs`. Windows Audit build run `35962305315` succeeds. Verification run `35962305261` fails only the new containment assertion ("Protected split chapters do not have an app-owned chapter output path") while the pre-existing `DOWNLOAD_HISTORY.RecognizesSplitChapterIds` regression remains green.
 

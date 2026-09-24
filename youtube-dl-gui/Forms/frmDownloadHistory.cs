@@ -122,7 +122,7 @@ internal sealed class frmDownloadHistory : Form {
         string currentPath = txtArchive.Text.IsNullEmptyWhitespace() ? DownloadHistory.EffectiveArchivePath : txtArchive.Text;
         string? initialDirectory = null;
         try {
-            string? candidate = Path.GetDirectoryName(Path.GetFullPath(Environment.ExpandEnvironmentVariables(currentPath)));
+            string? candidate = Path.GetDirectoryName(DownloadHistory.ResolveYtDlpDirectPath(currentPath));
             if (candidate is not null && Directory.Exists(candidate)) initialDirectory = candidate;
         }
         catch { }
@@ -257,7 +257,7 @@ internal sealed class frmDownloadHistory : Form {
     private void OpenLocation(object? sender, EventArgs e) {
         try {
             string path = txtArchive.Text.IsNullEmptyWhitespace() ? DownloadHistory.EffectiveArchivePath : txtArchive.Text;
-            string? directory = Path.GetDirectoryName(Path.GetFullPath(Environment.ExpandEnvironmentVariables(path)));
+            string? directory = Path.GetDirectoryName(DownloadHistory.ResolveYtDlpDirectPath(path));
             if (directory is not null && Directory.Exists(directory)) {
                 Process.Start(new ProcessStartInfo("explorer.exe", ArgumentList.EscapeArgument(directory)) { UseShellExecute = true });
             }
@@ -281,7 +281,7 @@ internal sealed class frmDownloadHistory : Form {
             string configured = NormalizeConfiguredPath(txtArchive.Text);
             candidateArchive = configured.IsNullEmptyWhitespace()
                 ? DownloadHistory.EffectiveArchivePath
-                : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configured));
+                : DownloadHistory.ResolveYtDlpDirectPath(configured);
         }
         catch { candidateArchive = string.Empty; }
         if (!string.Equals(candidateArchive, savedArchive, StringComparison.OrdinalIgnoreCase)) {

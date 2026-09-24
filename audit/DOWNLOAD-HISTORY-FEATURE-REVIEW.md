@@ -117,7 +117,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A060 | High | Fixed / regression-verified | Protected standard mostly-custom commands establish the app-owned `-o` output constraint before raw custom arguments, preventing dangling options from consuming it. |
 | DH-A061 | High | Fixed / regression-verified | Protected schemas require a terminal real extension, while the extended downloader preserves its prior safe `.%(ext)s` normalization before protected validation. |
 | DH-A062 | High | Fixed / regression-verified | Required recovery fields and historical schema matching now use yt-dlp’s case-exact output-template key semantics, including exact schema-history deduplication. |
-| DH-A063 | High | Verified / repair pending | Current yt-dlp `.mhtml` storyboard formats are successful media outputs but are absent from physical inventory, preventing archive-loss rebuild. |
+| DH-A063 | High | Fixed / regression-verified | Current yt-dlp `.mhtml` storyboard formats are inventoried as completed media and rebuild through authoritative adjacent metadata without broadening sidecar/manifest classes. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1663,4 +1663,6 @@ Download History's physical-media allowlist covers current audio/video and addit
 7. Rerun the complete guarded Windows Debug/Release/full-regression gates.
 
 **Baseline proof:** Test commit `43d053357ee12f6f18230902d6cc170139279656` adds `DOWNLOAD_HISTORY.InventoriesStoryboardMedia`. Windows Audit build `35961878290` succeeds. Verification run `35961878023` fails only the new Download History regression (`CompletedMedia=1` expected; actual `0`).
+
+**Closure:** Guarded run `35962070685` landed `10b191b94726a71c09b6ad3a297a77e571ed2968` (`fix: inventory current MHTML storyboard media`) and cleanup `eeba54ef2e45ba8088884a699de8d713dd18cb2a`. The targeted storyboard regression and complete guarded Debug/Release/full-regression gates pass. Evidence artifact `10793106244` has SHA-256 `b212a5f31837ae7645f2ab2a066f19dada4fff7346ccf263ed46fa484181513a`.
 

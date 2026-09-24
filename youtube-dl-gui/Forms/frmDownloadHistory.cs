@@ -219,7 +219,7 @@ internal sealed class frmDownloadHistory : Form {
         if (!TryGetCandidate(false, out string configuredArchivePath)) {
             RefreshStatus(new DownloadHistoryReport {
                 State = DownloadHistoryState.Unsafe,
-                Message = "The candidate filename format does not contain %(id)s. Save/enable is blocked until the required media ID is added."
+                Message = "The candidate filename format must contain %(id)s and end in .%(ext)s. Save/enable is blocked until both recovery fields are present."
             });
             return;
         }

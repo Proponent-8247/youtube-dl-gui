@@ -120,6 +120,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A063 | High | Fixed / regression-verified | Current yt-dlp `.mhtml` storyboard formats are inventoried as completed media and rebuild through authoritative adjacent metadata without broadening sidecar/manifest classes. |
 | DH-A064 | High | Fixed / regression-verified | Protected split-chapter outputs are rooted with an app-owned `chapter:` path beneath the active library while preserving yt-dlp's chapter filename semantics. |
 | DH-A065 | High | Fixed / regression-verified | Prepared protected execution rechecks that the selected provider is still yt-dlp/yt-dlp-nightly immediately before process start. |
+| DH-A066 | Low | Verified / repair pending | Validate Archive can reject a missing terminal `%(ext)s` but reports only the `%(id)s` requirement. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1718,4 +1719,22 @@ The downloader resolves `Verification.YoutubeDlPath` separately from the prepare
 **Baseline proof:** Test-only commit `a491fb4f8bf0773f0cce186117597dfb606b96dd` extends `DOWNLOAD_HISTORY.ExecutionContextRejectsSettingChanges` with a yt-dlp → youtube-dl provider flip before lease acquisition. Audit build run `36018496834` succeeds. Verification run `36018496741` fails only the two registrations of that same legacy/current execution-context method (`ExecutionContextRejectsSettingChanges` and `ExecutionContextSurvivesDisableButNotReset`), each because the expected `InvalidOperationException` is not thrown.
 
 **Closure:** Guarded run `36018887072` landed `d6fcff4a96e91225173910177e15d0c7d519f076` (`fix: revalidate provider family before protected launch`) and cleanup `f5e41292fdf90c2e33aed4d70f43c26a2fb4e146`. The start-time guard accepts either yt-dlp stable or nightly but rejects transition to the youtube-dl family before process start. Both execution-context registrations and the complete guarded Debug/Release/full-regression gates pass. Evidence artifact `10816245764` has SHA-256 `93daac4427fc61e81a708f5733b46e33679d90c4890977056ed82cd3b8c9e81f`.
+
+### DH-A066 — Validate Archive reports only the ID requirement when extension recovery is missing
+
+**Priority / state:** Low management-UI correctness risk / VERIFIED by regression.
+
+**Finding:** A061 correctly requires protected output filenames to contain an active `%(id)s` and end in an active `.%(ext)s`. The Download History enablement prompt and parent Settings gate describe both requirements. The separate `Validate Archive` path calls the same candidate validator but, when validation fails, still constructs the pre-A061 status message saying only that `%(id)s` is missing.
+
+**Impact:** A user with a valid ID token but a literal/missing media extension receives a misleading remediation message even though the protection logic correctly rejects the schema.
+
+**Required acceptance:**
+
+1. The validation status must explain both required recovery fields: active `%(id)s` and terminal `.%(ext)s`.
+2. Do not weaken or otherwise change the A061 schema-validation rules.
+3. Keep enable/save/rebuild behavior unchanged.
+4. Add a regression scoped to the validation-message wiring.
+5. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test-only commit `df0f8e345ff9ceea570e4f2a90964d1c819a4d27` adds `DOWNLOAD_HISTORY.ValidationExplainsMissingExtensionTemplate`. Audit build run `36019431041` succeeds. Verification run `36019430396` fails only that regression because the `ValidateArchive` method does not mention `%(ext)s` in its rejected-candidate message.
 

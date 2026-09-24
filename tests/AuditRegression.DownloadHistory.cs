@@ -1842,7 +1842,7 @@ internal static partial class AuditRegression {
         }
     }
 
-    private static void DownloadHistoryRebuildsRetainedUncutDerivativeAfterTotalArchiveLoss() {
+    private static void DownloadHistoryRebuildsRetainedPostprocessOriginalsAfterTotalArchiveLoss() {
         const string id = "9qFjkwAElDs";
 
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -1889,6 +1889,52 @@ internal static partial class AuditRegression {
                 "Unowned same-ID .uncut media caused an archive rewrite");
             Require(unrelatedBefore.SequenceEqual(File.ReadAllBytes(unrelatedUncut)),
                 "Fail-closed retained-uncut rebuild modified unrelated media");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string owner = DownloadHistoryWriteMediaWithInfo(
+                fixture.Root, "Audio-" + id + ".m4a", "Youtube", id);
+            string info = Path.ChangeExtension(owner, ".info.json");
+            string original = DownloadHistoryWriteMedia(
+                fixture.Root, "Audio-" + id + ".orig.m4a");
+            byte[] ownerBefore = File.ReadAllBytes(owner);
+            byte[] infoBefore = File.ReadAllBytes(info);
+            byte[] originalBefore = File.ReadAllBytes(original);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary",
+                string.Empty, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(true, DownloadHistoryCanReconcile(rebuilt));
+            Equal(2, Get(rebuilt, "CompletedMedia"));
+            Equal(2, Get(rebuilt, "IdentifiedMedia"));
+            Equal(0, Get(rebuilt, "UnresolvedMedia"));
+            Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+            Require(ownerBefore.SequenceEqual(File.ReadAllBytes(owner)),
+                "Retained-orig rebuild modified canonical media");
+            Require(infoBefore.SequenceEqual(File.ReadAllBytes(info)),
+                "Retained-orig rebuild modified authoritative metadata");
+            Require(originalBefore.SequenceEqual(File.ReadAllBytes(original)),
+                "Retained-orig rebuild modified the retained original");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMediaWithInfo(
+                fixture.Root, "Audio-" + id + ".m4a", "Youtube", id);
+            string unrelatedOrig = DownloadHistoryWriteMedia(
+                fixture.Root, "Unrelated-" + id + ".orig.m4a");
+            byte[] unrelatedBefore = File.ReadAllBytes(unrelatedOrig);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary",
+                string.Empty, true, false, string.Empty);
+            Require(DownloadHistoryStateName(rebuilt) == "Partial" ||
+                    DownloadHistoryStateName(rebuilt) == "Unsafe",
+                "Unowned same-ID .orig media did not keep rebuild fail-closed");
+            Equal(false, DownloadHistoryCanReconcile(rebuilt));
+            Equal(1, Get(rebuilt, "UnresolvedMedia"));
+            Require(!File.Exists(fixture.Archive),
+                "Unowned same-ID .orig media caused an archive rewrite");
+            Require(unrelatedBefore.SequenceEqual(File.ReadAllBytes(unrelatedOrig)),
+                "Fail-closed retained-orig rebuild modified unrelated media");
         }
     }
 
@@ -3702,7 +3748,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.EscapesProtectedChapterPathArgument", DownloadHistoryEscapesProtectedChapterPathArgument);
         Test("DOWNLOAD_HISTORY.RecognizesSplitChapterIds", DownloadHistoryRecognizesSplitChapterIds);
         Test("DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss", DownloadHistoryRebuildsDerivedMediaAfterTotalArchiveLoss);
-        Test("DOWNLOAD_HISTORY.RebuildsRetainedUncutDerivativeAfterTotalArchiveLoss", DownloadHistoryRebuildsRetainedUncutDerivativeAfterTotalArchiveLoss);
+        Test("DOWNLOAD_HISTORY.RebuildsRetainedPostprocessOriginalsAfterTotalArchiveLoss", DownloadHistoryRebuildsRetainedPostprocessOriginalsAfterTotalArchiveLoss);
         Test("DOWNLOAD_HISTORY.ValidatesRetainedFormatComponents", DownloadHistoryValidatesRetainedFormatComponents);
         Test("DOWNLOAD_HISTORY.DisambiguatesCleanMergedFormatIds", DownloadHistoryDisambiguatesCleanMergedFormatIds);
         Test("DOWNLOAD_HISTORY.RejectsLocalExtractorPageSubstitution", DownloadHistoryRejectsLocalExtractorPageSubstitution);

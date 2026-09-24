@@ -327,6 +327,33 @@ internal static partial class AuditRegression {
             "Validate Archive does not explain both protected filename recovery requirements after rejecting the candidate schema");
     }
 
+    private static void DownloadHistoryManagementUsesYtDlpArchivePathExpansion() {
+        string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
+        string dialogSource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmDownloadHistory.cs"));
+
+        int browseStart = dialogSource.IndexOf("private void BrowseArchive()", StringComparison.Ordinal);
+        int browseEnd = dialogSource.IndexOf("private bool TryGetCandidate(", browseStart, StringComparison.Ordinal);
+        Require(browseStart >= 0 && browseEnd > browseStart, "Could not inspect archive Browse path handling");
+        string browseSource = dialogSource.Substring(browseStart, browseEnd - browseStart);
+
+        int openStart = dialogSource.IndexOf("private void OpenLocation()", StringComparison.Ordinal);
+        int openEnd = dialogSource.IndexOf("private void ResetHistory()", openStart, StringComparison.Ordinal);
+        Require(openStart >= 0 && openEnd > openStart, "Could not inspect Open Location path handling");
+        string openSource = dialogSource.Substring(openStart, openEnd - openStart);
+
+        int resetStart = openEnd;
+        int resetEnd = dialogSource.IndexOf("private void BuildUi()", resetStart, StringComparison.Ordinal);
+        Require(resetStart >= 0 && resetEnd > resetStart, "Could not inspect Reset History path handling");
+        string resetSource = dialogSource.Substring(resetStart, resetEnd - resetStart);
+
+        foreach (string source in new[] { browseSource, openSource, resetSource }) {
+            Require(source.Contains("DownloadHistory.ResolveYtDlpDirectPath"),
+                "Archive management UI does not use yt-dlp-compatible direct-path expansion");
+            Require(!source.Contains("Environment.ExpandEnvironmentVariables"),
+                "Archive management UI still uses .NET-only environment expansion for a provider path");
+        }
+    }
+
     private static void DownloadHistoryHonorsEscapedIdTemplateSemantics() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             Equal(true, Call(fixture.History, null, "HasRequiredIdTemplate", "%(title)s-%(id)s.%(ext)s"));
@@ -3560,6 +3587,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RequiresAuthoritativeMetadataForRebuild", DownloadHistoryRequiresAuthoritativeMetadataForRebuild);
         Test("DOWNLOAD_HISTORY.RequiresRecoverableMediaExtensionTemplate", DownloadHistoryRequiresRecoverableMediaExtensionTemplate);
         Test("DOWNLOAD_HISTORY.ValidationExplainsMissingExtensionTemplate", DownloadHistoryValidationExplainsMissingExtensionTemplate);
+        Test("DOWNLOAD_HISTORY.ManagementUsesYtDlpArchivePathExpansion", DownloadHistoryManagementUsesYtDlpArchivePathExpansion);
         Test("DOWNLOAD_HISTORY.RequiresCaseExactRecoveryTemplateKeys", DownloadHistoryRequiresCaseExactRecoveryTemplateKeys);
         Test("DOWNLOAD_HISTORY.HonorsEscapedIdTemplateSemantics", DownloadHistoryHonorsEscapedIdTemplateSemantics);
         Test("DOWNLOAD_HISTORY.RejectsParentTraversalFilenameSchemas", DownloadHistoryRejectsParentTraversalFilenameSchemas);

@@ -120,7 +120,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A063 | High | Fixed / regression-verified | Current yt-dlp `.mhtml` storyboard formats are inventoried as completed media and rebuild through authoritative adjacent metadata without broadening sidecar/manifest classes. |
 | DH-A064 | High | Fixed / regression-verified | Protected split-chapter outputs are rooted with an app-owned `chapter:` path beneath the active library while preserving yt-dlp's chapter filename semantics. |
 | DH-A065 | High | Fixed / regression-verified | Prepared protected execution rechecks that the selected provider is still yt-dlp/yt-dlp-nightly immediately before process start. |
-| DH-A066 | Low | Verified / repair pending | Validate Archive can reject a missing terminal `%(ext)s` but reports only the `%(id)s` requirement. |
+| DH-A066 | Low | Fixed / regression-verified | Validate Archive explains both required protected filename recovery fields after rejecting a candidate schema. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1737,4 +1737,6 @@ The downloader resolves `Verification.YoutubeDlPath` separately from the prepare
 5. Rerun the complete guarded Windows Debug/Release/full-regression gates.
 
 **Baseline proof:** Test-only commit `df0f8e345ff9ceea570e4f2a90964d1c819a4d27` adds `DOWNLOAD_HISTORY.ValidationExplainsMissingExtensionTemplate`. Audit build run `36019431041` succeeds. Verification run `36019430396` fails only that regression because the `ValidateArchive` method does not mention `%(ext)s` in its rejected-candidate message.
+
+**Closure:** Guarded run `36019876157` landed `8c0c5dd1b5fe8a690052647dc49aa2fc4e7a95bb` (`fix: explain both protected filename requirements`) and cleanup `7caeee278ba5de8d545c2568ae22b15efdcc6071`. The targeted regression and complete guarded Debug/Release/full-regression gates pass. Evidence artifact `10815744648` has SHA-256 `84c35971c87a4f29020428a9ef44e3d8c30b89cba6b679137bd0ae7c218b1e9b`.
 

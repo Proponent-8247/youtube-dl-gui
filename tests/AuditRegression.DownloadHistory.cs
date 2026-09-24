@@ -1657,6 +1657,43 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryContainsSplitChapterOutputs() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            Equal(true, DownloadHistoryArguments(fixture.History,
+                "%(title)s-%(id)s.%(ext)s", "--split-chapters",
+                out arguments, out error, out execution));
+            Require(arguments.IndexOf("--paths", StringComparison.Ordinal) >= 0 &&
+                    arguments.IndexOf("chapter:", StringComparison.OrdinalIgnoreCase) >= 0,
+                "Protected split chapters do not have an app-owned chapter output path");
+            Require(arguments.IndexOf(Path.GetFullPath(fixture.Root), StringComparison.OrdinalIgnoreCase) >= 0,
+                "Protected chapter output path is not rooted in the active download library");
+
+            object standard = New("youtube_dl_gui.DownloadInfo",
+                "https://www.youtube.com/watch?v=9qFjkwAElDs");
+            Set(standard.GetType(), standard, "Type", Enum.Parse(T("youtube_dl_gui.DownloadType"), "Video"));
+            Set(standard.GetType(), standard, "FileNameSchema", "%(title)s-%(id)s.%(ext)s");
+            Set(standard.GetType(), standard, "CustomArguments", "--split-chapters");
+            Require((bool)Call(standard.GetType(), standard, "GenerateArguments",
+                (Action<string>)(delegate(string ignored) { })),
+                "Protected split-chapter standard arguments failed to generate");
+            string standardArgs = (string)Get(standard, "Arguments");
+            Require(standardArgs.IndexOf("--split-chapters", StringComparison.Ordinal) >= 0 &&
+                    standardArgs.LastIndexOf("--paths", StringComparison.Ordinal) >
+                    standardArgs.IndexOf("--split-chapters", StringComparison.Ordinal),
+                "App-owned chapter containment does not follow raw custom split-chapter arguments");
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History,
+                "%(title)s-%(id)s.%(ext)s", "--split-chapters",
+                out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryRecognizesSplitChapterIds() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -3549,6 +3586,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsReparsePointTraversal", DownloadHistoryRejectsReparsePointTraversal);
         Test("DOWNLOAD_HISTORY.RecoversRestrictedYtDlpIdSanitization", DownloadHistoryRecoversRestrictedYtDlpIdSanitization);
         Test("DOWNLOAD_HISTORY.RecoversSanitizedProviderIds", DownloadHistoryRecoversSanitizedProviderIds);
+        Test("DOWNLOAD_HISTORY.ContainsSplitChapterOutputs", DownloadHistoryContainsSplitChapterOutputs);
         Test("DOWNLOAD_HISTORY.RecognizesSplitChapterIds", DownloadHistoryRecognizesSplitChapterIds);
         Test("DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss", DownloadHistoryRebuildsDerivedMediaAfterTotalArchiveLoss);
         Test("DOWNLOAD_HISTORY.ValidatesRetainedFormatComponents", DownloadHistoryValidatesRetainedFormatComponents);

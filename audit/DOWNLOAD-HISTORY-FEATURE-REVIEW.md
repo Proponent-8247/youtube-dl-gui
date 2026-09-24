@@ -116,6 +116,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A059 | High | Fixed / regression-verified | Protected mode rejects a dangling custom `--cookies` before an app-owned following token can become its cookie writeback filename. |
 | DH-A060 | High | Fixed / regression-verified | Protected standard mostly-custom commands establish the app-owned `-o` output constraint before raw custom arguments, preventing dangling options from consuming it. |
 | DH-A061 | High | Fixed / regression-verified | Protected schemas require a terminal real extension, while the extended downloader preserves its prior safe `.%(ext)s` normalization before protected validation. |
+| DH-A062 | High | Verified / repair pending | Required `%(id)s` / `%(ext)s` keys and historical schema matching are case-insensitive even though yt-dlp output-template metadata keys are case-sensitive. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1614,4 +1615,27 @@ Escaped `%%(ext)s`, an `%(ext)s` token followed by another suffix, or an extensi
 **Reopened integration edge:** Regression commit `9da72816d501a376967f7beb909aafebb8721df1` exercises the acceptance requirement that the extended downloader preserve its historical behavior of appending terminal `.%(ext)s` when a per-item schema omits it. Verification run `35960748514` fails only `DOWNLOAD_HISTORY.RequiresRecoverableMediaExtensionTemplate`: `ExtendedMediaDetails.GenerateArguments` calls the common protected validator before its existing extension-normalization block. Standard protected downloads remain correctly strict. The repair must move the existing extended normalization ahead of protected validation rather than weaken the common invariant.
 
 **Final closure:** Guarded run `35960942684` landed `6ae4bb02ca7d6274319f66f635f1dce3dd9ba23c` (`fix: normalize extended schema before protected validation`) and cleanup `fe9881e67ba36a8593b237812dc9067d88f0a443`. The extended normalization regression passes and the complete guarded Debug/Release/full-regression gates are green. Evidence artifact `10792048603` has SHA-256 `6c27f84c3d0391c0c0739444573b77957a5405e1f1c77332002d0aed2fc60d72`.
+
+### DH-A062 — Recovery template keys are validated case-insensitively but yt-dlp keys are case-sensitive
+
+**Priority / state:** High protected-output/rebuild correctness risk / VERIFIED against current app validation/recovery and current yt-dlp output-template evaluation.
+
+**Finding:** The protected contract requires the exact yt-dlp metadata fields `%(id)s` and terminal `.%(ext)s`. Current yt-dlp traverses output-template field names directly against its metadata dictionary; the field names are case-sensitive and a missing field falls back to the configured NA placeholder. The app instead searches for `%(id)s`, accepts the terminal extension token, deduplicates remembered schemas, and recognizes ID tokens in historical schema regexes with case-insensitive comparisons.
+
+Consequently a protected schema such as `%(title)s-%(ID)s.%(ext)s` can pass the mandatory-ID gate even though yt-dlp does not embed the native ID. Likewise `%(title)s-%(id)s.%(EXT)s` can pass the A061 extension gate while producing an NA-style literal extension that physical inventory does not recognize as media. An older invalid uppercase schema can also be treated as if it had embedded the native ID, and case-insensitive schema-history deduplication can suppress persistence of a later valid lowercase schema.
+
+**Impact:** New protected files can lose the filename identity/real-extension guarantees used for collision resistance and archive-loss recovery. In the extension case the native ledger may record successful completion while a later total-loss rebuild cannot even inventory the resulting media extension. Historical recovery can also grant evidentiary meaning to a schema yt-dlp never interpreted as the required field.
+
+**Required acceptance:**
+
+1. Required protected template fields must match yt-dlp metadata-key and conversion spelling exactly: active `%(id)s` and terminal `.%(ext)s`.
+2. Reject case-mismatched key/conversion variants while Download History protection is enabled; disabled-history behavior remains unchanged.
+3. Historical schema recovery must recognize `%(id)s` only with the same case-exact semantics.
+4. Remembered-schema deduplication must not let an invalid case variant suppress persistence/use of a valid case-exact schema.
+5. Preserve A028 percent-escape semantics, A061 extended pre-validation normalization, and all safe lowercase schemas.
+6. Keep filename/media handling non-destructive.
+7. Add regression coverage for case-mismatched required keys, disabled-history behavior, invalid historical uppercase schema evidence, and valid-schema persistence beside an old invalid case variant.
+8. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test commit `cd6c6f1db117444137ad1625ac5df658fa17b2a5` adds `DOWNLOAD_HISTORY.RequiresCaseExactRecoveryTemplateKeys`. Windows Audit build `35961264205` succeeds. Verification run `35961264194` fails the new regression immediately (`False` expected from the case-mismatched required-field check; actual `True`). Test-only commit `8a9a6d58f7aa4cc97b7c3a7fe79ecffb5925a93d` additionally locks schema-history persistence so an old invalid uppercase variant cannot suppress a later valid lowercase schema.
 

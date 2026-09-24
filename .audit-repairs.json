@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "base_sha": "73e95e275a5ad637194a1a8cc0ff86aa37f34b7b",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.ManagementUsesYtDlpArchivePathExpansion"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched",
+    "V011.ActualUpdaterRollbackRestoresApplication"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A067",
+      "message": "fix: align archive management path expansion",
+      "resolves": [
+        "DOWNLOAD_HISTORY.ManagementUsesYtDlpArchivePathExpansion"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Forms/frmDownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            string? candidate = Path.GetDirectoryName(Path.GetFullPath(Environment.ExpandEnvironmentVariables(currentPath)));",
+              "new": "            string? candidate = Path.GetDirectoryName(DownloadHistory.ResolveYtDlpDirectPath(currentPath));"
+            },
+            {
+              "old": "            string? directory = Path.GetDirectoryName(Path.GetFullPath(Environment.ExpandEnvironmentVariables(path)));",
+              "new": "            string? directory = Path.GetDirectoryName(DownloadHistory.ResolveYtDlpDirectPath(path));"
+            },
+            {
+              "old": "                : Path.GetFullPath(Environment.ExpandEnvironmentVariables(configured));",
+              "new": "                : DownloadHistory.ResolveYtDlpDirectPath(configured);"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

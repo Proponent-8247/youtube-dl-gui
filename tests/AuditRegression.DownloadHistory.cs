@@ -2754,6 +2754,12 @@ internal static partial class AuditRegression {
             object reboundReport = DownloadHistoryReconcile(fixture, otherArchive, true);
             Call(fixture.History, null, "CommitSettings", true, otherArchive, true, reboundReport);
             Throws<InvalidOperationException>(() => Call(reboundExecution.GetType(), reboundExecution, "AcquireValidatedLease"));
+
+            object providerExecution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null, out arguments, out error, out providerExecution));
+            Set(fixture.Downloads, null, "YtdlType", 2); // youtube-dl, not yt-dlp
+            Throws<InvalidOperationException>(() => Call(providerExecution.GetType(), providerExecution, "AcquireValidatedLease"));
+            Set(fixture.Downloads, null, "YtdlType", 0);
         }
     }
 

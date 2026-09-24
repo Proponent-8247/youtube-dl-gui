@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "base_sha": "338e3fee09ff45c79153e803f9ea5477f74a4642",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.InventoriesStoryboardMedia"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched",
+    "V011.ActualUpdaterRollbackRestoresApplication"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A063",
+      "message": "fix: inventory current MHTML storyboard media",
+      "resolves": [
+        "DOWNLOAD_HISTORY.InventoriesStoryboardMedia"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "                    \".mxf\" or \".ogm\" or \".qt\" or \".rm\" or \".vid\" or \".vp9\" or \".unknown_video\" or",
+              "new": "                    \".mxf\" or \".ogm\" or \".qt\" or \".rm\" or \".vid\" or \".vp9\" or \".mhtml\" or \".unknown_video\" or"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

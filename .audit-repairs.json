@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "base_sha": "e4dcfd1235f5a9f6de9273a30f7ba18bb895362b",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.RejectsDanglingCookieWritebackOption"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched",
+    "V011.ActualUpdaterRollbackRestoresApplication"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A059",
+      "message": "fix: reject dangling protected cookie writeback",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RejectsDanglingCookieWritebackOption"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            string protectedArchive = EffectiveArchivePath;\n            foreach (string cookiePath in GetOptionValues(customArguments, \"--cookies\")) {",
+              "new": "            if (ContainsOptionWithoutExplicitValue(customArguments, \"--cookies\")) {\n                error = \"Custom --cookies requires an explicit cookie file path while Download History protection is enabled because a missing value can consume an app-owned argument and turn it into a cookie writeback target.\";\n                return false;\n            }\n\n            string protectedArchive = EffectiveArchivePath;\n            foreach (string cookiePath in GetOptionValues(customArguments, \"--cookies\")) {"
+            },
+            {
+              "old": "    private static IEnumerable<string> GetOptionValues(string? arguments, string option) {",
+              "new": "    private static bool ContainsOptionWithoutExplicitValue(string? arguments, string option) {\n        if (arguments.IsNullEmptyWhitespace()) return false;\n        string[] tokens = TokenizeArguments(arguments!).ToArray();\n        for (int index = 0; index < tokens.Length; index++) {\n            string token = tokens[index];\n            int equals = token.IndexOf('=');\n            string name = equals >= 0 ? token.Substring(0, equals) : token;\n            if (!name.Equals(option, StringComparison.OrdinalIgnoreCase)) continue;\n            if (equals >= 0) continue;\n            if (index + 1 >= tokens.Length) return true;\n            index++;\n        }\n        return false;\n    }\n\n    private static IEnumerable<string> GetOptionValues(string? arguments, string option) {"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

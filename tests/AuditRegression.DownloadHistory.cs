@@ -255,6 +255,55 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRequiresCaseExactRecoveryTemplateKeys() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            Equal(false, Call(fixture.History, null, "HasRequiredIdTemplate",
+                "%(title)s-%(ID)s.%(ext)s"));
+            Equal(false, Call(fixture.History, null, "HasRequiredExtensionTemplate",
+                "%(title)s-%(id)s.%(EXT)s"));
+
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+            foreach (string unsafeSchema in new[] {
+                "%(title)s-%(ID)s.%(ext)s",
+                "%(title)s-%(id)s.%(EXT)s",
+                "%(title)s-%(ID)s.%(EXT)s"
+            }) {
+                Equal(false, DownloadHistoryArguments(fixture.History, unsafeSchema, null,
+                    out arguments, out error, out execution));
+                Require(error.IndexOf("%(id)s", StringComparison.Ordinal) >= 0 ||
+                        error.IndexOf("%(ext)s", StringComparison.Ordinal) >= 0 ||
+                        error.IndexOf("filename", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("extension", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Case-mismatched recovery template key was rejected without an actionable explanation: " + unsafeSchema);
+                Equal(null, execution);
+            }
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(ID)s.%(EXT)s",
+                null, out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            const string id = "aB_Cd-Ef123";
+            File.WriteAllText(fixture.Archive, "youtube " + id + Environment.NewLine, new UTF8Encoding(false));
+            DownloadHistoryWriteMedia(fixture.Root, id + ".mp4");
+            string invalidHistoricalSchema = "%(ID)s.%(ext)s";
+            fixture.History.GetField("fKnownFileNameSchemas", All).SetValue(null,
+                "v2:" + Convert.ToBase64String(new UTF8Encoding(false).GetBytes(invalidHistoricalSchema)));
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary",
+                fixture.Archive, false, false, string.Empty);
+            Equal("Unsafe", DownloadHistoryStateName(rebuilt));
+            Equal(1, Get(rebuilt, "CompletedMedia"));
+            Equal(0, Get(rebuilt, "FilenameRecovered"));
+            Equal(1, Get(rebuilt, "UnresolvedMedia"));
+            Equal(false, DownloadHistoryCanReconcile(rebuilt));
+        }
+    }
+
     private static void DownloadHistoryHonorsEscapedIdTemplateSemantics() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             Equal(true, Call(fixture.History, null, "HasRequiredIdTemplate", "%(title)s-%(id)s.%(ext)s"));
@@ -3417,6 +3466,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
         Test("DOWNLOAD_HISTORY.RequiresAuthoritativeMetadataForRebuild", DownloadHistoryRequiresAuthoritativeMetadataForRebuild);
         Test("DOWNLOAD_HISTORY.RequiresRecoverableMediaExtensionTemplate", DownloadHistoryRequiresRecoverableMediaExtensionTemplate);
+        Test("DOWNLOAD_HISTORY.RequiresCaseExactRecoveryTemplateKeys", DownloadHistoryRequiresCaseExactRecoveryTemplateKeys);
         Test("DOWNLOAD_HISTORY.HonorsEscapedIdTemplateSemantics", DownloadHistoryHonorsEscapedIdTemplateSemantics);
         Test("DOWNLOAD_HISTORY.RejectsParentTraversalFilenameSchemas", DownloadHistoryRejectsParentTraversalFilenameSchemas);
         Test("DOWNLOAD_HISTORY.RejectsUnsafeProtectedFilenameSchemas", DownloadHistoryRejectsUnsafeProtectedFilenameSchemas);

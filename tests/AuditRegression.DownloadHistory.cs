@@ -331,14 +331,16 @@ internal static partial class AuditRegression {
         string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
         string dialogSource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmDownloadHistory.cs"));
 
-        int browseStart = dialogSource.IndexOf("private void BrowseArchive()", StringComparison.Ordinal);
+        int browseStart = dialogSource.IndexOf("private void BrowseArchive(", StringComparison.Ordinal);
+        Require(browseStart >= 0, "Could not inspect archive Browse path handling");
         int browseEnd = dialogSource.IndexOf("private bool TryGetCandidate(", browseStart, StringComparison.Ordinal);
-        Require(browseStart >= 0 && browseEnd > browseStart, "Could not inspect archive Browse path handling");
+        Require(browseEnd > browseStart, "Could not inspect archive Browse path handling");
         string browseSource = dialogSource.Substring(browseStart, browseEnd - browseStart);
 
-        int openStart = dialogSource.IndexOf("private void OpenLocation()", StringComparison.Ordinal);
-        int openEnd = dialogSource.IndexOf("private void ResetHistory()", openStart, StringComparison.Ordinal);
-        Require(openStart >= 0 && openEnd > openStart, "Could not inspect Open Location path handling");
+        int openStart = dialogSource.IndexOf("private void OpenLocation(", StringComparison.Ordinal);
+        Require(openStart >= 0, "Could not inspect Open Location path handling");
+        int openEnd = dialogSource.IndexOf("private void ResetHistory(", openStart, StringComparison.Ordinal);
+        Require(openEnd > openStart, "Could not inspect Open Location path handling");
         string openSource = dialogSource.Substring(openStart, openEnd - openStart);
 
         int resetStart = openEnd;

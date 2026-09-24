@@ -117,6 +117,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A060 | High | Fixed / regression-verified | Protected standard mostly-custom commands establish the app-owned `-o` output constraint before raw custom arguments, preventing dangling options from consuming it. |
 | DH-A061 | High | Fixed / regression-verified | Protected schemas require a terminal real extension, while the extended downloader preserves its prior safe `.%(ext)s` normalization before protected validation. |
 | DH-A062 | High | Fixed / regression-verified | Required recovery fields and historical schema matching now use yt-dlp’s case-exact output-template key semantics, including exact schema-history deduplication. |
+| DH-A063 | High | Verified / repair pending | Current yt-dlp `.mhtml` storyboard formats are successful media outputs but are absent from physical inventory, preventing archive-loss rebuild. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1640,4 +1641,26 @@ Consequently a protected schema such as `%(title)s-%(ID)s.%(ext)s` can pass the 
 **Baseline proof:** Test commit `cd6c6f1db117444137ad1625ac5df658fa17b2a5` adds `DOWNLOAD_HISTORY.RequiresCaseExactRecoveryTemplateKeys`. Windows Audit build `35961264205` succeeds. Verification run `35961264194` fails the new regression immediately (`False` expected from the case-mismatched required-field check; actual `True`). Test-only commit `8a9a6d58f7aa4cc97b7c3a7fe79ecffb5925a93d` additionally locks schema-history persistence so an old invalid uppercase variant cannot suppress a later valid lowercase schema.
 
 **Closure:** Guarded run `35961632427` landed `6b35c4b4b6197a5e11b0c3c94d9f8d616153149c` (`fix: match yt-dlp recovery template keys exactly`) and cleanup `112c032127381c0db81e5ff5cffeb85d4c5a4ead`. The repair switches only output-template/schema-history semantics to ordinal case-exact comparison; Windows filesystem/path comparisons remain case-insensitive. The targeted regression and complete guarded Debug/Release/full-regression gates pass. Evidence artifact `10792273151` has SHA-256 `5a12ea04eebe835c129d1b0c9b2895d8a3f3c28d07d19fdeed426bb4b049e3f4`.
+
+### DH-A063 — Current MHTML storyboard media is invisible to physical inventory
+
+**Priority / state:** High archive-loss recovery correctness risk / VERIFIED against current inventory and current yt-dlp format/downloader definitions.
+
+**Finding:** Current yt-dlp classifies `mhtml` as its storyboard media extension and exposes normal selectable storyboard formats with `ext: "mhtml"` / `protocol: "mhtml"` (including YouTube, Twitch, FranceTV, Panopto and common DASH image storyboards). `MhtmlFD` is a normal downloader, so a successful selected storyboard format reaches the same source-level native archive completion path as other formats.
+
+Download History's physical-media allowlist covers current audio/video and additional safe direct-media extensions, but not `.mhtml`. Protected mode does not ban ordinary format selection. A protected storyboard download can therefore create authoritative media plus the forced adjacent info JSON and record its native identity, while an explicit rebuild after archive loss enumerates zero completed media.
+
+**Impact:** A valid protected download can become unrecoverable solely because the selected current yt-dlp media class is a storyboard. If the primary/backup history is lost, Rebuild cannot reconstruct the identity even though both the MHTML media and authoritative info JSON remain intact.
+
+**Required acceptance:**
+
+1. Treat current yt-dlp `.mhtml` storyboard outputs as completed media during physical inventory.
+2. Preserve thumbnail/subtitle/manifest exclusions; do not generically admit image or manifest extensions.
+3. Recover storyboard identity through the same authoritative adjacent info JSON rules as other completed media.
+4. Preserve byte-for-byte MHTML media and sidecar immutability during analyze/rebuild.
+5. Preserve all A025/A029/A031/A035 media-vs-sidecar ambiguity behavior.
+6. Add a regression proving Analyze sees the MHTML media and explicit Rebuild restores the native archive without modifying media/metadata.
+7. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test commit `43d053357ee12f6f18230902d6cc170139279656` adds `DOWNLOAD_HISTORY.InventoriesStoryboardMedia`. Windows Audit build `35961878290` succeeds. Verification run `35961878023` fails only the new Download History regression (`CompletedMedia=1` expected; actual `0`).
 

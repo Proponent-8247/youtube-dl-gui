@@ -518,7 +518,7 @@ internal static class DownloadHistory {
     private static bool HasActiveTemplateToken(string template, string token) {
         int search = 0;
         while (search < template.Length) {
-            int tokenStart = template.IndexOf(token, search, StringComparison.OrdinalIgnoreCase);
+            int tokenStart = template.IndexOf(token, search, StringComparison.Ordinal);
             if (tokenStart < 0) return false;
 
             int percentStart = tokenStart;
@@ -540,14 +540,14 @@ internal static class DownloadHistory {
         if (schema.IsNullEmptyWhitespace()) return false;
         string fileTemplate = GetSchemaFileTemplate(schema!);
         return !fileTemplate.IsNullEmptyWhitespace() &&
-            fileTemplate.EndsWith(".%(ext)s", StringComparison.OrdinalIgnoreCase);
+            fileTemplate.EndsWith(".%(ext)s", StringComparison.Ordinal);
     }
 
     public static string AddRequiredIdTemplate(string? schema) {
         string value = schema.IsNullEmptyWhitespace() ? "%(title)s.%(ext)s" : schema!;
         if (HasRequiredIdTemplate(value)) return value;
         const string ext = ".%(ext)s";
-        int index = value.LastIndexOf(ext, StringComparison.OrdinalIgnoreCase);
+        int index = value.LastIndexOf(ext, StringComparison.Ordinal);
         return index >= 0 ? value.Insert(index, "-%(id)s") : value + "-%(id)s.%(ext)s";
     }
 
@@ -2505,7 +2505,7 @@ internal static class DownloadHistory {
         if (!HasRequiredIdTemplate(schema)) return true;
         string normalized = schema.Trim();
         List<string> known = DecodeKnownFileNameSchemas(fKnownFileNameSchemas).ToList();
-        if (known.Any(value => string.Equals(value, normalized, StringComparison.OrdinalIgnoreCase))) return true;
+        if (known.Any(value => string.Equals(value, normalized, StringComparison.Ordinal))) return true;
         try {
             known.Add(normalized);
             string updated = EncodeKnownFileNameSchemas(known);
@@ -2520,7 +2520,7 @@ internal static class DownloadHistory {
     }
 
     private static IEnumerable<string> RecoveryFileNameSchemas() {
-        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> seen = new(StringComparer.Ordinal);
         if (!Downloads.fileNameSchema.IsNullEmptyWhitespace() && seen.Add(Downloads.fileNameSchema)) {
             yield return Downloads.fileNameSchema;
         }
@@ -2532,7 +2532,7 @@ internal static class DownloadHistory {
     private static bool SchemaFileNameContainsSourceId(string mediaPath, string sourceId) {
         foreach (string schema in RecoveryFileNameSchemas()) {
             string template = GetSchemaFileTemplate(schema);
-            if (template.IsNullEmptyWhitespace() || template.IndexOf("%(id)s", StringComparison.OrdinalIgnoreCase) < 0) continue;
+            if (template.IsNullEmptyWhitespace() || template.IndexOf("%(id)s", StringComparison.Ordinal) < 0) continue;
             string pattern = BuildSchemaRegex(template, Regex.Escape(sourceId));
             if (Regex.IsMatch(Path.GetFileName(mediaPath), pattern, RegexOptions.CultureInvariant)) return true;
         }
@@ -2589,7 +2589,7 @@ internal static class DownloadHistory {
             if (percentCount > 1) pattern.Append(Regex.Escape(new string('%', percentCount / 2)));
             string token = template.Substring(tokenStart, tokenEnd + 1 - tokenStart);
             if ((percentCount & 1) == 1) {
-                pattern.Append(string.Equals(token, idToken, StringComparison.OrdinalIgnoreCase) ? idPattern : ".*?");
+                pattern.Append(string.Equals(token, idToken, StringComparison.Ordinal) ? idPattern : ".*?");
             }
             else {
                 pattern.Append(Regex.Escape(token.Substring(1)));

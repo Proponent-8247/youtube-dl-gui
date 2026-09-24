@@ -1734,6 +1734,20 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryEscapesProtectedChapterPathArgument() {
+        Type argumentList = T("youtube_dl_gui.ArgumentList");
+        string syntheticChapterPath = "chapter:C:\\Library With Space\\";
+        string escaped = (string)Call(argumentList, null, "EscapeArgument", syntheticChapterPath);
+        Require(escaped.StartsWith("\"", StringComparison.Ordinal) &&
+                escaped.EndsWith("\\\\\"", StringComparison.Ordinal),
+            "Generic Windows argument escaping does not protect a quoted trailing backslash");
+
+        string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
+        string historySource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Classes", "DownloadHistory.cs"));
+        Require(historySource.Contains("ArgumentList.EscapeArgument(\"chapter:\" + preparedChapterRootArgument)"),
+            "Protected chapter output path is hand-quoted instead of using the Windows argument escaper");
+    }
+
     private static void DownloadHistoryRecognizesSplitChapterIds() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -3635,6 +3649,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RecoversRestrictedYtDlpIdSanitization", DownloadHistoryRecoversRestrictedYtDlpIdSanitization);
         Test("DOWNLOAD_HISTORY.RecoversSanitizedProviderIds", DownloadHistoryRecoversSanitizedProviderIds);
         Test("DOWNLOAD_HISTORY.ContainsSplitChapterOutputs", DownloadHistoryContainsSplitChapterOutputs);
+        Test("DOWNLOAD_HISTORY.EscapesProtectedChapterPathArgument", DownloadHistoryEscapesProtectedChapterPathArgument);
         Test("DOWNLOAD_HISTORY.RecognizesSplitChapterIds", DownloadHistoryRecognizesSplitChapterIds);
         Test("DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss", DownloadHistoryRebuildsDerivedMediaAfterTotalArchiveLoss);
         Test("DOWNLOAD_HISTORY.ValidatesRetainedFormatComponents", DownloadHistoryValidatesRetainedFormatComponents);

@@ -122,7 +122,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A065 | High | Fixed / regression-verified | Prepared protected execution rechecks that the selected provider is still yt-dlp/yt-dlp-nightly immediately before process start. |
 | DH-A066 | Low | Fixed / regression-verified | Validate Archive explains both required protected filename recovery fields after rejecting a candidate schema. |
 | DH-A067 | Medium | Fixed / regression-verified | Archive Browse/Open/Reset management paths now use the same yt-dlp direct-path expansion semantics as runtime history resolution. |
-| DH-A068 | High | Verified / repair pending | The app-owned `chapter:` path must use Windows-safe argument escaping so a trailing root backslash cannot absorb the closing quote and protected suffix tokens. |
+| DH-A068 | High | Fixed / regression-verified | The app-owned `chapter:` path now uses Windows-safe argument escaping so root/trailing-backslash paths cannot corrupt protected argv boundaries. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1787,4 +1787,6 @@ The downloader resolves `Verification.YoutubeDlPath` separately from the prepare
 8. Rerun the complete guarded Windows Debug/Release/full-regression gates.
 
 **Baseline:** test commit `b5216dc19851c9e7a67f01c587f0803f2eef0301` adds `DOWNLOAD_HISTORY.EscapesProtectedChapterPathArgument`. The regression separately verifies the generic Windows escaping primitive and then inspects Download History's chapter argument construction; current source still hand-quotes `preparedChapterRootArgument`.
+
+**Closure:** Guarded run `36073163589` landed `abb8d50081d07d517fec8989cd46a29fcf839585` (`fix: escape protected chapter path argument`) and cleanup `030d3bb9673d8a270fe7b66075466375352cdc81`. The complete `chapter:<root>` value now passes through `ArgumentList.EscapeArgument` after yt-dlp literal-path escaping, preserving the A064 suffix ordering while correctly doubling trailing backslashes when Windows quoting is required. The targeted regression and complete guarded Debug/Release/full-regression gates pass. Evidence artifact `10838409359` has SHA-256 `d3de27db7f777a61119529081b1b42ed11c22d067daf6fd761e41876a9894182`.
 

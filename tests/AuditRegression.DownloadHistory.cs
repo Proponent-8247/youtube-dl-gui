@@ -1167,6 +1167,41 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryProtectsMostlyCustomOutputBeforeRawArguments() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+
+            object mostlyCustom = New("youtube_dl_gui.DownloadInfo", "https://www.youtube.com/watch?v=9qFjkwAElDs");
+            Set(mostlyCustom.GetType(), mostlyCustom, "Type", Enum.Parse(T("youtube_dl_gui.DownloadType"), "Custom"));
+            Set(mostlyCustom.GetType(), mostlyCustom, "MostlyCustomArguments", true);
+            Set(mostlyCustom.GetType(), mostlyCustom, "CustomArguments",
+                "https://www.youtube.com/watch?v=9qFjkwAElDs --proxy");
+            Set(mostlyCustom.GetType(), mostlyCustom, "FileNameSchema", "%(title)s-%(id)s.%(ext)s");
+            Require((bool)Call(mostlyCustom.GetType(), mostlyCustom, "GenerateArguments", (Action<string>)(delegate(string ignored) { })),
+                "Protected mostly-custom dangling-option fixture did not generate arguments");
+
+            string protectedArgs = (string)Get(mostlyCustom, "Arguments");
+            int customIndex = protectedArgs.IndexOf("--proxy", StringComparison.Ordinal);
+            int outputIndex = protectedArgs.IndexOf("-o \"", StringComparison.Ordinal);
+            Require(outputIndex >= 0 && outputIndex < customIndex,
+                "Protected mostly-custom output option occurs after raw custom arguments and can be consumed as a dangling option value");
+            Require(protectedArgs.LastIndexOf("--ignore-config", StringComparison.Ordinal) > customIndex,
+                "Protected mostly-custom suffix no longer follows raw custom arguments");
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            object disabled = New("youtube_dl_gui.DownloadInfo", "https://www.youtube.com/watch?v=9qFjkwAElDs");
+            Set(disabled.GetType(), disabled, "Type", Enum.Parse(T("youtube_dl_gui.DownloadType"), "Custom"));
+            Set(disabled.GetType(), disabled, "MostlyCustomArguments", true);
+            Set(disabled.GetType(), disabled, "CustomArguments",
+                "https://www.youtube.com/watch?v=9qFjkwAElDs --proxy");
+            Set(disabled.GetType(), disabled, "FileNameSchema", "%(title)s-%(id)s.%(ext)s");
+            Require((bool)Call(disabled.GetType(), disabled, "GenerateArguments", (Action<string>)(delegate(string ignored) { })),
+                "Disabled-history mostly-custom control did not preserve existing argument generation");
+            Require(((string)Get(disabled, "Arguments")).IndexOf("--download-archive", StringComparison.Ordinal) < 0,
+                "Disabled-history mostly-custom control unexpectedly gained archive protection arguments");
+        }
+    }
+
     private static void DownloadHistoryRejectsNonNativeArchiveEncodings() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             MethodInfo readArchive = fixture.History.GetMethod("TryReadArchive", All);
@@ -3347,6 +3382,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsExecutablePathAndSelfUpdateOverrides", DownloadHistoryRejectsExecutablePathAndSelfUpdateOverrides);
         Test("DOWNLOAD_HISTORY.MatchesYtDlpPathExpansion", DownloadHistoryMatchesYtDlpPathExpansion);
         Test("DOWNLOAD_HISTORY.IsolationPrecedesDanglingCustomOptions", DownloadHistoryIsolationPrecedesDanglingCustomOptions);
+        Test("DOWNLOAD_HISTORY.ProtectsMostlyCustomOutputBeforeRawArguments", DownloadHistoryProtectsMostlyCustomOutputBeforeRawArguments);
         Test("DOWNLOAD_HISTORY.RejectsNonNativeArchiveEncodings", DownloadHistoryRejectsNonNativeArchiveEncodings);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryPostprocessorHooks", DownloadHistoryRejectsArbitraryPostprocessorHooks);
         Test("DOWNLOAD_HISTORY.RejectsIdOutputOverride", DownloadHistoryRejectsIdOutputOverride);

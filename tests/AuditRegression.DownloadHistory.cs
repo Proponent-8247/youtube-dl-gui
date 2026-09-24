@@ -280,6 +280,18 @@ internal static partial class AuditRegression {
                 Equal(null, execution);
             }
 
+            string invalidHistoricalSchema = "%(title)s-%(ID)s.%(ext)s";
+            FieldInfo knownSchemas = fixture.History.GetField("fKnownFileNameSchemas", All);
+            knownSchemas.SetValue(null,
+                "v2:" + Convert.ToBase64String(new UTF8Encoding(false).GetBytes(invalidHistoricalSchema)));
+            string validSchema = "%(title)s-%(id)s.%(ext)s";
+            Equal(true, DownloadHistoryArguments(fixture.History, validSchema,
+                null, out arguments, out error, out execution));
+            string encodedValidSchema = Convert.ToBase64String(new UTF8Encoding(false).GetBytes(validSchema));
+            string persistedSchemas = (string)knownSchemas.GetValue(null);
+            Require(persistedSchemas.Split('|').Contains(encodedValidSchema),
+                "An invalid historical case variant suppressed persistence of the valid case-exact protected schema");
+
             Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(ID)s.%(EXT)s",
                 null, out arguments, out error, out execution));

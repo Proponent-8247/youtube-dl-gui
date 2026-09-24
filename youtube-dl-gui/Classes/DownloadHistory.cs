@@ -1065,7 +1065,8 @@ internal static class DownloadHistory {
             if (!RememberFileNameSchema(fileNameSchema, out error)) return false;
             execution = new DownloadHistoryExecution(preparedArchive, KeepBackup, LastReportInternal.ArchiveSnapshot);
             string preparedArchiveArgument = EscapeYtDlpLiteralPathForArgument(preparedArchive);
-            archiveArguments = $"{ProtectedIsolationArguments} --compat-options -allow-unsafe-ext --write-info-json --download-archive \"{preparedArchiveArgument}\" --no-break-on-existing --concat-playlist never --abort-on-unavailable-fragments";
+            string preparedChapterRootArgument = EscapeYtDlpLiteralPathForArgument(GetLibraryRoot());
+            archiveArguments = $"{ProtectedIsolationArguments} --compat-options -allow-unsafe-ext --write-info-json --download-archive \"{preparedArchiveArgument}\" --paths \"chapter:{preparedChapterRootArgument}\" --no-break-on-existing --concat-playlist never --abort-on-unavailable-fragments";
             return true;
         }
     }

@@ -654,6 +654,28 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsDanglingCookieWritebackOption() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string arguments, error;
+            object execution;
+
+            Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--cookies", out arguments, out error, out execution));
+            Require(error.IndexOf("cookie", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                    (error.IndexOf("value", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     error.IndexOf("path", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     error.IndexOf("protected", StringComparison.OrdinalIgnoreCase) >= 0),
+                "Dangling cookie option was not rejected with an actionable protected-write error");
+            Equal(null, execution);
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--cookies", out arguments, out error, out execution));
+            Equal(string.Empty, arguments);
+        }
+    }
+
     private static void DownloadHistoryExpandsDollarCookiePathsLikeYtDlp() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryEnable(fixture, string.Empty);
@@ -3314,6 +3336,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsUnsafeExtensionCompatibility", DownloadHistoryRejectsUnsafeExtensionCompatibility);
         Test("DOWNLOAD_HISTORY.RejectsArbitraryStateMutationHooks", DownloadHistoryRejectsArbitraryStateMutationHooks);
         Test("DOWNLOAD_HISTORY.RejectsCookieWritebackCollisions", DownloadHistoryRejectsCookieWritebackCollisions);
+        Test("DOWNLOAD_HISTORY.RejectsDanglingCookieWritebackOption", DownloadHistoryRejectsDanglingCookieWritebackOption);
         Test("DOWNLOAD_HISTORY.ExpandsDollarCookiePathsLikeYtDlp", DownloadHistoryExpandsDollarCookiePathsLikeYtDlp);
         Test("DOWNLOAD_HISTORY.RejectsRawChildProcessArguments", DownloadHistoryRejectsRawChildProcessArguments);
         Test("DOWNLOAD_HISTORY.RejectsDestructiveCacheRemoval", DownloadHistoryRejectsDestructiveCacheRemoval);

@@ -156,17 +156,20 @@ internal sealed class frmDownloadHistory : Form {
 
     private bool TryGetCandidate(bool showPrompts, out string configuredArchivePath) {
         configuredArchivePath = NormalizeConfiguredPath(txtArchive.Text);
-        if (!chkEnabled.Checked || DownloadHistory.HasRequiredIdTemplate(pendingFileNameSchema)) return true;
+        bool hasId = DownloadHistory.HasRequiredIdTemplate(pendingFileNameSchema);
+        bool hasExtension = DownloadHistory.HasRequiredExtensionTemplate(pendingFileNameSchema);
+        if (!chkEnabled.Checked || (hasId && hasExtension)) return true;
         if (!showPrompts) return false;
 
-        string recommended = DownloadHistory.AddRequiredIdTemplate(pendingFileNameSchema);
+        string recommended = DownloadHistory.AddRequiredExtensionTemplate(
+            DownloadHistory.AddRequiredIdTemplate(pendingFileNameSchema));
         DialogResult answer = MessageBox.Show(this,
-            "Cannot enable Download History because the output filename does not contain %(id)s.\r\n\r\n" +
-            "IDs are required so the archive can be validated or reconstructed if it is lost or damaged.\r\n\r\n" +
+            "Cannot enable Download History because the output filename must contain %(id)s and end in .%(ext)s.\r\n\r\n" +
+            "The media ID and real media extension are required so the archive can be validated or reconstructed if it is lost or damaged.\r\n\r\n" +
             "Current:\r\n" + pendingFileNameSchema + "\r\n\r\n" +
             "Recommended:\r\n" + recommended + "\r\n\r\n" +
             "Update the filename format automatically?",
-            "Download History requires media IDs", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            "Download History requires recoverable filenames", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
         if (answer != DialogResult.Yes) return false;
         pendingFileNameSchema = recommended;
         return true;

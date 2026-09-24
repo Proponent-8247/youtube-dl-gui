@@ -536,12 +536,24 @@ internal static class DownloadHistory {
         return !fileTemplate.IsNullEmptyWhitespace() && HasActiveTemplateToken(fileTemplate, "%(id)s");
     }
 
+    public static bool HasRequiredExtensionTemplate(string? schema) {
+        if (schema.IsNullEmptyWhitespace()) return false;
+        string fileTemplate = GetSchemaFileTemplate(schema!);
+        return !fileTemplate.IsNullEmptyWhitespace() &&
+            fileTemplate.EndsWith(".%(ext)s", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static string AddRequiredIdTemplate(string? schema) {
         string value = schema.IsNullEmptyWhitespace() ? "%(title)s.%(ext)s" : schema!;
         if (HasRequiredIdTemplate(value)) return value;
         const string ext = ".%(ext)s";
         int index = value.LastIndexOf(ext, StringComparison.OrdinalIgnoreCase);
         return index >= 0 ? value.Insert(index, "-%(id)s") : value + "-%(id)s.%(ext)s";
+    }
+
+    public static string AddRequiredExtensionTemplate(string? schema) {
+        string value = schema.IsNullEmptyWhitespace() ? "%(title)s-%(id)s" : schema!;
+        return HasRequiredExtensionTemplate(value) ? value : value + ".%(ext)s";
     }
 
     private static bool HasBalancedArgumentQuotes(string? arguments) {
@@ -887,6 +899,11 @@ internal static class DownloadHistory {
             if (!HasRequiredIdTemplate(fileNameSchema)) {
                 LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "The filename format does not contain %(id)s in the output filename." };
                 error = "Download History requires %(id)s in the output filename so the library can be validated or reconstructed.";
+                return false;
+            }
+            if (!HasRequiredExtensionTemplate(fileNameSchema)) {
+                LastReportInternal = new DownloadHistoryReport { State = DownloadHistoryState.Unsafe, Message = "The filename format does not end in .%(ext)s in the output filename." };
+                error = "Download History requires the output filename to end in .%(ext)s so downloaded media keeps its provider media extension and remains recoverable during archive rebuild.";
                 return false;
             }
 
@@ -1258,6 +1275,9 @@ internal static class DownloadHistory {
                 }
                 if (!HasRequiredIdTemplate(Downloads.fileNameSchema)) {
                     throw new InvalidOperationException("Download History cannot be enabled until the output filename contains %(id)s.");
+                }
+                if (!HasRequiredExtensionTemplate(Downloads.fileNameSchema)) {
+                    throw new InvalidOperationException("Download History cannot be enabled until the output filename ends in .%(ext)s.");
                 }
                 if (preparedReport?.State != DownloadHistoryState.Healthy) {
                     throw new InvalidOperationException("Download History settings cannot be enabled until the candidate library state is healthy.");

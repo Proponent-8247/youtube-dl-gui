@@ -683,20 +683,24 @@ public partial class frmSettings : LocalizedForm {
     }
 
     private void btnSettingsSave_Click(object sender, EventArgs e) {
-        if (DownloadHistory.Enabled && !DownloadHistory.HasRequiredIdTemplate(txtSettingsDownloadsFileNameSchema.Text)) {
+        if (DownloadHistory.Enabled &&
+            (!DownloadHistory.HasRequiredIdTemplate(txtSettingsDownloadsFileNameSchema.Text) ||
+             !DownloadHistory.HasRequiredExtensionTemplate(txtSettingsDownloadsFileNameSchema.Text))) {
             MessageBox.Show(this,
-                "Download History is enabled, so the filename format must contain %(id)s. Disable Download History first if you want to remove media IDs.",
-                "Media ID required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                "Download History is enabled, so the filename format must contain %(id)s and end in .%(ext)s. Disable Download History first if you want to remove either recovery field.",
+                "Recoverable filename required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             tcMain.SelectedTab = tabSettingsDownloads;
             txtSettingsDownloadsFileNameSchema.Focus();
             return;
         }
         if (!DownloadHistory.Enabled && DownloadHistory.EverEnabled
             && DownloadHistory.HasRequiredIdTemplate(Downloads.fileNameSchema)
-            && !DownloadHistory.HasRequiredIdTemplate(txtSettingsDownloadsFileNameSchema.Text)) {
+            && DownloadHistory.HasRequiredExtensionTemplate(Downloads.fileNameSchema)
+            && (!DownloadHistory.HasRequiredIdTemplate(txtSettingsDownloadsFileNameSchema.Text) ||
+                !DownloadHistory.HasRequiredExtensionTemplate(txtSettingsDownloadsFileNameSchema.Text))) {
             DialogResult answer = MessageBox.Show(this,
-                "Download History is currently disabled. Files downloaded without %(id)s may not be safely identifiable if you enable Download History again later. Keeping media IDs in filenames is strongly recommended.\r\n\r\nRemove %(id)s anyway?",
-                "Keep media IDs while history is disabled", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                "Download History is currently disabled. Files downloaded without %(id)s or without a terminal .%(ext)s may not be safely identifiable if you enable Download History again later. Keeping both recovery fields in filenames is strongly recommended.\r\n\r\nRemove a recovery field anyway?",
+                "Keep recoverable filenames while history is disabled", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (answer != DialogResult.Yes) {
                 tcMain.SelectedTab = tabSettingsDownloads;
                 txtSettingsDownloadsFileNameSchema.Focus();

@@ -224,6 +224,15 @@ internal static partial class AuditRegression {
             Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
                 null, out arguments, out error, out execution));
 
+            object extended = New("youtube_dl_gui.ExtendedMediaDetails", "https://www.youtube.com/watch?v=9qFjkwAElDs");
+            Set(extended.GetType(), extended, "FileNameSchema", "%(title)s-%(id)s");
+            Set(extended.GetType(), extended, "SelectedType", Enum.Parse(T("youtube_dl_gui.DownloadType"), "Custom"));
+            Set(extended.GetType(), extended, "CustomArguments", "--skip-download");
+            Require((bool)Call(extended.GetType(), extended, "GenerateArguments"),
+                "Extended downloader no longer normalizes its effective schema to terminal .%(ext)s before protected validation");
+            Require(((string)Get(extended, "Arguments")).Contains("%(title)s-%(id)s.%(ext)s"),
+                "Extended downloader protected output did not retain its historical terminal extension normalization");
+
             object prepared = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
             Equal("Healthy", DownloadHistoryStateName(prepared));
             Set(fixture.Downloads, null, "fileNameSchema", "%(title)s-%(id)s.txt");

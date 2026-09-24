@@ -113,6 +113,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A056 | High | Fixed / regression-verified | Playlist/multi-video metadata is excluded from completed-media identity recovery while metadata-proven media-like playlist thumbnails remain sidecars. |
 | DH-A057 | High | Fixed / regression-verified | In-tree archives are constrained to `.txt`, preventing collisions with protected provider media/sidecar outputs while preserving out-of-tree custom archive extensions. |
 | DH-A058 | High | Fixed / regression-verified | Effective default/custom yt-dlp cache roots are modeled in option order and protected execution rejects archive paths that can be cache JSON targets. |
+| DH-A059 | High | Verified / repair pending | A dangling custom `--cookies` can consume an app-owned following token as its cookie filename, bypassing raw custom cookie-path collision validation and creating a provider writeback target. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1529,4 +1530,26 @@ Download History currently permits both default caching and custom `--cache-dir`
 **Baseline proof:** Test commit `020ab1ad339c3ca54feb7e28200d34912e484714` adds `DOWNLOAD_HISTORY.RejectsCacheWritebackCollisions`, covering the default cache root, ordered custom cache enable/disable behavior, a non-colliding custom-cache control, and disabled-history behavior. Windows Audit build `35715431474` succeeds. Verification run `35715431332` fails only the new cache-collision regression (`False` expected from protected preparation; actual `True`) while A040 `RejectsDestructiveCacheRemoval` and A057 `RejectsArchiveOutputCollisions` remain green.
 
 **Closure:** Guarded run `35715787783` landed `4581f4dd3635b9e91751dc47a64599e90e197995` (`fix: protect history from yt-dlp cache writeback`) and cleanup `fa97aba4301afa170dc5dbfc2ab108676469df78`. The accepted repair models the default cache root, ordered `--cache-dir` / `--no-cache-dir` overrides, current `<section>/<key>.json` cache layout, and inherited app/provider working directory without disabling non-colliding cache use. The complete guarded Windows Debug/Release/full-regression gates pass. Retained evidence artifact `10688134628` has SHA-256 `07d1368761d914f8219e445efb1e3168cf64adaedfea9ee240a6a3dd72ad43a0`.
+
+### DH-A059 — Dangling cookie option can turn an app-owned token into a writeback target
+
+**Priority / state:** High protected-ledger integrity risk / VERIFIED against current A047 argument bracketing, current cookie collision validation, and current yt-dlp option/cookie-save behavior.
+
+**Finding:** A047 correctly establishes an app-owned isolation prefix before raw custom arguments and retains the full protected suffix afterward. That prevents an arbitrary dangling value-taking option from removing the only config/plugin isolation token. However, a trailing custom `--cookies` has a write side effect of its own. Python optparse consumes the next command-line token as the required cookie filename even when that token begins with `--`. In the standard protected builder the next token comes from the app-owned suffix; in the mostly-custom builder another app-owned token such as `-o` can be consumed first.
+
+The current A038/A041 collision check calls `GetOptionValues` only on the **raw custom argument string**. A final `--cookies` therefore yields no value to validate. Once the complete command line is assembled, yt-dlp receives a non-null cookie filename sourced from an app-owned token. yt-dlp saves the cookie jar at shutdown and opens that filename for write/truncate. Because out-of-tree custom archive names are intentionally supported, the resulting relative filename can collide with a valid protected archive outside the active media tree.
+
+**Impact:** A protected run can pass all pre-start archive/cookie checks, then truncate the live native ledger through cookie writeback to a filename that did not appear as a cookie path in the user-supplied string. This defeats the protected-state boundary without disabling the A047 isolation prefix.
+
+**Required acceptance:**
+
+1. While Download History is enabled, reject custom `--cookies` when its required filename is not explicitly present in the raw custom argument string.
+2. Keep ordinary explicit `--cookies FILE` and `--cookies=FILE` available subject to the existing A038/A041 archive/backup/lock collision checks.
+3. Do not globally reject unrelated dangling value-taking options merely because A047 brackets them; scope this repair to the cookie writeback path unless another concrete side effect is proven.
+4. Preserve Download History disabled behavior.
+5. Preserve authentication-config cookie validation and all existing config/plugin isolation ordering.
+6. Add/retain a regression proving trailing `--cookies` is rejected under protection and remains untouched when protection is disabled.
+7. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test commit `41cc7020928f719ed498b04e92c6649b9d1aa376` adds `DOWNLOAD_HISTORY.RejectsDanglingCookieWritebackOption`. Windows Audit build `35949401155` succeeds. Verification run `35949401156` fails on exactly that Download History regression (protected rejection expected; actual acceptance); Debug/Release builds and packaging complete successfully.
 

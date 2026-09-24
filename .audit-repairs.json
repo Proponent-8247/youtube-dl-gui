@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "base_sha": "db16f1e2c4c8db3c0f9e6b8457022b7b61ef4d29",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.RequiresCaseExactRecoveryTemplateKeys"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched",
+    "V011.ActualUpdaterRollbackRestoresApplication"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A062",
+      "message": "fix: match yt-dlp recovery template keys exactly",
+      "resolves": [
+        "DOWNLOAD_HISTORY.RequiresCaseExactRecoveryTemplateKeys"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "int tokenStart = template.IndexOf(token, search, StringComparison.OrdinalIgnoreCase);",
+              "new": "int tokenStart = template.IndexOf(token, search, StringComparison.Ordinal);"
+            },
+            {
+              "old": "fileTemplate.EndsWith(\".%(ext)s\", StringComparison.OrdinalIgnoreCase);",
+              "new": "fileTemplate.EndsWith(\".%(ext)s\", StringComparison.Ordinal);"
+            },
+            {
+              "old": "int index = value.LastIndexOf(ext, StringComparison.OrdinalIgnoreCase);",
+              "new": "int index = value.LastIndexOf(ext, StringComparison.Ordinal);"
+            },
+            {
+              "old": "if (known.Any(value => string.Equals(value, normalized, StringComparison.OrdinalIgnoreCase))) return true;",
+              "new": "if (known.Any(value => string.Equals(value, normalized, StringComparison.Ordinal))) return true;"
+            },
+            {
+              "old": "HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);",
+              "new": "HashSet<string> seen = new(StringComparer.Ordinal);"
+            },
+            {
+              "old": "if (template.IsNullEmptyWhitespace() || template.IndexOf(\"%(id)s\", StringComparison.OrdinalIgnoreCase) < 0) continue;",
+              "new": "if (template.IsNullEmptyWhitespace() || template.IndexOf(\"%(id)s\", StringComparison.Ordinal) < 0) continue;"
+            },
+            {
+              "old": "pattern.Append(string.Equals(token, idToken, StringComparison.OrdinalIgnoreCase) ? idPattern : \".*?\");",
+              "new": "pattern.Append(string.Equals(token, idToken, StringComparison.Ordinal) ? idPattern : \".*?\");"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

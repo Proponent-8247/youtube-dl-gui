@@ -114,6 +114,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A057 | High | Fixed / regression-verified | In-tree archives are constrained to `.txt`, preventing collisions with protected provider media/sidecar outputs while preserving out-of-tree custom archive extensions. |
 | DH-A058 | High | Fixed / regression-verified | Effective default/custom yt-dlp cache roots are modeled in option order and protected execution rejects archive paths that can be cache JSON targets. |
 | DH-A059 | High | Fixed / regression-verified | Protected mode rejects a dangling custom `--cookies` before an app-owned following token can become its cookie writeback filename. |
+| DH-A060 | High | Verified / repair pending | The protected standard mostly-custom builder places app-owned `-o` after raw custom arguments, so a dangling value-taking option can consume the output constraint and escape the active download root. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1554,4 +1555,26 @@ The current A038/A041 collision check calls `GetOptionValues` only on the **raw 
 **Baseline proof:** Test commit `41cc7020928f719ed498b04e92c6649b9d1aa376` adds `DOWNLOAD_HISTORY.RejectsDanglingCookieWritebackOption`. Windows Audit build `35949401155` succeeds. Verification run `35949401156` fails on exactly that Download History regression (protected rejection expected; actual acceptance); Debug/Release builds and packaging complete successfully.
 
 **Closure:** Guarded run `35949682442` landed `753739e420a21f385b0ecd3648323c6d117ebd8e` (`fix: reject dangling protected cookie writeback`) and cleanup `9260e0df91cd31f15d7830d31f3e00936b24c4da`. The targeted regression passes after repair and the complete guarded Windows Debug/Release/full-regression gates are green. Retained evidence artifact `10787784052` has SHA-256 `87d2027699f018867c75a6e6ca881345c3eeb27d26cbdd11a75954462bb361e6`.
+
+### DH-A060 — Mostly-custom dangling option can consume the protected output constraint
+
+**Priority / state:** High protected-output containment risk / VERIFIED against current standard mostly-custom builder and current yt-dlp optparse behavior.
+
+**Finding:** A047 moved the non-negotiable config/plugin isolation prefix before raw custom arguments and kept the full protected suffix after them. That correctly prevents a dangling one-value option from removing the only isolation token. The standard `DownloadInfo` mostly-custom branch, however, rebuilds its argument buffer as `protected-prefix → raw custom arguments → -o <app output template>`. Current yt-dlp `--proxy URL` consumes exactly one following token even when that token begins with `-`. A trailing custom `--proxy` therefore consumes the app-owned `-o` token as its proxy value. The quoted output-template token that follows is then parsed as a positional input instead of an output option.
+
+The ordinary standard custom path and the extended downloader already add their app-owned output option before raw custom arguments; this gap is specific to the standard mostly-custom buffer replacement.
+
+**Impact:** A protected mostly-custom invocation can lose the active-download-root output constraint without using a blocked `-o`/`--output` override. A real source already present in the custom string can then use yt-dlp's default output location/template, violating the feature requirement that new protected downloads stay inside the active destination and weakening later inventory/rebuild assumptions.
+
+**Required acceptance:**
+
+1. In the protected standard mostly-custom path, place the app-owned `-o <output template>` before raw custom arguments.
+2. Keep the protected isolation prefix before both the output option and raw custom arguments, and keep the full protected suffix after raw custom arguments.
+3. Preserve the existing unprotected/disabled-history mostly-custom argument order and behavior.
+4. Do not globally reject unrelated dangling value-taking options; A047 bracketing remains the general parser-boundary defense.
+5. Preserve ordinary standard custom and extended output ordering.
+6. Add/retain regression coverage using a trailing one-value `--proxy` to prove `-o` precedes raw custom input under protection.
+7. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test commit `f50a6bd1b2e92919f7b237f0e2be03a8d41cd46f` adds `DOWNLOAD_HISTORY.ProtectsMostlyCustomOutputBeforeRawArguments`. Windows Audit build `35949936042` succeeds. Verification run `35949936059` fails on exactly that Download History regression because the protected `-o` appears after trailing `--proxy`.
 

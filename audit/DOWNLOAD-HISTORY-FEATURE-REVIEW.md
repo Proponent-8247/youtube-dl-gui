@@ -115,6 +115,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A058 | High | Fixed / regression-verified | Effective default/custom yt-dlp cache roots are modeled in option order and protected execution rejects archive paths that can be cache JSON targets. |
 | DH-A059 | High | Fixed / regression-verified | Protected mode rejects a dangling custom `--cookies` before an app-owned following token can become its cookie writeback filename. |
 | DH-A060 | High | Fixed / regression-verified | Protected standard mostly-custom commands establish the app-owned `-o` output constraint before raw custom arguments, preventing dangling options from consuming it. |
+| DH-A061 | High | Verified / repair pending | Protected filename schemas can omit terminal `.%(ext)s`, allowing literal/non-media extensions that cannot be inventoried after total archive loss and can re-enter the A057 in-tree ledger collision namespace. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1579,4 +1580,30 @@ The ordinary standard custom path and the extended downloader already add their 
 **Baseline proof:** Test commit `f50a6bd1b2e92919f7b237f0e2be03a8d41cd46f` adds `DOWNLOAD_HISTORY.ProtectsMostlyCustomOutputBeforeRawArguments`. Windows Audit build `35949936042` succeeds. Verification run `35949936059` fails on exactly that Download History regression because the protected `-o` appears after trailing `--proxy`.
 
 **Closure:** Guarded run `35950145991` landed `a13db96a5fdf9a676fa35a5012894d2b329337da` (`fix: protect mostly-custom output before raw arguments`) and cleanup `85a8a697a967f12b37450bbb5651df4bbf20ad3d`. The protected branch now orders isolation prefix → app-owned output → raw custom arguments → full protected suffix, while the disabled-history branch keeps its previous ordering. The complete guarded Windows Debug/Release/full-regression gates pass. Retained evidence artifact `10788237739` has SHA-256 `43d4044e116a65030f8440e63003517bd166b5675a62a8cc0c6f70d9a4140435`.
+
+### DH-A061 — Protected schemas can produce media with unrecoverable literal extensions
+
+**Priority / state:** High rebuild correctness and protected-ledger integrity risk / VERIFIED against current filename validation, inventory allowlist, and current yt-dlp output-template preparation.
+
+**Finding:** Download History requires an active `%(id)s` in the final filename but does not require the final media filename to end in the actual `%(ext)s`. Current yt-dlp evaluates the default media output template as written; it does not replace an arbitrary literal extension merely because the selected format has a different `ext`. A protected schema such as `%(title)s-%(id)s.txt` can therefore produce media whose physical extension is `.txt`.
+
+The recovery scanner intentionally treats `.txt` as a sidecar/non-media extension and inventories only the verified media-extension allowlist. After total archive loss, a literal-extension protected download can therefore disappear from physical inventory even though its filename contains the source ID and adjacent info JSON exists. The same gap invalidates A057's assumption that an in-tree `.txt` archive cannot alias provider media output: a user-controlled literal `.txt` media schema can target that namespace.
+
+Escaped `%%(ext)s`, an `%(ext)s` token followed by another suffix, or an extension token not preceded by the final dot have the same rebuild problem because the actual filesystem extension is not the provider media extension.
+
+**Impact:** Download History can accept and record downloads that cannot later reconstruct the native archive from the physical library. In the in-tree custom-archive case, a future media download can also overwrite the validated `.txt` ledger itself.
+
+**Required acceptance:**
+
+1. While Download History is enabled, require the final filename component to end exactly in an active `.%(ext)s` token in addition to the existing active `%(id)s` requirement.
+2. Reject literal extensions, escaped `%%(ext)s`, missing extensions, and additional suffixes after `%(ext)s` under protection.
+3. Preserve Download History disabled behavior.
+4. Enforce the same invariant when committing enabled settings, not only when a download command is prepared.
+5. Update the Download History enablement dialog to recommend a schema containing both the media ID and terminal real extension without silently changing an accepted user schema.
+6. Update the parent Settings save gate/warning so enabled protection cannot persist an unrecoverable schema and disabled-history users are warned when removing a previously protected ID/extension form.
+7. Preserve historical schema records for recovery; do not rename or rewrite existing media produced by older schemas.
+8. Preserve extended-downloader behavior, which already appends `.%(ext)s` when needed.
+9. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline proof:** Test commits `d39338fef1c658c208880a3bd0b96f4c32e7dfe5` and `f6cce9ec2144a3caf0ec45bb29175eb5f0992a94` add and tighten `DOWNLOAD_HISTORY.RequiresRecoverableMediaExtensionTemplate`. Windows Audit build `35950633185` succeeds. Verification run `35950633304` fails on exactly that Download History regression (protected literal-extension rejection expected; actual acceptance); Debug/Release builds and packaging complete successfully.
 

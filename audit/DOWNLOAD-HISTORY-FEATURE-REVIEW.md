@@ -123,6 +123,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A066 | Low | Fixed / regression-verified | Validate Archive explains both required protected filename recovery fields after rejecting a candidate schema. |
 | DH-A067 | Medium | Fixed / regression-verified | Archive Browse/Open/Reset management paths now use the same yt-dlp direct-path expansion semantics as runtime history resolution. |
 | DH-A068 | High | Fixed / regression-verified | The app-owned `chapter:` path now uses Windows-safe argument escaping so root/trailing-backslash paths cannot corrupt protected argv boundaries. |
+| DH-A069 | High | Verified / repair pending | Total-loss rebuild must recognize yt-dlp `-k` retained `.uncut` originals only through their exact canonical owner media/metadata family. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1789,4 +1790,31 @@ The downloader resolves `Verification.YoutubeDlPath` separately from the prepare
 **Baseline:** test commit `b5216dc19851c9e7a67f01c587f0803f2eef0301` adds `DOWNLOAD_HISTORY.EscapesProtectedChapterPathArgument`. The regression separately verifies the generic Windows escaping primitive and then inspects Download History's chapter argument construction; current source still hand-quotes `preparedChapterRootArgument`.
 
 **Closure:** Guarded run `36073163589` landed `abb8d50081d07d517fec8989cd46a29fcf839585` (`fix: escape protected chapter path argument`) and cleanup `030d3bb9673d8a270fe7b66075466375352cdc81`. The complete `chapter:<root>` value now passes through `ArgumentList.EscapeArgument` after yt-dlp literal-path escaping, preserving the A064 suffix ordering while correctly doubling trailing backslashes when Windows quoting is required. The targeted regression and complete guarded Debug/Release/full-regression gates pass. Evidence artifact `10838409359` has SHA-256 `d3de27db7f777a61119529081b1b42ed11c22d067daf6fd761e41876a9894182`.
+
+### DH-A069 — Kept chapter-removal originals become unresolved after total archive loss
+
+**Priority / state:** High archive-loss recovery correctness risk / VERIFIED against current scanner behavior and current yt-dlp postprocessor/move semantics.
+
+**Finding:** Protected mode permits yt-dlp's built-in chapter/SponsorBlock removal controls and the app/user `-k` / `--keep-video` behavior. Current `ModifyChaptersPP` temporarily renames the original media with `prepend_extension(in_file, 'uncut')`, producing a family such as `<stem>.uncut.<ext>`, replaces the canonical path with the processed result, and returns the `.uncut` original as a file that would normally be deleted. When `keepvideo` is enabled, yt-dlp instead retains that file in `__files_to_move`; `MoveFilesAfterDownloadPP` moves it to the final directory with its basename preserved.
+
+Download History inventories the retained `.uncut.<media-ext>` as completed media. Its adjacent-metadata lookup searches for `<stem>.uncut.info.json`, which yt-dlp does not create. A049's derivative recovery covers split-chapter names and selected `.f<format_id>` components, but not the `.uncut` family. After total primary/backup archive loss, the canonical processed file can recover the source identity from `<stem>.info.json` while the legitimate kept original remains unresolved and makes Rebuild fail closed.
+
+**Impact:** A valid protected download using current built-in chapter/SponsorBlock removal plus `-k` can later become impossible to rebuild after archive loss even though the canonical media, authoritative metadata, and retained original all remain intact.
+
+**Required acceptance:**
+
+1. Recognize only the exact yt-dlp retained-original shape `<owner-stem>.uncut.<media-ext>`.
+2. Require the corresponding canonical owner media `<owner-stem>.<same-ext>` to exist.
+3. Recover identity only through that owner's adjacent authoritative `<owner-stem>.info.json`; do not infer a new extractor/provider from filename shape.
+4. Require the recovered source ID to match the retained filename under the existing filename-ID semantics.
+5. An arbitrary `.uncut` media file, even if its filename contains an already recovered source ID, must remain unresolved when the corresponding owner family is absent.
+6. Preserve current A049 split-chapter/retained-format behavior and A003 conservative ordinary validation behavior.
+7. Preserve byte/path immutability for canonical media, metadata, and retained originals.
+8. Do not add another whole-library pass or broad filename inference.
+9. Add regression coverage for the positive owner-backed case and a same-ID unowned negative control.
+10. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Upstream proof:** current yt-dlp `ModifyChaptersPP` renames the original to `prepend_extension(in_file, 'uncut')` and returns it for deletion; `YoutubeDL.run_pp` retains would-delete files in `__files_to_move` when `keepvideo` is enabled; `MoveFilesAfterDownloadPP` moves an unassigned retained file into the final directory using `os.path.basename(oldfile)`. Therefore `<stem>.uncut.<ext>` is a real final-library derivative under supported protected settings.
+
+**Baseline:** test commit `847b14a59cc79959b41a04537940e6ec2f45f9fb` adds `DOWNLOAD_HISTORY.RebuildsRetainedUncutDerivativeAfterTotalArchiveLoss` with both the exact owner-backed family and an unowned same-ID negative control.
 

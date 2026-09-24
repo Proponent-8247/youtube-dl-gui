@@ -122,6 +122,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A065 | High | Fixed / regression-verified | Prepared protected execution rechecks that the selected provider is still yt-dlp/yt-dlp-nightly immediately before process start. |
 | DH-A066 | Low | Fixed / regression-verified | Validate Archive explains both required protected filename recovery fields after rejecting a candidate schema. |
 | DH-A067 | Medium | Fixed / regression-verified | Archive Browse/Open/Reset management paths now use the same yt-dlp direct-path expansion semantics as runtime history resolution. |
+| DH-A068 | High | Verified / repair pending | The app-owned `chapter:` path must use Windows-safe argument escaping so a trailing root backslash cannot absorb the closing quote and protected suffix tokens. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1765,4 +1766,25 @@ The downloader resolves `Verification.YoutubeDlPath` separately from the prepare
 **Rejected first repair attempt:** Guarded run `36072358563` applied the proposed three-line dialog repair in its temporary workspace, but the regression still failed before evaluating product behavior because its Reset History source slice searched for a nonexistent later `BuildUi()` method. No production repair commit from that failed batch was accepted. Request commit `a3df345a81c3bc2ef80f139b05d2c19b1fb1bff6` was explicitly discarded by `64d586e4fcd5b7339889eaa01c94b767e2f15e5f`; test-only commit `26d63b7642a61ef897495d56a80c442839b5ee29` now terminates the Reset History slice at the actual following `SaveAndClose` handler.
 
 **Closure:** Guarded run `36072661152` landed `8eecc30aebb847bffc9f3012cbc9b4ab1a8be820` (`fix: align archive management path expansion`) and cleanup `e25f33e971c8f258151e86e9d3d8de92a57bf803`. Browse Archive, Open Location, and Reset History now resolve configured archive paths through the same yt-dlp-compatible direct-path helper used by runtime history operations. The targeted regression and complete guarded Debug/Release/full-regression gates pass. Evidence artifact `10838947186` has SHA-256 `32a0828baf87cc89f975adb34b7264f5a60661df360ad4ea44d910014f48f4d4`.
+
+### DH-A068 — Hand-quoted chapter root can escape its closing quote on Windows
+
+**Priority / state:** High protected-argument integrity risk / VERIFIED against current A064 argument construction and the repository's Windows argument-escaping rules.
+
+**Finding:** A064 correctly added an app-owned `chapter:` path after raw custom arguments, but it interpolates that directory value as `--paths "chapter:{preparedChapterRootArgument}"`. A resolved active-library directory can legitimately end in a backslash, especially a drive root or share/root-style directory. Under Windows command-line parsing, a backslash immediately before a closing quote participates in quote escaping. The repository's `ArgumentList.EscapeArgument` already implements the required doubling of trailing backslashes when a value must be quoted, but Download History bypasses it for the new chapter path.
+
+**Impact:** A protected chapter path ending in `\` can corrupt argv boundaries. Later app-owned controls such as `--no-break-on-existing`, `--concat-playlist never`, and `--abort-on-unavailable-fragments` can be absorbed into the malformed value or otherwise cease to parse as intended. This undermines the protected suffix exactly on root-like download destinations.
+
+**Required acceptance:**
+
+1. Construct the complete `chapter:<resolved-root>` option value first, after yt-dlp literal `%`/`$` escaping.
+2. Pass that complete value through `ArgumentList.EscapeArgument`; do not hand-quote the directory value.
+3. Preserve the A064 ordering: app-owned chapter containment remains after raw custom arguments.
+4. Preserve ordinary paths without spaces and paths with spaces.
+5. Preserve active-root `%`/`$` literal semantics established by A046/A064.
+6. Do not alter the archive path, filename template, or chapter filename semantics as part of this fix.
+7. Regression coverage must prove the generic Windows escaper doubles a quoted trailing backslash and that Download History delegates chapter-path quoting to it.
+8. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline:** test commit `b5216dc19851c9e7a67f01c587f0803f2eef0301` adds `DOWNLOAD_HISTORY.EscapesProtectedChapterPathArgument`. The regression separately verifies the generic Windows escaping primitive and then inspects Download History's chapter argument construction; current source still hand-quotes `preparedChapterRootArgument`.
 

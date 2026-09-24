@@ -344,8 +344,8 @@ internal static partial class AuditRegression {
         string openSource = dialogSource.Substring(openStart, openEnd - openStart);
 
         int resetStart = openEnd;
-        int resetEnd = dialogSource.IndexOf("private void BuildUi()", resetStart, StringComparison.Ordinal);
-        Require(resetStart >= 0 && resetEnd > resetStart, "Could not inspect Reset History path handling");
+        int resetEnd = dialogSource.IndexOf("private async void SaveAndClose(", resetStart, StringComparison.Ordinal);
+        Require(resetEnd > resetStart, "Could not inspect Reset History path handling");
         string resetSource = dialogSource.Substring(resetStart, resetEnd - resetStart);
 
         foreach (string source in new[] { browseSource, openSource, resetSource }) {

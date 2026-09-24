@@ -1460,6 +1460,33 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryInventoriesStoryboardMedia() {
+        const string id = "aB_Cd-Ef123";
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string media = DownloadHistoryWriteMediaWithInfo(
+                fixture.Root, "Storyboard-" + id + ".mhtml", "Youtube", id);
+            byte[] mediaBefore = File.ReadAllBytes(media);
+            string info = Path.ChangeExtension(media, ".info.json");
+            byte[] infoBefore = File.ReadAllBytes(info);
+
+            object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+            Equal(1, Get(analysis, "CompletedMedia"));
+            Equal(1, Get(analysis, "MetadataRecovered"));
+            Equal(0, Get(analysis, "UnresolvedMedia"));
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary",
+                string.Empty, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(1, Get(rebuilt, "ArchiveEntries"));
+            Require(DownloadHistoryArchiveLines(fixture.Archive).Contains("youtube " + id),
+                "Explicit rebuild omitted current yt-dlp MHTML storyboard media");
+            Require(mediaBefore.SequenceEqual(File.ReadAllBytes(media)),
+                "Storyboard inventory modified the existing MHTML media file");
+            Require(infoBefore.SequenceEqual(File.ReadAllBytes(info)),
+                "Storyboard inventory modified the existing info JSON sidecar");
+        }
+    }
+
     private static void DownloadHistoryRebuildsDeletedArchiveFromIds() {
         const string id = "9qFjkwAElDs";
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
@@ -3513,6 +3540,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.DisablesAmbientYtDlpPlugins", DownloadHistoryDisablesAmbientYtDlpPlugins);
         Test("DOWNLOAD_HISTORY.RecoversSupportedMediaExtensions", DownloadHistoryRecoversSupportedMediaExtensions);
         Test("DOWNLOAD_HISTORY.InventoriesCurrentDirectMediaExtensions", DownloadHistoryInventoriesCurrentDirectMediaExtensions);
+        Test("DOWNLOAD_HISTORY.InventoriesStoryboardMedia", DownloadHistoryInventoriesStoryboardMedia);
         Test("DOWNLOAD_HISTORY.RebuildsDeletedArchiveFromIds", DownloadHistoryRebuildsDeletedArchiveFromIds);
         Test("DOWNLOAD_HISTORY.RecoversHistoricalProtectedSchemas", DownloadHistoryRecoversHistoricalProtectedSchemas);
         Test("DOWNLOAD_HISTORY.ParsesFormattedFilenameSchemas", DownloadHistoryParsesFormattedFilenameSchemas);

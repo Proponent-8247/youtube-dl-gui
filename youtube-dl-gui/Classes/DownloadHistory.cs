@@ -1903,7 +1903,8 @@ internal static class DownloadHistory {
                     bool fromMetadata = entry is not null;
                     if (entry is null) entry = filenameMatcher.Match(media);
                     if (entry is null && analysis.RecoverMissingEntries) {
-                        entry = TryRecoverRetainedFormatComponent(media);
+                        entry = TryRecoverRetainedFormatComponent(media) ??
+                            TryRecoverRetainedPostprocessOriginal(media);
                         if (entry is not null) fromMetadata = true;
                     }
 
@@ -2241,6 +2242,29 @@ internal static class DownloadHistory {
         catch (UnauthorizedAccessException) { return false; }
         catch (ArgumentException) { return false; }
         catch (InvalidOperationException) { return false; }
+    }
+
+    private static string? TryRecoverRetainedPostprocessOriginal(string mediaPath) {
+        string directory = Path.GetDirectoryName(mediaPath) ?? string.Empty;
+        string stem = Path.GetFileNameWithoutExtension(mediaPath);
+        string extension = Path.GetExtension(mediaPath);
+
+        foreach (string marker in new[] { ".uncut", ".orig" }) {
+            if (!stem.EndsWith(marker, StringComparison.Ordinal) || stem.Length <= marker.Length) continue;
+            string ownerStem = stem.Substring(0, stem.Length - marker.Length);
+            string ownerMedia = Path.Combine(directory, ownerStem + extension);
+            if (!File.Exists(ownerMedia)) return null;
+
+            string? entry = TryRecoverFromInfoJson(ownerMedia, out string? sourceId, out _, out HashSet<string>? thumbnailExtensions);
+            if (entry is null || sourceId.IsNullEmptyWhitespace()) return null;
+            if (thumbnailExtensions?.Contains(extension.ToLowerInvariant()) == true &&
+                !HasSameStemUnambiguousMediaSibling(ownerMedia, thumbnailExtensions)) {
+                return null;
+            }
+            return FileNameMatchesSourceId(mediaPath, sourceId!) ? entry : null;
+        }
+
+        return null;
     }
 
     private static string? TryRecoverRetainedFormatComponent(string mediaPath) {

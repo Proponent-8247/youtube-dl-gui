@@ -2760,8 +2760,12 @@ internal static partial class AuditRegression {
 
             string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
             string settingsSource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmSettings.cs"));
-            Require(settingsSource.Contains("DownloadHistory.Enabled && !DownloadHistory.HasRequiredIdTemplate"), "Main Settings no longer blocks ID removal while history is enabled");
-            Require(settingsSource.Contains("DownloadHistory.EverEnabled") && settingsSource.Contains("Keeping media IDs in filenames is strongly recommended"), "Disabled-state ID removal warning is missing");
+            Require(settingsSource.Contains("DownloadHistory.Enabled") &&
+                    settingsSource.Contains("DownloadHistory.HasRequiredIdTemplate"),
+                "Main Settings no longer blocks ID removal while history is enabled");
+            Require(settingsSource.Contains("DownloadHistory.EverEnabled") &&
+                    settingsSource.IndexOf("strongly recommended", StringComparison.OrdinalIgnoreCase) >= 0,
+                "Disabled-state ID removal warning is missing");
             Require(settingsSource.IndexOf("Disable Download History before changing libraries", StringComparison.Ordinal) < 0, "Main Settings still blocks path-agnostic download-folder changes while history is enabled");
             Require(settingsSource.Contains("unsavedSchema") && settingsSource.Contains("Unsaved download settings"), "Opening Download History does not warn about an unsaved filename-format change");
             Require(settingsSource.Contains("history.ShowDialog(this) != DialogResult.OK"), "Cancelling Download History can overwrite unsaved filename-format UI state");

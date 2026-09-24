@@ -248,7 +248,7 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                 if (MostlyCustomArguments) {
                     ArgumentsBuffer = HistoryExecution is null
                         ? new($"{CustomArguments} -o {OutputDirectory}")
-                        : new($"{DownloadHistory.ProtectedIsolationArguments} {CustomArguments} -o {OutputDirectory}");
+                        : new($"{DownloadHistory.ProtectedIsolationArguments} -o {OutputDirectory} {CustomArguments}");
                     break;
                 }
 

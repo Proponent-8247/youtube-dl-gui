@@ -1066,7 +1066,8 @@ internal static class DownloadHistory {
             execution = new DownloadHistoryExecution(preparedArchive, KeepBackup, LastReportInternal.ArchiveSnapshot);
             string preparedArchiveArgument = EscapeYtDlpLiteralPathForArgument(preparedArchive);
             string preparedChapterRootArgument = EscapeYtDlpLiteralPathForArgument(GetLibraryRoot());
-            archiveArguments = $"{ProtectedIsolationArguments} --compat-options -allow-unsafe-ext --write-info-json --download-archive \"{preparedArchiveArgument}\" --paths \"chapter:{preparedChapterRootArgument}\" --no-break-on-existing --concat-playlist never --abort-on-unavailable-fragments";
+            string preparedChapterPathArgument = ArgumentList.EscapeArgument("chapter:" + preparedChapterRootArgument);
+            archiveArguments = $"{ProtectedIsolationArguments} --compat-options -allow-unsafe-ext --write-info-json --download-archive \"{preparedArchiveArgument}\" --paths {preparedChapterPathArgument} --no-break-on-existing --concat-playlist never --abort-on-unavailable-fragments";
             return true;
         }
     }

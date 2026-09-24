@@ -316,6 +316,17 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryValidationExplainsMissingExtensionTemplate() {
+        string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
+        string dialogSource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmDownloadHistory.cs"));
+        int start = dialogSource.IndexOf("private async void ValidateArchive()", StringComparison.Ordinal);
+        int end = dialogSource.IndexOf("private async void RebuildArchive()", start, StringComparison.Ordinal);
+        Require(start >= 0 && end > start, "Could not inspect Download History validation messaging");
+        string validationSource = dialogSource.Substring(start, end - start);
+        Require(validationSource.Contains("%(id)s") && validationSource.Contains("%(ext)s"),
+            "Validate Archive does not explain both protected filename recovery requirements after rejecting the candidate schema");
+    }
+
     private static void DownloadHistoryHonorsEscapedIdTemplateSemantics() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             Equal(true, Call(fixture.History, null, "HasRequiredIdTemplate", "%(title)s-%(id)s.%(ext)s"));
@@ -3548,6 +3559,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.TemplateAndArguments", DownloadHistoryTemplateAndArguments);
         Test("DOWNLOAD_HISTORY.RequiresAuthoritativeMetadataForRebuild", DownloadHistoryRequiresAuthoritativeMetadataForRebuild);
         Test("DOWNLOAD_HISTORY.RequiresRecoverableMediaExtensionTemplate", DownloadHistoryRequiresRecoverableMediaExtensionTemplate);
+        Test("DOWNLOAD_HISTORY.ValidationExplainsMissingExtensionTemplate", DownloadHistoryValidationExplainsMissingExtensionTemplate);
         Test("DOWNLOAD_HISTORY.RequiresCaseExactRecoveryTemplateKeys", DownloadHistoryRequiresCaseExactRecoveryTemplateKeys);
         Test("DOWNLOAD_HISTORY.HonorsEscapedIdTemplateSemantics", DownloadHistoryHonorsEscapedIdTemplateSemantics);
         Test("DOWNLOAD_HISTORY.RejectsParentTraversalFilenameSchemas", DownloadHistoryRejectsParentTraversalFilenameSchemas);

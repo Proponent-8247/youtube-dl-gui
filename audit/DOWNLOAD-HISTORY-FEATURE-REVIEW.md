@@ -124,6 +124,7 @@ This is the canonical running list of issues relevant to this feature implementa
 | DH-A067 | Medium | Fixed / regression-verified | Archive Browse/Open/Reset management paths now use the same yt-dlp direct-path expansion semantics as runtime history resolution. |
 | DH-A068 | High | Fixed / regression-verified | The app-owned `chapter:` path now uses Windows-safe argument escaping so root/trailing-backslash paths cannot corrupt protected argv boundaries. |
 | DH-A069 | High | Fixed / regression-verified | Total-loss rebuild recognizes yt-dlp `-k` retained `.uncut`/`.orig` postprocess originals only through their exact canonical owner media/metadata family. |
+| DH-A070 | High | Verified / repair pending | Reset must require an actually bound owned ledger, and disabled preserved history must not silently rebind to a different custom archive path outside the relocation protocol. |
 | DH-L002 | — | Closed / no defect found | Archive mutation is serialized by the archive-derived mutex plus an on-disk exclusive lock; first-use directory creation acquires the file lock immediately after creation, and existing regression coverage verifies serialization and cancellation. |
 | DH-L003 | — | Closed / config bypass not found; plugin gap promoted to DH-A007 | Protected commands isolate config locations/aliases and conflicting archive/output hooks. A separate ambient-plugin isolation gap discovered during final re-audit is tracked as DH-A007. |
 | DH-L004 | — | Closed for ordinary UI semantics; failure-atomicity gap promoted to DH-A008 | Rebuild and Reset are explicit archive-management actions and media remains non-destructive. A separate fail-closed persistence issue under partial INI-write/rollback failure is tracked as DH-A008. |
@@ -1824,3 +1825,32 @@ Download History inventories either retained file because the terminal extension
 **Baseline:** test commits `847b14a59cc79959b41a04537940e6ec2f45f9fb` and `1bfcc52eacc3e13c61f2ffe50566ef4e845d8eb9` add `DOWNLOAD_HISTORY.RebuildsRetainedPostprocessOriginalsAfterTotalArchiveLoss` with exact owner-backed and unowned same-ID controls for both marker families.
 
 **Closure:** Guarded run `36073978809` landed `b4a70ab426d4b5b5846f7b9b586e552a4d717170` (`fix: recover retained postprocess originals`) and cleanup `53b4e41080e4cca287ee3e2968986e6e6d231438`. The repair recognizes only owner-backed `.uncut`/`.orig` marker shapes, requires the exact same-extension canonical owner and its authoritative metadata, preserves A031 thumbnail ambiguity handling, and leaves unowned same-ID marker files unresolved. The targeted regression and complete guarded Debug/Release/full-regression gates pass. Evidence artifact `10839860529` has SHA-256 `9a8efe57fb4a89e8e994577dd318eb2344f0e1f9e5b78dd1ec6bca9cd1470089`.
+
+### DH-A070 — Disabled archive-path rebinding can make Reset delete an unowned file
+
+**Priority / state:** High non-destructive state-management risk / VERIFIED against current `CommitSettings(false,...)`, `EffectiveArchivePath`, and `ResetHistory` behavior.
+
+**Finding:** Archive relocation while protection is enabled is deliberately guarded by A014: the old and new ledgers are leased, the previous durable identity set is read, and the union is preserved before binding the new path. That protocol is bypassed while protection is disabled. `CommitSettings(false, configuredArchivePath,...)` currently accepts and persists a different archive path while retaining the old `BoundArchivePath`. `EffectiveArchivePath` then prioritizes the newly configured explicit path.
+
+`ResetHistory` only checks that protection is disabled. It deletes `EffectiveArchivePath` and its `.bak` companion without requiring `EverEnabled` or a durable bound-archive ownership marker. Consequently:
+
+- A user can configure an arbitrary existing custom path while history has **never** been enabled, then invoke Reset and delete that unrelated file.
+- After real history has been bound and disabled, saving a different custom path while remaining disabled can make Reset target the newly configured path instead of the actually bound ledger, bypassing A014's relocation/union protection and A010/A012's ownership rules.
+
+**Impact:** A management action explicitly described as deleting only saved application-owned history can delete an unrelated file that was never established as Download History state. It can also orphan the actual bound ledger while clearing the ownership/binding state.
+
+**Required acceptance:**
+
+1. `ResetHistory` must refuse physical deletion unless Download History has previously been successfully enabled and a non-empty durable `BoundArchivePath` exists.
+2. The physical Reset target must be the durable bound archive, not a merely configured future candidate.
+3. While `EverEnabled=true` and protection remains disabled, `CommitSettings(false,...)` must reject a candidate archive path that resolves to a different physical path than `BoundArchivePath`.
+4. Representation-only normalization remains allowed: for example a bound custom path may normalize from an explicit string to the implicit/empty configuration when both resolve to the same bound path.
+5. Archive-path changes remain supported through the existing enabled reconciliation/relocation flow, which preserves the prior ledger union.
+6. Never-enabled users may still save a future custom archive path while history stays disabled; Reset must simply refuse to claim/delete it as owned state.
+7. Preserve A017's ability to reset an old bound archive after active download-root changes.
+8. Preserve A013 companion-file protections and explicit Reset confirmation/UI behavior.
+9. Add regression coverage for never-owned Reset refusal, disabled rebinding refusal, bound-path preservation, and representation-only normalization.
+10. Rerun the complete guarded Windows Debug/Release/full-regression gates.
+
+**Baseline:** test commit `87df874d83533fd720abcfe3b165309da991779c` adds `DOWNLOAD_HISTORY.ResetRequiresOwnedBoundArchive`.
+

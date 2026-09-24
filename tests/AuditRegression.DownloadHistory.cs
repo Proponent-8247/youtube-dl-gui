@@ -3344,6 +3344,49 @@ internal static partial class AuditRegression {
     }
 
 
+    private static void DownloadHistoryResetRequiresOwnedBoundArchive() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string unowned = Path.Combine(fixture.Root, "never-owned-history.txt");
+            byte[] original = new UTF8Encoding(false).GetBytes("THIS IS NOT DOWNLOAD HISTORY\r\n");
+            File.WriteAllBytes(unowned, original);
+
+            Call(fixture.History, null, "CommitSettings", false, unowned, true, null, string.Empty);
+            Throws<InvalidOperationException>(() => Call(fixture.History, null, "ResetHistory"));
+            Require(File.Exists(unowned) && original.SequenceEqual(File.ReadAllBytes(unowned)),
+                "Reset History deleted a configured file that was never established as owned history");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string bound = (string)fixture.History.GetProperty("BoundArchivePath", All).GetValue(null, null);
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null, string.Empty);
+
+            string unowned = Path.Combine(fixture.Root, "disabled-future-history.txt");
+            byte[] original = new UTF8Encoding(false).GetBytes("UNOWNED FUTURE TARGET\r\n");
+            File.WriteAllBytes(unowned, original);
+
+            Throws<InvalidOperationException>(() =>
+                Call(fixture.History, null, "CommitSettings", false, unowned, true, null, string.Empty));
+            Equal(Path.GetFullPath(bound),
+                Path.GetFullPath((string)fixture.History.GetProperty("EffectiveArchivePath", All).GetValue(null, null)));
+            Require(original.SequenceEqual(File.ReadAllBytes(unowned)),
+                "Rejected disabled archive-path change modified the unowned target");
+
+            Call(fixture.History, null, "ResetHistory");
+            Require(!File.Exists(bound), "Explicit Reset did not delete the actually bound archive");
+            Require(File.Exists(unowned) && original.SequenceEqual(File.ReadAllBytes(unowned)),
+                "Explicit Reset deleted the rejected unowned archive target");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string custom = Path.Combine(fixture.Root, "owned-custom-history.txt");
+            DownloadHistoryEnable(fixture, custom);
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null, string.Empty);
+            Equal(Path.GetFullPath(custom),
+                Path.GetFullPath((string)fixture.History.GetProperty("EffectiveArchivePath", All).GetValue(null, null)));
+        }
+    }
+
     private static void DownloadHistoryResetUsesEffectiveArchiveForImplicitBoundPath() {
         string root = Directory.GetParent(Path.GetDirectoryName(App.Location)).Parent.Parent.FullName;
         string dialogSource = File.ReadAllText(Path.Combine(root, "youtube-dl-gui", "Forms", "frmDownloadHistory.cs"));
@@ -3800,6 +3843,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.ArchiveRelocationPreservesLedgerOnlyIdentities", DownloadHistoryArchiveRelocationPreservesLedgerOnlyIdentities);
         Test("DOWNLOAD_HISTORY.ArchiveRelocationRequiresReadablePreviousLedger", DownloadHistoryArchiveRelocationRequiresReadablePreviousLedger);
         Test("DOWNLOAD_HISTORY.DialogCanSelectNewDefaultArchiveAfterRootChange", DownloadHistoryDialogCanSelectNewDefaultArchiveAfterRootChange);
+        Test("DOWNLOAD_HISTORY.ResetRequiresOwnedBoundArchive", DownloadHistoryResetRequiresOwnedBoundArchive);
         Test("DOWNLOAD_HISTORY.ResetUsesEffectiveArchiveForImplicitBoundPath", DownloadHistoryResetUsesEffectiveArchiveForImplicitBoundPath);
         Test("DOWNLOAD_HISTORY.PathAgnosticHistorySurvivesMediaMoves", DownloadHistoryPathAgnosticHistorySurvivesMediaMoves);
         Test("DOWNLOAD_HISTORY.MultipleInventoryRootsShareOneArchive", DownloadHistoryMultipleInventoryRootsShareOneArchive);

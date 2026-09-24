@@ -1018,6 +1018,11 @@ internal static class DownloadHistory {
                 return false;
             }
 
+            if (ContainsOptionWithoutExplicitValue(customArguments, "--cookies")) {
+                error = "Custom --cookies requires an explicit cookie file path while Download History protection is enabled because a missing value can consume an app-owned argument and turn it into a cookie writeback target.";
+                return false;
+            }
+
             string protectedArchive = EffectiveArchivePath;
             foreach (string cookiePath in GetOptionValues(customArguments, "--cookies")) {
                 if (IsProtectedStatePath(cookiePath, protectedArchive, out string cookiePathError)) {
@@ -2723,6 +2728,21 @@ internal static class DownloadHistory {
         finally {
             if (File.Exists(temp)) File.Delete(temp);
         }
+    }
+
+    private static bool ContainsOptionWithoutExplicitValue(string? arguments, string option) {
+        if (arguments.IsNullEmptyWhitespace()) return false;
+        string[] tokens = TokenizeArguments(arguments!).ToArray();
+        for (int index = 0; index < tokens.Length; index++) {
+            string token = tokens[index];
+            int equals = token.IndexOf('=');
+            string name = equals >= 0 ? token.Substring(0, equals) : token;
+            if (!name.Equals(option, StringComparison.OrdinalIgnoreCase)) continue;
+            if (equals >= 0) continue;
+            if (index + 1 >= tokens.Length) return true;
+            index++;
+        }
+        return false;
     }
 
     private static IEnumerable<string> GetOptionValues(string? arguments, string option) {

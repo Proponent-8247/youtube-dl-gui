@@ -1842,6 +1842,56 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRebuildsRetainedUncutDerivativeAfterTotalArchiveLoss() {
+        const string id = "9qFjkwAElDs";
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string owner = DownloadHistoryWriteMediaWithInfo(
+                fixture.Root, "Parent-" + id + ".mp4", "Youtube", id);
+            string info = Path.ChangeExtension(owner, ".info.json");
+            string uncut = DownloadHistoryWriteMedia(
+                fixture.Root, "Parent-" + id + ".uncut.mp4");
+            byte[] ownerBefore = File.ReadAllBytes(owner);
+            byte[] infoBefore = File.ReadAllBytes(info);
+            byte[] uncutBefore = File.ReadAllBytes(uncut);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary",
+                string.Empty, true, false, string.Empty);
+            Equal("Healthy", DownloadHistoryStateName(rebuilt));
+            Equal(true, DownloadHistoryCanReconcile(rebuilt));
+            Equal(2, Get(rebuilt, "CompletedMedia"));
+            Equal(2, Get(rebuilt, "IdentifiedMedia"));
+            Equal(0, Get(rebuilt, "UnresolvedMedia"));
+            Equal("youtube " + id, DownloadHistoryArchiveLines(fixture.Archive).Single());
+            Require(ownerBefore.SequenceEqual(File.ReadAllBytes(owner)),
+                "Retained-uncut rebuild modified canonical media");
+            Require(infoBefore.SequenceEqual(File.ReadAllBytes(info)),
+                "Retained-uncut rebuild modified authoritative metadata");
+            Require(uncutBefore.SequenceEqual(File.ReadAllBytes(uncut)),
+                "Retained-uncut rebuild modified the retained original");
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryWriteMediaWithInfo(
+                fixture.Root, "Parent-" + id + ".mp4", "Youtube", id);
+            string unrelatedUncut = DownloadHistoryWriteMedia(
+                fixture.Root, "Unrelated-" + id + ".uncut.mp4");
+            byte[] unrelatedBefore = File.ReadAllBytes(unrelatedUncut);
+
+            object rebuilt = Call(fixture.History, null, "RebuildLibrary",
+                string.Empty, true, false, string.Empty);
+            Require(DownloadHistoryStateName(rebuilt) == "Partial" ||
+                    DownloadHistoryStateName(rebuilt) == "Unsafe",
+                "Unowned same-ID .uncut media did not keep rebuild fail-closed");
+            Equal(false, DownloadHistoryCanReconcile(rebuilt));
+            Equal(1, Get(rebuilt, "UnresolvedMedia"));
+            Require(!File.Exists(fixture.Archive),
+                "Unowned same-ID .uncut media caused an archive rewrite");
+            Require(unrelatedBefore.SequenceEqual(File.ReadAllBytes(unrelatedUncut)),
+                "Fail-closed retained-uncut rebuild modified unrelated media");
+        }
+    }
+
     private static void DownloadHistoryValidatesRetainedFormatComponents() {
         const string id = "9qFjkwAElDs";
 
@@ -3652,6 +3702,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.EscapesProtectedChapterPathArgument", DownloadHistoryEscapesProtectedChapterPathArgument);
         Test("DOWNLOAD_HISTORY.RecognizesSplitChapterIds", DownloadHistoryRecognizesSplitChapterIds);
         Test("DOWNLOAD_HISTORY.RebuildsDerivedMediaAfterTotalArchiveLoss", DownloadHistoryRebuildsDerivedMediaAfterTotalArchiveLoss);
+        Test("DOWNLOAD_HISTORY.RebuildsRetainedUncutDerivativeAfterTotalArchiveLoss", DownloadHistoryRebuildsRetainedUncutDerivativeAfterTotalArchiveLoss);
         Test("DOWNLOAD_HISTORY.ValidatesRetainedFormatComponents", DownloadHistoryValidatesRetainedFormatComponents);
         Test("DOWNLOAD_HISTORY.DisambiguatesCleanMergedFormatIds", DownloadHistoryDisambiguatesCleanMergedFormatIds);
         Test("DOWNLOAD_HISTORY.RejectsLocalExtractorPageSubstitution", DownloadHistoryRejectsLocalExtractorPageSubstitution);

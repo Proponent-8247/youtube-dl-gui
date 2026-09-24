@@ -509,6 +509,9 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
             return false;
         }
         string Schema = FileNameSchema.IsNullEmptyWhitespace() ? "%(title)s-%(id)s.%(ext)s" : FileNameSchema;
+        if (!Schema.EndsWith(".%(ext)s", StringComparison.InvariantCultureIgnoreCase)) {
+            Schema += ".%(ext)s";
+        }
         if (!DownloadHistory.TryGetArchiveArguments(Schema, CustomArguments, out string DownloadArchiveArguments, out string DownloadHistoryError, out DownloadHistoryExecution? HistoryExecution)) {
             Log.Write(DownloadHistoryError);
             return false;
@@ -539,10 +542,6 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
 
         if (Downloads.separateIntoWebsiteURL) {
             OutputPath.Append(URL.StartsWith("ytarchive:", StringComparison.InvariantCultureIgnoreCase) ? "\\archived.youtube.com" : $"\\{DownloadHelper.GetUrlBase(URL)}");
-        }
-
-        if (!Schema.EndsWith(".%(ext)s", StringComparison.InvariantCultureIgnoreCase)) {
-            Schema += ".%(ext)s";
         }
 
         switch (SelectedType) {

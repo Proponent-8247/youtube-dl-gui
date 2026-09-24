@@ -1121,6 +1121,9 @@ internal static class DownloadHistory {
         if (!fEnabled) {
             throw new InvalidOperationException("Download History was disabled after this download command was prepared. Regenerate the command before starting the download.");
         }
+        if (Downloads.YtdlType is not ((int)GitID.YtDlp) and not ((int)GitID.YtDlpNightly)) {
+            throw new InvalidOperationException("The download provider changed to a provider outside the yt-dlp family after this protected command was prepared. Regenerate the command before starting the download.");
+        }
         if (!PathEquals(archivePath, EffectiveArchivePath) ||
             (!BoundArchivePath.IsNullEmptyWhitespace() && !PathEquals(archivePath, BoundArchivePath)) ||
             fKeepBackup != keepBackup) {

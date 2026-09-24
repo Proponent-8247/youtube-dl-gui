@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "base_sha": "f58e4b364161e46c2db97b34a15de4f6a9f2d04c",
+  "expected_failures": [
+    "DOWNLOAD_HISTORY.ContainsSplitChapterOutputs"
+  ],
+  "allowed_flaky_failures": [
+    "V011.ActualUpdaterExecutablesExchangeBoundPacket",
+    "V011.ActualUpdaterCancellationLeavesApplicationUntouched",
+    "V011.ActualUpdaterRollbackRestoresApplication"
+  ],
+  "remaining_failures": [],
+  "repairs": [
+    {
+      "id": "DH-A064",
+      "message": "fix: contain protected split chapter outputs",
+      "resolves": [
+        "DOWNLOAD_HISTORY.ContainsSplitChapterOutputs"
+      ],
+      "files": [
+        {
+          "path": "youtube-dl-gui/Classes/DownloadHistory.cs",
+          "edits": [
+            {
+              "old": "            execution = new DownloadHistoryExecution(preparedArchive, KeepBackup, LastReportInternal.ArchiveSnapshot);\n            string preparedArchiveArgument = EscapeYtDlpLiteralPathForArgument(preparedArchive);\n            archiveArguments = $\"{ProtectedIsolationArguments} --compat-options -allow-unsafe-ext --write-info-json --download-archive \\\"{preparedArchiveArgument}\\\" --no-break-on-existing --concat-playlist never --abort-on-unavailable-fragments\";\n            return true;",
+              "new": "            execution = new DownloadHistoryExecution(preparedArchive, KeepBackup, LastReportInternal.ArchiveSnapshot);\n            string preparedArchiveArgument = EscapeYtDlpLiteralPathForArgument(preparedArchive);\n            string preparedChapterRootArgument = EscapeYtDlpLiteralPathForArgument(GetLibraryRoot());\n            archiveArguments = $\"{ProtectedIsolationArguments} --compat-options -allow-unsafe-ext --write-info-json --download-archive \\\"{preparedArchiveArgument}\\\" --paths \\\"chapter:{preparedChapterRootArgument}\\\" --no-break-on-existing --concat-playlist never --abort-on-unavailable-fragments\";\n            return true;"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -277,6 +277,52 @@ During explicit recovery/rebuild, Download History currently treats a completed-
 
 **Upstream proof:** In pinned yt-dlp `c7fb478d...`, `process_info` writes info JSON before the media/postprocessor phase. A `PostProcessingError` causes an early return before `info_dict['__write_download_archive'] = True`. `process_video_result` records the native identity only when the requested downloads contain true archive-write flags. FFmpeg extraction/conversion raises before its final replace/move sequence on failure, so the source media can remain while the native ledger intentionally stays unchanged.
 
+
+### DH-A082 — Guarded repairs execute proposed source with repository write credentials available
+
+**Severity:** Critical  
+**Status:** Verified / TODO  
+**Area:** CI/repair-workflow security, repository integrity
+
+**Summary:** `.github/workflows/audit-repair.yml` grants the repair job `contents: write` and uses `actions/checkout` with credential persistence left at its default. The guarded plan is explicitly allowed to edit executable/build-sensitive files including C# and `.csproj`. `Run-AuditRepairBatch.ps1` applies each proposed repair and then runs MSBuild plus the regression harness **before** the final guarded commit/push.
+
+A proposed `.csproj` edit can add an MSBuild `Exec`/target, and proposed C# can execute when the regression harness runs. Because checkout credentials are still available to git in that same job, proposed code is executing in a context capable of authenticating a repository write. The plan format does not need a literal command field to cross this boundary; executable behavior can be introduced through an allowed source edit.
+
+**Impact:** A malicious or accidentally dangerous repair request can execute code with the workflow's repository-write authority before the guard has established that the repair is safe. The guarded repair mechanism therefore cannot be treated as a privilege boundary around the proposed patch.
+
+**Required repair constraints:**
+
+1. Build/test proposed repairs in a job/environment with **read-only repository permissions** and no persisted write credential.
+2. Do not expose a write-capable token to any process that executes proposed repository code.
+3. Perform publication in a separate trusted step/job that consumes only verified patch/commit evidence and does not execute the proposed project again.
+4. If a write token must be configured for the final push, use a fresh isolated job or equivalent boundary so previously executed untrusted code cannot wait for/reuse it.
+5. Keep non-force head/race verification and exact-base pinning.
+6. Add a workflow-security regression/test proving a proposed project-file build hook cannot authenticate a write during verification.
+
+**Source proof:** `audit-repair.yml` declares `permissions: contents: write`; its checkout does not set `persist-credentials: false`. The runner applies allowed C# / `.csproj` changes and invokes MSBuild and the executable regression harness in the same job before `git push`.
+
+### DH-A083 — The guarded-repair oracle is mutable by ordinary branch commits
+
+**Severity:** High  
+**Status:** Verified / TODO  
+**Area:** CI trust root, guarded repair provenance
+
+**Summary:** The repair workflow executes `tools/Run-AuditRepairBatch.ps1` and `tools/apply-audit-repairs.py` from the same branch revision that contains the request. Ordinary pushes to the feature branch can modify those tools (and the repair workflow itself) without any trusted hash/manifest check. A subsequent `.audit-repairs.json` push then runs whatever guard implementation is present at that branch head.
+
+The normal verification workflow can build/test such a tooling change, but it does not establish that the repair oracle still matches a pinned trusted implementation. Its final source-dirty check also does not compare workflow/tool contents to an immutable baseline.
+
+**Impact:** A weakened runner can be committed first and then used to give later production changes “guarded repair” provenance. The safety properties in DH-A077–A080 are therefore only as strong as the latest ordinary branch edit to the guard itself.
+
+**Required repair constraints:**
+
+1. Pin the repair runner/parser/workflow trust root to reviewed hashes or source them from an immutable trusted revision.
+2. Require explicit review/approval for changes to the guard implementation before it can validate production repairs.
+3. A repair-request commit must not be able to select a newly modified local guard implementation merely by including it in branch history.
+4. Include guard-tool hashes/revisions in retained repair evidence.
+5. Preserve exact-request/base/head verification and non-force publication semantics.
+
+**Source proof:** `audit-repair.yml` checks out the exact request revision and directly invokes branch-local `./tools/Run-AuditRepairBatch.ps1`, which directly invokes branch-local `tools/apply-audit-repairs.py`. There is no trusted hash or pinned external revision for either tool.
+
 ## Investigation leads
 
 _No unresolved leads currently._

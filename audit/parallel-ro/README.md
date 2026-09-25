@@ -58,3 +58,20 @@ Each workstream ends with:
 - WS-10 Cross-cutting concurrency/resource-lifetime/shutdown pass across the entire repo
 
 After all workstreams finish, perform a coordinator reconciliation pass on a separate branch: deduplicate, map to historical F/O/V/P items, and produce the fix queue. Do not begin remediation before that pass.
+
+## Agent branch map
+
+| Workstream | Branch | Ledger |
+| --- | --- | --- |
+| WS-01 | `audit/ro-ws01-startup-config` | `audit/parallel-ro/WS-01-startup-config-persistence.md` |
+| WS-02 | `audit/ro-ws02-download-process` | `audit/parallel-ro/WS-02-download-process.md` |
+| WS-03 | `audit/ro-ws03-ui-batch` | `audit/parallel-ro/WS-03-ui-download-batch.md` |
+| WS-04 | `audit/ro-ws04-conversion-media` | `audit/parallel-ro/WS-04-conversion-media.md` |
+| WS-05 | `audit/ro-ws05-updater` | `audit/parallel-ro/WS-05-updater.md` |
+| WS-06 | `audit/ro-ws06-controls-native` | `audit/parallel-ro/WS-06-controls-native-logging-auth.md` |
+| WS-07 | `audit/ro-ws07-tests-build` | `audit/parallel-ro/WS-07-tests-ci-build-packaging.md` |
+| WS-08 | `audit/ro-ws08-docs-resources` | `audit/parallel-ro/WS-08-docs-addon-resources.md` |
+| WS-09 | `audit/ro-ws09-security` | `audit/parallel-ro/WS-09-security-crosscut.md` |
+| WS-10 | `audit/ro-ws10-concurrency` | `audit/parallel-ro/WS-10-concurrency-lifetime-crosscut.md` |
+
+Each agent must push only to its assigned branch. The coordinator branch is scaffolding/reconciliation only.

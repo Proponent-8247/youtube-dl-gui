@@ -39,7 +39,12 @@ Canonical historical audit: \`audit/DOWNLOAD-HISTORY-FEATURE-REVIEW.md\`
 
 ## Investigation leads
 
-_None yet. Add leads here immediately, then promote to Verified findings when source/upstream/runtime evidence establishes the defect._
+### LEAD-001 — Reparse-point state files may bypass ownership boundaries
+
+**Status:** Needs verification  
+**Area:** archive/backup/lock ownership, Windows filesystem semantics
+
+Media inventory explicitly rejects reparse-point files/directories, but the archive lifecycle currently opens/replaces/deletes the configured archive, `.bak`, and `.lock` paths without an equivalent visible reparse-point rejection. Verify Windows/.NET behavior for file symlinks/junction-adjacent state paths and whether a valid linked target could cause Download History to mutate or delete unrelated data. Existing `DOWNLOAD_HISTORY.RejectsReparsePointTraversal` covers only library traversal.
 
 ## Full re-audit coverage
 

@@ -303,9 +303,9 @@ Use this checklist as the resume point after any timeout. A section is not compl
 - [ ] Physical inventory allowlist: current yt-dlp media/audio/storyboard classes and safe compatibility extensions.
 - [ ] Sidecars/derivatives: info JSON, thumbnails, playlist metafiles, subtitles, chapters, components, \`.orig\`, \`.uncut\`, manifests.
 - [ ] Total archive-loss rebuild: metadata recovery, filename recovery, derivative ownership, ambiguity/fail-closed cases.
-- [ ] Multiple roots/path-agnostic identity: active root + zero/one/many scan-only roots, moves between runs, unavailable roots.
-- [ ] Large-library behavior: streaming, memory growth, matcher complexity, duplicate scans, UI responsiveness.
-- [ ] Settings/UI safety: enable/save/cancel/validation/rebuild/reset/open/browse, warning text, disabled-mode transitions.
+- [x] Multiple roots/path-agnostic identity: rechecked active root + zero/one/many scan-only roots, root minimization, moves between runs, and unavailable-root behavior. Normal protected execution remains ledger-only; explicit management scans fail closed on unavailable configured roots.
+- [x] Large-library behavior: rechecked streaming directory enumeration, Aho-style filename identity matching, scan-root minimization, deferred-derivative path storage, no normal-run full scan, and async management UI. No new correctness/performance finding.
+- [x] Settings/UI safety: rechecked enable/save/cancel/validate/rebuild/open/browse and fail-closed commit/digest flow. **Open finding: DH-A070 (Reset ownership/rebinding).**
 - [ ] Standard downloader integration: argument ordering, authentication config, output construction, source terminator.
 - [ ] Extended downloader integration: argument ordering, schemas, batch queue, authentication, range downloads.
 - [ ] Compatibility: Windows/.NET target behavior, legacy youtube-dl disabled-history paths, existing settings migration.

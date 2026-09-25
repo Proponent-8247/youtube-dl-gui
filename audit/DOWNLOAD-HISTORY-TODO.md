@@ -216,6 +216,41 @@ With `--remote-components ejs:github`, yt-dlp downloads the selected repository'
 3. Keep duplicate-name checks and AnyCPU/x86 parity checks.
 4. Do not rely on a numeric minimum count as the primary coverage-preservation control.
 
+### DH-A079 — Guarded production repairs can weaken the regression tests that are supposed to prove them
+
+**Severity:** High  
+**Status:** Verified / TODO  
+**Area:** guarded repair integrity, test immutability
+
+**Summary:** `tools/apply-audit-repairs.py` permits version-2 repair edits under the `tests` root. `Run-AuditRepairBatch.ps1` checks that previously existing test **names** are still present, but it does not require regression source/content to remain unchanged during a production repair. A request can therefore edit the assertion/body of a failing test, keep the same name, list that test in `resolves`, and pass the guard without correcting the production defect.
+
+**Impact:** The core evidence loop can be defeated by changing the oracle rather than the implementation while still producing a green “regression-verified repair” commit.
+
+**Required repair constraints:**
+
+1. Production repair batches must not modify regression-test source unless the batch is explicitly designated as a separately reviewed test-contract change.
+2. Prefer immutable test-source hashes/name manifest for ordinary repair batches.
+3. If a stale test contract genuinely needs revision, require a standalone test-only commit that is reviewed and baseline-run before any subsequent production repair request.
+4. Preserve the current removed/renamed/duplicate test-name checks as additional controls.
+5. Do not allow a single guarded commit to weaken a regression and claim that same regression as its proof of correctness.
+
+### DH-A080 — A guarded repair is not required to resolve any reviewed baseline failure
+
+**Severity:** Medium  
+**Status:** Verified / TODO  
+**Area:** guarded repair contract, evidence quality
+
+**Summary:** The repair-plan parser/runner does not require a conceptual repair's `resolves` array to contain at least one deterministic baseline failure. A repair with an empty `resolves` set can modify allowed source files, pass the general build/regression suite, and be committed/pushed by the “guarded repair” workflow even though no pre-existing failing regression proves why the change was needed.
+
+**Impact:** Untested or merely speculative production changes can receive the same workflow provenance as regression-driven fixes, weakening the meaning of a guarded repair commit.
+
+**Required repair constraints:**
+
+1. Ordinary production repair batches must require every conceptual repair to resolve at least one named deterministic baseline failure.
+2. Every named resolved test must be in the reviewed baseline failure set at the point it is assigned to the repair.
+3. If a non-regression refactor/tooling change is intentionally permitted, use a distinct explicitly reviewed workflow/plan type rather than silently treating it as a regression repair.
+4. Keep one-concept-per-commit and full-suite reruns.
+
 ## Investigation leads
 
 _No unresolved leads currently._

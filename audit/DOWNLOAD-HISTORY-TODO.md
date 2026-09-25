@@ -107,6 +107,31 @@ Backup and lock companion paths likewise lack an explicit exact-path reparse own
 
 **Source proof:** Current app state I/O uses ordinary `File.Exists`/`FileStream`/`StreamReader`/replace operations without an exact state-file `FileAttributes.ReparsePoint` gate, while current yt-dlp appends its native archive through a normal path open. The existing reparse regression covers only media-tree traversal.
 
+### DH-A074 — Interrupted yt-dlp postprocessor temp media can poison total-loss rebuild
+
+**Severity:** High  
+**Status:** Verified / TODO  
+**Area:** incomplete residue classification, postprocessing, total-loss rebuild
+
+**Summary:** Current yt-dlp built-in FFmpeg postprocessors create working files by inserting markers before the real media extension, including `<stem>.temp.<ext>` and `<stem>.keyframes.temp.<ext>`. Examples include merge, fixup, metadata/embed, audio conversion, chapter splitting/keyframe preparation, and related FFmpeg postprocessing. If the provider is killed, crashes, or is interrupted between creating one of these files and the final `os.replace/os.rename`, the working file can remain in the active library.
+
+Download History excludes names ending in `.tmp` and ordinary downloader `.part` residue, but a postprocessor working file still ends in a valid completed-media extension such as `.mp4`, `.m4a`, or `.webm`. During total archive loss it is therefore enumerated as completed media. It normally has no adjacent `<temp-stem>.info.json`, and the inserted marker makes it fail the canonical protected filename schema/ID matcher, so it becomes unresolved and blocks rebuild even when the canonical media/info family is otherwise recoverable.
+
+**Impact:** A failed or interrupted protected provider run can leave app-recognizable transient working state that later makes an otherwise valid physical library impossible to rebuild after ledger loss.
+
+**Required repair constraints:**
+
+1. Distinguish current yt-dlp postprocessor working-file shapes such as inserted `.temp` and `.keyframes.temp` from completed media during recovery.
+2. Do not blindly ignore any user file containing `.temp`; protected schemas are allowed to contain literal text before the terminal `%(ext)s`.
+3. Require owner/family evidence: stripping the known working marker must resolve to a protected canonical filename/authoritative owner metadata or another equally strong proof.
+4. Preserve fail-closed behavior for arbitrary media-like files that merely contain similar marker text.
+5. Preserve legitimate canonical schemas whose real filename itself includes `.temp`; if yt-dlp creates a temp for such a schema it will contain an additional inserted marker.
+6. Cover both partial/interrupted and complete-but-unmoved working files; inventory/rebuild must never rewrite/delete them.
+7. Add regressions for positive owner-backed `.temp.<ext>` and `.keyframes.temp.<ext>` residue plus literal-schema negative controls.
+8. Preserve A049/A069 retained derivative handling and A003's conservative treatment of failed-run residue.
+
+**Upstream proof:** Current pinned yt-dlp `c7fb478d...` uses `prepend_extension(filename, 'temp')` across FFmpeg merger/fixup/embed flows and `prepend_extension(filename, 'keyframes.temp')` for forced-keyframe preparation. These paths rely on subsequent rename/replace rather than a crash-proof cleanup transaction, so process termination can leave media-extension working files.
+
 ## Investigation leads
 
 _No unresolved leads currently._

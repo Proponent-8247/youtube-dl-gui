@@ -37,6 +37,28 @@ Canonical historical audit: \`audit/DOWNLOAD-HISTORY-FEATURE-REVIEW.md\`
 
 **Evidence:** Regression \`DOWNLOAD_HISTORY.ResetRequiresOwnedBoundArchive\` from commit \`87df874d83533fd720abcfe3b165309da991779c\`. Canonical details are in DH-A070 of the feature review. The pre-audit-mode repair request at \`91ee75c39db8c55bf9105c8261b94b557be32377\` failed its guarded run; no A070 production repair landed. The stale repair request was removed when audit-only mode began.
 
+### DH-A071 — Protected outputs can escape through an in-tree reparse directory
+
+**Severity:** High  
+**Status:** Verified / TODO  
+**Area:** filesystem containment, output paths, rebuild integrity
+
+**Summary:** Physical inventory deliberately rejects reparse-point files/directories, but normal protected downloads intentionally avoid a full library scan. Protected filename validation permits safe nested directory components such as `creator\\%(id)s.%(ext)s` (and the application itself can add website/type/batch subdirectories). If an existing directory component beneath the active root is a Windows junction/symlink/reparse point, yt-dlp follows it and can create media outside the physical active library even though the lexical output path is beneath that root. `TryGetArchiveArguments`/prepared execution do not validate those output-path components for reparse traversal.
+
+**Impact:** A protected download can publish a native archive identity for media written outside the inventory namespace. A later explicit inventory/rebuild then fails closed on the reparse point or cannot see the actual target file, breaking the core “protected output remains rebuildable from configured roots” invariant.
+
+**Required repair constraints:**
+
+1. Protected output creation must not traverse an untrusted reparse-point component beneath the active library root.
+2. Preserve explicitly configured library roots as roots; the issue is traversal through descendant components, not whether the selected root itself is implemented by a user-chosen mount/junction.
+3. Cover app-generated batch/site/type subdirectories as well as nested filename-schema directories.
+4. Handle metadata-dependent directory components safely; do not claim containment based only on lexical `Path.GetFullPath`.
+5. Preserve the normal no-full-library-scan performance requirement.
+6. Keep disabled-history behavior unchanged.
+7. Add Windows regression coverage using a junction/reparse descendant and prove protected argument preparation/launch fails before media can be written through it.
+
+**Source proof:** `EnumerateCompletedMedia` rejects descendant `FileAttributes.ReparsePoint`, but the normal protected path performs ledger-only validation and output-template checks without traversing/checking descendant output components. Static nested protected schemas remain accepted.
+
 ## Investigation leads
 
 ### LEAD-001 — Reparse-point state files may bypass ownership boundaries

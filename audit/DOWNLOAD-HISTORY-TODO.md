@@ -270,9 +270,9 @@ Use this checklist as the resume point after any timeout. A section is not compl
 - [ ] Path semantics: active root, archive, cache, cookies, inventory roots, relative paths, \`~\`, \`$VAR\`, \`\${VAR}\`, \`%VAR%\`, escaped sigils.
 - [ ] Filesystem containment: parent traversal, reparse points/junctions/symlinks, UNC/network roots, case/normalization behavior.
 - [ ] Output containment: standard, mostly-custom, extended downloader, batch mode, split chapters, retained intermediates.
-- [ ] yt-dlp custom-argument parser parity: long abbreviations, short clusters, dangling value options, aliases/presets, terminator handling.
+- [x] yt-dlp custom-argument parser parity: rechecked current short value-taking table, long-prefix handling, dangling-option bracketing, terminator isolation, user aliases, and current built-in presets. **Open extractor-argument trust bypass: DH-A075.**
 - [ ] Unsafe execution/write surfaces: config, plugins, exec hooks, external downloaders, FFmpeg, JS runtimes, cache, cookies, page dumps, print-to-file, self-update.
-- [ ] False-completion/native-archive semantics: test/simulate/skip/error/fragment/filter/no-format/existing-file flows.
+- [x] False-completion/native-archive semantics: rechecked test/simulate/skip/flat/filter/no-format/error/fragment/archive-write paths against pinned yt-dlp. **Open finding: DH-A072 (existing final file can become a new archive success without a real retry).**
 - [ ] Provider identity recovery: extractor_key/ie_key/id validation, controls, archive grammar, case semantics.
 - [ ] Physical inventory allowlist: current yt-dlp media/audio/storyboard classes and safe compatibility extensions.
 - [ ] Sidecars/derivatives: info JSON, thumbnails, playlist metafiles, subtitles, chapters, components, \`.orig\`, \`.uncut\`, manifests.

@@ -45,7 +45,10 @@ _None yet. Add leads here immediately, then promote to Verified findings when so
 
 Use this checklist as the resume point after any timeout. A section is not complete until current-head source, relevant tests, and affected upstream yt-dlp semantics have been reviewed.
 
-- [ ] Branch/base diff inventory: enumerate every changed production/test/workflow/audit file and classify intended behavior.
+- [x] Branch/base diff inventory: 18 changed files classified against release base `49a290d0...`.
+  - Production: `DownloadHistory.cs`, `frmDownloadHistory.cs`, `DownloadInfo.cs`, `ExtendedMediaDetails.cs`, `frmDownloader.cs`, `frmExtendedDownloader.cs`, `frmSettings.cs`, project file/resource updater binary.
+  - Audit/test tooling: three audit workflows, `Run-AuditRepairBatch.ps1`, `apply-audit-repairs.py`, Download History regression suite, one existing repair-wave test, canonical audit, this TODO.
+  - No unrelated production files are changed by the feature branch.
 - [ ] Download History state model: Enabled/EverEnabled/binding/configured-vs-effective archive transitions.
 - [ ] Archive lifecycle: initialize, validate, rebuild, reconcile, relocate, reset, backup, corruption, truncation, encoding.
 - [ ] Ownership/non-destructive guarantees: primary, backup, lock/temp companions, media, metadata, scan-only roots.

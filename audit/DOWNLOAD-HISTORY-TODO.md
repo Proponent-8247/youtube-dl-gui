@@ -84,14 +84,32 @@ This happens under yt-dlp's normal overwrite defaults; it does not require the u
 
 **Upstream proof:** Current pinned yt-dlp `c7fb478d...` initializes `success=True`, returns an existing final file from `existing_video_file` without a real download, then after successful postprocessing sets `__write_download_archive=True`; `process_video_result` records the native identity when the requested download flags contain true and no false value.
 
+### DH-A073 — Reparse-point archive state can redirect protected ledger writes
+
+**Severity:** High  
+**Status:** Verified / TODO  
+**Area:** archive ownership, Windows filesystem semantics, non-destructive state writes
+
+**Summary:** Download History rejects reparse points while scanning media, but it does not reject an exact archive/state file that is itself a Windows symbolic link/reparse point. `TryReadArchive`, writability checks, the execution lease, and yt-dlp's native `locked_file(..., 'a')` archive append all open the configured archive path normally and therefore follow the link target. A symlink placed at the default/custom archive filename can point to an unrelated empty or syntactically valid text file; validation accepts that target as a native archive and a protected download can append identities to the unrelated target.
+
+Backup and lock companion paths likewise lack an explicit exact-path reparse ownership check and need to be included in the repair audit, even where their individual mutation semantics differ.
+
+**Impact:** Merely occupying the application-owned pathname with a reparse-point file can bypass the first-use/unowned-file protections established for ordinary files and redirect protected state I/O outside the selected namespace.
+
+**Required repair constraints:**
+
+1. Reject an exact primary archive file that is a reparse point before adopting, validating, appending, rebuilding, relocating, or resetting it.
+2. Apply equivalent ownership checks to pre-existing `.bak` and `.lock` companion files before treating them as application-owned state.
+3. Do not follow a reparse point to decide that its target is a valid native archive; validity of the target is not ownership proof.
+4. Preserve explicitly selected **root directories** that may themselves be user-managed mounts/junctions; this finding is about state-file redirection, not banning a configured storage root solely because of how it is mounted.
+5. Preserve normal ordinary-file archive/backup behavior and cross-session locking.
+6. Add Windows regression coverage with an archive-file symlink/reparse point whose target is empty/valid, proving validation/protected execution/reset leave the target byte-for-byte unchanged and fail closed.
+
+**Source proof:** Current app state I/O uses ordinary `File.Exists`/`FileStream`/`StreamReader`/replace operations without an exact state-file `FileAttributes.ReparsePoint` gate, while current yt-dlp appends its native archive through a normal path open. The existing reparse regression covers only media-tree traversal.
+
 ## Investigation leads
 
-### LEAD-001 — Reparse-point state files may bypass ownership boundaries
-
-**Status:** Needs verification  
-**Area:** archive/backup/lock ownership, Windows filesystem semantics
-
-Media inventory explicitly rejects reparse-point files/directories, but the archive lifecycle currently opens/replaces/deletes the configured archive, `.bak`, and `.lock` paths without an equivalent visible reparse-point rejection. Verify Windows/.NET behavior for file symlinks/junction-adjacent state paths and whether a valid linked target could cause Download History to mutate or delete unrelated data. Existing `DOWNLOAD_HISTORY.RejectsReparsePointTraversal` covers only library traversal.
+_No unresolved leads currently._
 
 ## Full re-audit coverage
 

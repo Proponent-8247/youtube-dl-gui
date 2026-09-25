@@ -163,6 +163,59 @@ With `--remote-components ejs:github`, yt-dlp downloads the selected repository'
 
 **Upstream proof:** Current yt-dlp `EJSBaseJCP` reads `extractor_args['youtube-ejs']`, documents in source that `dev` bypasses script hashes/versions and `repo` selects a custom GitHub repository, fetches release assets when `ejs:github` is enabled, and executes the resulting library/core code through its configured JS runtime.
 
+### DH-A076 — Audit verification evidence is anchored to the wrong comparison base
+
+**Severity:** Medium  
+**Status:** Verified / TODO  
+**Area:** audit provenance, CI evidence
+
+**Summary:** This feature audit is explicitly based on release commit `49a290d07b220e4a9cd98d44c6db7f45a5bbbc98` (`release/3.3.0-2`), but `.github/workflows/audit-verify.yml` preserves comparison evidence against `refs/remotes/origin/master` and records history from hard-coded historical SHA `b734c05944eeffccfde3208cd1ea45ef2ae401f9`. The workflow does not persist the actual release base, release-base source snapshot, merge base, or release-base diff used by this review.
+
+**Impact:** A green verification artifact can contain internally consistent build/test evidence while its source-delta provenance describes a different baseline than the audit being signed off. A future reviewer cannot reconstruct the intended feature delta from the retained artifact alone.
+
+**Required repair constraints:**
+
+1. Pin the verification provenance to the reviewed release/base SHA or an explicit workflow input that is validated against an allowed base.
+2. Preserve base SHA, base source archive, merge base, diff stat, name-status, and relevant source diff for that exact base.
+3. Do not silently substitute `master` when the reviewed branch is based on a release branch.
+4. Keep current exact-head source snapshot/build/test/package evidence.
+5. Avoid mutable branch-name-only provenance when a concrete reviewed SHA is known.
+
+### DH-A077 — Guarded repair requests can self-whitelist arbitrary regression failures as “flaky”
+
+**Severity:** High  
+**Status:** Verified / TODO  
+**Area:** guarded repair integrity, regression enforcement
+
+**Summary:** `Run-AuditRepairBatch.ps1` trusts the request-provided `allowed_flaky_failures` array. It verifies only that each named test exists. There is no workflow-owned/canonical allowlist of tests that are actually known nondeterministic. Both introduced-failure detection and final failure validation exempt every request-named “flaky” test.
+
+**Impact:** A mistaken or malicious repair request can name any existing regression test in `allowed_flaky_failures`, introduce a real failure in that test, and still satisfy the guarded batch. The workflow may then commit and push a regression while claiming all unreviewed failures were rejected.
+
+**Required repair constraints:**
+
+1. Define the permitted flaky-test set in trusted runner/workflow code, not in the repair request.
+2. Reject request entries outside that fixed set.
+3. Prefer requiring a flaky test to demonstrate established nondeterminism independently; do not let a repair newly break a previously passing allowlisted test without additional evidence.
+4. Preserve deterministic `expected_failures` / `remaining_failures` semantics.
+5. Keep per-repair “no newly failing non-flaky tests” enforcement.
+
+### DH-A078 — Normal verification can lose regression coverage and still pass
+
+**Severity:** Medium  
+**Status:** Verified / TODO  
+**Area:** regression harness integrity, CI coverage preservation
+
+**Summary:** `audit-verify.yml` compares test names only between the three executions of the **same current revision** and enforces a minimum count of 80. It does not compare the current test-name set against a trusted manifest/base revision. Therefore a normal source/test commit outside `audit-repair.yml` can delete or rename regressions, remain above 80 tests, and pass all three current-revision comparisons. The guarded repair runner prevents test removal only inside a repair batch; that protection does not apply to ordinary pushes.
+
+**Impact:** The branch can obtain green verification after silent regression-coverage erosion, weakening the evidence used for audit sign-off.
+
+**Required repair constraints:**
+
+1. Maintain a trusted expected regression-name manifest or compare against a pinned reviewed baseline with explicit approved additions/removals.
+2. Reject missing/renamed tests unless the coverage change itself is explicitly reviewed.
+3. Keep duplicate-name checks and AnyCPU/x86 parity checks.
+4. Do not rely on a numeric minimum count as the primary coverage-preservation control.
+
 ## Investigation leads
 
 _No unresolved leads currently._

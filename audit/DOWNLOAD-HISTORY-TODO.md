@@ -49,7 +49,7 @@ Use this checklist as the resume point after any timeout. A section is not compl
   - Production: `DownloadHistory.cs`, `frmDownloadHistory.cs`, `DownloadInfo.cs`, `ExtendedMediaDetails.cs`, `frmDownloader.cs`, `frmExtendedDownloader.cs`, `frmSettings.cs`, project file/resource updater binary.
   - Audit/test tooling: three audit workflows, `Run-AuditRepairBatch.ps1`, `apply-audit-repairs.py`, Download History regression suite, one existing repair-wave test, canonical audit, this TODO.
   - No unrelated production files are changed by the feature branch.
-- [ ] Download History state model: Enabled/EverEnabled/binding/configured-vs-effective archive transitions.
+- [x] Download History state model: re-audited enable/disable/re-enable, configured/bound/effective archive transitions, relocation union, prepared-report commit flow, and fail-closed persistence. **Open finding: DH-A070.**
 - [ ] Archive lifecycle: initialize, validate, rebuild, reconcile, relocate, reset, backup, corruption, truncation, encoding.
 - [ ] Ownership/non-destructive guarantees: primary, backup, lock/temp companions, media, metadata, scan-only roots.
 - [ ] Concurrency/TOCTOU: mutexes, file locks, prepared snapshots, provider drift, settings drift, concurrent sessions.

@@ -266,7 +266,7 @@ Use this checklist as the resume point after any timeout. A section is not compl
 - [x] Download History state model: re-audited enable/disable/re-enable, configured/bound/effective archive transitions, relocation union, prepared-report commit flow, and fail-closed persistence. **Open finding: DH-A070.**
 - [x] Archive lifecycle: re-audited initialize/validate/rebuild/reconcile/relocate/reset/backup/corruption/truncation/strict UTF-8. **Open findings: DH-A070, DH-A073.**
 - [x] Ownership/non-destructive guarantees: re-audited primary/backup/lock/temp ownership, media/metadata immutability, and scan-only roots. **Open findings: DH-A070, DH-A073; output reparse containment tracked separately as DH-A071.**
-- [ ] Concurrency/TOCTOU: mutexes, file locks, prepared snapshots, provider drift, settings drift, concurrent sessions.
+- [x] Concurrency/TOCTOU: re-audited named mutex + persistent file lock, prepared ledger floor, provider/settings revalidation, per-batch-item leases, and post-run backup refresh. **Open state-path alias risk remains DH-A073.**
 - [ ] Path semantics: active root, archive, cache, cookies, inventory roots, relative paths, \`~\`, \`$VAR\`, \`\${VAR}\`, \`%VAR%\`, escaped sigils.
 - [ ] Filesystem containment: parent traversal, reparse points/junctions/symlinks, UNC/network roots, case/normalization behavior.
 - [ ] Output containment: standard, mostly-custom, extended downloader, batch mode, split chapters, retained intermediates.

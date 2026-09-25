@@ -264,8 +264,8 @@ Use this checklist as the resume point after any timeout. A section is not compl
   - Audit/test tooling: three audit workflows, `Run-AuditRepairBatch.ps1`, `apply-audit-repairs.py`, Download History regression suite, one existing repair-wave test, canonical audit, this TODO.
   - No unrelated production files are changed by the feature branch.
 - [x] Download History state model: re-audited enable/disable/re-enable, configured/bound/effective archive transitions, relocation union, prepared-report commit flow, and fail-closed persistence. **Open finding: DH-A070.**
-- [ ] Archive lifecycle: initialize, validate, rebuild, reconcile, relocate, reset, backup, corruption, truncation, encoding.
-- [ ] Ownership/non-destructive guarantees: primary, backup, lock/temp companions, media, metadata, scan-only roots.
+- [x] Archive lifecycle: re-audited initialize/validate/rebuild/reconcile/relocate/reset/backup/corruption/truncation/strict UTF-8. **Open findings: DH-A070, DH-A073.**
+- [x] Ownership/non-destructive guarantees: re-audited primary/backup/lock/temp ownership, media/metadata immutability, and scan-only roots. **Open findings: DH-A070, DH-A073; output reparse containment tracked separately as DH-A071.**
 - [ ] Concurrency/TOCTOU: mutexes, file locks, prepared snapshots, provider drift, settings drift, concurrent sessions.
 - [ ] Path semantics: active root, archive, cache, cookies, inventory roots, relative paths, \`~\`, \`$VAR\`, \`\${VAR}\`, \`%VAR%\`, escaped sigils.
 - [ ] Filesystem containment: parent traversal, reparse points/junctions/symlinks, UNC/network roots, case/normalization behavior.

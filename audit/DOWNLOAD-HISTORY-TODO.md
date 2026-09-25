@@ -251,6 +251,32 @@ With `--remote-components ejs:github`, yt-dlp downloads the selected repository'
 3. If a non-regression refactor/tooling change is intentionally permitted, use a distinct explicitly reviewed workflow/plan type rather than silently treating it as a regression repair.
 4. Keep one-concept-per-commit and full-suite reruns.
 
+
+### DH-A081 — Total-loss rebuild can promote media left by a failed postprocessor
+
+**Severity:** High  
+**Status:** Verified / TODO  
+**Area:** total-loss rebuild, false completion, metadata trust, postprocessing
+
+**Summary:** Protected mode forces per-media `.info.json` specifically so identities can be reconstructed after total archive loss. Current yt-dlp writes that info JSON before downloading/postprocessing. A normal media transfer can then succeed while a built-in postprocessor fails (for example FFmpeg audio extraction/recode/embed/fixup). In that failure path yt-dlp reports the postprocessing error and returns before setting `__write_download_archive = True`, so the native archive correctly does **not** mark the source complete. The downloaded source media file and its adjacent info JSON can nevertheless remain on disk.
+
+During explicit recovery/rebuild, Download History currently treats a completed-media extension plus adjacent metadata as authoritative and reconstructs `extractor_key/ie_key + id`. It has no proof that the requested postprocessed artifact completed. Therefore loss of the native ledger can turn a provider failure that was deliberately left unarchived into a completed history identity.
+
+**Impact:** After archive loss, rebuild can permanently suppress a retry that yt-dlp itself considered incomplete. A concrete example is an audio-extraction request where the downloaded `.webm` + `.info.json` remain after FFmpeg fails before producing the requested `.mp3`; rebuilding can add the source ID and later protected runs skip it.
+
+**Required repair constraints:**
+
+1. Total-loss recovery must not treat every adjacent info JSON + media pair as proof that the **requested protected operation** completed.
+2. Preserve recovery for genuinely successful direct-media downloads and successful postprocessed outputs.
+3. Do not delete, rename, or rewrite failed-run source media or metadata.
+4. Preserve A072's normal-run rule: an unarchived existing final-looking file remains eligible for retry and cannot become history merely because it exists.
+5. Distinguish successful retained originals/components (A049/A069) from failed postprocessor residue using evidence stronger than the pre-download info JSON alone.
+6. Do not require a full library scan during normal protected execution; this is an explicit rebuild/recovery rule.
+7. Add an execution/rebuild regression that leaves a real source media + forced info JSON while the requested postprocessor fails, verifies yt-dlp did not archive it, then proves Rebuild does not invent completion.
+8. Cover at least audio extraction and one same-extension FFmpeg failure shape because both can leave media-extension files beside authoritative metadata.
+
+**Upstream proof:** In pinned yt-dlp `c7fb478d...`, `process_info` writes info JSON before the media/postprocessor phase. A `PostProcessingError` causes an early return before `info_dict['__write_download_archive'] = True`. `process_video_result` records the native identity only when the requested downloads contain true archive-write flags. FFmpeg extraction/conversion raises before its final replace/move sequence on failure, so the source media can remain while the native ledger intentionally stays unchanged.
+
 ## Investigation leads
 
 _No unresolved leads currently._

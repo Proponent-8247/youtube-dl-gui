@@ -132,6 +132,37 @@ Download History excludes names ending in `.tmp` and ordinary downloader `.part`
 
 **Upstream proof:** Current pinned yt-dlp `c7fb478d...` uses `prepend_extension(filename, 'temp')` across FFmpeg merger/fixup/embed flows and `prepend_extension(filename, 'keyframes.temp')` for forced-keyframe preparation. These paths rely on subsequent rename/replace rather than a crash-proof cleanup transaction, so process termination can leave media-extension working files.
 
+### DH-A075 — Protected custom arguments can fetch and execute unverified JavaScript from an arbitrary repository
+
+**Severity:** High  
+**Status:** Verified / TODO  
+**Area:** arbitrary code execution, extractor arguments, remote components, protected process boundary
+
+**Summary:** Protected mode blocks custom config/plugin loading, exec hooks, raw child-process arguments, path-qualified JS runtimes, and arbitrary external downloader executables, but it currently permits both `--extractor-args` and `--remote-components`.
+
+Current pinned yt-dlp's built-in YouTube EJS challenge provider has intentionally undocumented developer extractor arguments under the `youtube-ejs` namespace:
+
+- `dev=true` bypasses solver script version/hash verification.
+- `repo=<owner/repo>` replaces the normal `yt-dlp/ejs` GitHub repository.
+- `script_version=<tag>` changes the release tag fetched.
+
+With `--remote-components ejs:github`, yt-dlp downloads the selected repository's release JavaScript. In EJS dev mode the normal allowed-version/hash checks are skipped. The downloaded library/core script is then concatenated into the input passed to the enabled JS runtime for execution.
+
+**Impact:** A protected command can cross the intended no-arbitrary-code boundary and execute user-selected remote JavaScript inside the provider operation, despite plugin/config/exec/executable restrictions. That code runs while the protected archive lease is held and can invalidate assumptions about filesystem integrity, source identity, and process trust.
+
+**Required repair constraints:**
+
+1. Protected mode must prevent extractor arguments from enabling unverified/custom EJS code sources.
+2. At minimum reject the current `youtube-ejs` developer controls `dev`, `repo`, and `script_version` when they can influence protected execution.
+3. Audit all current `--extractor-args` namespaces before deciding whether narrow filtering is sufficient; do not assume only documented arguments exist.
+4. Preserve safe extractor tuning arguments when they do not affect identity/trust boundaries, if practical.
+5. Ordinary official remote components from the pinned/current yt-dlp-supported source may remain a separate policy decision; the verified defect is the custom-repository + verification-bypass path.
+6. Preserve disabled-history behavior.
+7. Add regression coverage for the explicit long option and accepted long abbreviations/quoting, including the combined `youtube-ejs:dev=true;repo=...` + `--remote-components ejs:github` path.
+8. Re-audit cache interaction because fetched EJS scripts are cached and later read as script sources.
+
+**Upstream proof:** Current yt-dlp `EJSBaseJCP` reads `extractor_args['youtube-ejs']`, documents in source that `dev` bypasses script hashes/versions and `repo` selects a custom GitHub repository, fetches release assets when `ejs:github` is enabled, and executes the resulting library/core code through its configured JS runtime.
+
 ## Investigation leads
 
 _No unresolved leads currently._

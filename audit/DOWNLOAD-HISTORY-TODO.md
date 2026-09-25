@@ -59,6 +59,31 @@ Canonical historical audit: \`audit/DOWNLOAD-HISTORY-FEATURE-REVIEW.md\`
 
 **Source proof:** `EnumerateCompletedMedia` rejects descendant `FileAttributes.ReparsePoint`, but the normal protected path performs ledger-only validation and output-template checks without traversing/checking descendant output components. Static nested protected schemas remain accepted.
 
+### DH-A072 — Existing unarchived final media can be promoted to completed history without a real retry
+
+**Severity:** High  
+**Status:** Verified / TODO  
+**Area:** false completion, retry semantics, native archive integrity
+
+**Summary:** Download History intentionally treats a final-looking media file that is absent from a valid native archive as possible residue from a failed prior provider run; ordinary validation does not promote it into history. Current yt-dlp execution defeats that conservative rule when the next protected run resolves to the same output filename. In `process_info`, `existing_video_file(...)` uses `default_overwrite=False`; when the final file already exists, yt-dlp reports it as already downloaded instead of transferring it. `success` remains true, postprocessing runs on that existing file, and the code then sets `info_dict['__write_download_archive'] = True`. `process_video_result` records the source identity when all requested downloads carry that true flag.
+
+This happens under yt-dlp's normal overwrite defaults; it does not require the user to request `--no-overwrites`.
+
+**Impact:** A truncated, stale, corrupt, or otherwise failed-run residue with the expected final filename can become a native archive success on the next protected invocation without a real media transfer. Future runs then skip that identity as completed, contradicting the feature's fail-closed retry model.
+
+**Required repair constraints:**
+
+1. A protected run must not publish a new native archive identity solely because an unarchived final output file already exists.
+2. Preserve legitimate native-archive skips: if the identity is already in the protected ledger, yt-dlp should continue to skip normally.
+3. Do not solve this by full-scanning all library roots before every download.
+4. Do not rewrite or delete scan-only library media.
+5. Define explicit behavior for a collision in the active writable download destination: either force a real retry safely, fail closed and require user action, or otherwise prove completion before allowing the identity into the ledger.
+6. Preserve ordinary disabled-history yt-dlp overwrite/existing-file behavior.
+7. Cover single-file and merged/multi-format existing-final paths; both use the same upstream existing-file success flow.
+8. Add an execution-level regression showing an existing final file absent from the ledger cannot become a new archive record without a real successful retry.
+
+**Upstream proof:** Current pinned yt-dlp `c7fb478d...` initializes `success=True`, returns an existing final file from `existing_video_file` without a real download, then after successful postprocessing sets `__write_download_archive=True`; `process_video_result` records the native identity when the requested download flags contain true and no false value.
+
 ## Investigation leads
 
 ### LEAD-001 — Reparse-point state files may bypass ownership boundaries

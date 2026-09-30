@@ -1,4 +1,4 @@
-**AI derived fixes -- ChatGPT 5.6-Sol Extra-High**
+**AI derived fixes -- ChatGPT 5.6-Sol  Extra-High and now 6.x Extra-High**
 
 # youtube-dl-gui
 GUI for [yt-dlp](https://github.com/yt-dlp/yt-dlp) ([youtube-dl](https://github.com/ytdl-org/youtube-dl) and [yt-dlc](https://github.com/blackjack4494/yt-dlc) are supported, but yt-dlp is suggested) + [ffmpeg](https://ffmpeg.org/) (ffmpeg.exe & ffprobe.exe) which is used for converting. [AtomicParsley](http://atomicparsley.sourceforge.net/) may be required for embedding data into files.

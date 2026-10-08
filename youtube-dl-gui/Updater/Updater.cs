@@ -12,6 +12,196 @@ using System.Windows.Forms;
 using murrty.controls;
 using murrty.logging;
 using murrty.updater;
+
+internal static class ExecutableTrust {
+    internal enum SignatureStatus {
+        Unsigned,
+        Valid,
+        Invalid,
+    }
+
+    private const uint WTD_UI_NONE = 2;
+    private const uint WTD_REVOKE_NONE = 0;
+    private const uint WTD_CHOICE_FILE = 1;
+    private const uint WTD_STATEACTION_IGNORE = 0;
+    private const uint WTD_REVOCATION_CHECK_NONE = 0x00000010;
+    private const int MAX_PATH = 260;
+
+    private static readonly Guid GenericVerifyAction = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
+    private static readonly Guid DriverActionVerify = new("F750E6C3-38EE-11D1-85E5-00C04FC295EE");
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private struct WinTrustFileInfo {
+        public uint cbStruct;
+        public IntPtr pcwszFilePath;
+        public IntPtr hFile;
+        public IntPtr pgKnownSubject;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct WinTrustData {
+        public uint cbStruct;
+        public IntPtr pPolicyCallbackData;
+        public IntPtr pSIPClientData;
+        public uint dwUIChoice;
+        public uint fdwRevocationChecks;
+        public uint dwUnionChoice;
+        public IntPtr pFile;
+        public uint dwStateAction;
+        public IntPtr hWVTStateData;
+        public IntPtr pwszURLReference;
+        public uint dwProvFlags;
+        public uint dwUIContext;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private struct CatalogInfo {
+        public uint cbStruct;
+        [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = MAX_PATH)]
+        public string wszCatalogFile;
+    }
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", ExactSpelling = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern uint WinVerifyTrust(IntPtr hwnd, ref Guid pgActionID, IntPtr pWVTData);
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    private static extern bool CryptCATAdminAcquireContext2(out IntPtr phCatAdmin, ref Guid pgSubsystem, string? pwszHashAlgorithm, IntPtr pStrongHashPolicy, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", SetLastError = true)]
+    private static extern bool CryptCATAdminCalcHashFromFileHandle2(IntPtr hCatAdmin, IntPtr hFile, ref uint pcbHash, [System.Runtime.InteropServices.Out] byte[]? pbHash, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", SetLastError = true)]
+    private static extern IntPtr CryptCATAdminEnumCatalogFromHash(IntPtr hCatAdmin, byte[] pbHash, uint cbHash, uint dwFlags, IntPtr phPrevCatInfo);
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    private static extern bool CryptCATCatalogInfoFromContext(IntPtr hCatInfo, ref CatalogInfo psCatInfo, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", SetLastError = true)]
+    private static extern bool CryptCATAdminReleaseCatalogContext(IntPtr hCatAdmin, IntPtr hCatInfo, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("wintrust.dll", SetLastError = true)]
+    private static extern bool CryptCATAdminReleaseContext(IntPtr hCatAdmin, uint dwFlags);
+
+    private static bool VerifyEmbeddedSignature(string FilePath) {
+        IntPtr PathPointer = IntPtr.Zero;
+        IntPtr FileInfoPointer = IntPtr.Zero;
+        IntPtr TrustDataPointer = IntPtr.Zero;
+        try {
+            PathPointer = System.Runtime.InteropServices.Marshal.StringToCoTaskMemUni(FilePath);
+            WinTrustFileInfo FileInfo = new() {
+                cbStruct = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(WinTrustFileInfo)),
+                pcwszFilePath = PathPointer,
+                hFile = IntPtr.Zero,
+                pgKnownSubject = IntPtr.Zero,
+            };
+            FileInfoPointer = System.Runtime.InteropServices.Marshal.AllocCoTaskMem(System.Runtime.InteropServices.Marshal.SizeOf(typeof(WinTrustFileInfo)));
+            System.Runtime.InteropServices.Marshal.StructureToPtr(FileInfo, FileInfoPointer, false);
+
+            WinTrustData TrustData = new() {
+                cbStruct = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(WinTrustData)),
+                pPolicyCallbackData = IntPtr.Zero,
+                pSIPClientData = IntPtr.Zero,
+                dwUIChoice = WTD_UI_NONE,
+                fdwRevocationChecks = WTD_REVOKE_NONE,
+                dwUnionChoice = WTD_CHOICE_FILE,
+                pFile = FileInfoPointer,
+                dwStateAction = WTD_STATEACTION_IGNORE,
+                hWVTStateData = IntPtr.Zero,
+                pwszURLReference = IntPtr.Zero,
+                dwProvFlags = WTD_REVOCATION_CHECK_NONE,
+                dwUIContext = 0,
+            };
+            TrustDataPointer = System.Runtime.InteropServices.Marshal.AllocCoTaskMem(System.Runtime.InteropServices.Marshal.SizeOf(typeof(WinTrustData)));
+            System.Runtime.InteropServices.Marshal.StructureToPtr(TrustData, TrustDataPointer, false);
+            Guid Action = GenericVerifyAction;
+            return WinVerifyTrust(new IntPtr(-1), ref Action, TrustDataPointer) == 0;
+        }
+        finally {
+            if (TrustDataPointer != IntPtr.Zero) System.Runtime.InteropServices.Marshal.FreeCoTaskMem(TrustDataPointer);
+            if (FileInfoPointer != IntPtr.Zero) System.Runtime.InteropServices.Marshal.FreeCoTaskMem(FileInfoPointer);
+            if (PathPointer != IntPtr.Zero) System.Runtime.InteropServices.Marshal.FreeCoTaskMem(PathPointer);
+        }
+    }
+
+    private static bool TryVerifyCatalog(string FilePath, string HashAlgorithm, out bool CatalogFound) {
+        CatalogFound = false;
+        IntPtr CatalogAdmin = IntPtr.Zero;
+        IntPtr CatalogContext = IntPtr.Zero;
+        try {
+            Guid DriverAction = DriverActionVerify;
+            if (!CryptCATAdminAcquireContext2(out CatalogAdmin, ref DriverAction, HashAlgorithm, IntPtr.Zero, 0)) {
+                return false;
+            }
+
+            using FileStream Stream = File.Open(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+            IntPtr FileHandle = Stream.SafeFileHandle.DangerousGetHandle();
+            uint HashLength = 0;
+            if (!CryptCATAdminCalcHashFromFileHandle2(CatalogAdmin, FileHandle, ref HashLength, null, 0) || HashLength == 0 || HashLength > 4096) {
+                return false;
+            }
+            byte[] Hash = new byte[HashLength];
+            if (!CryptCATAdminCalcHashFromFileHandle2(CatalogAdmin, FileHandle, ref HashLength, Hash, 0)) {
+                return false;
+            }
+
+            CatalogContext = CryptCATAdminEnumCatalogFromHash(CatalogAdmin, Hash, HashLength, 0, IntPtr.Zero);
+            if (CatalogContext == IntPtr.Zero) {
+                return false;
+            }
+            CatalogFound = true;
+
+            CatalogInfo Catalog = new() {
+                cbStruct = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(CatalogInfo)),
+                wszCatalogFile = string.Empty,
+            };
+            return CryptCATCatalogInfoFromContext(CatalogContext, ref Catalog, 0)
+                && !Catalog.wszCatalogFile.IsNullEmptyWhitespace()
+                && VerifyEmbeddedSignature(Catalog.wszCatalogFile);
+        }
+        finally {
+            if (CatalogContext != IntPtr.Zero && CatalogAdmin != IntPtr.Zero) CryptCATAdminReleaseCatalogContext(CatalogAdmin, CatalogContext, 0);
+            if (CatalogAdmin != IntPtr.Zero) CryptCATAdminReleaseContext(CatalogAdmin, 0);
+        }
+    }
+
+    internal static SignatureStatus GetStatus(string FilePath) {
+        if (FilePath.IsNullEmptyWhitespace() || !File.Exists(FilePath)) {
+            return SignatureStatus.Invalid;
+        }
+
+        try {
+            if (VerifyEmbeddedSignature(FilePath)) {
+                return SignatureStatus.Valid;
+            }
+
+            bool CatalogFound = false;
+            if (TryVerifyCatalog(FilePath, "SHA256", out bool Sha256CatalogFound)) {
+                return SignatureStatus.Valid;
+            }
+            CatalogFound |= Sha256CatalogFound;
+            if (TryVerifyCatalog(FilePath, "SHA1", out bool Sha1CatalogFound)) {
+                return SignatureStatus.Valid;
+            }
+            CatalogFound |= Sha1CatalogFound;
+            if (CatalogFound) {
+                return SignatureStatus.Invalid;
+            }
+
+            try {
+                using System.Security.Cryptography.X509Certificates.X509Certificate Certificate =
+                    System.Security.Cryptography.X509Certificates.X509Certificate.CreateFromSignedFile(FilePath);
+                return SignatureStatus.Invalid;
+            }
+            catch (CryptographicException) {
+                return SignatureStatus.Unsigned;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Runtime.InteropServices.ExternalException or DllNotFoundException or EntryPointNotFoundException) {
+            return SignatureStatus.Invalid;
+        }
+    }
+}
+
 internal static class Updater {
     private const int MaxRetries = 5;
     private const int RetryDelay = 1_000; // Time between retries.
@@ -19,17 +209,22 @@ internal static class Updater {
     /// <summary>
     /// This is the known SHA-256 hash of the updater.
     /// </summary>
-    private const string KnownUpdaterHash = "53AF690186506C675B1907F5FE4A31D3C7B1CD10F4A62F57297DC4F944D3638B";
+    private const string KnownUpdaterHash = GeneratedUpdaterHash.Value;
 
     /// <summary>
     /// This is the direct ffmpeg download link.
     /// </summary>
     private const string FfmpegDownloadLink = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
 
-    private static bool UpdateCheckerRunning;
+    private static int UpdateCheckerRunning;
     private static CancellationTokenSource UpdateToken = new();
 
     #region Properties
+    internal static int ExpectedUpdaterProcessId { get; set; }
+    internal static bool IsExpectedUpdaterProcess(int ProcessId) =>
+        ProcessId > 0 && ProcessId == ExpectedUpdaterProcessId;
+    internal static void ClearExpectedUpdaterProcess() => ExpectedUpdaterProcessId = 0;
+
     /// <summary>
     /// Represents the very last checked repository release.
     /// </summary>
@@ -47,6 +242,7 @@ internal static class Updater {
     /// Represents the latest youtube-dl provider release.
     /// </summary>
     public static GithubData? LatestYoutubeDl { get; private set; }
+    private static int LatestYoutubeDlType = -1;
     #endregion
 
     #region Major methods
@@ -54,27 +250,25 @@ internal static class Updater {
     public static async Task<bool?> CheckForUpdate(bool ForceCheck) {
         if (!Program.UpdaterEnabled) {
             Log.Write("Cannot check for updates: TLS 1.2+ is not in use.");
-            Process.Start("https://github.com/murrty/youtube-dl-gui/releases");
+            Program.TryOpenWebUrl(GithubLinks.ApplicationReleasesUrl);
             return null;
         }
 
+        if (Interlocked.CompareExchange(ref UpdateCheckerRunning, 1, 0) != 0) {
+            return null;
+        }
+
+        bool IncludePreReleases = General.DownloadBetaVersions;
         try {
-            if (UpdateCheckerRunning) {
-                return null;
+            if (ForceCheck || (IncludePreReleases ? LastCheckedAllRelease is null : LastCheckedLatestRelease is null)) {
+                await RefreshRelease(IncludePreReleases);
             }
 
-            if (ForceCheck || (General.DownloadBetaVersions ? LastCheckedAllRelease is null : LastCheckedLatestRelease is null)) {
-                UpdateCheckerRunning = true;
-                await RefreshRelease();
-                UpdateCheckerRunning = false;
-            }
-
-            return General.DownloadBetaVersions ?
-                LastCheckedAllRelease?.IsNewerVersion == true :
-                LastCheckedLatestRelease?.IsNewerVersion == true;
+            LastChecked = IncludePreReleases ? LastCheckedAllRelease : LastCheckedLatestRelease;
+            return LastChecked?.IsNewerVersion == true;
         }
         finally {
-            UpdateCheckerRunning = false;
+            Interlocked.Exchange(ref UpdateCheckerRunning, 0);
         }
     }
     public static bool IsSkipped() {
@@ -90,13 +284,15 @@ internal static class Updater {
         UpdateToken = new();
     }
     public async static void ShowUpdateForm(bool AllowSkip) {
-        if (General.DownloadBetaVersions ? LastCheckedAllRelease is null : LastCheckedLatestRelease is null) {
-            await RefreshRelease();
+        bool IncludePreReleases = General.DownloadBetaVersions;
+        if (IncludePreReleases ? LastCheckedAllRelease is null : LastCheckedLatestRelease is null) {
+            await RefreshRelease(IncludePreReleases);
             if (LastChecked?.IsNewerVersion != true) {
                 return;
             }
         }
 
+        LastChecked = IncludePreReleases ? LastCheckedAllRelease : LastCheckedLatestRelease;
         if (LastChecked is null) {
             return;
         }
@@ -112,7 +308,7 @@ internal static class Updater {
             case DialogResult.Ignore when AllowSkip: {
                 Log.Write($"Ignoring update v{LastChecked.Version}");
 
-                if (General.DownloadBetaVersions) {
+                if (IncludePreReleases) {
                     if (LastCheckedAllRelease is not null) {
                         Initialization.SkippedBetaVersion = LastCheckedAllRelease.Version;
                     }
@@ -123,7 +319,279 @@ internal static class Updater {
             } break;
         }
     }
+    private static bool UpdaterFileMatchesKnownHash(string UpdaterPath) {
+        try {
+            return File.Exists(UpdaterPath) &&
+                Program.CalculateSha256Hash(UpdaterPath).Equals(KnownUpdaterHash, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (IOException) {
+            return false;
+        }
+        catch (UnauthorizedAccessException) {
+            return false;
+        }
+        catch (CryptographicException) {
+            return false;
+        }
+    }
+
+    private static bool TryParseSha256Digest(string? Value, out string Digest) {
+        Digest = string.Empty;
+        if (Value.IsNullEmptyWhitespace()) {
+            return false;
+        }
+
+        string Candidate = Value!.Trim();
+        if (Candidate.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)) {
+            Candidate = Candidate[7..].Trim();
+        }
+        if (Candidate.Length != 64 || !Candidate.All(Uri.IsHexDigit)) {
+            return false;
+        }
+
+        Digest = Candidate.ToLowerInvariant();
+        return true;
+    }
+
+    private static bool TryParseSha256Checksum(string? Content, string FileName, out string Digest) {
+        Digest = string.Empty;
+        if (Content.IsNullEmptyWhitespace() || FileName.IsNullEmptyWhitespace()) {
+            return false;
+        }
+
+        string[] Lines = Content!.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        for (int i = 0; i < Lines.Length; i++) {
+            string Line = Lines[i].Trim();
+            if (Line.Length < 66) {
+                continue;
+            }
+
+            int Separator = Line.IndexOfAny([' ', '\t']);
+            if (Separator != 64 || !TryParseSha256Digest(Line[..Separator], out string Parsed)) {
+                continue;
+            }
+
+            string Name = Line[(Separator + 1)..].TrimStart();
+            if (Name.StartsWith("*", StringComparison.Ordinal)) {
+                Name = Name[1..];
+            }
+            if (!Name.Equals(FileName, StringComparison.Ordinal)) {
+                continue;
+            }
+
+            Digest = Parsed;
+            return true;
+        }
+        return false;
+    }
+
+    private static bool FileMatchesSha256(string FilePath, string ExpectedHash) {
+        if (!TryParseSha256Digest(ExpectedHash, out string Parsed) || !File.Exists(FilePath)) {
+            return false;
+        }
+        try {
+            return Program.CalculateSha256Hash(FilePath).Equals(Parsed, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException) {
+            return false;
+        }
+    }
+
+    private static bool VerifyFfmpegArchive(string FilePath, string ExpectedSha256) =>
+        FileMatchesSha256(FilePath, ExpectedSha256);
+
+    private static bool TryParseFfmpegChecksum(string? Content, out string Digest) {
+        if (TryParseSha256Digest(Content, out Digest)) {
+            return true;
+        }
+        return TryParseSha256Checksum(Content, Path.GetFileName(FfmpegDownloadLink), out Digest);
+    }
+
+    private static async Task<string?> GetFfmpegArchiveDigest() {
+        try {
+            byte[] ChecksumBytes = await Program.HttpClient.DownloadBytesTaskAsync(
+                new Uri(FfmpegDownloadLink + ".sha256"), UpdateToken.Token, 4096);
+            string Checksum = System.Text.Encoding.UTF8.GetString(ChecksumBytes).Trim();
+            return TryParseFfmpegChecksum(Checksum, out string Digest) ? Digest : null;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or HttpException or TimeoutException or OperationCanceledException) {
+            if (ex is OperationCanceledException) throw;
+            Log.Write($"Could not retrieve the FFmpeg publisher checksum: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static bool VerifyDownloadedExecutable(string FilePath, string ExpectedHash) {
+        if (!FileMatchesSha256(FilePath, ExpectedHash)) {
+            return false;
+        }
+        return ExecutableTrust.GetStatus(FilePath) != ExecutableTrust.SignatureStatus.Invalid;
+    }
+
+    private const long MaxFfmpegExecutableBytes = 512L * 1024L * 1024L;
+
+    private static void ExtractZipEntryBounded(ZipArchiveEntry Entry, string OutputPath, long MaxBytes) {
+        if (Entry is null) throw new ArgumentNullException(nameof(Entry));
+        if (MaxBytes <= 0) throw new ArgumentOutOfRangeException(nameof(MaxBytes));
+        if (Entry.Length < 0 || Entry.Length > MaxBytes) {
+            throw new InvalidDataException("ZIP entry exceeds the configured extraction limit.");
+        }
+
+        long Written = 0;
+        byte[] Buffer = new byte[81920];
+        try {
+            using Stream Input = Entry.Open();
+            using FileStream Output = new(OutputPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            while (true) {
+                int Read = Input.Read(Buffer, 0, Buffer.Length);
+                if (Read <= 0) break;
+                Written += Read;
+                if (Written > MaxBytes) {
+                    throw new InvalidDataException("ZIP entry exceeded the configured extraction limit while streaming.");
+                }
+                Output.Write(Buffer, 0, Read);
+            }
+        }
+        catch {
+            try { File.Delete(OutputPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            throw;
+        }
+    }
+
+    private static bool CanUseProviderSelfUpdater() => false;
+
+    private static bool TryGetProviderAsset(GithubData Release, string FileName, out string? DownloadUrl, out string? Digest, out string? ChecksumUrl, out long Length) {
+        DownloadUrl = null;
+        Digest = null;
+        ChecksumUrl = null;
+        Length = 0;
+        if (Release.Files is null || FileName.IsNullEmptyWhitespace()) return false;
+
+        GithubAsset? Executable = null;
+        GithubAsset? Checksums = null;
+        for (int i = 0; i < Release.Files.Length; i++) {
+            GithubAsset Asset = Release.Files[i];
+            if (Asset.Name?.Equals(FileName, StringComparison.Ordinal) == true) Executable = Asset;
+            else if (Asset.Name?.Equals("SHA2-256SUMS", StringComparison.Ordinal) == true) Checksums = Asset;
+        }
+        if (Executable is null || Executable.Value.DownloadUrl.IsNullEmptyWhitespace()) return false;
+
+        DownloadUrl = Executable.Value.DownloadUrl;
+        Length = Executable.Value.Length;
+        if (TryParseSha256Digest(Executable.Value.Digest, out string ParsedDigest)) {
+            Digest = ParsedDigest;
+            return true;
+        }
+        if (Checksums is not null && !Checksums.Value.DownloadUrl.IsNullEmptyWhitespace()) {
+            ChecksumUrl = Checksums.Value.DownloadUrl;
+            return true;
+        }
+        DownloadUrl = null;
+        Length = 0;
+        return false;
+    }
+
+    private static bool CommitVerifiedFile(string StagedPath, string DestinationPath, Func<string, bool> Verify) {
+        if (!Verify(StagedPath)) {
+            try { if (File.Exists(StagedPath)) File.Delete(StagedPath); } catch { }
+            return false;
+        }
+
+        string BackupPath = DestinationPath + ".verified." + Guid.NewGuid().ToString("N") + ".bck";
+        bool MovedOld = false;
+        try {
+            if (File.Exists(DestinationPath)) {
+                File.Move(DestinationPath, BackupPath);
+                MovedOld = true;
+            }
+            try {
+                File.Move(StagedPath, DestinationPath);
+            }
+            catch {
+                if (MovedOld && !File.Exists(DestinationPath) && File.Exists(BackupPath)) File.Move(BackupPath, DestinationPath);
+                throw;
+            }
+            try { if (File.Exists(BackupPath)) File.Delete(BackupPath); }
+            catch (Exception cleanupEx) when (cleanupEx is IOException or UnauthorizedAccessException) {
+                Log.Write($"Could not remove verified replacement backup: {cleanupEx.Message}");
+            }
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+            Log.Write($"Could not commit verified replacement: {ex.Message}");
+            try {
+                if (!File.Exists(DestinationPath) && File.Exists(BackupPath)) File.Move(BackupPath, DestinationPath);
+            } catch (Exception rollbackEx) { Log.Write($"Could not roll back verified replacement: {rollbackEx.Message}"); }
+            return false;
+        }
+        finally { try { if (File.Exists(StagedPath)) File.Delete(StagedPath); } catch { } }
+    }
+
+    private static bool CommitVerifiedExecutable(string StagedPath, string DestinationPath, string ExpectedHash) =>
+        CommitVerifiedFile(StagedPath, DestinationPath, Path => VerifyDownloadedExecutable(Path, ExpectedHash));
+
+    private static bool GithubBlobMatches(string FilePath, string ExpectedObjectId) {
+        if (ExpectedObjectId.IsNullEmptyWhitespace() || ExpectedObjectId.Length != 40 || !ExpectedObjectId.All(Uri.IsHexDigit) || !File.Exists(FilePath)) {
+            return false;
+        }
+        try {
+            using FileStream Input = File.Open(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using SHA1 Hash = SHA1.Create();
+            byte[] Header = System.Text.Encoding.UTF8.GetBytes($"blob {Input.Length}\0");
+            Hash.TransformBlock(Header, 0, Header.Length, Header, 0);
+            byte[] Buffer = new byte[81920];
+            while (true) {
+                int Read = Input.Read(Buffer, 0, Buffer.Length);
+                if (Read <= 0) break;
+                Hash.TransformBlock(Buffer, 0, Read, Buffer, 0);
+            }
+            Hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+            string Actual = BitConverter.ToString(Hash.Hash!).Replace("-", string.Empty).ToLowerInvariant();
+            return Actual.Equals(ExpectedObjectId, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException) {
+            return false;
+        }
+    }
+
+    internal static bool CommitVerifiedGithubBlob(string StagedPath, string DestinationPath, string ExpectedObjectId) =>
+        CommitVerifiedFile(StagedPath, DestinationPath, Path => GithubBlobMatches(Path, ExpectedObjectId));
+
+#if DEBUG
+    internal static int BeginAuditUpdate(string Hash, string UpdaterPath) {
+        if (Hash.IsNullEmptyWhitespace() || Hash.Length != 64 || !Hash.All(Uri.IsHexDigit))
+            throw new ArgumentException("Audit update hash must be SHA-256.", nameof(Hash));
+        if (UpdaterPath.IsNullEmptyWhitespace() || !File.Exists(UpdaterPath))
+            throw new FileNotFoundException("Audit updater executable was not found.", UpdaterPath);
+
+        LastChecked = new GithubData {
+            ExecutableHash = Hash.ToLowerInvariant(),
+            Version = new murrty.updater.Version(9, 8, 7, 6),
+            IsNewerVersion = true
+        };
+        ExpectedUpdaterProcessId = 0;
+        using Process CurrentProcess = Process.GetCurrentProcess();
+        using Process AuditUpdater = new() {
+            StartInfo = new() {
+                Arguments = $"-pid {CurrentProcess.Id} -hwnd {Program.GetMessagesHandle()}",
+                FileName = Path.GetFullPath(UpdaterPath),
+                WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(UpdaterPath)) ?? Environment.CurrentDirectory,
+                UseShellExecute = false
+            }
+        };
+        if (!AuditUpdater.Start()) throw new InvalidOperationException("Audit updater process did not start.");
+        ExpectedUpdaterProcessId = AuditUpdater.Id;
+        return AuditUpdater.Id;
+    }
+#endif
+
     private static void BeginUpdate() {
+        ExpectedUpdaterProcessId = 0;
+        if (LastChecked?.ExecutableHash.IsNullEmptyWhitespace() != false) {
+            Log.MessageBox("The selected release does not include a valid executable SHA-256 hash. The update cannot continue.");
+            return;
+        }
+
         string UpdaterPath = Environment.CurrentDirectory + Path.DirectorySeparatorChar + "youtube-dl-gui-updater.exe";
 
         // Delete the file that already exists
@@ -141,22 +609,31 @@ internal static class Updater {
             File.WriteAllBytes(UpdaterPath, Properties.Resources.youtube_dl_gui_updater);
         }
 
-        // Sanity check the updater.
-        if (Program.CalculateSha256Hash(UpdaterPath) != KnownUpdaterHash.ToLowerInvariant() &&
-        Log.MessageBox(Language.dlgUpdaterHashNoMatch, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No) {
-            File.Delete(UpdaterPath);
+        // Sanity check the updater. A cryptographic mismatch is terminal; user consent cannot make untrusted bytes safe.
+        if (!UpdaterFileMatchesKnownHash(UpdaterPath)) {
+            Log.MessageBox("The updater failed its SHA-256 integrity check and will not be executed.", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            try {
+                File.Delete(UpdaterPath);
+            }
+            catch (Exception ex) {
+                Log.Write($"Failed to remove the untrusted updater after its integrity check failed: {ex.Message}");
+            }
             return;
         }
 
-        Process Updater = new() {
+        using Process CurrentProcess = Process.GetCurrentProcess();
+        int ProcessId = CurrentProcess.Id;
+        using Process Updater = new() {
             StartInfo = new() {
-                Arguments = $"-pid {Process.GetCurrentProcess().Id} -hwnd {Program.GetMessagesHandle()}",
+                Arguments = $"-pid {ProcessId} -hwnd {Program.GetMessagesHandle()}",
                 FileName = UpdaterPath,
                 WorkingDirectory = Environment.CurrentDirectory
             }
         };
-        Log.Write($"Using the pid {Process.GetCurrentProcess().Id} with hwnd {Program.GetMessagesHandle()}");
-        Updater.Start();
+        Log.Write($"Using the pid {ProcessId} with hwnd {Program.GetMessagesHandle()}");
+        if (Updater.Start()) {
+            ExpectedUpdaterProcessId = Updater.Id;
+        }
     }
 
     /// <summary>
@@ -164,8 +641,8 @@ internal static class Updater {
     /// </summary>
     /// <param name="ForceCheck"></param>
     public static async Task<bool> CheckForYoutubeDlUpdate(bool ForceCheck = false) {
-        if (LatestYoutubeDl is null || LatestYoutubeDl.VersionTag is null || ForceCheck) {
-            int TypeIndex = Verification.GetYoutubeDlType();
+        int TypeIndex = Verification.GetYoutubeDlType();
+        if (LatestYoutubeDl is null || LatestYoutubeDl.VersionTag is null || LatestYoutubeDlType != TypeIndex || ForceCheck) {
             bool CanRetry;
 
             do {
@@ -233,41 +710,35 @@ internal static class Updater {
     /// <param name="Location">The location where the generic downloader should appear.</param>
     /// <returns><see langword="true"/> if the youtube-dl provider update has went through regardless of success; otherwise, <see langword="false"/>.</returns>
     public static bool UpdateYoutubeDl(bool Internal, System.Drawing.Point? Location = null) {
-        if (LatestYoutubeDl is null) {
-            return false;
-        }
-
         if (Internal) {
-            if (!Verification.YoutubeDlAvailable) {
+            Log.Write("Provider self-update is disabled because the replacement executable cannot be independently verified before installation.");
+            return CanUseProviderSelfUpdater();
+        }
+        else {
+            int TypeIndex = Verification.GetYoutubeDlType();
+            if (LatestYoutubeDl is null || LatestYoutubeDlType != TypeIndex) {
+                Log.Write("Provider selection changed; check its release before downloading an update.");
                 return false;
             }
 
-            Log.Write("Using youtube-dls' internal updater to update the program.");
-
-            Process UpdateYoutubeDl = new() {
-                StartInfo = new(Verification.YoutubeDlPath) {
-                    Arguments = "-U",
-                }
-            };
-            UpdateYoutubeDl.Start();
-            return true;
-        }
-        else {
             if (Verification.YoutubeDlAvailable && !LatestYoutubeDl.IsNewerVersion) {
                 return false;
             }
 
             Log.Write($"Downloading youtube-dl version {LatestYoutubeDl.VersionTag}.");
-            int TypeIndex = Verification.GetYoutubeDlType();
 
-            string DownloadUrl =
-                GithubLinks.ApplicationDownloadUrl.Format(
-                    GithubLinks.ProviderRepos[TypeIndex].User,
-                    GithubLinks.ProviderRepos[TypeIndex].Repo,
-                    GithubLinks.ProviderRepos[TypeIndex].FriendlyName,
-                    LatestYoutubeDl.VersionTag ?? "0");
-
-            using frmGenericDownloadProgress Downloader = new(DownloadUrl, Verification.YoutubeDlPath ?? Verification.GetExpectedYoutubeDlPath(), Location);
+            string ProviderFileName = GithubLinks.ProviderRepos[TypeIndex].FriendlyName + ".exe";
+            if (!TryGetProviderAsset(LatestYoutubeDl, ProviderFileName, out string? DownloadUrl, out _, out _, out _) ||
+                DownloadUrl.IsNullEmptyWhitespace() || LatestYoutubeDl.ExecutableHash.IsNullEmptyWhitespace()) {
+                Log.Write("The provider release does not expose a verifiable executable asset.");
+                return false;
+            }
+            string ExpectedHash = LatestYoutubeDl.ExecutableHash!;
+            using frmGenericDownloadProgress Downloader = new(
+                DownloadUrl!,
+                Verification.YoutubeDlPath ?? Verification.GetExpectedYoutubeDlPath(),
+                Location,
+                TempPath => VerifyDownloadedExecutable(TempPath, ExpectedHash));
             if (Downloader.ShowDialog() != DialogResult.OK) {
                 return false;
             }
@@ -278,6 +749,17 @@ internal static class Updater {
         }
     }
 
+    private static bool TryDeleteFfmpegArchive(string FilePath) {
+        try {
+            File.Delete(FilePath);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+            Log.Write($"Could not remove downloaded FFmpeg archive: {ex.Message}");
+            return false;
+        }
+    }
+
     /// <summary>
     /// Updates ffmpeg.
     /// </summary>
@@ -285,17 +767,27 @@ internal static class Updater {
     public static async Task<bool> UpdateFfmpeg(System.Drawing.Point? Location) {
         Log.Write("Downloading the latest ffmpeg release.");
         string FfmpegZipPath = Environment.CurrentDirectory + "\\ffmpeg.zip";
+        string? ExpectedArchiveHash = await GetFfmpegArchiveDigest();
+        if (ExpectedArchiveHash.IsNullEmptyWhitespace()) {
+            Log.Write("FFmpeg update aborted because the publisher checksum could not be verified.");
+            return false;
+        }
 
         using frmGenericDownloadProgress Downloader = new(FfmpegDownloadLink, FfmpegZipPath, Location);
         if (Downloader.ShowDialog() != DialogResult.OK) {
+            return false;
+        }
+        if (!VerifyFfmpegArchive(FfmpegZipPath, ExpectedArchiveHash!)) {
+            Log.Write("FFmpeg update aborted because the downloaded archive did not match the publisher SHA-256 checksum.");
+            _ = TryDeleteFfmpegArchive(FfmpegZipPath);
             return false;
         }
 
         bool CanRetry = true;
         do {
             try {
-                string FfmpegPath = Verification.FFmpegPath is null ?
-                    Environment.CurrentDirectory : Path.GetDirectoryName(Verification.FFmpegPath ?? Verification.GetExpectedFfmpegPath());
+                string FfmpegPath = Path.GetDirectoryName(Verification.FFmpegPath ?? Verification.GetExpectedFfmpegPath()) ??
+                    Environment.CurrentDirectory;
 
                 using ZipArchive archive = ZipFile.OpenRead(FfmpegZipPath);
                 ZipArchiveEntry[] Files = archive.Entries
@@ -305,12 +797,107 @@ internal static class Updater {
                     })
                     .ToArray();
 
-                if (Files.Length > 0) {
-                    for (int i = 0; i < Files.Length; i++)
-                        await Task.Run(() => Files[i].ExtractToFile($"{FfmpegPath}\\{Files[i].Name}", true));
-                }
-                else {
+                ZipArchiveEntry[] FfmpegEntries = Files.Where(e => e.Name.Equals("ffmpeg.exe", StringComparison.OrdinalIgnoreCase)).ToArray();
+                ZipArchiveEntry[] FfprobeEntries = Files.Where(e => e.Name.Equals("ffprobe.exe", StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (FfmpegEntries.Length != 1 || FfprobeEntries.Length != 1) {
                     return false;
+                }
+
+                ZipArchiveEntry FfmpegEntry = FfmpegEntries[0];
+                ZipArchiveEntry FfprobeEntry = FfprobeEntries[0];
+
+                string FfmpegOutputPath = Verification.FFmpegPath ?? Verification.GetExpectedFfmpegPath();
+                string FfprobeOutputPath = Path.Combine(FfmpegPath, "ffprobe.exe");
+                string FfmpegTempPath = FfmpegOutputPath + ".update";
+                string FfprobeTempPath = FfprobeOutputPath + ".update";
+                string FfmpegBackupPath = FfmpegOutputPath + ".bck";
+                string FfprobeBackupPath = FfprobeOutputPath + ".bck";
+
+                try {
+                    if (!File.Exists(FfmpegOutputPath) && File.Exists(FfmpegBackupPath)) {
+                        File.Move(FfmpegBackupPath, FfmpegOutputPath);
+                    }
+                    else if (File.Exists(FfmpegBackupPath)) {
+                        File.Delete(FfmpegBackupPath);
+                    }
+
+                    if (!File.Exists(FfprobeOutputPath) && File.Exists(FfprobeBackupPath)) {
+                        File.Move(FfprobeBackupPath, FfprobeOutputPath);
+                    }
+                    else if (File.Exists(FfprobeBackupPath)) {
+                        File.Delete(FfprobeBackupPath);
+                    }
+
+                    if (File.Exists(FfmpegTempPath)) {
+                        File.Delete(FfmpegTempPath);
+                    }
+                    if (File.Exists(FfprobeTempPath)) {
+                        File.Delete(FfprobeTempPath);
+                    }
+
+                    await Task.Run(() => ExtractZipEntryBounded(FfmpegEntry, FfmpegTempPath, MaxFfmpegExecutableBytes));
+                    await Task.Run(() => ExtractZipEntryBounded(FfprobeEntry, FfprobeTempPath, MaxFfmpegExecutableBytes));
+
+                    bool FfmpegMovedOld = false;
+                    bool FfprobeMovedOld = false;
+                    bool FfmpegMovedNew = false;
+                    bool FfprobeMovedNew = false;
+
+                    try {
+                        if (File.Exists(FfmpegOutputPath)) {
+                            File.Move(FfmpegOutputPath, FfmpegBackupPath);
+                            FfmpegMovedOld = true;
+                        }
+                        File.Move(FfmpegTempPath, FfmpegOutputPath);
+                        FfmpegMovedNew = true;
+
+                        if (File.Exists(FfprobeOutputPath)) {
+                            File.Move(FfprobeOutputPath, FfprobeBackupPath);
+                            FfprobeMovedOld = true;
+                        }
+                        File.Move(FfprobeTempPath, FfprobeOutputPath);
+                        FfprobeMovedNew = true;
+                    }
+                    catch {
+                        try {
+                            if (FfprobeMovedNew && File.Exists(FfprobeOutputPath)) {
+                                File.Delete(FfprobeOutputPath);
+                            }
+                            if (FfprobeMovedOld && File.Exists(FfprobeBackupPath)) {
+                                File.Move(FfprobeBackupPath, FfprobeOutputPath);
+                            }
+                        }
+                        catch (Exception rollbackEx) {
+                            Log.Write($"Failed to roll back ffprobe after an update error: {rollbackEx.Message}");
+                        }
+
+                        try {
+                            if (FfmpegMovedNew && File.Exists(FfmpegOutputPath)) {
+                                File.Delete(FfmpegOutputPath);
+                            }
+                            if (FfmpegMovedOld && File.Exists(FfmpegBackupPath)) {
+                                File.Move(FfmpegBackupPath, FfmpegOutputPath);
+                            }
+                        }
+                        catch (Exception rollbackEx) {
+                            Log.Write($"Failed to roll back ffmpeg after an update error: {rollbackEx.Message}");
+                        }
+
+                        throw;
+                    }
+                }
+                finally {
+                    try {
+                        if (File.Exists(FfmpegTempPath)) {
+                            File.Delete(FfmpegTempPath);
+                        }
+                        if (File.Exists(FfprobeTempPath)) {
+                            File.Delete(FfprobeTempPath);
+                        }
+                    }
+                    catch (Exception cleanupEx) {
+                        Log.Write($"Failed to clean up temporary ffmpeg update files: {cleanupEx.Message}");
+                    }
                 }
 
                 CanRetry = false;
@@ -323,8 +910,8 @@ internal static class Updater {
             }
         } while (CanRetry);
 
-        // Delete the zip file.
-        File.Delete(FfmpegZipPath);
+        // The replacement is already complete; archive cleanup must not turn success into failure.
+        _ = TryDeleteFfmpegArchive(FfmpegZipPath);
         Verification.RefreshFFmpegLocation();
         return true;
     }
@@ -334,20 +921,19 @@ internal static class Updater {
     /// </summary>
     /// <returns></returns>
     /// <exception cref="ArgumentOutOfRangeException"></exception>
-    public static GithubRepoContent[] GetAvailableLanguages() {
+    public static async Task<GithubRepoContent[]> GetAvailableLanguages() {
         Log.Write("Enumerating languages available.");
-        const string Url = "https://api.github.com/repos/murrty/youtube-dl-gui/contents/Languages";
+        const string Url = GithubLinks.ApplicationLanguagesApiUrl;
 
-        Task<string?> JsonTask = GetJSON(Url);
-        JsonTask.Wait();
-
-        string? JSON = JsonTask.Result;
+        string? JSON = await GetJSON(Url);
 
         if (JSON.IsNullEmptyWhitespace()) {
             throw new NullReferenceException("Github api is null empty or whitespace.");
         }
 
-        var AvailableLanguages = JSON.JsonDeserialize<GithubRepoContent[]>()
+        GithubRepoContent[] ParsedLanguages = JSON.JsonDeserialize<GithubRepoContent[]>()
+            ?? throw new ApiParsingException("Could not deserialize language metadata.", Url);
+        var AvailableLanguages = ParsedLanguages
             .Where(x => x.name != "English.ini")
             .ToArray();
 
@@ -362,12 +948,13 @@ internal static class Updater {
     /// <param name="Url">The URL to download the string from.</param>
     /// <returns>A string from the URL.</returns>
     private static async Task<string?> GetJSON(string Url) {
+        CancellationToken Token = UpdateToken.Token;
         string? Json = null;
         bool CanRetry;
         int Retries = 0;
         do {
             try {
-                Json = await Program.HttpClient.DownloadStringTaskAsync(new Uri(Url), CancellationToken.None);
+                Json = await Program.HttpClient.DownloadStringTaskAsync(new Uri(Url), Token);
                 CanRetry = false;
             }
             catch (Exception ex) {
@@ -381,7 +968,7 @@ internal static class Updater {
 
                 if (Retries != MaxRetries && (ex is not HttpException hex || (int)hex.StatusCode > 499)) {
                     Log.Write("An exception occurred, retrying...");
-                    await Task.Delay(RetryDelay);
+                    await Task.Delay(RetryDelay, Token);
                     Retries++;
                     CanRetry = true;
                     continue;
@@ -402,25 +989,40 @@ internal static class Updater {
     /// <summary>
     /// Refreshes the release data within the application.
     /// </summary>
-    private static async Task RefreshRelease() {
-        string? Json = await GetJSON((General.DownloadBetaVersions ? GithubLinks.GithubAllReleasesJson : GithubLinks.GithubLatestJson)
-            .Format("murrty", Language.ApplicationName));
+    private static async Task RefreshRelease(bool IncludePreReleases) {
+        string ReleaseUrl = GithubLinks.GetApplicationReleaseMetadataUrl(IncludePreReleases);
+        string? Json = await GetJSON(ReleaseUrl);
 
         if (Json.IsNullEmptyWhitespace()) {
             throw new InvalidOperationException("JSON downloaded was empty");
         }
 
-        GithubData CurrentCheck;
+        GithubData[] Releases = Json.JsonDeserialize<GithubData[]>()
+            ?? throw new ApiParsingException("Could not deserialize release metadata.", ReleaseUrl);
+        GithubData[] EligibleReleases = IncludePreReleases
+            ? Releases
+            : Releases.Where(Release => !Release.VersionPreRelease).ToArray();
 
-        if (General.DownloadBetaVersions) {
-            GithubData[] Releases = Json.JsonDeserialize<GithubData[]>();
-            CurrentCheck = LastCheckedAllRelease = GithubData.GetNewestRelease(Releases);
+        if (EligibleReleases.Length == 0) {
+            if (IncludePreReleases) {
+                LastCheckedAllRelease = null;
+                Log.Write("No application releases were found.");
+            }
+            else {
+                LastCheckedLatestRelease = null;
+                Log.Write("No stable application releases were found.");
+            }
+            LastChecked = null;
+            return;
+        }
+
+        GithubData CurrentCheck = GithubData.GetNewestRelease(EligibleReleases);
+        if (IncludePreReleases) {
+            LastCheckedAllRelease = CurrentCheck;
         }
         else {
-            CurrentCheck = Json.JsonDeserialize<GithubData>();
             LastCheckedLatestRelease = CurrentCheck;
         }
-
         LastChecked = CurrentCheck;
     }
 
@@ -440,13 +1042,29 @@ internal static class Updater {
         string Json = await GetJSON(Url)
             .ConfigureAwait(true) ?? throw new ApiParsingException("The retrieved xml returned null.", Url);
 
-        GithubData CurrentRelease = Json.JsonDeserialize<GithubData>();
+        GithubData CurrentRelease = Json.JsonDeserialize<GithubData>()
+            ?? throw new ApiParsingException("Could not deserialize provider release metadata.", Url);
 
-        if (LatestYoutubeDl is not null && LatestYoutubeDl.VersionTag == CurrentRelease.VersionTag) {
+        string ProviderFileName = GithubLinks.ProviderRepos[GitID].FriendlyName + ".exe";
+        if (!TryGetProviderAsset(CurrentRelease, ProviderFileName, out _, out string? ProviderDigest, out string? ChecksumUrl, out _)) {
+            throw new ApiParsingException("The provider release does not expose an executable with authoritative SHA-256 metadata.", Url);
+        }
+        if (ProviderDigest is null) {
+            if (ChecksumUrl.IsNullEmptyWhitespace()) throw new ApiParsingException("The provider release checksum URL is missing.", Url);
+            string ChecksumText = await Program.HttpClient.DownloadStringTaskAsync(new Uri(ChecksumUrl!), UpdateToken.Token).ConfigureAwait(true);
+            if (!TryParseSha256Checksum(ChecksumText, ProviderFileName, out ProviderDigest)) {
+                throw new ApiParsingException("The provider release checksum manifest does not contain the expected executable.", ChecksumUrl!);
+            }
+        }
+        CurrentRelease.ExecutableHash = ProviderDigest;
+
+        if (LatestYoutubeDlType == GitID && LatestYoutubeDl is not null && LatestYoutubeDl.VersionTag == CurrentRelease.VersionTag &&
+            string.Equals(LatestYoutubeDl.ExecutableHash, ProviderDigest, StringComparison.OrdinalIgnoreCase)) {
             return;
         }
 
         LatestYoutubeDl = CurrentRelease;
+        LatestYoutubeDlType = GitID;
     }
     #endregion
 }

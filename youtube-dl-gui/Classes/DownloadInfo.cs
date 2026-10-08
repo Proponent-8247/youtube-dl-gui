@@ -210,7 +210,7 @@ public sealed class DownloadInfo {
                 }
                 else {
                     if (UseVBR) {
-                        ArgumentsBuffer.Add($"--extract-audio --audio-quality {AudioVBRQuality}");
+                        ArgumentsBuffer.Add($"--extract-audio --audio-quality {(int)AudioVBRQuality}");
                     }
                     else {
                         ArgumentsBuffer.Add($"--extract-audio --audio-quality {Formats.GetAudioQuality(AudioCBRQuality)}");
@@ -255,7 +255,7 @@ public sealed class DownloadInfo {
                     }
 
                     if (PlaylistSelectionIndexEnd > 0) {
-                        ArgumentsBuffer.Add($"--playlist-end {PlaylistSelectionIndexStart + PlaylistSelectionIndexEnd}");
+                        ArgumentsBuffer.Add($"--playlist-end {PlaylistSelectionIndexEnd}");
                     }
                     break;
                 case PlaylistSelectionType.PlaylistItems: // playlist-items
@@ -307,7 +307,8 @@ public sealed class DownloadInfo {
             if (Downloads.SaveDescription) {
                 ArgumentsBuffer.Add("--write-description");
             }
-            if (Downloads.SaveAnnotations) {
+            if (Downloads.SaveAnnotations
+            && (Downloads.YtdlType == (int)GitID.YoutubeDl || Downloads.YtdlType == (int)GitID.YoutubeDlNightly)) {
                 ArgumentsBuffer.Add("--write-annotations");
             }
             if (Downloads.SaveThumbnail) {
@@ -343,18 +344,12 @@ public sealed class DownloadInfo {
             }
 
             if (Downloads.LimitDownloads && Downloads.DownloadLimit > 0) {
-                ArgumentsBuffer.Add($"--limit-rate {Downloads.DownloadLimit}");
-                switch (Downloads.DownloadLimitType) {
-                    case 1: { // mb
-                        ArgumentsBuffer.Add("M");
-                    } break;
-                    case 2: { // gb
-                        ArgumentsBuffer.Add("G");
-                    } break;
-                    default: { // kb default
-                        ArgumentsBuffer.Add("K");
-                    } break;
-                }
+                string DownloadLimitSuffix = Downloads.DownloadLimitType switch {
+                    1 => "M",
+                    2 => "G",
+                    _ => "K"
+                };
+                ArgumentsBuffer.Add($"--limit-rate {Downloads.DownloadLimit}{DownloadLimitSuffix}");
             }
 
             if (Downloads.RetryAttempts != 10 && Downloads.RetryAttempts > 0) {
@@ -368,19 +363,32 @@ public sealed class DownloadInfo {
                 ArgumentsBuffer.Add("--force-ipv6");
             }
 
-            if (Downloads.UseProxy && Downloads.ProxyType > -1 && !string.IsNullOrEmpty(Downloads.ProxyIP) && !string.IsNullOrEmpty(Downloads.ProxyPort)) {
+            if (Downloads.UseProxy && Downloads.ProxyType > -1 && Downloads.ProxyType < DownloadHelper.ProxyProtocols.Length && !string.IsNullOrEmpty(Downloads.ProxyIP) && !string.IsNullOrEmpty(Downloads.ProxyPort)) {
                 ArgumentsBuffer.Add($"--proxy {DownloadHelper.ProxyProtocols[Downloads.ProxyType]}{Downloads.ProxyIP}:{Downloads.ProxyPort}/");
             }
 
             if (Downloads.SkipUnavailableFragments) {
+                ArgumentsBuffer.Add("--skip-unavailable-fragments");
+            }
+            else if (Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly) {
+                ArgumentsBuffer.Add("--abort-on-unavailable-fragments");
+            }
+            else {
                 ArgumentsBuffer.Add("--abort-on-unavailable-fragment");
             }
 
-            if (!Downloads.AbortOnError) {
+            if (Downloads.AbortOnError) {
+                ArgumentsBuffer.Add("--abort-on-error");
+            }
+            else if (Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly) {
                 ArgumentsBuffer.Add("--no-abort-on-error");
             }
+            else {
+                ArgumentsBuffer.Add("--ignore-errors");
+            }
 
-            if (Downloads.FragmentThreads > 1) {
+            if (Downloads.FragmentThreads > 1
+            && (Downloads.YtdlType == (int)GitID.YtDlp || Downloads.YtdlType == (int)GitID.YtDlpNightly)) {
                 ArgumentsBuffer.Add("--concurrent-fragments " + Downloads.FragmentThreads);
             }
 
@@ -406,22 +414,22 @@ public sealed class DownloadInfo {
         if (!MostlyCustomArguments) {
             if (Authentication is not null) {
                 if (!Authentication.Username.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--username {Authentication.Username}");
+                    ArgumentsBuffer.Add($"--username {ArgumentList.EscapeArgument(Authentication.Username)}");
                     Authentication.Username = null;
                     PreviewArguments.Add("--username ***");
                 }
                 if (Authentication.Password?.Length > 0) {
-                    ArgumentsBuffer.Add($"--password {Authentication.GetPassword()}");
+                    ArgumentsBuffer.Add($"--password {ArgumentList.EscapeArgument(Authentication.GetPassword())}");
                     Array.Clear(Authentication.Password, 0, Authentication.Password.Length);
                     PreviewArguments.Add("--password ***");
                 }
                 if (!Authentication.TwoFactor.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--twofactor {Authentication.TwoFactor}");
+                    ArgumentsBuffer.Add($"--twofactor {ArgumentList.EscapeArgument(Authentication.TwoFactor)}");
                     Authentication.TwoFactor = null;
                     PreviewArguments.Add("--twofactor ***");
                 }
                 if (Authentication.MediaPassword?.Length > 0) {
-                    ArgumentsBuffer.Add($"--video-password {Authentication.GetMediaPassword()}");
+                    ArgumentsBuffer.Add($"--video-password {ArgumentList.EscapeArgument(Authentication.GetMediaPassword())}");
                     Array.Clear(Authentication.MediaPassword, 0, Authentication.MediaPassword.Length);
                     PreviewArguments.Add("--video-password ***");
                 }
@@ -431,12 +439,12 @@ public sealed class DownloadInfo {
                     Authentication.NetRC = false;
                 }
                 if (!Authentication.CookiesFile.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--cookies {Authentication.CookiesFile}");
+                    ArgumentsBuffer.Add($"--cookies {ArgumentList.EscapeArgument(Authentication.CookiesFile)}");
                     PreviewArguments.Add("--cookies ***");
                     Authentication.CookiesFile = null;
                 }
                 if (!Authentication.CookiesFromBrowser.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--cookies-from-browser {Authentication.CookiesFromBrowser}");
+                    ArgumentsBuffer.Add($"--cookies-from-browser {ArgumentList.EscapeArgument(Authentication.CookiesFromBrowser)}");
                     PreviewArguments.Add("--cookies-from-browser ***");
                     Authentication.CookiesFromBrowser = null;
                 }

@@ -38,6 +38,10 @@ internal class ExtendedLinkLabel : LinkLabel {
     /// The color the link label appears as when already visted and hovered.
     /// </summary>
     private static readonly Color VisitedHoverColor = Color.FromArgb(0xA4, 0x00, 0xA4);
+
+    private Color NormalLinkColor = DefaultColor;
+    private Color NormalVisitedLinkColor = VisitedColor;
+    private bool Hovering;
     #endregion
 
     #region Properties
@@ -59,8 +63,13 @@ internal class ExtendedLinkLabel : LinkLabel {
     //[DefaultValue(typeof(Color), "0, 0, 102, 204")]
     //[DefaultValue(typeof(Color), "0, 102, 204")]
     public new Color LinkColor {
-        get => base.LinkColor;
-        set => base.LinkColor = value;
+        get => NormalLinkColor;
+        set {
+            NormalLinkColor = value;
+            if (!Hovering) {
+                base.LinkColor = value;
+            }
+        }
     }
 
     [DefaultValue(typeof(Color), "0xFF, 0x80, 0x00, 0x80")]
@@ -70,8 +79,13 @@ internal class ExtendedLinkLabel : LinkLabel {
     //[DefaultValue(typeof(Color), "0, 128, 0, 128")]
     //[DefaultValue(typeof(Color), "128, 0, 128")]
     public new Color VisitedLinkColor {
-        get => base.VisitedLinkColor;
-        set => base.VisitedLinkColor = value;
+        get => NormalVisitedLinkColor;
+        set {
+            NormalVisitedLinkColor = value;
+            if (!Hovering) {
+                base.VisitedLinkColor = value;
+            }
+        }
     }
     #endregion
 
@@ -81,8 +95,8 @@ internal class ExtendedLinkLabel : LinkLabel {
     /// </summary>
     public ExtendedLinkLabel() {
         base.ActiveLinkColor = ActiveColor;
-        base.LinkColor = DefaultColor;
-        base.VisitedLinkColor = VisitedColor;
+        base.LinkColor = NormalLinkColor;
+        base.VisitedLinkColor = NormalVisitedLinkColor;
     }
     #endregion
 
@@ -93,14 +107,16 @@ internal class ExtendedLinkLabel : LinkLabel {
 
     protected override void OnMouseEnter(EventArgs e) {
         base.OnMouseEnter(e);
-        this.LinkColor = DefaultHoverColor;
-        this.VisitedLinkColor = VisitedHoverColor;
+        Hovering = true;
+        base.LinkColor = DefaultHoverColor;
+        base.VisitedLinkColor = VisitedHoverColor;
     }
 
     protected override void OnMouseLeave(EventArgs e) {
         base.OnMouseLeave(e);
-        this.LinkColor = DefaultColor;
-        this.VisitedLinkColor = VisitedColor;
+        Hovering = false;
+        base.LinkColor = NormalLinkColor;
+        base.VisitedLinkColor = NormalVisitedLinkColor;
     }
     #endregion
 }

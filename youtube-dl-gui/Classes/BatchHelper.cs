@@ -11,4 +11,9 @@ public static class BatchHelper {
     public static string CurrentTime {
         get => $"{DateTime.Now:yyyy_MM_dd-HH_mm_ss}";
     }
+
+    /// <summary>
+    /// Allocates a readable identifier that remains unique for independent batches started in the same second.
+    /// </summary>
+    public static string CreateBatchId() => $"{CurrentTime}-{Guid.NewGuid():N}";
 }

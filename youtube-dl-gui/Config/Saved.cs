@@ -47,8 +47,8 @@ internal static class Saved {
         get => fdownloadType;
         set {
             if (fdownloadType != value) {
+                IniProvider.Write(value, ConfigName, nameof(downloadType));
                 fdownloadType = value;
-                IniProvider.Write(downloadType, ConfigName);
             }
         }
     }
@@ -58,8 +58,8 @@ internal static class Saved {
         get => fconvertSaveVideoIndex;
         set {
             if (fconvertSaveVideoIndex != value) {
+                IniProvider.Write(value, ConfigName, nameof(convertSaveVideoIndex));
                 fconvertSaveVideoIndex = value;
-                IniProvider.Write(convertSaveVideoIndex, ConfigName);
             }
         }
     }
@@ -69,8 +69,8 @@ internal static class Saved {
         get => fconvertSaveAudioIndex;
         set {
             if (fconvertSaveAudioIndex != value) {
+                IniProvider.Write(value, ConfigName, nameof(convertSaveAudioIndex));
                 fconvertSaveAudioIndex = value;
-                IniProvider.Write(convertSaveAudioIndex, ConfigName);
             }
         }
     }
@@ -80,8 +80,8 @@ internal static class Saved {
         get => fconvertSaveUnknownIndex;
         set {
             if (fconvertSaveUnknownIndex != value) {
+                IniProvider.Write(value, ConfigName, nameof(convertSaveUnknownIndex));
                 fconvertSaveUnknownIndex = value;
-                IniProvider.Write(convertSaveUnknownIndex, ConfigName);
             }
         }
     }
@@ -91,8 +91,8 @@ internal static class Saved {
         get => fconvertType;
         set {
             if (fconvertType != value) {
+                IniProvider.Write(value, ConfigName, nameof(convertType));
                 fconvertType = value;
-                IniProvider.Write(convertType, ConfigName);
             }
         }
     }
@@ -102,8 +102,8 @@ internal static class Saved {
         get => fconvertCustom;
         set {
             if (fconvertCustom != value) {
+                IniProvider.Write(value, ConfigName, nameof(convertCustom));
                 fconvertCustom = value;
-                IniProvider.Write(convertCustom, ConfigName);
             }
         }
     }
@@ -113,8 +113,8 @@ internal static class Saved {
         get => fvideoQuality;
         set {
             if (fvideoQuality != value) {
+                IniProvider.Write(value, ConfigName, nameof(videoQuality));
                 fvideoQuality = value;
-                IniProvider.Write(videoQuality, ConfigName);
             }
         }
     }
@@ -124,8 +124,8 @@ internal static class Saved {
         get => faudioQuality;
         set {
             if (faudioQuality != value) {
+                IniProvider.Write(value, ConfigName, nameof(audioQuality));
                 faudioQuality = value;
-                IniProvider.Write(audioQuality, ConfigName);
             }
         }
     }
@@ -135,8 +135,8 @@ internal static class Saved {
         get => fVideoFormat;
         set {
             if (fVideoFormat != value) {
+                IniProvider.Write(value, ConfigName, nameof(VideoFormat));
                 fVideoFormat = value;
-                IniProvider.Write(VideoFormat, ConfigName);
             }
         }
     }
@@ -146,8 +146,8 @@ internal static class Saved {
         get => fAudioFormat;
         set {
             if (fAudioFormat != value) {
+                IniProvider.Write(value, ConfigName, nameof(AudioFormat));
                 fAudioFormat = value;
-                IniProvider.Write(AudioFormat, ConfigName);
             }
         }
     }
@@ -157,8 +157,8 @@ internal static class Saved {
         get => fAudioVBRQuality;
         set {
             if (fAudioVBRQuality != value) {
+                IniProvider.Write(value, ConfigName, nameof(AudioVBRQuality));
                 fAudioVBRQuality = value;
-                IniProvider.Write(AudioVBRQuality, ConfigName);
             }
         }
     }
@@ -168,8 +168,8 @@ internal static class Saved {
         get => fBatchDownloaderLocation;
         set {
             if (fBatchDownloaderLocation != value) {
+                IniProvider.Write(value, ConfigName, nameof(BatchDownloaderLocation));
                 fBatchDownloaderLocation = value;
-                IniProvider.Write(BatchDownloaderLocation, ConfigName);
             }
         }
     }
@@ -179,8 +179,8 @@ internal static class Saved {
         get => fBatchConverterLocation;
         set {
             if (fBatchConverterLocation != value) {
+                IniProvider.Write(value, ConfigName, nameof(BatchConverterLocation));
                 fBatchConverterLocation = value;
-                IniProvider.Write(BatchConverterLocation, ConfigName);
             }
         }
     }
@@ -190,8 +190,8 @@ internal static class Saved {
         get => fMainFormSize;
         set {
             if (fMainFormSize != value) {
+                IniProvider.Write(value, ConfigName, nameof(MainFormSize));
                 fMainFormSize = value;
-                IniProvider.Write(MainFormSize, ConfigName);
             }
         }
     }
@@ -201,8 +201,8 @@ internal static class Saved {
         get => fSettingsFormSize;
         set {
             if (fSettingsFormSize != value) {
+                IniProvider.Write(value, ConfigName, nameof(SettingsFormSize));
                 fSettingsFormSize = value;
-                IniProvider.Write(SettingsFormSize, ConfigName);
             }
         }
     }
@@ -212,8 +212,8 @@ internal static class Saved {
         get => fFileNameSchemaHistory;
         set {
             if (fFileNameSchemaHistory != value) {
+                IniProvider.Write(value, ConfigName, nameof(FileNameSchemaHistory));
                 fFileNameSchemaHistory = value;
-                IniProvider.Write(FileNameSchemaHistory, ConfigName);
             }
         }
     }
@@ -223,8 +223,8 @@ internal static class Saved {
         get => fDownloadCustomArguments;
         set {
             if (fDownloadCustomArguments != value) {
+                IniProvider.Write(value, ConfigName, nameof(DownloadCustomArguments));
                 fDownloadCustomArguments = value;
-                IniProvider.Write(DownloadCustomArguments, ConfigName);
             }
         }
     }
@@ -234,8 +234,8 @@ internal static class Saved {
         get => fCustomArgumentsIndex;
         set {
             if (fCustomArgumentsIndex != value) {
+                IniProvider.Write(value, ConfigName, nameof(CustomArgumentsIndex));
                 fCustomArgumentsIndex = value;
-                IniProvider.Write(CustomArgumentsIndex, ConfigName);
             }
         }
     }
@@ -245,8 +245,8 @@ internal static class Saved {
         get => fConvertCustomArguments;
         set {
             if (fConvertCustomArguments != value) {
+                IniProvider.Write(value, ConfigName, nameof(ConvertCustomArguments));
                 fConvertCustomArguments = value;
-                IniProvider.Write(ConvertCustomArguments, ConfigName);
             }
         }
     }
@@ -256,8 +256,8 @@ internal static class Saved {
         get => fConvertCustomArgumentsIndex;
         set {
             if (fConvertCustomArgumentsIndex != value) {
+                IniProvider.Write(value, ConfigName, nameof(ConvertCustomArgumentsIndex));
                 fConvertCustomArgumentsIndex = value;
-                IniProvider.Write(ConvertCustomArgumentsIndex, ConfigName);
             }
         }
     }
@@ -267,8 +267,8 @@ internal static class Saved {
         get => fMainFormLocation;
         set {
             if (fMainFormLocation != value) {
+                IniProvider.Write(value, ConfigName, nameof(MainFormLocation));
                 fMainFormLocation = value;
-                IniProvider.Write(MainFormLocation, ConfigName);
             }
         }
     }
@@ -278,8 +278,8 @@ internal static class Saved {
         get => fExtendedDownloaderLocation;
         set {
             if (fExtendedDownloaderLocation != value) {
+                IniProvider.Write(value, ConfigName, nameof(ExtendedDownloaderLocation));
                 fExtendedDownloaderLocation = value;
-                IniProvider.Write(ExtendedDownloaderLocation, ConfigName);
             }
         }
     }
@@ -289,8 +289,8 @@ internal static class Saved {
         get => fExtendedDownloaderSize;
         set {
             if (fExtendedDownloaderSize != value) {
+                IniProvider.Write(value, ConfigName, nameof(ExtendedDownloaderSize));
                 fExtendedDownloaderSize = value;
-                IniProvider.Write(ExtendedDownloaderSize, ConfigName);
             }
         }
     }
@@ -300,8 +300,8 @@ internal static class Saved {
         get => fArchiveDownloaderLocation;
         set {
             if (fArchiveDownloaderLocation != value) {
+                IniProvider.Write(value, ConfigName, nameof(ArchiveDownloaderLocation));
                 fArchiveDownloaderLocation = value;
-                IniProvider.Write(ArchiveDownloaderLocation, ConfigName);
             }
         }
     }
@@ -311,8 +311,8 @@ internal static class Saved {
         get => fLogLocation;
         set {
             if (fLogLocation != value) {
+                IniProvider.Write(value, ConfigName, nameof(LogLocation));
                 fLogLocation = value;
-                IniProvider.Write(LogLocation, ConfigName);
             }
         }
     }
@@ -322,8 +322,8 @@ internal static class Saved {
         get => fLogSize;
         set {
             if (fLogSize != value) {
+                IniProvider.Write(value, ConfigName, nameof(LogSize));
                 fLogSize = value;
-                IniProvider.Write(LogSize, ConfigName);
             }
         }
     }
@@ -333,8 +333,8 @@ internal static class Saved {
         get => fExtendedDownloaderVideoColumns;
         set {
             if (fExtendedDownloaderVideoColumns != value) {
+                IniProvider.Write(value, ConfigName, nameof(ExtendedDownloaderVideoColumns));
                 fExtendedDownloaderVideoColumns = value;
-                IniProvider.Write(ExtendedDownloaderVideoColumns, ConfigName);
             }
         }
     }
@@ -344,8 +344,8 @@ internal static class Saved {
         get => fExtendedDownloaderAudioColumns;
         set {
             if (fExtendedDownloaderAudioColumns != value) {
+                IniProvider.Write(value, ConfigName, nameof(ExtendedDownloaderAudioColumns));
                 fExtendedDownloaderAudioColumns = value;
-                IniProvider.Write(ExtendedDownloaderAudioColumns, ConfigName);
             }
         }
     }
@@ -355,8 +355,8 @@ internal static class Saved {
         get => fExtendedDownloaderUnknownColumns;
         set {
             if (fExtendedDownloaderUnknownColumns != value) {
+                IniProvider.Write(value, ConfigName, nameof(ExtendedDownloaderUnknownColumns));
                 fExtendedDownloaderUnknownColumns = value;
-                IniProvider.Write(ExtendedDownloaderUnknownColumns, ConfigName);
             }
         }
     }
@@ -366,8 +366,8 @@ internal static class Saved {
         get => fQuickDownloaderLocation;
         set {
             if (fQuickDownloaderLocation != value) {
+                IniProvider.Write(value, ConfigName, nameof(QuickDownloaderLocation));
                 fQuickDownloaderLocation = value;
-                IniProvider.Write(QuickDownloaderLocation, ConfigName);
             }
         }
     }
@@ -377,8 +377,8 @@ internal static class Saved {
         get => fFileNameSchemaHistoryLocation;
         set {
             if (fFileNameSchemaHistoryLocation != value) {
+                IniProvider.Write(value, ConfigName, nameof(FileNameSchemaHistoryLocation));
                 fFileNameSchemaHistoryLocation = value;
-                IniProvider.Write(FileNameSchemaHistoryLocation, ConfigName);
             }
         }
     }
@@ -388,8 +388,8 @@ internal static class Saved {
         get => fFileNameSchemaHistorySize;
         set {
             if (fFileNameSchemaHistorySize != value) {
+                IniProvider.Write(value, ConfigName, nameof(FileNameSchemaHistorySize));
                 fFileNameSchemaHistorySize = value;
-                IniProvider.Write(FileNameSchemaHistorySize, ConfigName);
             }
         }
     }
@@ -399,8 +399,8 @@ internal static class Saved {
         get => fExtendedBatchDownloaderLocation;
         set {
             if (fExtendedBatchDownloaderLocation != value) {
+                IniProvider.Write(value, ConfigName, nameof(ExtendedBatchDownloaderLocation));
                 fExtendedBatchDownloaderLocation = value;
-                IniProvider.Write(ExtendedBatchDownloaderLocation, ConfigName);
             }
         }
     }
@@ -410,8 +410,8 @@ internal static class Saved {
         get => fExtendedBatchDownloaderSize;
         set {
             if (fExtendedBatchDownloaderSize != value) {
+                IniProvider.Write(value, ConfigName, nameof(ExtendedBatchDownloaderSize));
                 fExtendedBatchDownloaderSize = value;
-                IniProvider.Write(ExtendedBatchDownloaderSize, ConfigName);
             }
         }
     }
@@ -421,8 +421,8 @@ internal static class Saved {
         get => fExtendedBatchDownloaderQueuedColumns;
         set {
             if (fExtendedBatchDownloaderQueuedColumns != value) {
+                IniProvider.Write(value, ConfigName, nameof(ExtendedBatchDownloaderQueuedColumns));
                 fExtendedBatchDownloaderQueuedColumns = value;
-                IniProvider.Write(ExtendedBatchDownloaderQueuedColumns, ConfigName);
             }
         }
     }

@@ -9,6 +9,7 @@ public static class Language {
     #region Constants
     public const string ApplicationName = "youtube-dl-gui";
     internal static List<ILocalizedForm> OpenedForms = [];
+    private static readonly object OpenedFormsSync = new();
     #endregion
 
     #region GetSetRadio (AKA Properties)
@@ -1708,7 +1709,7 @@ public static class Language {
         chkExtendedAutomaticallyDownloadThumbnail = InternalEnglish.chkExtendedAutomaticallyDownloadThumbnail;
         chkExtendedAutomaticallyDownloadThumbnailHint = InternalEnglish.chkExtendedAutomaticallyDownloadThumbnailHint;
         chkExtendedIncludeCustomArguments = InternalEnglish.chkExtendedIncludeCustomArguments;
-        chkExtendedIncludeCustomArgumentsHint = InternalEnglish.chkExtendedIncludeCustomArguments;
+        chkExtendedIncludeCustomArgumentsHint = InternalEnglish.chkExtendedIncludeCustomArgumentsHint;
         #endregion
         #endregion
 
@@ -2407,6 +2408,17 @@ public static class Language {
     }
     #endregion
 
+    private static string ValidateCompositeFormat(string Value, string Fallback, int ArgumentCount, string Key) {
+        try {
+            _ = string.Format(Value, new object[ArgumentCount]);
+            return Value;
+        }
+        catch (FormatException) {
+            Log.Write($"Ignoring invalid composite format string for language key \"{Key}\".");
+            return Fallback;
+        }
+    }
+
     #region Load Language File
     /// <summary>
     /// Loads the ini file for the Language file, based on the ini structure.
@@ -2425,6 +2437,7 @@ public static class Language {
                 return true;
             }
             else {
+                LoadInternalEnglish(); // Use English for strings missing from the external language file.
                 if (!LanguageFile.EndsWith(".ini")) { LanguageFile += ".ini"; }
                 Log.Write($"Loading external language file \"{System.IO.Path.GetFileName(LanguageFile)}\".");
 
@@ -2566,10 +2579,10 @@ public static class Language {
                                 GenericAborted = ReadValue;
                                 continue;
                             case nameof(GenericError):
-                                GenericError = ReadValue;
+                                GenericError = ValidateCompositeFormat(ReadValue, InternalEnglish.GenericError, 1, nameof(GenericError));
                                 continue;
                             case nameof(GenericAltError):
-                                GenericAltError = ReadValue;
+                                GenericAltError = ValidateCompositeFormat(ReadValue, InternalEnglish.GenericAltError, 1, nameof(GenericAltError));
                                 continue;
                             case nameof(GenericCompleted):
                                 GenericCompleted = ReadValue;
@@ -2679,10 +2692,10 @@ public static class Language {
                                 dlgUpdateFailedToCheck = ReadValue;
                                 continue;
                             case nameof(dlgUpdateNoUpdateAvailable):
-                                dlgUpdateNoUpdateAvailable = ReadValue;
+                                dlgUpdateNoUpdateAvailable = ValidateCompositeFormat(ReadValue, InternalEnglish.dlgUpdateNoUpdateAvailable, 2, nameof(dlgUpdateNoUpdateAvailable));
                                 continue;
                             case nameof(dlgUpdateNoBetaUpdateAvailable):
-                                dlgUpdateNoBetaUpdateAvailable = ReadValue;
+                                dlgUpdateNoBetaUpdateAvailable = ValidateCompositeFormat(ReadValue, InternalEnglish.dlgUpdateNoBetaUpdateAvailable, 2, nameof(dlgUpdateNoBetaUpdateAvailable));
                                 continue;
                             case nameof(dlgUpdateNoValidYoutubeDl):
                                 dlgUpdateNoValidYoutubeDl = ReadValue;
@@ -2691,7 +2704,7 @@ public static class Language {
                                 dlgUpdatedYoutubeDl = ReadValue;
                                 continue;
                             case nameof(dlgUpateYoutubeDlNoUpdateRequired):
-                                dlgUpateYoutubeDlNoUpdateRequired = ReadValue;
+                                dlgUpateYoutubeDlNoUpdateRequired = ValidateCompositeFormat(ReadValue, InternalEnglish.dlgUpateYoutubeDlNoUpdateRequired, 2, nameof(dlgUpateYoutubeDlNoUpdateRequired));
                                 continue;
                             case nameof(dlgUpdaterHashNoMatch):
                                 dlgUpdaterHashNoMatch = ReadValue;
@@ -2728,7 +2741,7 @@ public static class Language {
                                 frmAbout = ReadValue;
                                 continue;
                             case nameof(lbAboutBody):
-                                lbAboutBody = ReadValue;
+                                lbAboutBody = ValidateCompositeFormat(ReadValue, InternalEnglish.lbAboutBody, 2, nameof(lbAboutBody));
                                 continue;
                             case nameof(llbCheckForUpdates):
                                 llbCheckForUpdates = ReadValue;
@@ -2936,7 +2949,7 @@ public static class Language {
 
                             #region frmExtendedDownloader
                             case nameof(frmExtendedDownloaderRetrieving):
-                                frmExtendedDownloaderRetrieving = ReadValue;
+                                frmExtendedDownloaderRetrieving = ValidateCompositeFormat(ReadValue, InternalEnglish.frmExtendedDownloaderRetrieving, 1, nameof(frmExtendedDownloaderRetrieving));
                                 continue;
                             case nameof(lbExtendedDownloaderLink):
                                 lbExtendedDownloaderLink = ReadValue;
@@ -3931,16 +3944,16 @@ public static class Language {
                                 lbUpdateAvailableHeader = ReadValue;
                                 continue;
                             case nameof(lbUpdateAvailableUpdateVersion):
-                                lbUpdateAvailableUpdateVersion = ReadValue;
+                                lbUpdateAvailableUpdateVersion = ValidateCompositeFormat(ReadValue, InternalEnglish.lbUpdateAvailableUpdateVersion, 1, nameof(lbUpdateAvailableUpdateVersion));
                                 continue;
                             case nameof(lbUpdateAvailableCurrentVersion):
-                                lbUpdateAvailableCurrentVersion = ReadValue;
+                                lbUpdateAvailableCurrentVersion = ValidateCompositeFormat(ReadValue, InternalEnglish.lbUpdateAvailableCurrentVersion, 1, nameof(lbUpdateAvailableCurrentVersion));
                                 continue;
                             case nameof(lbUpdateAvailableChangelog):
                                 lbUpdateAvailableChangelog = ReadValue;
                                 continue;
                             case nameof(lbUpdateSize):
-                                lbUpdateSize = ReadValue;
+                                lbUpdateSize = ValidateCompositeFormat(ReadValue, InternalEnglish.lbUpdateSize, 1, nameof(lbUpdateSize));
                                 continue;
                             case nameof(btnUpdateAvailableSkipVersion):
                                 btnUpdateAvailableSkipVersion = ReadValue;
@@ -3987,26 +4000,30 @@ public static class Language {
     /// <param name="Key">The output of the Name of the control to be named, as lowercase.</param>
     /// <param name="Value">The value of the control.</param>
     private static void GetControlInfo(string Input, out string Key, out string Value) {
-        switch (Input.Split('=').Length) {
-            case -1: case 0: {
-                Key = null;
-                Value = null;
-            } return;
-
-            case 1: {
-                if (Input.Contains("//"))
-                    Input = Input[..Input.IndexOf("//")];
-                Key = Input.Split('=')[0].Trim();
-                Value = string.Empty;
-            } break;
-
-            default: {
-                if (Input.Contains("//"))
-                    Input = Input[..Input.IndexOf("//")];
-                Key = Input.Split('=')[0].Trim();
-                Value = Input[(Input.IndexOf('=') + 1)..].Trim().Replace("\\n", "\n").Replace("\\r", "\r");
-            } break;
+        // Inline comments require whitespace before // and must be outside double quotes.
+        // This keeps URLs and quoted literal slashes intact while retaining existing comments.
+        bool Quoted = false;
+        for (int i = 0; i + 1 < Input.Length; i++) {
+            if (Input[i] == '"') {
+                int Backslashes = 0;
+                for (int j = i - 1; j >= 0 && Input[j] == '\\'; j--) {
+                    Backslashes++;
+                }
+                if (Backslashes % 2 == 0) {
+                    Quoted = !Quoted;
+                }
+            }
+            if (!Quoted && Input[i] == '/' && Input[i + 1] == '/'
+            && (i == 0 || char.IsWhiteSpace(Input[i - 1]))) {
+                Input = Input[..i];
+                break;
+            }
         }
+
+        int Separator = Input.IndexOf('=');
+        Key = (Separator < 0 ? Input : Input[..Separator]).Trim();
+        Value = Separator < 0 ? string.Empty :
+            Input[(Separator + 1)..].Trim().Replace("\\n", "\n").Replace("\\r", "\r");
     }
 
     /// <summary>
@@ -4014,11 +4031,13 @@ public static class Language {
     /// </summary>
     /// <param name="Form"></param>
     internal static void RegisterForm(ILocalizedForm Form) {
-        if (OpenedForms.Contains(Form)) {
-            Log.Write($"Localized form {Form.GetFormName()} already in the list.");
-            return;
+        lock (OpenedFormsSync) {
+            if (OpenedForms.Contains(Form)) {
+                Log.Write($"Localized form {Form.GetFormName()} already in the list.");
+                return;
+            }
+            OpenedForms.Add(Form);
         }
-        OpenedForms.Add(Form);
         Log.Write($"Added new localized form {Form.GetFormName()}");
     }
 
@@ -4027,7 +4046,11 @@ public static class Language {
     /// </summary>
     /// <param name="Form"></param>
     internal static void UnregisterForm(ILocalizedForm Form) {
-        if (OpenedForms.Remove(Form)) {
+        bool Removed;
+        lock (OpenedFormsSync) {
+            Removed = OpenedForms.Remove(Form);
+        }
+        if (Removed) {
             Log.Write($"Form {Form.GetFormName()} was removed from the list.");
         }
         else {
@@ -4039,9 +4062,31 @@ public static class Language {
     /// Occurs when the localization has been changed.
     /// </summary>
     private static void LocalizationChanged() {
-        if (OpenedForms.Count < 1)
-            return;
-        OpenedForms.For((f) => f.LoadLanguage());
+        ILocalizedForm[] Forms;
+        lock (OpenedFormsSync) {
+            if (OpenedForms.Count < 1) {
+                return;
+            }
+            Forms = OpenedForms.ToArray();
+        }
+
+        foreach (ILocalizedForm Localized in Forms) {
+            if (Localized is not System.Windows.Forms.Form Form || Form.IsDisposed || !Form.IsHandleCreated) {
+                continue;
+            }
+
+            try {
+                if (Form.InvokeRequired) {
+                    Form.BeginInvoke(new Action(Localized.LoadLanguage));
+                }
+                else {
+                    Localized.LoadLanguage();
+                }
+            }
+            catch (InvalidOperationException) {
+                // The form can close between the snapshot and dispatch.
+            }
+        }
     }
     #endregion
 }

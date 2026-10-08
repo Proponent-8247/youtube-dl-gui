@@ -80,5 +80,9 @@ public partial class frmAuthentication : LocalizedForm {
         this.DialogResult = DialogResult.Cancel;
     }
 
-    private void llCookiesFromBrowserHint_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) { }
+    private void llCookiesFromBrowserHint_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) {
+        if (!Program.TryOpenWebUrl("https://github.com/yt-dlp/yt-dlp#authentication-options")) {
+            Log.MessageBox("The authentication documentation could not be opened in the default browser.");
+        }
+    }
 }

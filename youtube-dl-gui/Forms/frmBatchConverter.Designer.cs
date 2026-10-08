@@ -122,7 +122,7 @@
             this.txtBatchConverterInputFile.AllowDrop = true;
             this.txtBatchConverterInputFile.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtBatchConverterInputFile.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtBatchConverterInputFile.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtBatchConverterInputFile.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtBatchConverterInputFile.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtBatchConverterInputFile.ButtonImageIndex = -1;
@@ -143,7 +143,7 @@
             this.txtBatchConverterOutputFile.AllowDrop = true;
             this.txtBatchConverterOutputFile.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtBatchConverterOutputFile.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtBatchConverterOutputFile.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtBatchConverterOutputFile.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtBatchConverterOutputFile.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtBatchConverterOutputFile.ButtonImageIndex = -1;
@@ -175,7 +175,7 @@
             // 
             this.txtBatchConverterCustomConversionArguments.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtBatchConverterCustomConversionArguments.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtBatchConverterCustomConversionArguments.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtBatchConverterCustomConversionArguments.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtBatchConverterCustomConversionArguments.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtBatchConverterCustomConversionArguments.ButtonImageIndex = -1;

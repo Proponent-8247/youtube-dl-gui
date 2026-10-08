@@ -8,7 +8,7 @@ internal enum VideoPresets {
     faster,
     fast,
     medium,
-    slopw,
+    slow,
     slower,
     veryslow
 }

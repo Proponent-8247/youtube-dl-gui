@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 /// <summary>
 /// A class that contains information about how the dwm will composite on the form
 /// </summary>
-internal sealed class DwmCompositionInfo {
+internal sealed class DwmCompositionInfo : IDisposable {
     /// <summary>
     /// The handle that will be written to.
     /// </summary>
@@ -66,4 +66,12 @@ internal sealed class DwmCompositionInfo {
 
     public DwmCompositionInfo(IntPtr hWnd, DwmNatives.MARGINS Margins, Rectangle DwmRectangle, DwmCompositionTextInfo NewInfo)
         :this (hWnd, Margins, DwmRectangle) => Text = NewInfo;
+
+    public void Dispose() {
+        if (destdc != IntPtr.Zero) {
+            DwmNatives.ReleaseDC(hWnd, destdc);
+            destdc = IntPtr.Zero;
+        }
+        GC.SuppressFinalize(this);
+    }
 }

@@ -13,21 +13,30 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
     public string TempFile { get; private set; }
     public string BackupFile { get; private set; }
 
+    private readonly string LegacyTempFile;
+    private readonly string LegacyBackupFile;
     private readonly ManagedHttpClient DownloadClient;
     private readonly CancellationTokenSource CancelToken;
+    private readonly Func<string, bool>? Validator;
     private bool Cancelled;
     private bool Finished;
     private bool Downloaded;
 
-    public frmGenericDownloadProgress(string URL, string Output) : this(URL, Output, null) { }
-    public frmGenericDownloadProgress(string URL, string Output, Point? Location) {
+    public frmGenericDownloadProgress(string URL, string Output) : this(URL, Output, null, null) { }
+    public frmGenericDownloadProgress(string URL, string Output, Point? Location) : this(URL, Output, Location, null) { }
+    internal frmGenericDownloadProgress(string URL, string Output, Point? Location, Func<string, bool>? Validator) {
         InitializeComponent();
+        LoadLanguage();
         this.URL = URL;
         this.Output = Output;
-        this.TempFile = Output + ".tmp";
-        this.BackupFile = Output + ".bck";
+        LegacyTempFile = Output + ".tmp";
+        LegacyBackupFile = Output + ".bck";
+        string SidecarId = ".ytdlgui." + Guid.NewGuid().ToString("N");
+        this.TempFile = Output + SidecarId + ".tmp";
+        this.BackupFile = Output + SidecarId + ".bck";
         CancelToken = new();
-        Log.Write($"Using generic downloader to display progress for '{URL}'.");
+        this.Validator = Validator;
+        Log.Write($"Using generic downloader to display progress for '{Log.RedactDiagnosticValue(URL)}'.");
 
         DownloadClient = new();
         this.Load += (s, e) => {
@@ -43,6 +52,7 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
 
         this.FormClosing += (s, e) => {
             if (!Finished) {
+                e.Cancel = true;
                 CancelToken.Cancel();
                 return;
             }
@@ -60,19 +70,50 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
 
         while (CanRetry) {
             try {
+                // Recover deterministic sidecars left by older versions before using
+                // operation-owned sidecars for this attempt. Existing live output remains authoritative.
+                if (!File.Exists(Output) && File.Exists(LegacyBackupFile))
+                    File.Move(LegacyBackupFile, Output);
+
+                if (File.Exists(LegacyTempFile))
+                    File.Delete(LegacyTempFile);
+
+                if (!File.Exists(Output) && File.Exists(BackupFile))
+                    File.Move(BackupFile, Output);
+
                 if (File.Exists(TempFile))
                     File.Delete(TempFile);
 
                 //await Task.Delay(5000000, CancelToken.Token);
                 await DownloadClient.DownloadFileTaskAsync(new Uri(URL, UriKind.Absolute), TempFile, CancelToken.Token);
+                if (Validator is not null && !Validator(TempFile)) {
+                    throw new InvalidDataException("The downloaded file failed its integrity or authenticity check.");
+                }
 
-                if (File.Exists(BackupFile))
+                if (File.Exists(BackupFile) && File.Exists(Output))
                     File.Delete(BackupFile);
 
                 if (File.Exists(Output))
                     File.Move(Output, BackupFile);
 
-                File.Move(TempFile, Output);
+                try {
+                    File.Move(TempFile, Output);
+                }
+                catch {
+                    if (!File.Exists(Output) && File.Exists(BackupFile))
+                        File.Move(BackupFile, Output);
+                    throw;
+                }
+
+                // The unique backup is transactional, not durable user data. Once
+                // the replacement is committed it is safe to remove it without sharing a name
+                // with another in-flight operation.
+                try {
+                    if (File.Exists(BackupFile)) File.Delete(BackupFile);
+                }
+                catch (Exception cleanupEx) when (cleanupEx is IOException or UnauthorizedAccessException) {
+                    Log.Write($"Could not remove generic-download backup sidecar: {cleanupEx.Message}");
+                }
 
                 CanRetry = false;
                 Downloaded = true;
@@ -85,11 +126,18 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
                     Cancelled = true;
                     CanRetry = false;
                 }
-                else if ((DialogResult)this.Invoke(() => Log.ReportRetriableException(ex, URL)) != DialogResult.Retry) {
+                else if ((DialogResult)this.Invoke(() => Log.ReportRetriableException(ex, Log.RedactDiagnosticValue(URL))) != DialogResult.Retry) {
                     Cancelled = true;
                     CanRetry = false;
                 }
             }
+        }
+
+        try {
+            if (File.Exists(TempFile)) File.Delete(TempFile);
+        }
+        catch (Exception cleanupEx) when (cleanupEx is IOException or UnauthorizedAccessException) {
+            Log.Write($"Could not remove generic-download temporary sidecar: {cleanupEx.Message}");
         }
 
         Finished = true;
@@ -97,12 +145,30 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
     }
 
     private void OnProgressChanged(object sender, DownloadProgressChangedEventArgs e) {
-        this.Invoke(() => {
-            pbProgress.Value = (int)Math.Floor(e.Percentage);
-            pbProgress.Text = $"{e.Percentage:N2}% ({e.BytesReceived.SizeToString()} / {e.TotalBytesToReceive.SizeToString()})";
-        });
+        if (this.IsDisposed || !this.IsHandleCreated) {
+            return;
+        }
+
+        try {
+            this.Invoke(() => {
+                pbProgress.Value = (int)Math.Floor(e.Percentage);
+                pbProgress.Text = $"{e.Percentage:N2}% ({e.BytesReceived.SizeToString()} / {e.TotalBytesToReceive.SizeToString()})";
+            });
+        }
+        catch (InvalidOperationException) {
+            // The form can close after the handle check while a timer callback is being marshalled.
+        }
     }
     private void OnDownloadFinished(object sender, DownloadFinishedEventArgs e) {
-        this.Invoke(() => pbProgress.Value = 100);
+        if (this.IsDisposed || !this.IsHandleCreated) {
+            return;
+        }
+
+        try {
+            this.Invoke(() => pbProgress.Value = 100);
+        }
+        catch (InvalidOperationException) {
+            // The form can close after the handle check while completion is being marshalled.
+        }
     }
 }

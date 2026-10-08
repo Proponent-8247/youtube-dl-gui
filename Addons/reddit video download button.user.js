@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name        reddit video download button
 // @author      murrty
-// @match       http*://*.reddit.com/r/*
+// @match       http://*.reddit.com/r/*/comments/*
+// @match       https://*.reddit.com/r/*/comments/*
 // @grant       none
 // @version     1.1
 // @homepage    https://github.com/murrty/youtube-dl-gui

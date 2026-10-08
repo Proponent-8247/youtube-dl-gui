@@ -5,6 +5,37 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 internal static class NativeMethods {
+    private static readonly Guid DownloadsFolderId = new("374DE290-123F-4565-9164-39C4925E467B");
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern int SHGetKnownFolderPath(
+        ref Guid rfid,
+        uint dwFlags,
+        nint hToken,
+        out nint ppszPath);
+
+    internal static string GetDownloadsFolderPath() {
+        nint pathPointer = 0;
+        try {
+            Guid folderId = DownloadsFolderId;
+            if (SHGetKnownFolderPath(ref folderId, 0, 0, out pathPointer) == 0 && pathPointer != 0) {
+                string? path = Marshal.PtrToStringUni(pathPointer);
+                if (!string.IsNullOrWhiteSpace(path)) {
+                    return path;
+                }
+            }
+        }
+        catch (DllNotFoundException) { }
+        catch (EntryPointNotFoundException) { }
+        finally {
+            if (pathPointer != 0) {
+                Marshal.FreeCoTaskMem(pathPointer);
+            }
+        }
+
+        return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\\Downloads";
+    }
+
     #region Ini
     [DllImport("kernel32", CharSet = CharSet.Unicode)]
     public static extern int WritePrivateProfileString(string lpAppName,

@@ -336,7 +336,7 @@
             // 
             this.txtVideoDate.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtVideoDate.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtVideoDate.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtVideoDate.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtVideoDate.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtVideoDate.ButtonImageIndex = -1;
@@ -364,7 +364,7 @@
             // 
             // txtPlaylistEnd
             // 
-            this.txtPlaylistEnd.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtPlaylistEnd.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtPlaylistEnd.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtPlaylistEnd.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtPlaylistEnd.ButtonImageIndex = -1;
@@ -380,7 +380,7 @@
             // 
             // txtPlaylistStart
             // 
-            this.txtPlaylistStart.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtPlaylistStart.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtPlaylistStart.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtPlaylistStart.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtPlaylistStart.ButtonImageIndex = -1;
@@ -409,7 +409,7 @@
             // 
             this.txtPlaylistItems.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtPlaylistItems.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtPlaylistItems.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtPlaylistItems.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtPlaylistItems.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtPlaylistItems.ButtonImageIndex = -1;
@@ -608,7 +608,7 @@
             // 
             this.txtUrl.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtUrl.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtUrl.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtUrl.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtUrl.ButtonFont = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtUrl.ButtonImageIndex = -1;

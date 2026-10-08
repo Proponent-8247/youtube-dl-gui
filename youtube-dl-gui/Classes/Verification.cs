@@ -90,16 +90,19 @@ internal static class Verification {
     }
     public static bool RefreshFFmpegLocation() {
         FFmpegPath = null;
+        FFprobePath = null;
         string? TempPath;
-        if (General.UseStaticFFmpeg && File.Exists(General.ffmpegPath)) {
-            TempPath = General.ffmpegPath;
+        bool StaticFFmpeg = General.UseStaticFFmpeg && File.Exists(General.ffmpegPath);
+        if (StaticFFmpeg) {
+            TempPath = Path.GetDirectoryName(General.ffmpegPath);
         }
         else if (!ProgramInExecutingDirectory("ffmpeg.exe", out TempPath) && !ProgramInSystemPath("ffmpeg.exe", out TempPath)) {
             return false;
         }
 
-        if (!TempPath.IsNullEmptyWhitespace() && Directory.Exists(TempPath) && File.Exists(TempPath + "\\ffmpeg.exe")) {
-            FFmpegPath = $"{TempPath}\\ffmpeg.exe";
+        string? ffmpeg = StaticFFmpeg ? General.ffmpegPath : $"{TempPath}\\ffmpeg.exe";
+        if (!TempPath.IsNullEmptyWhitespace() && Directory.Exists(TempPath) && File.Exists(ffmpeg)) {
+            FFmpegPath = ffmpeg;
             string ffprobe = $"{TempPath}\\ffprobe.exe";
             if (File.Exists(ffprobe)) {
                 FFprobePath = ffprobe;
@@ -159,11 +162,16 @@ internal static class Verification {
         return false;
     }
     private static bool ProgramInSystemPath(string ProgramName, [NotNullWhen(true)] out string? OutputDir) {
-        string[] PathLocations = Environment.GetEnvironmentVariable("PATH").Split(';');
+        string? SystemPath = Environment.GetEnvironmentVariable("PATH");
+        if (SystemPath.IsNullEmptyWhitespace()) {
+            OutputDir = null;
+            return false;
+        }
 
+        string[] PathLocations = SystemPath.Split(';');
         for (int i = 0; i < PathLocations.Length; i++) {
             if (File.Exists($"{PathLocations[i]}\\{ProgramName}")) {
-                OutputDir = $"{PathLocations[i]}\\{ProgramName}";
+                OutputDir = PathLocations[i];
                 return true;
             }
         }

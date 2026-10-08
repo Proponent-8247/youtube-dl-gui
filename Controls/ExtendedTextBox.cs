@@ -30,7 +30,7 @@ public class ExtendedTextBox : TextBox {
     /// <summary>
     /// The alignment of the button.
     /// </summary>
-    private ButtonAlignment fButtonAlignment = ButtonAlignment.Left;
+    private ButtonAlignment fButtonAlignment = ButtonAlignment.Right;
     /// <summary>
     /// If the font should be syncronized across the button and text.
     /// </summary>
@@ -308,7 +308,13 @@ public class ExtendedTextBox : TextBox {
         set {
             fTextHint = value;
             if (this.IsHandleCreated) {
-                NativeMethods.SendMessage(this.Handle, 0x1501, 1, Marshal.StringToHGlobalUni(value));
+                nint TextHintPointer = Marshal.StringToHGlobalUni(value);
+                try {
+                    NativeMethods.SendMessage(this.Handle, 0x1501, 1, TextHintPointer);
+                }
+                finally {
+                    Marshal.FreeHGlobal(TextHintPointer);
+                }
             }
         }
     }
@@ -353,12 +359,12 @@ public class ExtendedTextBox : TextBox {
             if (fShowButton) {
                 UpdateButton();
                 switch (fButtonAlignment) {
-                    default: {
-                        NativeMethods.SendMessage(Handle, Consts.EM_SETMARGINS, Consts.EC_RIGHTMARGIN, (InsetButton.Width << 16));
+                    case ButtonAlignment.Left: {
+                        NativeMethods.SendMessage(Handle, Consts.EM_SETMARGINS, Consts.EC_LEFTMARGIN, InsetButton.Width);
                     } break;
 
-                    case ButtonAlignment.Right: {
-                        NativeMethods.SendMessage(Handle, Consts.EM_SETMARGINS, Consts.EC_LEFTMARGIN, InsetButton.Width);
+                    default: {
+                        NativeMethods.SendMessage(Handle, Consts.EM_SETMARGINS, Consts.EC_RIGHTMARGIN, (InsetButton.Width << 16));
                     } break;
                 }
             }
@@ -368,7 +374,13 @@ public class ExtendedTextBox : TextBox {
             }
 
             if (!string.IsNullOrWhiteSpace(fTextHint)) {
-                NativeMethods.SendMessage(this.Handle, 0x1501, 1, Marshal.StringToHGlobalUni(fTextHint));
+                nint TextHintPointer = Marshal.StringToHGlobalUni(fTextHint);
+                try {
+                    NativeMethods.SendMessage(this.Handle, 0x1501, 1, TextHintPointer);
+                }
+                finally {
+                    Marshal.FreeHGlobal(TextHintPointer);
+                }
             }
         }
     }
@@ -380,8 +392,23 @@ public class ExtendedTextBox : TextBox {
         base.OnResize(e);
     }
 
+    private static bool TryGetClipboardText(out string Text) {
+        try {
+            if (Clipboard.ContainsText()) {
+                Text = Clipboard.GetText();
+                return true;
+            }
+        }
+        catch (ExternalException) {
+            // Another process may temporarily own the clipboard. Treat it as unavailable.
+        }
+        Text = string.Empty;
+        return false;
+    }
+
     /// <inheritdoc/>
     protected override void OnKeyDown(KeyEventArgs e) {
+        fCheckChar = false;
         if (TextType == AllowedCharacters.UnfilteredCharactersOnly) {
             fCheckChar = true;
             base.OnKeyDown(e);
@@ -435,13 +462,16 @@ public class ExtendedTextBox : TextBox {
                                 } break;
 
                                 case Keys.V: {
-                                    if (Clipboard.ContainsText()) {
-                                        e.SuppressKeyPress = !Regex.IsMatch(Clipboard.GetText(),
+                                    if (TryGetClipboardText(out string ClipboardText)) {
+                                        e.SuppressKeyPress = !Regex.IsMatch(ClipboardText,
                                             TextType switch {
                                                 AllowedCharacters.AlphabeticalOnly => $"^[a-zA-Z{(AllowSpace ? " " : "")}]+$",
                                                 AllowedCharacters.AlphaNumericOnly => $"^[a-zA-Z0-9{(AllowSpace ? " " : "")}]+$",
                                                 _ => throw new ArgumentOutOfRangeException("Ctrl + V was pressed but regex couldn't use a proper TextType.")
                                             });
+                                    }
+                                    else {
+                                        e.SuppressKeyPress = true;
                                     }
                                 } break;
                             }
@@ -457,7 +487,8 @@ public class ExtendedTextBox : TextBox {
                                 } break;
 
                                 case Keys.V: {
-                                    e.SuppressKeyPress = Clipboard.ContainsText() && Regex.IsMatch(Clipboard.GetText(), $"^[0-9{(AllowSpace ? " " : "")}]+$");
+                                    e.SuppressKeyPress = !TryGetClipboardText(out string ClipboardText)
+                                        || !Regex.IsMatch(ClipboardText, $"^[0-9{(AllowSpace ? " " : "")}]+$");
                                 } break;
 
                                 default: {
@@ -538,7 +569,7 @@ public class ExtendedTextBox : TextBox {
         if (this.IsHandleCreated) {
             InsetButton.Size = new(InsetButton.Size.Width, ClientSize.Height + 3);
             InsetButton.Location = fButtonAlignment switch {
-                ButtonAlignment.Right => new(0, -2),
+                ButtonAlignment.Left => new(0, -2),
                 _ => new(ClientSize.Width - InsetButton.Width, -2),
             };
         }

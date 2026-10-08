@@ -7,7 +7,7 @@ internal static class Initialization {
         ffirstTime = IniProvider.Read(firstTime, true);
         fLanguageFile = IniProvider.Read(LanguageFile, string.Empty);
         fSkippedVersion = IniProvider.Read(SkippedVersion, Version.Empty);
-        fSkippedBetaVersion = IniProvider.Read(SkippedVersion, Version.Empty);
+        fSkippedBetaVersion = IniProvider.Read(SkippedBetaVersion, Version.Empty);
         ScreenshotMode = IniProvider.Read(ScreenshotMode, false);
         WritePercentageToConsole = IniProvider.Read(WritePercentageToConsole, false);
     }
@@ -16,8 +16,8 @@ internal static class Initialization {
         get => ffirstTime;
         set {
             if (ffirstTime != value) {
+                IniProvider.Write(value, null, nameof(firstTime));
                 ffirstTime = value;
-                IniProvider.Write(firstTime);
             }
         }
     }
@@ -27,8 +27,8 @@ internal static class Initialization {
         get => fLanguageFile;
         set {
             if (fLanguageFile != value) {
+                IniProvider.Write(value, null, nameof(LanguageFile));
                 fLanguageFile = value;
-                IniProvider.Write(LanguageFile);
             }
         }
     }
@@ -38,8 +38,8 @@ internal static class Initialization {
         get => fSkippedVersion;
         set {
             if (fSkippedVersion != value) {
+                IniProvider.Write(value, null, nameof(SkippedVersion));
                 fSkippedVersion = value;
-                IniProvider.Write(SkippedVersion);
             }
         }
     }
@@ -49,8 +49,8 @@ internal static class Initialization {
         get => fSkippedBetaVersion;
         set {
             if (fSkippedBetaVersion != value) {
+                IniProvider.Write(value, null, nameof(SkippedBetaVersion));
                 fSkippedBetaVersion = value;
-                IniProvider.Write(SkippedBetaVersion);
             }
         }
     }

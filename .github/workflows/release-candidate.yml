@@ -1,0 +1,78 @@
+name: Release candidate
+
+on:
+  push:
+    branches:
+      - 'release/**'
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: 'Expected release version/tag (for example 3.3.0-2). Leave blank to derive it from source.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  candidate:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact candidate revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Reject repair-request revisions
+        shell: pwsh
+        run: |
+          if ((Test-Path .audit-patch-request.json) -or (Test-Path .audit-repairs.json)) {
+            throw 'Release candidates must be built from committed source, not a repair-request revision.'
+          }
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+        with:
+          msbuild-architecture: x86
+
+      - name: Build and verify release candidate
+        shell: pwsh
+        run: |
+          $Expected = '${{ inputs.expected_version }}'
+          if ([string]::IsNullOrWhiteSpace($Expected) -and $env:GITHUB_REF_NAME.StartsWith('release/', [StringComparison]::Ordinal)) {
+            $Expected = $env:GITHUB_REF_NAME.Substring('release/'.Length)
+          }
+          & ./tools/Build-ReleaseCandidate.ps1 -ExpectedVersion $Expected -EvidenceDirectory "$PWD/release-evidence"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Summarize candidate
+        if: success()
+        shell: pwsh
+        run: |
+          $Manifest = Get-Content Release/Release-manifest.json -Raw
+          "## Release candidate manifest`n`n``````json`n$Manifest`n``````" | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload release candidate
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-candidate-${{ github.sha }}
+          path: Release/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Retain release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-evidence-${{ github.sha }}
+          path: release-evidence/
+          if-no-files-found: warn
+          retention-days: 30

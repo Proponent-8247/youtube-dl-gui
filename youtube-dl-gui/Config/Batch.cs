@@ -23,8 +23,8 @@ internal static class Batch {
         get => fSelectedType;
         set {
             if (fSelectedType != value) {
+                IniProvider.Write(value, ConfigName, nameof(SelectedType));
                 fSelectedType = value;
-                IniProvider.Write(SelectedType, ConfigName);
             }
         }
     }
@@ -34,8 +34,8 @@ internal static class Batch {
         get => fSelectedVideoQuality;
         set {
             if (fSelectedVideoQuality != value) {
+                IniProvider.Write(value, ConfigName, nameof(SelectedVideoQuality));
                 fSelectedVideoQuality = value;
-                IniProvider.Write(SelectedVideoQuality, ConfigName);
             }
         }
     }
@@ -45,8 +45,8 @@ internal static class Batch {
         get => fSelectedVideoFormat;
         set {
             if (fSelectedVideoFormat != value) {
+                IniProvider.Write(value, ConfigName, nameof(SelectedVideoFormat));
                 fSelectedVideoFormat = value;
-                IniProvider.Write(SelectedVideoFormat, ConfigName);
             }
         }
     }
@@ -56,8 +56,8 @@ internal static class Batch {
         get => fSelectedAudioQuality;
         set {
             if (fSelectedAudioQuality != value) {
+                IniProvider.Write(value, ConfigName, nameof(SelectedAudioQuality));
                 fSelectedAudioQuality = value;
-                IniProvider.Write(SelectedAudioQuality, ConfigName);
             }
         }
     }
@@ -67,8 +67,8 @@ internal static class Batch {
         get => fSelectedAudioFormat;
         set {
             if (fSelectedAudioFormat != value) {
+                IniProvider.Write(value, ConfigName, nameof(SelectedAudioFormat));
                 fSelectedAudioFormat = value;
-                IniProvider.Write(SelectedAudioFormat, ConfigName);
             }
         }
     }
@@ -78,8 +78,8 @@ internal static class Batch {
         get => fDownloadVideoSound;
         set {
             if (fDownloadVideoSound != value) {
+                IniProvider.Write(value, ConfigName, nameof(DownloadVideoSound));
                 fDownloadVideoSound = value;
-                IniProvider.Write(DownloadVideoSound, ConfigName);
             }
         }
     }
@@ -89,8 +89,8 @@ internal static class Batch {
         get => fDownloadAudioVBR;
         set {
             if (fDownloadAudioVBR != value) {
+                IniProvider.Write(value, ConfigName, nameof(DownloadAudioVBR));
                 fDownloadAudioVBR = value;
-                IniProvider.Write(DownloadAudioVBR, ConfigName);
             }
         }
     }
@@ -100,8 +100,8 @@ internal static class Batch {
         get => fSelectedAudioQualityVBR;
         set {
             if (fSelectedAudioQualityVBR != value) {
+                IniProvider.Write(value, ConfigName, nameof(SelectedAudioQualityVBR));
                 fSelectedAudioQualityVBR = value;
-                IniProvider.Write(SelectedAudioQualityVBR, ConfigName);
             }
         }
     }
@@ -111,8 +111,8 @@ internal static class Batch {
         get => fCustomArguments;
         set {
             if (fCustomArguments != value) {
+                IniProvider.Write(value, ConfigName, nameof(CustomArguments));
                 fCustomArguments = value;
-                IniProvider.Write(CustomArguments, ConfigName);
             }
         }
     }
@@ -122,8 +122,8 @@ internal static class Batch {
         get => fClipboardScannerNoticeViewed;
         set {
             if (fClipboardScannerNoticeViewed != value) {
+                IniProvider.Write(value, ConfigName, nameof(ClipboardScannerNoticeViewed));
                 fClipboardScannerNoticeViewed = value;
-                IniProvider.Write(ClipboardScannerNoticeViewed, ConfigName);
             }
         }
     }
@@ -133,8 +133,8 @@ internal static class Batch {
         get => fClipboardScannerVerifyLinks;
         set {
             if (fClipboardScannerVerifyLinks != value) {
+                IniProvider.Write(value, ConfigName, nameof(ClipboardScannerVerifyLinks));
                 fClipboardScannerVerifyLinks = value;
-                IniProvider.Write(ClipboardScannerVerifyLinks, ConfigName);
             }
         }
     }

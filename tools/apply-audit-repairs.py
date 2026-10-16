@@ -9,7 +9,9 @@ import re
 from pathlib import Path, PurePosixPath
 
 ROOT = Path.cwd().resolve()
-ALLOWED_ROOTS = {'Addons', 'Controls', 'Languages', 'tests', 'youtube-dl-gui', 'youtube-dl-gui-updater'}
+# Tests are an independent verification oracle: ordinary production repairs cannot change them.
+# Revisions to the test contract must be reviewed and baselined separately.
+ALLOWED_ROOTS = {'Addons', 'Controls', 'Languages', 'youtube-dl-gui', 'youtube-dl-gui-updater'}
 ALLOWED_SUFFIXES = {'.cs', '.csproj', '.js', '.projitems', '.resx', '.ini'}
 MAX_PLAN_BYTES = 4 * 1024 * 1024
 

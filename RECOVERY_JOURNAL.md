@@ -75,3 +75,20 @@ No new production CI run is required merely because `RECOVERY_JOURNAL.md` change
 6. Update this journal at each meaningful checkpoint; include objectives, starting state, decisions, commits, files, tests/results, blockers, precise next cursor, and recovery instructions.
 
 **Audit-only phase status: complete. Production remediation / full end-to-end acceptance / branch integration: intentionally NOT STARTED in this phase.**
+
+## Remediation checkpoint — 2026-10-16 (acceptance PENDING)
+
+Authorization: user requested continuation through remediation after completed read-only audit. Original audited pin remains `7e369eb4afa6477e81f3e185ce9754bfd91982a6`; feature head at entry `959c8531258ffa45d1ad93e08d1b32b6478afbad`. GitHub compared pin to entry head: two commits changing only `RECOVERY_JOURNAL.md`.
+
+**Separate working branch:** `remediation/whole-repo-20261016` forked from entry head. Do not treat this branch as accepted or CI-green.
+
+Critical #93 / PAR-07-009 initial commits:
+- `987b486b17575041ea8dac3224f945abf25bdacd`: workflow read-only verifier; checkout without persisted credential; separate publisher job with write permission, bundle and manifest validation, exact original-branch-head comparison, non-force push.
+- `c9b982de861772c95bb806a49df50f8089ba9754`: verify runner creates commit bundle and digest manifest without pushing.
+- `521fb3e40e814c9923655a2eb27578e0afa5ce0b`: privileged publisher checks proposed changed paths and refuses guard/tool/test modifications.
+- Initial static checks confirmed read-only verifier, separated publisher and removed verifier push. No live Windows build, hostile build-injected credential-leak test, end-to-end publishing test, or independent artifact attestation has passed. **#93 is not fixed/closed.**
+- Follow-up security issues #94/#95/#96/#105/#124 also remain open. The publisher's downloaded bundle/manifest currently trusts outputs of proposed-code execution: independently validate artifact provenance, guard-pinning and changed-file allowlists before acceptance. Potentially use a trusted, separate post-verification attest/signature boundary before privileged publication.
+
+**Verification baseline:** Prior Windows build success run 36176309827; failing regression run 36176309808 (DH-A070, #142). No new Windows CI results have been obtained in this checkpoint.
+
+**Exact recovery cursor:** inspect actual branch head and GitHub Actions syntax/results; harden #93 against untrusted artifact/job-output forgery and all unsafe Git credential paths; run adversarial fixture + verification/publishing acceptance; then address #94/#95/#96/#105/#124, then #142 and remaining queue. Keep one conceptual fix per commit and update finding evidence. Do not merge to feature/release or close issues before gates pass.

@@ -6,12 +6,16 @@ on:
       - feature/download-history-archive-3.3.0-2
     paths: [.audit-repairs.json]
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: audit-repair-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   repair:
+    permissions:
+      contents: read
+    outputs:
+      current: ${{ steps.head.outputs.current }}
     runs-on: windows-2022
     timeout-minutes: 30
     steps:
@@ -19,6 +23,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+          persist-credentials: false
       - uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
       - name: Reject superseded or duplicate requests
         id: head
@@ -48,3 +53,53 @@ jobs:
           path: ${{ runner.temp }}/audit-repair-evidence/
           if-no-files-found: error
           retention-days: 14
+  publish:
+    needs: repair
+    if: needs.repair.outputs.current == 'True'
+    runs-on: windows-2022
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out only the original request revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Retrieve verified commits and evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: audit-repairs-${{ github.sha }}
+          path: ${{ runner.temp }}/audit-repair-evidence
+      - name: Validate and publish only the verified commit
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $evidence = Join-Path $env:RUNNER_TEMP 'audit-repair-evidence'
+          $manifestPath = Join-Path $evidence 'publish.json'
+          if (!(Test-Path -LiteralPath $manifestPath)) { throw 'Verification did not supply a publication manifest.' }
+          $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+          if ($manifest.request_sha -cne $env:GITHUB_SHA -or $manifest.target_branch -cne $env:GITHUB_REF_NAME) { throw 'Manifest does not bind the requested revision and branch.' }
+          if ($manifest.verified_sha -notmatch '^[0-9a-f]{40}$') { throw 'Invalid verified commit identifier.' }
+          $bundle = Join-Path $evidence 'verified-repairs.bundle'
+          if (!(Test-Path -LiteralPath $bundle)) { throw 'Missing verified-commit bundle.' }
+          if ((Get-FileHash -LiteralPath $bundle -Algorithm SHA256).Hash -ine $manifest.bundle_sha256) { throw 'Verified bundle digest mismatch.' }
+          $hooks = Join-Path $env:RUNNER_TEMP 'empty-git-hooks'
+          New-Item -ItemType Directory -Path $hooks -Force | Out-Null
+          git config --local core.hooksPath $hooks
+          git bundle verify $bundle | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw 'Verified bundle has invalid prerequisites.' }
+          git fetch --no-tags $bundle HEAD | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to import verified commits.' }
+          $verifiedHead = (git rev-parse FETCH_HEAD).Trim()
+          if ($verifiedHead -cne $manifest.verified_sha) { throw 'Imported commit does not match verified evidence.' }
+          git merge-base --is-ancestor $env:GITHUB_SHA $verifiedHead
+          if ($LASTEXITCODE -ne 0) { throw 'Verified commit is not based on the original request.' }
+          if (@(git diff --name-only $env:GITHUB_SHA $verifiedHead) -contains '.github/workflows/audit-repair.yml') { throw 'A repair attempted to modify its publication workflow.' }
+          $remote = @(git ls-remote origin "refs/heads/$env:GITHUB_REF_NAME")
+          if ($LASTEXITCODE -ne 0 -or $remote.Count -ne 1) { throw 'Unable to validate the remote branch head.' }
+          if (($remote[0] -split '\s+')[0] -cne $env:GITHUB_SHA) { throw 'Request was superseded; publication refused.' }
+          # Do not check out, build, test or execute any code from the proposed commit here.
+          git push origin "${verifiedHead}:refs/heads/$env:GITHUB_REF_NAME" | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw 'Non-force publication failed; no branch history was rewritten.' }

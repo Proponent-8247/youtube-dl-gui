@@ -98,3 +98,10 @@ Critical #93 / PAR-07-009 initial commits:
 - `186f1c06323d0452c9766489c616d0d5860e714b`: #96 removes tests as editable paths in ordinary exact repair parser. Legitimate test-contract changes require separate reviewed workflow.
 - Follow-up: tests can still be modified as side effects of untrusted build/test code (#124), and other trust-root issues remain. Do not mark #95/#96/#105 accepted until negative tests verify the actual shell/Python behavior and Windows workflow executes successfully.
 - Exact checked remote working head before this journal update: `186f1c06323d0452c9766489c616d0d5860e714b`.
+
+### CI branch activation checkpoint — 2026-10-16
+- `5845876ccf41fcf0cf184b644686876b072342af`: include remediation branch in audit-build.yml push trigger.
+- `3646c2d22a2bcc1c1c31b0321eb6a75f6f285f71`: include remediation branch in audit-verify.yml push trigger.
+- After these pushes, GitHub Actions branch-filter query returned **zero workflow runs at observation time**. A run must not be assumed to exist or pass. Check workflow permission/configuration and re-query on resumption; consider protected PR-based test if push trigger does not fire.
+- Exact work-branch head before this journal commit: `3646c2d22a2bcc1c1c31b0321eb6a75f6f285f71`.
+- Source fixes are still unaccepted; do not merge, close findings, or claim complete remediation.

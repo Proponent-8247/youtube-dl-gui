@@ -46,26 +46,26 @@ jobs:
           test "$repo" = 'Proponent-8247/youtube-dl-gui'
           feature='0a111fa5e4df13e3052192bb474cdea30fb32b72'
           expected_targets=$(cat <<'BRANCHES'
-audit/parallel-ro-20260925|9ef93bb4663f29ef9ae4c1dd05480dfaf0661ff1
-audit/ro-ws01-startup-config|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
-audit/ro-ws02-download-process|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
-audit/ro-ws03-ui-batch|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
-audit/ro-ws04-conversion-media|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
-audit/ro-ws05-updater|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
-audit/ro-ws06-controls-native|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
-audit/ro-ws07-tests-build|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
-audit/ro-ws08-docs-resources|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
-audit/ro-ws09-security|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
-audit/ro-ws10-concurrency|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
-audit-fixes|7283444431e1243d83b86bf54838d22e3048cae9
-noop-check|695cb0942307c460f71e8207160989902b68375d
-BRANCHES
+          audit/parallel-ro-20260925|9ef93bb4663f29ef9ae4c1dd05480dfaf0661ff1
+          audit/ro-ws01-startup-config|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+          audit/ro-ws02-download-process|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+          audit/ro-ws03-ui-batch|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+          audit/ro-ws04-conversion-media|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+          audit/ro-ws05-updater|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+          audit/ro-ws06-controls-native|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+          audit/ro-ws07-tests-build|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+          audit/ro-ws08-docs-resources|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+          audit/ro-ws09-security|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+          audit/ro-ws10-concurrency|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+          audit-fixes|7283444431e1243d83b86bf54838d22e3048cae9
+          noop-check|695cb0942307c460f71e8207160989902b68375d
+          BRANCHES
           )
           expected_keep=$(cat <<'RETAIN'
-release/3.3.0-2|49a290d07b220e4a9cd98d44c6db7f45a5bbbc98
-feature/download-history-archive-3.3.0-2|0a111fa5e4df13e3052192bb474cdea30fb32b72
-remediation/whole-repo-20261016|5b6b9143750efe05951f07c4666cf37ea766cf7e
-RETAIN
+          release/3.3.0-2|49a290d07b220e4a9cd98d44c6db7f45a5bbbc98
+          feature/download-history-archive-3.3.0-2|0a111fa5e4df13e3052192bb474cdea30fb32b72
+          remediation/whole-repo-20261016|5b6b9143750efe05951f07c4666cf37ea766cf7e
+          RETAIN
           )
           default=$(gh api "repos/$repo" --jq '.default_branch')
           test "$default" = 'master' || { echo "Unexpected default branch: $default"; exit 1; }
@@ -75,7 +75,6 @@ RETAIN
           is_declared() {
             local n="$1"
             test "$n" = 'master' && return 0
-            grep -Fqx "$n|" /dev/null 2>/dev/null && return 0
             while IFS='|' read -r x _; do test "$n" = "$x" && return 0; done <<< "$expected_keep"
             while IFS='|' read -r x _; do test "$n" = "$x" && return 0; done <<< "$expected_targets"
             return 1

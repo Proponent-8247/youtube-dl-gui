@@ -34,6 +34,8 @@ function Build-And-Test([string]$label) {
     # Build outputs belong in ignored output trees; arbitrary source mutations do not.
     $beforeStatus = @((git -c core.quotePath=false status --porcelain=v1 --untracked-files=all))
     if ($LASTEXITCODE -ne 0) { throw "Unable to snapshot working tree before $label." }
+    $beforeDiff = @(git diff --binary HEAD)
+    if ($LASTEXITCODE -ne 0) { throw "Unable to snapshot source diff before $label." }
     $dir = Join-Path $EvidenceDirectory $label
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
     msbuild youtube-dl-gui.sln /m /nologo /v:minimal /p:Configuration=Debug '/p:Platform=Any CPU' "/bl:$dir/debug.binlog" | Out-Host
@@ -46,7 +48,10 @@ function Build-And-Test([string]$label) {
     $testExit = $LASTEXITCODE
     $afterStatus = @((git -c core.quotePath=false status --porcelain=v1 --untracked-files=all))
     if ($LASTEXITCODE -ne 0) { throw "Unable to snapshot working tree after $label." }
-    if (($beforeStatus -join "`n") -cne ($afterStatus -join "`n")) {
+    $afterDiff = @(git diff --binary HEAD)
+    if ($LASTEXITCODE -ne 0) { throw "Unable to snapshot source diff after $label." }
+    if (($beforeStatus -join "`n") -cne ($afterStatus -join "`n") -or
+        ($beforeDiff -join "`n") -cne ($afterDiff -join "`n")) {
         throw "Build or tests changed tracked/untracked source state during $label. Rejecting test evidence."
     }
     $result = Join-Path $dir 'regression-results.xml'

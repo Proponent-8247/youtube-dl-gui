@@ -117,3 +117,17 @@ Critical #93 / PAR-07-009 initial commits:
 - Exact candidate heads and dispositions are persistently documented in [#13 comment 6220936725](https://github.com/Proponent-8247/youtube-dl-gui/issues/13#issuecomment-6220936725).
 - **Deletion not executed:** connector has no delete-ref tool and no authenticated local remote access exists. Tested local script `prune_obsolete_audit_branches.py` (available as conversation download): dry-run, branch SHA drift abort, exact-SHA force-with-lease, 12 simulated removals, retained-five protection, idempotence and actual Git local bare-remote deletion syntax. The real remote had **17** branches at last verification.
 - Run script from authenticated checkout for read-only preview then `--apply`; verify live branch count 5 afterward. Preserve integration #13 open until later release consolidation and master README decision.
+
+## User-authorized branch consolidation — 2026-10-16
+
+Goal: reduce 17 live branches to no more than 5 (prefer 4), preserving unique useful commits and avoiding release of unaccepted fixes. Read #13 latest comment (2026-10-16) for complete 17-ref inventory, exact retiree SHAs, compare evidence, and pre-delete safety criteria.
+
+- PR #150 successfully **MERGED** archive/coordinator `audit/parallel-ro-20260925` into feature at `d7ac486387900e5257bd10ea61f6af5818f198f3`: 12 original commits and 11 Markdown audit-scaffold records are now in feature DAG; all ten identical WS scaffold refs are ancestors.
+- Unique `master` README attribution edits were forward-ported into feature in `0a111fa5e4df13e3052192bb474cdea30fb32b72`, preserving the master wording.
+- PR #151 successfully **MERGED** feature's historical audit/README changes into remediation in `bb3daa18674aaa4ff53191e5f8e8c653f2145289`. Remediation remains isolated, **not CI-green** and not landed into master/release/feature.
+- Retirees: ten `audit/ro-ws*` refs at `852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9`, `audit/parallel-ro-20260925` at `9ef93bb4663f29ef9ae4c1dd05480dfaf0661ff1`, `audit-fixes` at `7283444431e1243d83b86bf54838d22e3048cae9`, and `noop-check` at `695cb0942307c460f71e8207160989902b68375d`.
+- GitHub compare confirmed `ahead_by=0` for all retiree commit groups versus feature (after merge), and the sole open PR #1 uses retained `release/3.3.0-2`. Candidate refs were unprotected at inventory.
+- Keep 4: `master`, `release/3.3.0-2`, `feature/download-history-archive-3.3.0-2`, and `remediation/whole-repo-20261016`.
+- State at this journal's start: **17 refs still present; retiree deletion NOT YET VERIFIED**. Connector exposes ref creation/update/compare but no deletion; if using a one-time GitHub Actions cleanup, require exact SHA, ancestry and PR checks and verify GitHub branch list afterward. Do not claim cleanup complete without read-back.
+- Source remediation / 130-issue acceptance and Windows regression remain unresolved. This branch consolidation does not represent a release acceptance.
+- Working branch SHA immediately before this journal update: `bb3daa18674aaa4ff53191e5f8e8c653f2145289`.

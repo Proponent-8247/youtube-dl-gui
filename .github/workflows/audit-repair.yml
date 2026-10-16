@@ -96,7 +96,17 @@ jobs:
           if ($verifiedHead -cne $manifest.verified_sha) { throw 'Imported commit does not match verified evidence.' }
           git merge-base --is-ancestor $env:GITHUB_SHA $verifiedHead
           if ($LASTEXITCODE -ne 0) { throw 'Verified commit is not based on the original request.' }
-          if (@(git diff --name-only $env:GITHUB_SHA $verifiedHead) -contains '.github/workflows/audit-repair.yml') { throw 'A repair attempted to modify its publication workflow.' }
+          $changed = @(git diff --name-only $env:GITHUB_SHA $verifiedHead)
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to enumerate proposed changes.' }
+          $blocked = @($changed | Where-Object { $_ -match '^(\.github/|tools/|tests/|RECOVERY_JOURNAL\.md$)' })
+          if ($blocked.Count -gt 0) { throw "Unreviewed changes to the verifier or evidence boundary: $blocked" }
+          $allowedRoots = @('Addons/', 'Controls/', 'Languages/', 'youtube-dl-gui/', 'youtube-dl-gui-updater/')
+          $unexpected = @($changed | Where-Object {
+            $name = $_
+            $name -ne '.audit-repairs.json' -and
+            -not ($allowedRoots | Where-Object { $name.StartsWith($_, [StringComparison]::Ordinal) })
+          })
+          if ($unexpected.Count -gt 0) { throw "Unexpected publication paths: $unexpected" }
           $remote = @(git ls-remote origin "refs/heads/$env:GITHUB_REF_NAME")
           if ($LASTEXITCODE -ne 0 -or $remote.Count -ne 1) { throw 'Unable to validate the remote branch head.' }
           if (($remote[0] -split '\s+')[0] -cne $env:GITHUB_SHA) { throw 'Request was superseded; publication refused.' }

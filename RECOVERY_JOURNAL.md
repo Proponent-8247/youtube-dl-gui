@@ -105,3 +105,9 @@ Critical #93 / PAR-07-009 initial commits:
 - After these pushes, GitHub Actions branch-filter query returned **zero workflow runs at observation time**. A run must not be assumed to exist or pass. Check workflow permission/configuration and re-query on resumption; consider protected PR-based test if push trigger does not fire.
 - Exact work-branch head before this journal commit: `3646c2d22a2bcc1c1c31b0321eb6a75f6f285f71`.
 - Source fixes are still unaccepted; do not merge, close findings, or claim complete remediation.
+
+### #124 build-time mutation containment — 2026-10-16
+- `f8a6a8bfc275c91cdd071820dc3558cac03c1174`: compare git porcelain status before/after build/regressions; remove implicit staging of embedded updater resource.
+- `dae37d07cbf87986b20d5cc6c241828afa3fa8bc`: also compare binary tracked diffs (status alone cannot detect in-place edits to already-dirty files).
+- **Incomplete security acceptance:** untracked files that already exist can still be edited in place without porcelain differences; ignored test/tool source must be inventoried; attacker-controlled build could restore mutated oracle before snapshot; evidence and tests may be attacked indirectly. Must isolate/protect the test oracle in a trusted workspace/process, audit all generated inputs, and run adversarial fixtures before considering #124 closed.
+- Current automated CI is unverified. Keep all related findings open.

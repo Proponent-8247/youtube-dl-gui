@@ -14,6 +14,18 @@ $parent = (git rev-parse HEAD^).Trim()
 if ($parent -ne $plan.base_sha) { throw 'Repair request is not based on the pinned source revision.' }
 if (Test-Path .audit-patch-request.json) { throw 'Legacy and guarded repair requests cannot overlap.' }
 if (git status --porcelain) { throw 'The initial checkout is not clean.' }
+# The request commit must contain only its exact request wrapper and declared parts.
+# This check occurs before loading/building potentially modified application code.
+$requestFilesJson = (& python tools/apply-audit-repairs.py --request-files | Out-String)
+if ($LASTEXITCODE -ne 0) { throw 'Could not validate request parts.' }
+$allowedRequestFiles = @($requestFilesJson | ConvertFrom-Json)
+$changedRequestFiles = @(git diff-tree --no-commit-id --name-only -r $initialHead)
+if ($LASTEXITCODE -ne 0) { throw 'Could not enumerate request commit changes.' }
+$unauthorizedRequestFiles = @($changedRequestFiles | Where-Object { $_ -cnotin $allowedRequestFiles })
+if ($unauthorizedRequestFiles.Count -gt 0) { throw "Request commit contains undeclared paths: $unauthorizedRequestFiles" }
+if ('.audit-repairs.json' -cnotin $changedRequestFiles) { throw 'Request commit did not update the repair wrapper.' }
+$unusedRequestParts = @($allowedRequestFiles | Where-Object { $_ -cnotin $changedRequestFiles -and $_ -cne '.audit-repairs.json' })
+if ($unusedRequestParts.Count -gt 0) { throw "Request references unchanged/undeclared part files: $unusedRequestParts" }
 python tools/apply-audit-repairs.py --preflight
 if ($LASTEXITCODE -ne 0) { throw 'Repair preflight failed; no source was changed.' }
 
@@ -56,6 +68,9 @@ try {
     if ($plan.PSObject.Properties.Name -contains 'allowed_flaky_failures') {
         $allowedFlaky = @($plan.allowed_flaky_failures | Sort-Object -Unique)
     }
+    # An untrusted repair request must not select its own regression exemptions.
+    # Until a reviewed, immutable policy manifest exists, no flaky exemptions are approved.
+    if ($allowedFlaky.Count -gt 0) { throw 'Repair-request controlled flaky exemptions are not permitted.' }
     $unknownFlaky = @($allowedFlaky | Where-Object { $_ -notin $previous.Names })
     if ($unknownFlaky.Count -gt 0) { throw "Allowed flaky failures name tests that do not exist: $unknownFlaky" }
     Assert-ReviewedFailures -Failures $previous.Failed -Required $expected -AllowedFlaky $allowedFlaky -Label 'The baseline'

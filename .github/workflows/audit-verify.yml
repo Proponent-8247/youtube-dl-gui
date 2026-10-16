@@ -5,6 +5,7 @@ on:
     branches:
       - audit-fixes
       - feature/download-history-archive-3.3.0-2
+      - remediation/whole-repo-20261016
   workflow_dispatch:
 
 permissions:

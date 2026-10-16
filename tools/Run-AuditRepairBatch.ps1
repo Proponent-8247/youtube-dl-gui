@@ -30,6 +30,10 @@ python tools/apply-audit-repairs.py --preflight
 if ($LASTEXITCODE -ne 0) { throw 'Repair preflight failed; no source was changed.' }
 
 function Build-And-Test([string]$label) {
+    # Detect tracked and untracked source mutations created by builds/tests.
+    # Build outputs belong in ignored output trees; arbitrary source mutations do not.
+    $beforeStatus = @((git -c core.quotePath=false status --porcelain=v1 --untracked-files=all))
+    if ($LASTEXITCODE -ne 0) { throw "Unable to snapshot working tree before $label." }
     $dir = Join-Path $EvidenceDirectory $label
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
     msbuild youtube-dl-gui.sln /m /nologo /v:minimal /p:Configuration=Debug '/p:Platform=Any CPU' "/bl:$dir/debug.binlog" | Out-Host
@@ -40,6 +44,11 @@ function Build-And-Test([string]$label) {
     if ($LASTEXITCODE -ne 0) { throw "Application build failed at $label" }
     & ./tests/Run-AuditRegression.ps1 -EvidenceDirectory $dir | Out-Host
     $testExit = $LASTEXITCODE
+    $afterStatus = @((git -c core.quotePath=false status --porcelain=v1 --untracked-files=all))
+    if ($LASTEXITCODE -ne 0) { throw "Unable to snapshot working tree after $label." }
+    if (($beforeStatus -join "`n") -cne ($afterStatus -join "`n")) {
+        throw "Build or tests changed tracked/untracked source state during $label. Rejecting test evidence."
+    }
     $result = Join-Path $dir 'regression-results.xml'
     if (!(Test-Path $result) -or $testExit -notin @(0, 1)) { throw "Harness did not produce valid results at $label" }
     [xml]$xml = Get-Content $result -Raw
@@ -91,7 +100,8 @@ try {
             if ($test -notin $next.Names -or $test -in $next.Failed) { throw "Repair did not satisfy its required regression: $test" }
         }
         $paths = @($repair.files | ForEach-Object { $_.path })
-        git --literal-pathspecs add -- @paths 'youtube-dl-gui/Resources/youtube-dl-gui-updater.exe'
+        # No implicit updater binary staging: rebuilt resources must be declared and reviewed.
+        git --literal-pathspecs add -- @paths
         if ($LASTEXITCODE -ne 0) { throw 'Staging failed.' }
         git diff --cached --stat | Out-Host
         git commit -m $repair.message

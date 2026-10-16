@@ -1,0 +1,140 @@
+name: One-time exact-SHA branch consolidation
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      approved:
+        description: "Run the audited 2026-10-16 exact-SHA branch consolidation"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: one-time-branch-consolidation-20261016
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    if: >-
+      github.repository == 'Proponent-8247/youtube-dl-gui' &&
+      (
+        (github.event_name == 'issue_comment' &&
+         github.event.issue.number == 13 &&
+         github.event.comment.user.id == 137363254 &&
+         github.event.comment.body == '/prune-branches-exact-20261016') ||
+        (github.event_name == 'workflow_dispatch' &&
+         github.actor == 'Proponent-8247' &&
+         inputs.approved == true)
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Verify all branch identities, ancestry and PR safety, then retire redundant refs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          repo="$GH_REPO"
+          test "$repo" = 'Proponent-8247/youtube-dl-gui'
+          feature='0a111fa5e4df13e3052192bb474cdea30fb32b72'
+          expected_targets=$(cat <<'BRANCHES'
+audit/parallel-ro-20260925|9ef93bb4663f29ef9ae4c1dd05480dfaf0661ff1
+audit/ro-ws01-startup-config|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+audit/ro-ws02-download-process|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+audit/ro-ws03-ui-batch|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+audit/ro-ws04-conversion-media|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+audit/ro-ws05-updater|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+audit/ro-ws06-controls-native|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+audit/ro-ws07-tests-build|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+audit/ro-ws08-docs-resources|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+audit/ro-ws09-security|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+audit/ro-ws10-concurrency|852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9
+audit-fixes|7283444431e1243d83b86bf54838d22e3048cae9
+noop-check|695cb0942307c460f71e8207160989902b68375d
+BRANCHES
+          )
+          expected_keep=$(cat <<'RETAIN'
+release/3.3.0-2|49a290d07b220e4a9cd98d44c6db7f45a5bbbc98
+feature/download-history-archive-3.3.0-2|0a111fa5e4df13e3052192bb474cdea30fb32b72
+remediation/whole-repo-20261016|5b6b9143750efe05951f07c4666cf37ea766cf7e
+RETAIN
+          )
+          default=$(gh api "repos/$repo" --jq '.default_branch')
+          test "$default" = 'master' || { echo "Unexpected default branch: $default"; exit 1; }
+          mapfile -t names < <(gh api "repos/$repo/branches?per_page=100" --jq '.[].name')
+          test "${#names[@]}" -le 100 || { echo 'Branch listing incomplete'; exit 1; }
+          echo "Observed ${#names[@]} live branch refs."
+          is_declared() {
+            local n="$1"
+            test "$n" = 'master' && return 0
+            grep -Fqx "$n|" /dev/null 2>/dev/null && return 0
+            while IFS='|' read -r x _; do test "$n" = "$x" && return 0; done <<< "$expected_keep"
+            while IFS='|' read -r x _; do test "$n" = "$x" && return 0; done <<< "$expected_targets"
+            return 1
+          }
+          for n in "${names[@]}"; do
+            if ! is_declared "$n"; then echo "Unexpected branch, refusing destructive operation: $n"; exit 1; fi
+          done
+          open_pr_heads=$(gh api "repos/$repo/pulls?state=open&per_page=100" --jq '.[].head.ref')
+          verify_ref() {
+            local ref="$1" sha="$2" actual
+            actual=$(gh api "repos/$repo/git/ref/heads/$ref" --jq '.object.sha')
+            test "$actual" = "$sha" || { echo "Ref moved: $ref expected $sha observed $actual"; exit 1; }
+          }
+          # Gate all target refs before deleting any of them.
+          while IFS='|' read -r ref sha; do
+            test -n "$ref" || continue
+            verify_ref "$ref" "$sha"
+          done <<< "$expected_keep"
+          while IFS='|' read -r ref sha; do
+            test -n "$ref" || continue
+            if ! printf '%s\n' "${names[@]}" | grep -Fxq "$ref"; then
+              echo "Already absent: $ref"
+              continue
+            fi
+            verify_ref "$ref" "$sha"
+            protected=$(gh api "repos/$repo/branches/$ref" --jq '.protected')
+            test "$protected" = 'false' || { echo "Protected branch: $ref"; exit 1; }
+            if printf '%s\n' "$open_pr_heads" | grep -Fxq "$ref"; then
+              echo "Open pull request references $ref"
+              exit 1
+            fi
+            status=$(gh api "repos/$repo/compare/$sha...$feature" --jq '.status')
+            behind=$(gh api "repos/$repo/compare/$sha...$feature" --jq '.behind_by')
+            if [[ "$status" != ahead && "$status" != identical ]] || [[ "$behind" != 0 ]]; then
+              echo "Not fully contained in retained feature history: $ref status=$status behind=$behind"
+              exit 1
+            fi
+          done <<< "$expected_targets"
+          echo 'All preflight gates passed.'
+          while IFS='|' read -r ref sha; do
+            test -n "$ref" || continue
+            if ! printf '%s\n' "${names[@]}" | grep -Fxq "$ref"; then continue; fi
+            # Re-check the exact old commit immediately before deletion.
+            verify_ref "$ref" "$sha"
+            gh api -X DELETE "repos/$repo/git/refs/heads/$ref" >/dev/null
+            echo "Retired $ref at $sha"
+          done <<< "$expected_targets"
+          mapfile -t final < <(gh api "repos/$repo/branches?per_page=100" --jq '.[].name')
+          printf 'Remaining branch: %s\n' "${final[@]}"
+          test "${#final[@]}" -eq 4 || { echo 'Unexpected final branch count'; exit 1; }
+          for n in "${final[@]}"; do
+            case "$n" in
+              master|release/3.3.0-2|feature/download-history-archive-3.3.0-2|remediation/whole-repo-20261016) ;;
+              *) echo "Unexpected surviving branch: $n"; exit 1 ;;
+            esac
+          done
+          {
+            echo "## Branch consolidation verified"
+            echo "Remaining refs: 4"
+            printf '%s\n' "${final[@]}" | sed 's/^/- /'
+            echo "Archived scaffold history is already retained via PRs #150 and #151."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -92,3 +92,9 @@ Critical #93 / PAR-07-009 initial commits:
 **Verification baseline:** Prior Windows build success run 36176309827; failing regression run 36176309808 (DH-A070, #142). No new Windows CI results have been obtained in this checkpoint.
 
 **Exact recovery cursor:** inspect actual branch head and GitHub Actions syntax/results; harden #93 against untrusted artifact/job-output forgery and all unsafe Git credential paths; run adversarial fixture + verification/publishing acceptance; then address #94/#95/#96/#105/#124, then #142 and remaining queue. Keep one conceptual fix per commit and update finding evidence. Do not merge to feature/release or close issues before gates pass.
+
+### Additional security preflight fixes — 2026-10-16
+- `e48d45aa1b51c0110b11a248c00c95b8e3acacdf`: #105 request-only commit check uses validated --request-files wrapper/part inventory and rejects unrelated files before baseline build; #95 disallows all request-controlled flaky exemptions pending reviewed trusted policy.
+- `186f1c06323d0452c9766489c616d0d5860e714b`: #96 removes tests as editable paths in ordinary exact repair parser. Legitimate test-contract changes require separate reviewed workflow.
+- Follow-up: tests can still be modified as side effects of untrusted build/test code (#124), and other trust-root issues remain. Do not mark #95/#96/#105 accepted until negative tests verify the actual shell/Python behavior and Windows workflow executes successfully.
+- Exact checked remote working head before this journal update: `186f1c06323d0452c9766489c616d0d5860e714b`.

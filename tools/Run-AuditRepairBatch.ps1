@@ -97,14 +97,25 @@ try {
     git commit -m 'audit: close regression-verified repair batch'
     if ($LASTEXITCODE -ne 0) { throw 'Request cleanup commit failed.' }
     $allowedBranches = @('audit-fixes', 'feature/download-history-archive-3.3.0-2')
-    if ($env:GITHUB_REF_NAME -notin $allowedBranches) { throw 'Guarded repair push target is not allowed.' }
-    git push origin "HEAD:$env:GITHUB_REF_NAME"
-    if ($LASTEXITCODE -ne 0) { throw 'Branch moved or push failed; no force update was attempted.' }
+    if ($env:GITHUB_REF_NAME -notin $allowedBranches) { throw 'Guarded repair target is not allowed.' }
+    # Verification runs with read-only repository permissions. Export immutable commits;
+    # a separate job with write authority will check the original head and publish.
+    $verifiedHead = (git rev-parse HEAD).Trim()
+    $bundle = Join-Path $EvidenceDirectory 'verified-repairs.bundle'
+    git bundle create $bundle HEAD "^$initialHead"
+    if ($LASTEXITCODE -ne 0) { throw 'Could not export verified repair commits.' }
+    [ordered]@{
+        request_sha = $initialHead
+        base_sha = $parent
+        verified_sha = $verifiedHead
+        target_branch = $env:GITHUB_REF_NAME
+        bundle_sha256 = (Get-FileHash -LiteralPath $bundle -Algorithm SHA256).Hash
+    } | ConvertTo-Json | Set-Content -Path (Join-Path $EvidenceDirectory 'publish.json') -Encoding utf8
     if ($remaining.Count -eq 0) {
-        'All repairs passed; only explicitly reviewed nondeterministic baseline failures, if any, were tolerated.' | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
+        'Verification passed; publication is pending. Only explicitly reviewed nondeterministic baseline failures, if any, were tolerated.' | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
     }
     else {
-        "All requested repairs passed; $($remaining.Count) reviewed deterministic regression failure(s) remain for later guarded batches." | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
+        "Verification passed; publication is pending. $($remaining.Count) reviewed deterministic regression failure(s) remain." | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
     }
 }
 finally {

@@ -1,6 +1,6 @@
 # RECOVERY_JOURNAL.md — youtube-dl-gui whole-repository audit
 
-**Status (last reconciled 2026-10-16): FULL READ-ONLY AUDIT COVERAGE AND LEDGER RECONCILIATION COMPLETE; PRODUCTION REMEDIATION EXPLICITLY DEFERRED.**
+**Status (last reconciled 2026-10-24 UTC): READ-ONLY AUDIT COMPLETE; BRANCH CONSOLIDATION COMPLETE (17 → 4 VERIFIED); REMEDIATION STARTED BUT SECURITY/BUILD/REGRESSION ACCEPTANCE STILL PENDING.**
 
 Repository: https://github.com/Proponent-8247/youtube-dl-gui
 Integration line: `feature/download-history-archive-3.3.0-2`
@@ -8,11 +8,11 @@ Audited immutable source SHA: `7e369eb4afa6477e81f3e185ce9754bfd91982a6`
 Base release SHA: `49a290d07b220e4a9cd98d44c6db7f45a5bbbc98` (`release/3.3.0-2`)
 First recovery-journal-only commit: `76a4c725bfda62656cf4ff2ac25f61d303ea3555`
 Authoritative source tree at audit pin: 394 tracked paths; recursive API tree `truncated=false`
-**Audit source pin is unchanged.** This journal's own later commits update only this journal; resolve the actual live head from GitHub on every resumption.
+**Audit source pin is unchanged.** Since the read-only audit, authorized branch consolidation and separate remediation changes have occurred. The feature branch now contains archived audit scaffolds and a README edit; production remediation remains isolated on `remediation/whole-repo-20261016`. Resolve actual live SHAs on every resumption.
 
-## User-approved phase boundaries
+## User-approved phase boundaries (historical read-only phase; superseded by later remediation and consolidation authorization)
 
-The latest user instruction was: audit the **entire** repository, record supportable findings **immediately** in a durable repo TODO/GitHub Issues ledger, and **perform repairs later after the audit**. Do not treat “continue until all work complete” as authorization to start production fixes during the audit-only phase.
+During the original read-only phase, the user instruction was: audit the **entire** repository, record supportable findings **immediately** in a durable repo TODO/GitHub Issues ledger, and **perform repairs later after the audit**. Do not treat “continue until all work complete” as authorization to start production fixes during the audit-only phase.
 
 Do not change production source, test implementation, CI workflows, released artifacts, or branch history as a purported audit remediation. No cherry-picks/merges/deletions/history rewrites without later authorization. The only feature-branch content changes during this resumed phase were creation and update of this **user-requested audit-management recovery journal**. GitHub Issues/comments were also updated.
 
@@ -131,3 +131,32 @@ Goal: reduce 17 live branches to no more than 5 (prefer 4), preserving unique us
 - State at this journal's start: **17 refs still present; retiree deletion NOT YET VERIFIED**. Connector exposes ref creation/update/compare but no deletion; if using a one-time GitHub Actions cleanup, require exact SHA, ancestry and PR checks and verify GitHub branch list afterward. Do not claim cleanup complete without read-back.
 - Source remediation / 130-issue acceptance and Windows regression remain unresolved. This branch consolidation does not represent a release acceptance.
 - Working branch SHA immediately before this journal update: `bb3daa18674aaa4ff53191e5f8e8c653f2145289`.
+
+## 2026-10-24 UTC — BRANCH COUNT CONSOLIDATION COMPLETED AND VERIFIED
+
+**User goal:** reduce 17 remote branches to no more than 5 without losing unique useful work. **Result: 4 branches remain**, independently verified via `GET /repos/Proponent-8247/youtube-dl-gui/branches?per_page=100` after deletion and after removal of the one-time cleanup workflow.
+
+### Evidence / exact retained refs (post-cleanup)
+
+| Kept branch | Verified SHA | Role |
+| --- | --- | --- |
+| `master` | `6e2dd1df40cfcde0fd6a264b3708b12999d70d7b` | Default; one-time cleanup workflow removed |
+| `release/3.3.0-2` | `49a290d07b220e4a9cd98d44c6db7f45a5bbbc98` | Release baseline; open PR #1 head |
+| `feature/download-history-archive-3.3.0-2` | `0a111fa5e4df13e3052192bb474cdea30fb32b72` | Integrated source and archived audit-history line |
+| `remediation/whole-repo-20261016` | `5b6b9143750efe05951f07c4666cf37ea766cf7e` | Unaccepted security remediation work (SHA before this journal commit) |
+
+**Execution:** GitHub Actions [run #40063459127](https://github.com/Proponent-8247/youtube-dl-gui/actions/runs/40063459127), workflow_dispatch, completed SUCCESS 2026-10-24 04:44:23 UTC. Job `prune` / job ID `120781680656`, step `Verify all branch identities, ancestry and PR safety, then retire redundant refs` SUCCESS. Log explicitly states `Observed 17 live branch refs`, `All preflight gates passed`, prints **13 distinct `Retired ... at <SHA>` lines**, and lists the four branches above afterward. API independent read-back also reports exactly those four refs.
+
+**Retired 13 SHA-checked refs:**
+- `audit/parallel-ro-20260925` @ `9ef93bb4663f29ef9ae4c1dd05480dfaf0661ff1`
+- Ten `audit/ro-ws01-startup-config` through `audit/ro-ws10-concurrency` @ identical `852d53c6e4e6afff21c3ba1d53c7b72ebfdc2be9`
+- `audit-fixes` @ `7283444431e1243d83b86bf54838d22e3048cae9`
+- `noop-check` @ `695cb0942307c460f71e8207160989902b68375d`
+
+**History preservation / disposition:** PR [#150](https://github.com/Proponent-8247/youtube-dl-gui/pull/150) merged the coordinator/scaffold history into feature, preserving the ten shard-head ancestries. Unique README changes from master were forward-ported to feature in `0a111fa5e4df13e3052192bb474cdea30fb32b72`. PR [#151](https://github.com/Proponent-8247/youtube-dl-gui/pull/151) merged the feature's archived historical documentation into remediation. The other obsolete refs were already ancestors. No useful unique production changes were lost, and no published branch was force-rewritten.
+
+**Temporary privilege removal:** Removed `.github/workflows/one-time-branch-consolidation.yml` from master in `6e2dd1df40cfcde0fd6a264b3708b12999d70d7b` after confirmed success. There is no standing branch-deletion automation left in master.
+
+**Status of separate gates:** This closes ONLY the branch-count/redundant-ref-cleanup milestone. Issue [#13](https://github.com/Proponent-8247/youtube-dl-gui/issues/13) remains open for final build/regression/security audit/release consolidation gates. Successful branch-prune workflow IS NOT evidence that Windows compilation or regression testing passed. The existing DH-A070/#142 regression and 130-finding remediation queue [#149](https://github.com/Proponent-8247/youtube-dl-gui/issues/149) remain outstanding; Critical #93 and related guard findings have unaccepted security changes isolated on remediation.
+
+**Next resumption:** Read this section and #13; verify the four branch refs before other Git operations. Continue acceptance tests and remediation on `remediation/whole-repo-20261016`; keep feature/release/master isolated until the tests and final release gate pass. Do not repeat the obsolete branch-deletion operation.

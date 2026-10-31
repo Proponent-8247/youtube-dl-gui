@@ -41,6 +41,38 @@ internal class ArgumentList : IList {
         }
         _args.Add(argument);
     }
+    public static string EscapeArgument(string argument) {
+        bool RequiresQuotes = argument.Length == 0;
+        for (int i = 0; i < argument.Length && !RequiresQuotes; i++) {
+            RequiresQuotes = char.IsWhiteSpace(argument[i]) || argument[i] == '"';
+        }
+        if (!RequiresQuotes) {
+            return argument;
+        }
+
+        System.Text.StringBuilder Escaped = new("\"");
+        int Backslashes = 0;
+        for (int i = 0; i < argument.Length; i++) {
+            char Current = argument[i];
+            if (Current == '\\') {
+                Backslashes++;
+                continue;
+            }
+            if (Current == '"') {
+                Escaped.Append('\\', Backslashes * 2 + 1);
+                Escaped.Append('"');
+                Backslashes = 0;
+                continue;
+            }
+
+            Escaped.Append('\\', Backslashes);
+            Backslashes = 0;
+            Escaped.Append(Current);
+        }
+        Escaped.Append('\\', Backslashes * 2);
+        Escaped.Append('"');
+        return Escaped.ToString();
+    }
     public void Remove(string argument) {
         _args.Remove(argument);
     }

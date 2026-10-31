@@ -7,6 +7,7 @@ internal static class Errors {
         Log.Write("Loading Error config.");
         fdetailedErrors = IniProvider.Read(detailedErrors, false, ConfigName);
         flogErrors = IniProvider.Read(logErrors, false, ConfigName);
+        Log.AllowWritingToFile = flogErrors;
         fsuppressErrors = IniProvider.Read(suppressErrors, false, ConfigName);
     }
 
@@ -14,8 +15,8 @@ internal static class Errors {
         get => fdetailedErrors;
         set {
             if (fdetailedErrors != value) {
+                IniProvider.Write(value, ConfigName, nameof(detailedErrors));
                 fdetailedErrors = value;
-                IniProvider.Write(detailedErrors, ConfigName);
             }
         }
     }
@@ -25,8 +26,9 @@ internal static class Errors {
         get => flogErrors;
         set {
             if (flogErrors != value) {
+                IniProvider.Write(value, ConfigName, nameof(logErrors));
                 flogErrors = value;
-                IniProvider.Write(logErrors, ConfigName);
+                Log.AllowWritingToFile = value;
             }
         }
     }
@@ -36,8 +38,8 @@ internal static class Errors {
         get => fsuppressErrors;
         set {
             if (fsuppressErrors != value) {
+                IniProvider.Write(value, ConfigName, nameof(suppressErrors));
                 fsuppressErrors = value;
-                IniProvider.Write(suppressErrors, ConfigName);
             }
         }
     }

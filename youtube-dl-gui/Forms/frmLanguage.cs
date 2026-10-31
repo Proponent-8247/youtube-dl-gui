@@ -2,6 +2,7 @@
 namespace youtube_dl_gui;
 using System.IO;
 using System.Windows.Forms;
+using murrty.updater;
 public partial class frmLanguage : Form {
     public frmLanguage() {
         InitializeComponent();
@@ -35,11 +36,12 @@ public partial class frmLanguage : Form {
         }
     }
     public void LoadFiles() {
+        cbLanguages.Items.Clear();
+        cbLanguages.Items.Add("English (Internal)");
+
         if (Directory.Exists(Environment.CurrentDirectory + "\\lang\\")) {
             DirectoryInfo LangFolder = new(Environment.CurrentDirectory + "\\lang\\");
             FileInfo[] LangFiles = LangFolder.GetFiles("*.ini");
-            cbLanguages.Items.Clear();
-            cbLanguages.Items.Add("English (Internal)");
             foreach (FileInfo File in LangFiles) {
                 cbLanguages.Items.Add(File.Name[..^4]);
             }
@@ -47,16 +49,45 @@ public partial class frmLanguage : Form {
     }
 
     private void btnLanguageRefresh_Click(object sender, EventArgs e) {
-        LoadFiles();
-    }
-    private void btnLanguageDownload_Click(object sender, EventArgs e) {
-        using frmDownloadLanguage DownloadLanguage = new();
-        DialogResult result = DownloadLanguage.ShowDialog();
         string CurrentFile = cbLanguages.GetItemText(cbLanguages.SelectedItem);
-        cbLanguages.SelectedIndex = -1;
         LoadFiles();
-        if (result == DialogResult.OK) {
-            cbLanguages.SelectedIndex = cbLanguages.FindStringExact(DownloadLanguage.FileName ?? CurrentFile);
+        if (!CurrentFile.IsNullEmptyWhitespace()) {
+            cbLanguages.SelectedIndex = cbLanguages.FindStringExact(CurrentFile);
+        }
+    }
+    private async void btnLanguageDownload_Click(object sender, EventArgs e) {
+        if (!btnLanguageDownload.Enabled) {
+            return;
+        }
+
+        btnLanguageDownload.Enabled = false;
+        try {
+            GithubRepoContent[] AvailableLanguages;
+            try {
+                AvailableLanguages = await Updater.GetAvailableLanguages();
+            }
+            catch (Exception ex) {
+                AvailableLanguages = [];
+                Log.ReportException(ex);
+            }
+
+            if (this.IsDisposed || !this.IsHandleCreated) {
+                return;
+            }
+
+            using frmDownloadLanguage DownloadLanguage = new(AvailableLanguages);
+            DialogResult result = DownloadLanguage.ShowDialog();
+            string CurrentFile = cbLanguages.GetItemText(cbLanguages.SelectedItem);
+            cbLanguages.SelectedIndex = -1;
+            LoadFiles();
+            if (result == DialogResult.OK) {
+                cbLanguages.SelectedIndex = cbLanguages.FindStringExact(DownloadLanguage.FileName ?? CurrentFile);
+            }
+        }
+        finally {
+            if (!this.IsDisposed && this.IsHandleCreated) {
+                btnLanguageDownload.Enabled = true;
+            }
         }
     }
     private void btnLanguageSave_Click(object sender, EventArgs e) {

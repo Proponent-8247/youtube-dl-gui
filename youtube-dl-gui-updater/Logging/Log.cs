@@ -61,7 +61,8 @@ public static class Log {
         }
 #endif
 
-        ManagementObjectSearcher MgtSearcher = new("SELECT * FROM Win32_OperatingSystem");
+        try {
+            ManagementObjectSearcher MgtSearcher = new("SELECT * FROM Win32_OperatingSystem");
         ManagementObject MgtInfo = MgtSearcher?.Get().Cast<ManagementObject>().FirstOrDefault();
         ComputerVersionInformation = $$"""
             Current version: {{Program.CurrentVersion}}
@@ -72,6 +73,10 @@ public static class Log {
             Service Pack major: {{MgtInfo.Properties["ServicePackMajorVersion"].Value ?? "could not query"}}
             Service Pack minor: {{MgtInfo.Properties["ServicePackMinorVersion"].Value ?? "could not query"}}
             """);
+        }
+        catch (Exception ex) {
+            ComputerVersionInformation = $"Current version: {Program.CurrentVersion}\nCurrent culture: {Thread.CurrentThread.CurrentCulture.EnglishName}\nOS information unavailable: {ex.GetType().Name}: {ex.Message}";
+        }
     }
 
     #region Exception handling
@@ -133,7 +138,7 @@ public static class Log {
             AllowAbort = false,
             CustomDescription = null,
             ExceptionTime = ExceptionTime,
-            FromLanguage = false,
+            FromLanguage = true,
             SkipDwmComposition = false,
             ExceptionType = ExceptionType.Caught,
             WindowOwner = null
@@ -181,7 +186,8 @@ public static class Log {
             do {
                 try {
                     System.IO.File.WriteAllText(
-                        $"\\ex_{ReceivedException.ExceptionTime:yyyy-MM-dd_HH-mm-ss.fff}.log", ReceivedException.Exception.ToString());
+                        System.IO.Path.Combine(Environment.CurrentDirectory, $"ex_{ReceivedException.ExceptionTime:yyyy-MM-dd_HH-mm-ss.fff}.log"), ReceivedException.Exception.ToString());
+                    return;
                 }
                 catch (Exception SaveException) {
                     ExceptionInfo FileException = new(SaveException) {

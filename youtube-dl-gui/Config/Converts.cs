@@ -28,8 +28,8 @@ internal static class Converts {
         get => fdetectFiletype;
         set {
             if (fdetectFiletype != value) {
+                IniProvider.Write(value, ConfigName, nameof(detectFiletype));
                 fdetectFiletype = value;
-                IniProvider.Write(detectFiletype, ConfigName);
             }
         }
     }
@@ -39,8 +39,8 @@ internal static class Converts {
         get => fclearOutput;
         set {
             if (fclearOutput != value) {
+                IniProvider.Write(value, ConfigName, nameof(clearOutput));
                 fclearOutput = value;
-                IniProvider.Write(clearOutput, ConfigName);
             }
         }
     }
@@ -50,8 +50,8 @@ internal static class Converts {
         get => fclearInput;
         set {
             if (fclearInput != value) {
+                IniProvider.Write(value, ConfigName, nameof(clearInput));
                 fclearInput = value;
-                IniProvider.Write(clearInput, ConfigName);
             }
         }
     }
@@ -61,8 +61,8 @@ internal static class Converts {
         get => fvideoBitrate;
         set {
             if (fvideoBitrate != value) {
+                IniProvider.Write(value, ConfigName, nameof(videoBitrate));
                 fvideoBitrate = value;
-                IniProvider.Write(videoBitrate, ConfigName);
             }
         }
     }
@@ -72,8 +72,8 @@ internal static class Converts {
         get => fvideoPreset;
         set {
             if (fvideoPreset != value) {
+                IniProvider.Write(value, ConfigName, nameof(videoPreset));
                 fvideoPreset = value;
-                IniProvider.Write(videoPreset, ConfigName);
             }
         }
     }
@@ -83,8 +83,8 @@ internal static class Converts {
         get => fvideoProfile;
         set {
             if (fvideoProfile != value) {
+                IniProvider.Write(value, ConfigName, nameof(videoProfile));
                 fvideoProfile = value;
-                IniProvider.Write(videoProfile, ConfigName);
             }
         }
     }
@@ -94,8 +94,8 @@ internal static class Converts {
         get => fvideoCRF;
         set {
             if (fvideoCRF != value) {
+                IniProvider.Write(value, ConfigName, nameof(videoCRF));
                 fvideoCRF = value;
-                IniProvider.Write(videoCRF, ConfigName);
             }
         }
     }
@@ -105,8 +105,8 @@ internal static class Converts {
         get => fvideoFastStart;
         set {
             if (fvideoFastStart != value) {
+                IniProvider.Write(value, ConfigName, nameof(videoFastStart));
                 fvideoFastStart = value;
-                IniProvider.Write(videoFastStart, ConfigName);
             }
         }
     }
@@ -116,8 +116,8 @@ internal static class Converts {
         get => fhideFFmpegCompile;
         set {
             if (fhideFFmpegCompile != value) {
+                IniProvider.Write(value, ConfigName, nameof(hideFFmpegCompile));
                 fhideFFmpegCompile = value;
-                IniProvider.Write(hideFFmpegCompile, ConfigName);
             }
         }
     }
@@ -127,8 +127,8 @@ internal static class Converts {
         get => faudioBitrate;
         set {
             if (faudioBitrate != value) {
+                IniProvider.Write(value, ConfigName, nameof(audioBitrate));
                 faudioBitrate = value;
-                IniProvider.Write(audioBitrate, ConfigName);
             }
         }
     }
@@ -138,8 +138,8 @@ internal static class Converts {
         get => fvideoUseBitrate;
         set {
             if (fvideoUseBitrate != value) {
+                IniProvider.Write(value, ConfigName, nameof(videoUseBitrate));
                 fvideoUseBitrate = value;
-                IniProvider.Write(videoUseBitrate, ConfigName);
             }
         }
     }
@@ -149,8 +149,8 @@ internal static class Converts {
         get => fvideoUsePreset;
         set {
             if (fvideoUsePreset != value) {
+                IniProvider.Write(value, ConfigName, nameof(videoUsePreset));
                 fvideoUsePreset = value;
-                IniProvider.Write(videoUsePreset, ConfigName);
             }
         }
     }
@@ -160,8 +160,8 @@ internal static class Converts {
         get => fvideoUseProfile;
         set {
             if (fvideoUseProfile != value) {
+                IniProvider.Write(value, ConfigName, nameof(videoUseProfile));
                 fvideoUseProfile = value;
-                IniProvider.Write(videoUseProfile, ConfigName);
             }
         }
     }
@@ -171,8 +171,8 @@ internal static class Converts {
         get => fvideoUseCRF;
         set {
             if (fvideoUseCRF != value) {
+                IniProvider.Write(value, ConfigName, nameof(videoUseCRF));
                 fvideoUseCRF = value;
-                IniProvider.Write(videoUseCRF, ConfigName);
             }
         }
     }
@@ -182,8 +182,8 @@ internal static class Converts {
         get => faudioUseBitrate;
         set {
             if (faudioUseBitrate != value) {
+                IniProvider.Write(value, ConfigName, nameof(audioUseBitrate));
                 faudioUseBitrate = value;
-                IniProvider.Write(audioUseBitrate, ConfigName);
             }
         }
     }
@@ -193,8 +193,8 @@ internal static class Converts {
         get => fCloseAfterFinish;
         set {
             if (fCloseAfterFinish != value) {
+                IniProvider.Write(value, ConfigName, nameof(CloseAfterFinish));
                 fCloseAfterFinish = value;
-                IniProvider.Write(CloseAfterFinish, ConfigName);
             }
         }
     }

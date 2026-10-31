@@ -35,7 +35,7 @@ internal static class Formats {
     /// All the known video formats used by ffmpeg, as a single filter.
     /// </summary>
     public static string AllKnownVideoFormats { get; } =
-        "*3gp;*3g2;*.avi;*.flv;*.mkv;*.ogv;*.mov;*.mpeg;*.mpg;*.m2v;*.mp4;*.nut;*.swf;*.webm;*.wmv";
+        "*.3gp;*.3g2;*.avi;*.flv;*.mkv;*.ogv;*.mov;*.mpeg;*.mpg;*.m2v;*.mp4;*.nut;*.swf;*.webm;*.wmv";
 
     /// <summary>
     /// All known audio formats used by ffmpeg, as a filter.
@@ -93,12 +93,10 @@ internal static class Formats {
     /// </summary>
     public static string[] ExtendedAudioFormats { get; } = [
         "aac",
-        "aiff",
         "alac",
         "flac",
         "mp3",
         "m4a",
-        "ogg",
         "opus",
         "vorbis",
         "wav"
@@ -143,7 +141,8 @@ internal static class Formats {
         "64k",
         "32k",
         "16k",
-        "worst"
+        "8k",
+        "4k"
     ];
     public static string[] AudioFormatsArray { get; } = [
         "best",
@@ -176,6 +175,7 @@ internal static class Formats {
     /// Loads the custom formats into memory.
     /// </summary>
     public static void LoadCustomFormats() {
+        CustomFormats = null;
         if (General.extensionsName.Length > 0) {
             string[] Names = General.extensionsName.Split('|');
             string[] Extensions = General.extensionsShort.Split('|');
@@ -183,7 +183,7 @@ internal static class Formats {
             if (MinimumList > 0) {
                 CustomFormats = string.Empty;
                 for (int i = 0; i < MinimumList; i++) {
-                    CustomFormats += $"{Names[i]} (*.{Extensions[i]})|*.{Extensions[i]}";
+                    CustomFormats += $"{(i > 0 ? "|" : string.Empty)}{Names[i]} (*.{Extensions[i]})|*.{Extensions[i]}";
                 }
             }
             else {
@@ -224,32 +224,32 @@ internal static class Formats {
     }
     public static string GetVideoQualityArgsNoSound(VideoQualityType Quality) {
         return Quality switch {
-            VideoQualityType.q4320p60 => "-f \"bestvideo[height<=4320][fps>=48]/best\"",
-            VideoQualityType.q4320p => "-f \"bestvideo[height<=4320][fps<=32]/best\"",
-            VideoQualityType.q2160p60 => "-f \"bestvideo[height<=2160][fps>=48]/best\"",
-            VideoQualityType.q2160p => "-f \"bestvideo[height<=2160][fps<=32]/best\"",
-            VideoQualityType.q1440p60 => "-f \"bestvideo[height<=1440][fps>=48]/best\"",
-            VideoQualityType.q1440p => "-f \"bestvideo[height<=1440][fps<=32]/best\"",
-            VideoQualityType.q1080p60 => "-f \"bestvideo[height<=1080][fps>=48]/best\"",
-            VideoQualityType.q1080p => "-f \"bestvideo[height<=1080][fps<=32]/best\"",
-            VideoQualityType.q720p60 => "-f \"bestvideo[height<=720][fps>=48]/best\"",
-            VideoQualityType.q720p => "-f \"bestvideo[height<=720][fps<=32]/best\"",
-            VideoQualityType.q480p => "-f \"bestvideo[height<=480]/best\"",
-            VideoQualityType.q360p => "-f \"bestvideo[height<=360]/best\"",
-            VideoQualityType.q240p => "-f \"bestvideo[height<=240]/best\"",
-            VideoQualityType.q144p => "-f \"bestvideo[height<=144]/best\"",
+            VideoQualityType.q4320p60 => "-f \"bestvideo[height<=4320][fps>=48]/bestvideo\"",
+            VideoQualityType.q4320p => "-f \"bestvideo[height<=4320][fps<=32]/bestvideo\"",
+            VideoQualityType.q2160p60 => "-f \"bestvideo[height<=2160][fps>=48]/bestvideo\"",
+            VideoQualityType.q2160p => "-f \"bestvideo[height<=2160][fps<=32]/bestvideo\"",
+            VideoQualityType.q1440p60 => "-f \"bestvideo[height<=1440][fps>=48]/bestvideo\"",
+            VideoQualityType.q1440p => "-f \"bestvideo[height<=1440][fps<=32]/bestvideo\"",
+            VideoQualityType.q1080p60 => "-f \"bestvideo[height<=1080][fps>=48]/bestvideo\"",
+            VideoQualityType.q1080p => "-f \"bestvideo[height<=1080][fps<=32]/bestvideo\"",
+            VideoQualityType.q720p60 => "-f \"bestvideo[height<=720][fps>=48]/bestvideo\"",
+            VideoQualityType.q720p => "-f \"bestvideo[height<=720][fps<=32]/bestvideo\"",
+            VideoQualityType.q480p => "-f \"bestvideo[height<=480]/bestvideo\"",
+            VideoQualityType.q360p => "-f \"bestvideo[height<=360]/bestvideo\"",
+            VideoQualityType.q240p => "-f \"bestvideo[height<=240]/bestvideo\"",
+            VideoQualityType.q144p => "-f \"bestvideo[height<=144]/bestvideo\"",
             VideoQualityType.worst => "-f \"worstvideo\"",
             _ => "-f \"bestvideo\"",
         };
     }
-    public static string GetVideoRecodeInfo(VideoFormatType Format) {
+    public static string GetVideoRecodeInfo(VideoFormatType Format, bool SupportsRemux) {
         return Format switch {
             VideoFormatType.avi => "--recode-video avi",
             VideoFormatType.flv => "--recode-video flv",
-            VideoFormatType.mkv => "--merge-output-format mkv",
+            VideoFormatType.mkv => SupportsRemux ? "--remux-video mkv" : "--merge-output-format mkv",
             VideoFormatType.mp4 => "--recode-video mp4",
             VideoFormatType.ogg => "--recode-video ogg",
-            VideoFormatType.webm => "--merge-output-format webm",
+            VideoFormatType.webm => SupportsRemux ? "--remux-video webm" : "--merge-output-format webm",
             _ => string.Empty,
         };
     }

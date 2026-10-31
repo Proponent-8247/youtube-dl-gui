@@ -22,7 +22,7 @@ internal static class WebDecompress {
         if (input.CanSeek)
             input.Position = 0;
         using DeflateStream DecompressorStream = new(input, CompressionMode.Decompress);
-        await DecompressorStream.CopyToAsync(input);
+        await DecompressorStream.CopyToAsync(Destination);
 
         Destination.Close();
         byte[] Bytes = Destination.ToArray();

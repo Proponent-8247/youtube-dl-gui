@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Management;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Security.Principal;
@@ -15,7 +16,7 @@ internal static class Program {
     /// <summary>
     /// Gets the curent version of the program.
     /// </summary>
-    public static Version CurrentVersion { get; } = new(3, 0, 0, 2);
+    public static Version CurrentVersion { get; } = new(3, 3, 0, 2);
     /// <summary>
     /// Gets whether the program is running in debug mode.
     /// </summary>
@@ -58,6 +59,9 @@ internal static class Program {
     /// The list of running downloads or conversions.
     /// </summary>
     internal static QueueList<Form> RunningActions { get; } = [];
+    private static int BackgroundActionCount;
+    internal static bool HasRunningActions =>
+        !RunningActions.IsEmpty || Volatile.Read(ref BackgroundActionCount) > 0;
     /// <summary>
     /// The image list used for batch actions.
     /// </summary>
@@ -84,10 +88,29 @@ internal static class Program {
     /// </summary>
     internal static ManagedHttpClient HttpClient { get; private set; } = null!;
     internal static bool UpdaterEnabled { get; private set; } = true;
+#if DEBUG
+    internal static bool AuditUpdaterIpcMode { get; private set; }
+    internal static string AuditUpdaterIpcScenario => Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_SCENARIO") ?? string.Empty;
+    internal static void WriteAuditUpdaterIpcResult(string Value) {
+        string? PathValue = Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_MAIN_RESULT");
+        if (string.IsNullOrWhiteSpace(PathValue)) return;
+        try { File.AppendAllText(PathValue, Value + Environment.NewLine); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+#endif
 
     [STAThread]
     private static int Main(string[] args) {
+        if (args.Length == 1 && args[0].TrimStart('-').Equals("installprotocol", StringComparison.OrdinalIgnoreCase)) {
+            IsAdmin = new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
+            return SystemRegistry.SetRegistry();
+        }
+
 #if DEBUG
+        if (args.Length == 1 && args[0].Equals("--audit-updater-ipc", StringComparison.Ordinal)) {
+            return RunAuditUpdaterIpc();
+        }
         DebugMode = true;
         Instance = new(true, ProgramGUID);
 #else
@@ -95,13 +118,17 @@ internal static class Program {
             nint hwnd = CopyData.FindWindow(null, ProgramGUID);
 
             if (hwnd != 0) {
-                List<(ArgumentType Type, string Data)> Arguments;
+                List<(ArgumentType Type, string? Data)> Arguments;
                 if (args.Length > 0 && (Arguments = youtube_dl_gui.Arguments.RetrieveArguments(args)).Count > 0) {
                     for (int i = 0; i < Arguments.Count; i++) {
+                        if (Arguments[i].Data is not string Data) {
+                            continue;
+                        }
+
                         nint valPointer = 0;
                         nint cdsPointer = 0;
                         try {
-                            byte[] bytes = Encoding.Unicode.GetBytes(Arguments[i].Data);
+                            byte[] bytes = Encoding.Unicode.GetBytes(Data);
                             valPointer = Marshal.AllocHGlobal(bytes.Length);
                             Marshal.Copy(bytes, 0, valPointer, bytes.Length);
 
@@ -112,11 +139,14 @@ internal static class Program {
                             };
 
                             cdsPointer = CopyData.NintAlloc(copyData);
-                            CopyData.SendMessage(
+                            if (!CopyData.TrySendMessage(
                                 hWnd: hwnd,
                                 Msg: CopyData.WM_COPYDATA,
                                 wParam: 0x1,
-                                lParam: cdsPointer);
+                                lParam: cdsPointer,
+                                TimeoutMilliseconds: 2000)) {
+                                Log.Write("Timed out while forwarding an argument to the existing application instance.");
+                            }
 
                             // wParam should be the handle to the Window that sent the message.
                             // Since WM_COPYDATA is overridden, I can DO WHAT I WANT.
@@ -138,7 +168,9 @@ internal static class Program {
                         }
                     }
                 }
-                else CopyData.SendMessage(hwnd, CopyData.WM_SHOWFORM, 0, 0);
+                else if (!CopyData.TrySendMessage(hwnd, CopyData.WM_SHOWFORM, 0, 0, 2000)) {
+                    Log.Write("Timed out while asking the existing application instance to show itself.");
+                }
             }
 
             return 1152;
@@ -163,48 +195,9 @@ internal static class Program {
         HttpClient = new();
 
         if (Initialization.firstTime) {
-            Log.Write("Initiating first time setup.");
-            Language.LoadInternalEnglish();
-
-            // Select a language first
-            using frmLanguage LangPicker = new();
-            if (LangPicker.ShowDialog() != DialogResult.OK) {
+            if (!RunFirstTimeSetup()) {
                 return 1;
             }
-
-            if (Log.MessageBox(Language.dlgFirstTimeInitialMessage, MessageBoxButtons.YesNo) != DialogResult.Yes) {
-                return 1;
-            }
-
-            Initialization.firstTime = false;
-            Downloads.downloadPath =
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\\Downloads\\youtube-dl";
-
-            if (Log.MessageBox(Language.dlgFirstTimeDownloadFolder, MessageBoxButtons.YesNo) == DialogResult.Yes) {
-                using BetterFolderBrowserNS.BetterFolderBrowser fbd = new() {
-                    RootFolder = Downloads.downloadPath,
-                    Title = Language.dlgFindDownloadFolder
-                };
-
-                if (fbd.ShowDialog() == DialogResult.OK) {
-                    Downloads.downloadPath = fbd.SelectedPath;
-                }
-            }
-
-            if (!Verification.YoutubeDlAvailable && Log.MessageBox(Language.dlgFirstTimeDownloadYoutubeDl, MessageBoxButtons.YesNo) == DialogResult.Yes) {
-                Task<bool> UpdateCheckTask = Updater.CheckForYoutubeDlUpdate();
-                UpdateCheckTask.Wait();
-
-                if (UpdateCheckTask.Result) {
-                    Updater.UpdateYoutubeDl(false, null);
-                }
-            }
-
-            if (!Verification.FfmpegAvailable && Log.MessageBox(Language.dlgFirstTimeDownloadFfmpeg, MessageBoxButtons.YesNo) == DialogResult.Yes) {
-                Updater.UpdateFfmpeg(null).Wait();
-            }
-
-            Log.Write("First time setup has concluded.");
         }
         else {
             Language.LoadLanguage($"{Environment.CurrentDirectory}\\lang\\{Initialization.LanguageFile}.ini");
@@ -245,7 +238,7 @@ internal static class Program {
         (MainForm = new frmMain()).ShowDialog();
         MainForm = null;
 
-        if (RunningActions.Count > 0) {
+        if (HasRunningActions) {
             AwaitActions();
         }
 
@@ -254,35 +247,138 @@ internal static class Program {
         return ExitCode;
     }
 
+#if DEBUG
+    private static int RunAuditUpdaterIpc() {
+        DebugMode = true;
+        AuditUpdaterIpcMode = true;
+        ExitCode = 1;
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        Language.LoadInternalEnglish();
+        if (Environment.CurrentDirectory != ProgramPath) Environment.CurrentDirectory = ProgramPath;
+
+        string Hash = Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_HASH") ?? string.Empty;
+        string UpdaterPath = Environment.GetEnvironmentVariable("YTDL_AUDIT_UPDATER_PATH") ?? string.Empty;
+        if (Hash.Length != 64 || !File.Exists(UpdaterPath)) {
+            WriteAuditUpdaterIpcResult("setup-error=1");
+            return ExitCode;
+        }
+
+        WriteAuditUpdaterIpcResult($"app-ptr-size={IntPtr.Size}");
+        WriteAuditUpdaterIpcResult($"app-update-size={Marshal.SizeOf<UpdateData>()}");
+        WriteAuditUpdaterIpcResult($"app-copydata-size={Marshal.SizeOf<CopyDataStruct>()}");
+
+        QueueHandler = new();
+        QueueHandler.Shown += (_, _) => {
+            try {
+                int UpdaterProcessId = Updater.BeginAuditUpdate(Hash, UpdaterPath);
+                WriteAuditUpdaterIpcResult($"updater-pid={UpdaterProcessId}");
+            }
+            catch (Exception ex) {
+                WriteAuditUpdaterIpcResult($"launch-error={ex.GetType().Name}");
+                QueueHandler.Dispose();
+            }
+        };
+        Application.Run(QueueHandler);
+        return ExitCode;
+    }
+#endif
+
+    private static bool RunFirstTimeSetup() {
+        using ApplicationContext SetupContext = new();
+        bool SetupSucceeded = false;
+        ExceptionDispatchInfo? SetupException = null;
+
+        EventHandler? BeginSetup = null;
+        BeginSetup = async (_, _) => {
+            Application.Idle -= BeginSetup;
+            try {
+                SetupSucceeded = await FirstTimeSetup();
+            }
+            catch (Exception ex) {
+                SetupException = ExceptionDispatchInfo.Capture(ex);
+            }
+            finally {
+                SetupContext.ExitThread();
+            }
+        };
+
+        Application.Idle += BeginSetup;
+        Application.Run(SetupContext);
+        SetupException?.Throw();
+        return SetupSucceeded;
+    }
+
+    private static async Task<bool> FirstTimeSetup() {
+        Log.Write("Initiating first time setup.");
+        Language.LoadInternalEnglish();
+
+        // Select a language first
+        using frmLanguage LangPicker = new();
+        if (LangPicker.ShowDialog() != DialogResult.OK) {
+            return false;
+        }
+
+        if (Log.MessageBox(Language.dlgFirstTimeInitialMessage, MessageBoxButtons.YesNo) != DialogResult.Yes) {
+            return false;
+        }
+
+        Initialization.firstTime = false;
+        Downloads.downloadPath = Downloads.DefaultDownloadPath;
+
+        if (Log.MessageBox(Language.dlgFirstTimeDownloadFolder, MessageBoxButtons.YesNo) == DialogResult.Yes) {
+            using BetterFolderBrowserNS.BetterFolderBrowser fbd = new() {
+                RootFolder = Downloads.downloadPath,
+                Title = Language.dlgFindDownloadFolder
+            };
+
+            if (fbd.ShowDialog() == DialogResult.OK) {
+                Downloads.downloadPath = fbd.SelectedPath;
+            }
+        }
+
+        if (!Verification.YoutubeDlAvailable && Log.MessageBox(Language.dlgFirstTimeDownloadYoutubeDl, MessageBoxButtons.YesNo) == DialogResult.Yes) {
+            if (await Updater.CheckForYoutubeDlUpdate()) {
+                Updater.UpdateYoutubeDl(false, null);
+            }
+        }
+
+        if (!Verification.FfmpegAvailable && Log.MessageBox(Language.dlgFirstTimeDownloadFfmpeg, MessageBoxButtons.YesNo) == DialogResult.Yes) {
+            await Updater.UpdateFfmpeg(null);
+        }
+
+        Log.Write("First time setup has concluded.");
+        return true;
+    }
+
     private static void AwaitActions() {
         QueueHandler.AwaitExit();
         Application.Run(QueueHandler);
     }
 
     internal static void KillProcessTree(uint ProcessId) {
-        ManagementObjectSearcher searcher = new("SELECT * FROM Win32_Process WHERE ParentProcessId=" + ProcessId);
-        ManagementObjectCollection collection = searcher.Get();
-        if (collection.Count > 0) {
-            foreach (var proc in collection) {
-                uint id = (uint)proc["ProcessID"];
-                if ((int)id != ProcessId) {
-                    try {
-                        KillProcessTree(id);
-                        Process procInstance = Process.GetProcessById((int)id);
-                        if (!procInstance.HasExited)
-                            procInstance.Kill();
-                    }
-                    //catch (ArgumentException) {
-                    //    // Not running?
-                    //}
-                    //catch (System.ComponentModel.Win32Exception w32) {
-                    //    //w32.NativeErrorCode
-                    //}
-                    catch (Exception ex) {
-                        Log.ReportException(ex);
+        try {
+            using ManagementObjectSearcher searcher = new("SELECT * FROM Win32_Process WHERE ParentProcessId=" + ProcessId);
+            using ManagementObjectCollection collection = searcher.Get();
+            if (collection.Count > 0) {
+                foreach (var proc in collection) {
+                    uint id = (uint)proc["ProcessID"];
+                    if ((int)id != ProcessId) {
+                        try {
+                            KillProcessTree(id);
+                            using Process procInstance = Process.GetProcessById((int)id);
+                            if (!procInstance.HasExited)
+                                procInstance.Kill();
+                        }
+                        catch (Exception ex) {
+                            Log.ReportException(ex);
+                        }
                     }
                 }
             }
+        }
+        catch (Exception ex) {
+            Log.ReportException(ex);
         }
     }
 
@@ -297,33 +393,80 @@ internal static class Program {
                 }
 
                 PassedCount++;
+                AuthenticationDetails? Auth = null;
+                if (Arg.Type == ArgumentType.DownloadAuthenticateVideo || Arg.Type == ArgumentType.DownloadAuthenticateAudio || Arg.Type == ArgumentType.DownloadAuthenticateCustom) {
+                    Auth = AuthenticationDetails.GetAuthentication();
+                    if (Auth is null) {
+                        PassedCount--;
+                        continue;
+                    }
+                }
+
+                if (Arg.Type == ArgumentType.DownloadArchived) {
+                    string ArchivedUrl = Arg.Data;
+                    if (DownloadHelper.IsYoutubeLink(ArchivedUrl)) {
+                        Log.Write("YouTube link given for archival download.");
+                        ArchivedUrl = DownloadHelper.GetYoutubeVideoKey(ArchivedUrl);
+                    }
+
+                    if (!DownloadHelper.IsYoutubeKey(ArchivedUrl)) {
+                        Log.Write("The YouTube key given for archival download is not a valid video key.");
+                        PassedCount--;
+                        continue;
+                    }
+
+                    if (Downloads.ExtendedDownloaderPreferExtendedForm) {
+                        new frmExtendedDownloader($"ytarchive:{ArchivedUrl}", true).Show();
+                    }
+                    else {
+                        DownloadInfo NewArchived = new($"https://archived.youtube.com/watch?v={ArchivedUrl}") {
+                            CustomArguments = $"ytarchive:{ArchivedUrl}",
+                            MostlyCustomArguments = true,
+                            Type = DownloadType.Custom
+                        };
+                        new frmDownloader(NewArchived).Show();
+                    }
+                    continue;
+                }
+
                 if (Downloads.ExtendedDownloaderPreferExtendedForm) {
-                    new frmExtendedDownloader(Arg.Data, false).Show();
+                    new frmExtendedDownloader(Arg.Data, Arg.Type is ArgumentType.DownloadCustom or ArgumentType.DownloadAuthenticateCustom ? youtube_dl_gui.CustomArguments.LastUsedYtdlArgument : null, false, Auth, Arg.Type).Show();
                     continue;
                 }
 
                 // TODO: Implement the rest of the argument types
                 switch (Arg.Type) {
-                    case ArgumentType.DownloadVideo: {
+                    case ArgumentType.DownloadVideo:
+                    case ArgumentType.DownloadAuthenticateVideo: {
                         DownloadInfo NewVideo = new(Arg.Data) {
                             Type = DownloadType.Video,
                             VideoQuality = (VideoQualityType)Saved.videoQuality,
+                            VideoFormat = (VideoFormatType)Saved.VideoFormat,
+                            SkipAudioForVideos = !Downloads.VideoDownloadSound,
+                            Authentication = Auth,
                         };
                         new frmDownloader(NewVideo).Show();
                     } break;
-                    case ArgumentType.DownloadAudio: {
+                    case ArgumentType.DownloadAudio:
+                    case ArgumentType.DownloadAuthenticateAudio: {
                         DownloadInfo NewAudio = new(Arg.Data) {
                             Type = DownloadType.Audio,
+                            UseVBR = Downloads.AudioDownloadAsVBR,
+                            AudioFormat = (AudioFormatType)Saved.AudioFormat,
+                            Authentication = Auth,
                         };
                         if (Downloads.AudioDownloadAsVBR)
-                            NewAudio.AudioVBRQuality = (AudioVBRQualityType)Saved.audioQuality;
+                            NewAudio.AudioVBRQuality = (AudioVBRQualityType)Saved.AudioVBRQuality;
                         else
                             NewAudio.AudioCBRQuality = (AudioCBRQualityType)Saved.audioQuality;
                         new frmDownloader(NewAudio).Show();
                     } break;
-                    case ArgumentType.DownloadCustom: {
+                    case ArgumentType.DownloadCustom:
+                    case ArgumentType.DownloadAuthenticateCustom: {
                         DownloadInfo NewCustom = new(Arg.Data) {
                             Type = DownloadType.Custom,
+                            CustomArguments = youtube_dl_gui.CustomArguments.LastUsedYtdlArgument,
+                            Authentication = Auth,
                         };
                         new frmDownloader(NewCustom).Show();
                     } break;
@@ -337,8 +480,30 @@ internal static class Program {
         return false;
     }
 
+    internal static bool IsValidDownloadCopyData(CopyDataStruct Data) {
+        long Kind = (long)Data.dwData;
+        return Data.lpData != IntPtr.Zero && Data.cbData > 0 && Data.cbData <= 1024 * 1024
+            && (Data.cbData & 1) == 0
+            && Kind >= (long)ArgumentType.DownloadVideo && Kind <= (long)ArgumentType.DownloadArchived;
+    }
+
+    internal static bool ShouldSkipVideoAudio(ArgumentType Type) =>
+        Type == ArgumentType.DownloadVideoNoSound ||
+        Type == ArgumentType.DownloadAuthenticateVideoNoSound ||
+        ((Type == ArgumentType.DownloadVideo || Type == ArgumentType.DownloadAuthenticateVideo) && !Downloads.VideoDownloadSound);
+
     internal static void ParseCopyData(ref Message m, string CustomArguments) {
+        if (m.LParam == IntPtr.Zero) {
+            m.Result = IntPtr.Zero;
+            return;
+        }
+
         CopyDataStruct cds = Marshal.PtrToStructure<CopyDataStruct>(m.LParam);
+        if (!IsValidDownloadCopyData(cds)) {
+            m.Result = IntPtr.Zero;
+            return;
+        }
+
         byte[] bytes = new byte[cds.cbData];
         Marshal.Copy(cds.lpData, bytes, 0, cds.cbData);
         string URL = Encoding.Unicode.GetString(bytes);
@@ -349,7 +514,7 @@ internal static class Program {
             case ArgumentType.DownloadVideoNoSound:
             case ArgumentType.DownloadAuthenticateVideoNoSound: {
                 AuthenticationDetails? Auth = null;
-                if (Type == ArgumentType.DownloadAuthenticateVideo) {
+                if (Type == ArgumentType.DownloadAuthenticateVideo || Type == ArgumentType.DownloadAuthenticateVideoNoSound) {
                     Auth = AuthenticationDetails.GetAuthentication();
                     if (Auth is null) {
                         Log.Write("Authentication required, but the user cancelled the dialog.");
@@ -363,15 +528,16 @@ internal static class Program {
                         URL: URL,
                         CustomArguments: CustomArguments,
                         Archived: false,
-                        Auth: Auth);
+                        Auth: Auth,
+                        InitialArgumentType: Type);
                 }
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {
                         Type = DownloadType.Video,
                         VideoQuality = (VideoQualityType)Saved.videoQuality,
                         VideoFormat = (VideoFormatType)Saved.VideoFormat,
-                        SkipAudioForVideos = Type == ArgumentType.DownloadVideoNoSound || Type == ArgumentType.DownloadAuthenticateVideoNoSound,
-                        Arguments = CustomArguments,
+                        SkipAudioForVideos = ShouldSkipVideoAudio(Type),
+                        CustomArguments = CustomArguments,
                         Authentication = Auth,
                     };
                     DownloadForm = new frmDownloader(Info: NewInfo);
@@ -396,14 +562,15 @@ internal static class Program {
                         URL: URL,
                         CustomArguments: CustomArguments,
                         Archived: false,
-                        Auth: Auth);
+                        Auth: Auth,
+                        InitialArgumentType: Type);
                 }
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {
                         Type = DownloadType.Audio,
                         UseVBR = Downloads.AudioDownloadAsVBR,
                         AudioFormat = (AudioFormatType)Saved.AudioFormat,
-                        Arguments = CustomArguments,
+                        CustomArguments = CustomArguments,
                         Authentication = Auth,
                     };
 
@@ -419,6 +586,7 @@ internal static class Program {
 
             case ArgumentType.DownloadCustom:
             case ArgumentType.DownloadAuthenticateCustom: {
+                CustomArguments = CustomArguments.IsNullEmptyWhitespace() ? youtube_dl_gui.CustomArguments.LastUsedYtdlArgument : CustomArguments;
                 AuthenticationDetails? Auth = null;
                 if (Type == ArgumentType.DownloadAuthenticateCustom) {
                     Auth = AuthenticationDetails.GetAuthentication();
@@ -434,12 +602,13 @@ internal static class Program {
                         URL: URL,
                         CustomArguments: CustomArguments,
                         Archived: false,
-                        Auth: Auth);
+                        Auth: Auth,
+                        InitialArgumentType: Type);
                 }
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {
                         Type = DownloadType.Custom,
-                        Arguments = CustomArguments,
+                        CustomArguments = CustomArguments,
                         Authentication = Auth,
                     };
                     DownloadForm = new frmDownloader(Info: NewInfo);
@@ -448,7 +617,29 @@ internal static class Program {
             } break;
 
             case ArgumentType.DownloadArchived: {
-                // TODO: Implement download archived argument
+                if (DownloadHelper.IsYoutubeLink(URL)) {
+                    Log.Write("YouTube link given for archival download.");
+                    URL = DownloadHelper.GetYoutubeVideoKey(URL);
+                }
+
+                if (!DownloadHelper.IsYoutubeKey(URL)) {
+                    Log.Write("The YouTube key given for archival download is not a valid video key.");
+                    return;
+                }
+
+                Form DownloadForm;
+                if (Downloads.ExtendedDownloaderPreferExtendedForm) {
+                    DownloadForm = new frmExtendedDownloader($"ytarchive:{URL}", true);
+                }
+                else {
+                    DownloadInfo NewInfo = new($"https://archived.youtube.com/watch?v={URL}") {
+                        CustomArguments = $"ytarchive:{URL}",
+                        MostlyCustomArguments = true,
+                        Type = DownloadType.Custom
+                    };
+                    DownloadForm = new frmDownloader(NewInfo);
+                }
+                DownloadForm.Show();
             } break;
         }
     }
@@ -477,7 +668,8 @@ internal static class Program {
                         URL: URL,
                         CustomArguments: CustomArguments,
                         Archived: false,
-                        Auth: Auth);
+                        Auth: Auth,
+                        InitialArgumentType: Type);
                 }
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {
@@ -485,7 +677,7 @@ internal static class Program {
                         VideoQuality = (VideoQualityType)Saved.videoQuality,
                         VideoFormat = (VideoFormatType)Saved.VideoFormat,
                         SkipAudioForVideos = !Downloads.VideoDownloadSound,
-                        Arguments = CustomArguments,
+                        CustomArguments = CustomArguments,
                         Authentication = Auth,
                     };
                     DownloadForm = new frmDownloader(Info: NewInfo);
@@ -510,14 +702,15 @@ internal static class Program {
                         URL: URL,
                         CustomArguments: CustomArguments,
                         Archived: false,
-                        Auth: Auth);
+                        Auth: Auth,
+                        InitialArgumentType: Type);
                 }
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {
                         Type = DownloadType.Audio,
                         UseVBR = Downloads.AudioDownloadAsVBR,
                         AudioFormat = (AudioFormatType)Saved.AudioFormat,
-                        Arguments = CustomArguments,
+                        CustomArguments = CustomArguments,
                         Authentication = Auth,
                     };
 
@@ -533,6 +726,7 @@ internal static class Program {
 
             case ArgumentType.DownloadCustom:
             case ArgumentType.DownloadAuthenticateCustom: {
+                CustomArguments = CustomArguments.IsNullEmptyWhitespace() ? youtube_dl_gui.CustomArguments.LastUsedYtdlArgument : CustomArguments;
                 AuthenticationDetails? Auth = null;
                 if (Type == ArgumentType.DownloadAuthenticateCustom) {
                     Auth = AuthenticationDetails.GetAuthentication();
@@ -548,12 +742,13 @@ internal static class Program {
                         URL: URL,
                         CustomArguments: CustomArguments,
                         Archived: false,
-                        Auth: Auth);
+                        Auth: Auth,
+                        InitialArgumentType: Type);
                 }
                 else {
                     DownloadInfo NewInfo = new(URL: URL) {
                         Type = DownloadType.Custom,
-                        Arguments = CustomArguments,
+                        CustomArguments = CustomArguments,
                     Authentication = Auth,
                     };
                     DownloadForm = new frmDownloader(Info: NewInfo);
@@ -562,7 +757,7 @@ internal static class Program {
             } break;
 
             case ArgumentType.DownloadArchived: {
-                if (!DownloadHelper.IsYoutubeLink(URL)) {
+                if (DownloadHelper.IsYoutubeLink(URL)) {
                     Log.Write("YouTube link given for archival download.");
                     URL = DownloadHelper.GetYoutubeVideoKey(URL);
                 }
@@ -578,7 +773,7 @@ internal static class Program {
                 }
                 else {
                     DownloadInfo NewInfo = new($"https://archived.youtube.com/watch?v={URL}") {
-                        Arguments = $"ytarchive:{URL}",
+                        CustomArguments = $"ytarchive:{URL}",
                         MostlyCustomArguments = true,
                         Type = DownloadType.Custom
                     };
@@ -586,6 +781,44 @@ internal static class Program {
                 }
                 DownloadForm.Show();
             } break;
+        }
+    }
+
+    private const string UpstreamProjectUrl = "https://github.com/murrty/youtube-dl-gui";
+
+    internal static string NormalizeApplicationProjectUrl(string Value) {
+        if (Value.StartsWith(UpstreamProjectUrl, StringComparison.OrdinalIgnoreCase)) {
+            return GithubLinks.ApplicationRepositoryUrl + Value.Substring(UpstreamProjectUrl.Length);
+        }
+        return Value;
+    }
+
+    internal static bool IsWebUrl(string? Value) {
+        if (!Uri.TryCreate(Value, UriKind.Absolute, out Uri? ParsedUri)) {
+            return false;
+        }
+        return ParsedUri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            || ParsedUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool TryOpenWebUrl(string? Value) {
+        if (Value is null) {
+            return false;
+        }
+        Value = NormalizeApplicationProjectUrl(Value);
+        if (!IsWebUrl(Value)) {
+            return false;
+        }
+        try {
+            using Process? Browser = Process.Start(new ProcessStartInfo(Value) { UseShellExecute = true });
+            return Browser is not null;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception
+                                or InvalidOperationException
+                                or NotSupportedException
+                                or ArgumentException) {
+            Log.Write($"Unable to open a web link in the default browser: {ex.Message}");
+            return false;
         }
     }
 
@@ -598,6 +831,18 @@ internal static class Program {
     }
 
     internal static void KillForUpdate() {
+#if DEBUG
+        if (AuditUpdaterIpcMode) {
+            WriteAuditUpdaterIpcResult("ack=1");
+            if (!AuditUpdaterIpcScenario.Equals("cancel", StringComparison.OrdinalIgnoreCase)) {
+                ExitCode = 0;
+                if (QueueHandler is not null && QueueHandler.IsHandleCreated && !QueueHandler.IsDisposed) {
+                    QueueHandler.BeginInvoke((Action)QueueHandler.Dispose);
+                }
+            }
+            return;
+        }
+#endif
         // Form diposes
         // Any downloads/conversion/merges in progress will finish before fully closing for updates.
         MainForm?.RemoveTrayIcon();
@@ -609,32 +854,27 @@ internal static class Program {
     internal static void SetTls() {
         try { //try TLS 1.3
             System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)12288
-                                                            | System.Net.SecurityProtocolType.Tls12
-                                                            | System.Net.SecurityProtocolType.Tls11
-                                                            |  System.Net.SecurityProtocolType.Tls;
-            Log.Write("TLS 1.3 will be used.");
+                                                            | System.Net.SecurityProtocolType.Tls12;
+            Log.Write("TLS 1.3 and TLS 1.2 are enabled.");
         }
         catch (NotSupportedException) {
             try { //try TLS 1.2
-                System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls12
-                                                                | System.Net.SecurityProtocolType.Tls11
-                                                                |  System.Net.SecurityProtocolType.Tls;
+                System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls12;
                 Log.Write("TLS 1.2 will be used.");
             }
             catch (NotSupportedException) {
                 UpdaterEnabled = false;
-
-                try { //try TLS 1.1
-                    System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls11
-                                                                    |  System.Net.SecurityProtocolType.Tls;
-                    Log.Write("TLS 1.1 will be used, Github updating may be affected.");
-                }
-                catch (NotSupportedException) { //TLS 1.0
-                    System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls;
-                    Log.Write("TLS 1.0 will be used, Github updating may be affected.");
-                }
+                Log.Write("TLS 1.2+ is unavailable; Github updating is disabled.");
             }
         }
+    }
+
+    internal static void BeginBackgroundAction() =>
+        Interlocked.Increment(ref BackgroundActionCount);
+
+    internal static void EndBackgroundAction() {
+        Interlocked.Decrement(ref BackgroundActionCount);
+        QueueHandler?.CheckExit();
     }
 
     internal static void AddProcessingForm(Form form) {

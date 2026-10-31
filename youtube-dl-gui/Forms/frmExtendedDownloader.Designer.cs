@@ -1359,7 +1359,7 @@
             // 
             this.txtQueueLink.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtQueueLink.ButtonAlignment = murrty.controls.ButtonAlignment.Left;
+            this.txtQueueLink.ButtonAlignment = murrty.controls.ButtonAlignment.Right;
             this.txtQueueLink.ButtonCursor = System.Windows.Forms.Cursors.Default;
             this.txtQueueLink.ButtonFont = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtQueueLink.ButtonImageIndex = -1;

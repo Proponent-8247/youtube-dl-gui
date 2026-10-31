@@ -4,13 +4,18 @@ namespace youtube_dl_gui;
 using System.IO;
 using System.Diagnostics;
 using System.Runtime.Serialization;
+using System.Threading;
+using murrty.controls;
 
 /// <summary>
 /// Represents the root of output json data from ffprobe
 /// </summary>
 [DataContract]
 public sealed class FfprobeData {
-    public static FfprobeData? GenerateData(string MediaFile, out string? RetrievedData) {
+    public static FfprobeData? GenerateData(string MediaFile, out string? RetrievedData) =>
+        GenerateData(MediaFile, CancellationToken.None, out RetrievedData);
+
+    public static FfprobeData? GenerateData(string MediaFile, CancellationToken Cancellation, out string? RetrievedData) {
         RetrievedData = null;
         if (MediaFile.IsNullEmptyWhitespace() || !File.Exists(MediaFile)) {
             return null;
@@ -23,46 +28,25 @@ public sealed class FfprobeData {
             }
         }
 
-        Process Enumeration = new() {
-            StartInfo = new() {
-                Arguments = $"-v quiet -print_format json -show_format -show_streams \"{MediaFile}\"",
-                FileName = Verification.FFprobePath,
-                CreateNoWindow = true,
-                RedirectStandardError = true,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                StandardErrorEncoding = Encoding.UTF8, //Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage),
-                StandardOutputEncoding = Encoding.UTF8, //Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage),
-                WindowStyle = ProcessWindowStyle.Hidden,
-            }
-        };
+        OwnedProcess.Result Result = OwnedProcess.Run(new ProcessStartInfo(Verification.FFprobePath) {
+            Arguments = "-v quiet -print_format json -show_format -show_streams -i " + ArgumentList.EscapeArgument(MediaFile),
+            WindowStyle = ProcessWindowStyle.Hidden,
+        }, Cancellation);
 
-        StringBuilder Output = new(string.Empty);
-        StringBuilder Error = new(string.Empty);
-        Enumeration.OutputDataReceived += (s, e) => Output.Append(e.Data);
-        Enumeration.ErrorDataReceived += (s, e) => Error.Append(e.Data);
-        Enumeration.Start();
-        Enumeration.BeginOutputReadLine();
-        Enumeration.BeginErrorReadLine();
-        Enumeration.WaitForExit();
-
-        if (Error.Length > 0) {
-            Log.Write(Error.ToString());
+        if (Result.StandardError.Length > 0) {
+            Log.Write(Result.StandardError);
         }
-
-        if (Output.Length < 1) {
+        if (Result.StandardOutput.Length < 1) {
             return null;
         }
-
-        RetrievedData = Output.ToString();
+        RetrievedData = Result.StandardOutput;
         FfprobeData? Data = null;
 
         try {
             Data = RetrievedData.JsonDeserialize<FfprobeData>();
         }
         catch (Exception ex) {
-            Log.ReportException(ex, Output.ToString());
+            Log.ReportException(ex, RetrievedData);
             Data = null;
         }
 

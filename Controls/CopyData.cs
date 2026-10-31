@@ -62,7 +62,7 @@ internal static class CopyData {
     /// <returns>A pointer address to the structure data in unmanaged memory.</returns>
     public static nint NintAlloc<StructVal>(StructVal Structure) {
         nint PointerAddress = Marshal.AllocHGlobal(Marshal.SizeOf(Structure));
-        Marshal.StructureToPtr(Structure, PointerAddress, true);
+        Marshal.StructureToPtr(Structure, PointerAddress, false);
         return PointerAddress;
     }
 
@@ -114,6 +114,9 @@ internal static class CopyData {
     /// <param name="Data">The updater data struct that will be sent.</param>
     /// <returns>A byte array for the update info.</returns>
     public static byte[] GetUpdateBytes(UpdateData Data) {
+        if (Data.UpdateHash is null || Data.UpdateHash.Length != 64) {
+            throw new ArgumentException("The update packet requires a 64-character SHA-256 hash.", nameof(Data));
+        }
         byte[] FileNameBytes = Encoding.UTF8.GetBytes(Data.FileName);
         byte[] HashBytes = Encoding.ASCII.GetBytes(Data.UpdateHash);
         byte[] VersionBytes = Data.NewVersion.ToArray();
@@ -147,9 +150,13 @@ internal static class CopyData {
     /// <param name="LParam">Pointer to the copy data struct.</param>
     /// <returns>An updater data struct value that represents the bytes received.</returns>
     public static UpdateData GetUpdateData(nint LParam) {
+        if (LParam == IntPtr.Zero) throw new ArgumentNullException(nameof(LParam));
         CopyDataStruct cds = Marshal.PtrToStructure<CopyDataStruct>(LParam);
-        byte[] bytes = new byte[cds.cbData - 1];
-        Marshal.Copy(cds.lpData, bytes, 0, cds.cbData - 1);
+        if (cds.lpData == IntPtr.Zero || cds.cbData < 68 || cds.cbData > 1024 * 1024) {
+            throw new ArgumentException("The update packet has an invalid length or data pointer.", nameof(LParam));
+        }
+        byte[] bytes = new byte[cds.cbData];
+        Marshal.Copy(cds.lpData, bytes, 0, cds.cbData);
         return GetUpdateData(bytes);
     }
     /// <summary>
@@ -158,6 +165,10 @@ internal static class CopyData {
     /// <param name="Bytes">The byte array to read from.</param>
     /// <returns>An updater data struct value that represents the bytes received.</returns>
     public static UpdateData GetUpdateData(byte[] Bytes) {
+        if (Bytes is null) throw new ArgumentNullException(nameof(Bytes));
+        if (Bytes.Length < 68 || Bytes.Length > 1024 * 1024) {
+            throw new ArgumentException("The update packet has an invalid length.", nameof(Bytes));
+        }
         int offset = 0;
         Version NewVersion = new(Bytes[offset++], Bytes[offset++], Bytes[offset++], Bytes[offset++]);
 
@@ -204,4 +215,50 @@ internal static class CopyData {
         int Msg,
         nint wParam,
         nint lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern nint SendMessageTimeout(
+        nint hWnd,
+        int Msg,
+        nint wParam,
+        nint lParam,
+        uint fuFlags,
+        uint uTimeout,
+        out nint lpdwResult);
+
+    public static bool TrySendMessage(
+        nint hWnd,
+        int Msg,
+        nint wParam,
+        nint lParam,
+        uint TimeoutMilliseconds) =>
+        TrySendMessageCore(hWnd, Msg, wParam, lParam, TimeoutMilliseconds, blockSender: true);
+
+    public static bool TrySendMessageReentrant(
+        nint hWnd,
+        int Msg,
+        nint wParam,
+        nint lParam,
+        uint TimeoutMilliseconds) =>
+        TrySendMessageCore(hWnd, Msg, wParam, lParam, TimeoutMilliseconds, blockSender: false);
+
+    private static bool TrySendMessageCore(
+        nint hWnd,
+        int Msg,
+        nint wParam,
+        nint lParam,
+        uint TimeoutMilliseconds,
+        bool blockSender) {
+        const uint SMTO_BLOCK = 0x0001;
+        const uint SMTO_ABORTIFHUNG = 0x0002;
+        uint Flags = SMTO_ABORTIFHUNG | (blockSender ? SMTO_BLOCK : 0);
+        return SendMessageTimeout(
+            hWnd,
+            Msg,
+            wParam,
+            lParam,
+            Flags,
+            TimeoutMilliseconds,
+            out _) != 0;
+    }
 }

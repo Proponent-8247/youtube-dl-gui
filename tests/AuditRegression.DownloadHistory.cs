@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -1712,6 +1713,120 @@ internal static partial class AuditRegression {
             }
         }
     }
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool CreateHardLinkW(string newName, string existingName, IntPtr securityAttributes);
+
+    private static void DownloadHistoryCreateHardLink(string alias, string existing) {
+        Require(CreateHardLinkW(alias, existing, IntPtr.Zero),
+            "Windows hard-link fixture failed with native error " + Marshal.GetLastWin32Error());
+        Require(File.Exists(alias), "Hard-link fixture was not created");
+    }
+
+    private static void DownloadHistoryHardLinksCannotOwnProtectedState() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string foreign = Path.Combine(Environment.CurrentDirectory, "foreign-hardlinked-history-" +
+                Guid.NewGuid().ToString("N") + ".txt");
+            byte[] bytes = new UTF8Encoding(false).GetBytes("youtube 9qFjkwAElDs\r\n");
+            File.WriteAllBytes(foreign, bytes);
+            try {
+                DownloadHistoryCreateHardLink(fixture.Archive, foreign);
+                object[] read = { fixture.Archive, new HashSet<string>(StringComparer.Ordinal), null };
+                Equal(false, Call(fixture.History, null, "TryReadArchive", read));
+                Require(((string)read[2]).IndexOf("hard link", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Read did not reject an unowned hard-linked archive by file identity");
+                object analyzed = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
+                Require(!DownloadHistoryCanReconcile(analyzed),
+                    "Hard-linked archive was incorrectly accepted as owned history");
+                Require(bytes.SequenceEqual(File.ReadAllBytes(foreign)),
+                    "Rejecting a hard-linked archive modified the unrelated file");
+            }
+            finally {
+                if (File.Exists(fixture.Archive)) File.Delete(fixture.Archive);
+                if (File.Exists(foreign)) File.Delete(foreign);
+            }
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null, string.Empty);
+            string foreign = Path.Combine(Environment.CurrentDirectory, "foreign-hardlinked-state-" +
+                Guid.NewGuid().ToString("N") + ".txt");
+            byte[] bytes = new UTF8Encoding(false).GetBytes("youtube 9qFjkwAElDs\r\n");
+            File.WriteAllBytes(foreign, bytes);
+            string backup = fixture.Archive + ".bak";
+            string lockFile = fixture.Archive + ".lock";
+            try {
+                if (File.Exists(backup)) File.Delete(backup);
+                DownloadHistoryCreateHardLink(backup, foreign);
+                Throws<InvalidOperationException>(() => Call(fixture.History, null, "ResetHistory"));
+                Require(File.Exists(fixture.Archive) && bytes.SequenceEqual(File.ReadAllBytes(foreign)),
+                    "Hard-linked backup collision damaged the bound archive or the target");
+                File.Delete(backup);
+                if (File.Exists(lockFile)) File.Delete(lockFile);
+                DownloadHistoryCreateHardLink(lockFile, foreign);
+                Throws<InvalidOperationException>(() => Call(fixture.History, null, "ResetHistory"));
+                Require(File.Exists(fixture.Archive) && bytes.SequenceEqual(File.ReadAllBytes(foreign)),
+                    "Hard-linked lock collision damaged the bound archive or the target");
+                File.Delete(lockFile);
+                Call(fixture.History, null, "ResetHistory");
+                Require(!File.Exists(fixture.Archive), "Ordinary bound archive failed to reset after removing hard links");
+            }
+            finally {
+                if (File.Exists(backup)) File.Delete(backup);
+                if (File.Exists(lockFile)) File.Delete(lockFile);
+                if (File.Exists(foreign)) File.Delete(foreign);
+            }
+        }
+    }
+
+    private static void DownloadHistoryCookieAliasesUsePhysicalIdentity() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string archiveArgs, error;
+            object execution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s", null,
+                out archiveArgs, out error, out execution));
+            string distinct = Path.Combine(fixture.Root, "distinct-cookies.txt");
+            string hardAlias = Path.Combine(fixture.Root, "alias-cookies.txt");
+            string junction = Path.Combine(Environment.CurrentDirectory, "aliased-history-directory-" +
+                Guid.NewGuid().ToString("N"));
+            try {
+                File.WriteAllBytes(distinct, File.ReadAllBytes(fixture.Archive));
+                object[] separateArgs = { distinct, execution, null };
+                Equal(true, Call(fixture.History, null, "ValidateAuthenticationCookiePath", separateArgs));
+                DownloadHistoryCreateHardLink(hardAlias, fixture.Archive);
+                object[] cookieArgs = { hardAlias, execution, null };
+                Equal(false, Call(fixture.History, null, "ValidateAuthenticationCookiePath", cookieArgs));
+                Require(!string.IsNullOrWhiteSpace((string)cookieArgs[2]),
+                    "Hard-linked cookie alias rejection must explain the collision");
+                File.Delete(hardAlias);
+
+                System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo {
+                    FileName = "cmd.exe",
+                    Arguments = "/d /c mklink /J \"" + junction + "\" \"" + fixture.Root + "\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using (System.Diagnostics.Process p = System.Diagnostics.Process.Start(psi)) {
+                    Require(p.WaitForExit(10000), "Junction alias fixture timed out");
+                    Equal(0, p.ExitCode);
+                }
+                string junctionAlias = Path.Combine(junction, Path.GetFileName(fixture.Archive));
+                Require(!string.Equals(Path.GetFullPath(junctionAlias), Path.GetFullPath(fixture.Archive),
+                    StringComparison.OrdinalIgnoreCase), "Fixture did not establish a second lexical path");
+                object[] junctionArgs = { junctionAlias, execution, null };
+                Equal(false, Call(fixture.History, null, "ValidateAuthenticationCookiePath", junctionArgs));
+                Require(!string.IsNullOrWhiteSpace((string)junctionArgs[2]),
+                    "Alternate-directory alias to protected archive escaped identity detection");
+            }
+            finally {
+                if (File.Exists(hardAlias)) File.Delete(hardAlias);
+                if (File.Exists(distinct)) File.Delete(distinct);
+                if (Directory.Exists(junction)) Directory.Delete(junction);
+            }
+        }
+    }
+
     private static void DownloadHistoryRecoversRestrictedYtDlpIdSanitization() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             const string accentedId = "äabc";
@@ -3859,6 +3974,8 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.UnderstandsIdPlacementFromSchema", DownloadHistoryUnderstandsIdPlacementFromSchema);
         Test("DOWNLOAD_HISTORY.RejectsReparsePointTraversal", DownloadHistoryRejectsReparsePointTraversal);
         Test("DOWNLOAD_HISTORY.RejectsReparseArchiveAndCompanions", DownloadHistoryRejectsReparseArchiveAndCompanions);
+        Test("DOWNLOAD_HISTORY.HardLinksCannotOwnProtectedState", DownloadHistoryHardLinksCannotOwnProtectedState);
+        Test("DOWNLOAD_HISTORY.CookieAliasesUsePhysicalIdentity", DownloadHistoryCookieAliasesUsePhysicalIdentity);
         Test("DOWNLOAD_HISTORY.RecoversRestrictedYtDlpIdSanitization", DownloadHistoryRecoversRestrictedYtDlpIdSanitization);
         Test("DOWNLOAD_HISTORY.RecoversSanitizedProviderIds", DownloadHistoryRecoversSanitizedProviderIds);
         Test("DOWNLOAD_HISTORY.ContainsSplitChapterOutputs", DownloadHistoryContainsSplitChapterOutputs);

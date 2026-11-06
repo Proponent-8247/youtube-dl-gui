@@ -229,6 +229,23 @@ internal static partial class AuditRegression {
             "Untrusted workflow_dispatch inputs are interpolated directly into PowerShell code");
     }
 
+    private static void GuardedRepairHasNoAutomaticWritePublisher() {
+        string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
+        string workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "audit-repair.yml"));
+        string runner = File.ReadAllText(Path.Combine(root, "tools", "Run-AuditRepairBatch.ps1"));
+        Require(workflow.Contains("contents: read"), "Repair verification lost read-only repository permissions");
+        Require(workflow.Contains("persist-credentials: false"), "Repair checkout is persisting repository credentials");
+        Require(workflow.IndexOf("contents: write", StringComparison.Ordinal) < 0,
+            "An untrusted repair workflow still contains write-capable credentials");
+        Require(workflow.IndexOf("  publish:", StringComparison.Ordinal) < 0,
+            "A publisher still trusts an untrusted repair artifact to update a branch");
+        Require(workflow.IndexOf("persist-credentials: true", StringComparison.Ordinal) < 0,
+            "A repair workflow checkout can supply a write credential to untrusted code");
+        Require(runner.IndexOf("git push ", StringComparison.OrdinalIgnoreCase) < 0,
+            "Untrusted repair runner attempts direct publication");
+        Require(workflow.Contains("actions/upload-artifact@"),
+            "Read-only verification no longer retains a reviewable artifact");
+    }
     private static void RunRepairWave17Tests() {
         Test("POLICY_P002.SessionHistoryRetainsAndExports", SessionHistoryRetainsAndExports);
         Test("CURRENT_O020.ProviderReleaseRequiresAuthoritativeDigest", ProviderReleaseRequiresAuthoritativeDigest);
@@ -239,6 +256,7 @@ internal static partial class AuditRegression {
         Test("CURRENT_O037.FfmpegZipExtractionIsBounded", FfmpegZipExtractionIsBounded);
         Test("CURRENT_O024.RedditUserscriptTargetsPermalinksSafely", RedditUserscriptTargetsPermalinksSafely);
         Test("SECURITY.ReleaseCandidateDispatchVersionIsData", ReleaseCandidateDispatchVersionIsData);
+        Test("SECURITY.GuardedRepairHasNoAutomaticWritePublisher", GuardedRepairHasNoAutomaticWritePublisher);
         RunDownloadHistoryTests();
         RunV011Tests();
     }

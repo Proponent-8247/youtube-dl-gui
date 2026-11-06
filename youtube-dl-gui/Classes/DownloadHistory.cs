@@ -316,6 +316,7 @@ internal static class DownloadHistory {
         set {
             value ??= string.Empty;
             if (fArchivePath == value) return;
+            if (!fEnabled) ValidateDisabledArchiveBinding(value);
             fArchivePath = value;
             IniProvider.Write(value, ConfigName, nameof(ArchivePath));
             NeedsReconciliation = true;
@@ -425,29 +426,38 @@ internal static class DownloadHistory {
     }
 
     public static void ResetHistory() {
-        if (Enabled) throw new InvalidOperationException("Disable Download History before resetting it.");
-        string archive = EffectiveArchivePath;
-        string? parent = Path.GetDirectoryName(archive);
-        if (parent.IsNullEmptyWhitespace() || !Directory.Exists(parent)) {
-            throw new InvalidOperationException("Download History cannot be reset because the archive storage is unavailable.");
-        }
+        lock (Sync) {
+            if (Enabled) throw new InvalidOperationException("Disable Download History before resetting it.");
+            // A configured future archive is not proof of ownership. Only a successful
+            // enable/reconciliation establishes the durable bound archive.
+            if (!EverEnabled || BoundArchivePath.IsNullEmptyWhitespace()) {
+                throw new InvalidOperationException("Download History cannot be reset because no previously enabled, durably bound archive exists.");
+            }
+            string archive;
+            try { archive = Path.GetFullPath(BoundArchivePath); }
+            catch (Exception ex) { throw new InvalidOperationException("The bound Download History archive path is invalid.", ex); }
+            string? parent = Path.GetDirectoryName(archive);
+            if (parent.IsNullEmptyWhitespace() || !Directory.Exists(parent)) {
+                throw new InvalidOperationException("Download History cannot be reset because the archive storage is unavailable.");
+            }
 
-        using DownloadHistoryLease lease = AcquireManagementLease(archive, "reset");
-        foreach (string path in new[] { archive, archive + ".bak" }) {
-            if (File.Exists(path)) File.Delete(path);
+            using DownloadHistoryLease lease = AcquireManagementLease(archive, "reset");
+            foreach (string path in new[] { archive, archive + ".bak" }) {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            EverEnabled = false;
+            BoundLibraryRoot = string.Empty;
+            BoundArchivePath = string.Empty;
+            NeedsReconciliation = true;
+            PreparedKey = null;
+            PreparedArchiveFloorPath = null;
+            PreparedArchiveFloor = Array.Empty<string>();
+            LastReportInternal = new DownloadHistoryReport {
+                State = DownloadHistoryState.Dormant,
+                CanReconcile = true,
+                Message = "Download History was reset. Existing media must be reconciled before protection can be enabled again."
+            };
         }
-        EverEnabled = false;
-        BoundLibraryRoot = string.Empty;
-        BoundArchivePath = string.Empty;
-        NeedsReconciliation = true;
-        PreparedKey = null;
-        PreparedArchiveFloorPath = null;
-        PreparedArchiveFloor = Array.Empty<string>();
-        LastReportInternal = new DownloadHistoryReport {
-            State = DownloadHistoryState.Dormant,
-            CanReconcile = true,
-            Message = "Download History was reset. Existing media must be reconciled before protection can be enabled again."
-        };
     }
 
     public static void RefreshBackupAfterRun() {
@@ -1267,6 +1277,7 @@ internal static class DownloadHistory {
     public static void CommitSettings(bool enabled, string configuredArchivePath, bool keepBackup, DownloadHistoryReport? preparedReport, string configuredInventoryRoots) {
         lock (Sync) {
             configuredArchivePath ??= string.Empty;
+            if (!enabled) ValidateDisabledArchiveBinding(configuredArchivePath);
             string normalizedInventoryRoots;
             try { normalizedInventoryRoots = NormalizeInventoryRootsForStorage(configuredInventoryRoots); }
             catch (Exception ex) { throw new InvalidOperationException("Download History inventory path is invalid: " + ex.Message, ex); }
@@ -1704,6 +1715,29 @@ internal static class DownloadHistory {
 
     private static bool ShouldWaitForPreviousArchive(string preparedArchive) =>
         !BoundArchivePath.IsNullEmptyWhitespace() && !PathEquals(preparedArchive, BoundArchivePath);
+
+    private static void ValidateDisabledArchiveBinding(string configuredArchivePath) {
+        if (!fEverEnabled) return; // Never enabled: an archive path is only a future candidate.
+        if (fBoundArchivePath.IsNullEmptyWhitespace()) {
+            // Legacy/incomplete persisted state has no proved owner. Permit an unchanged
+            // setting, but not a new physical target until enabled reconciliation succeeds.
+            if (string.Equals(configuredArchivePath, fArchivePath, StringComparison.Ordinal)) return;
+            throw new InvalidOperationException("Download History cannot change its archive while disabled because the previous bound archive is unknown. Enable and reconcile the library first.");
+        }
+
+        string candidate;
+        try {
+            candidate = configuredArchivePath.IsNullEmptyWhitespace()
+                ? Path.GetFullPath(fBoundArchivePath)
+                : ResolveYtDlpDirectPath(configuredArchivePath);
+        }
+        catch (Exception ex) {
+            throw new InvalidOperationException("The Download History archive path cannot be resolved safely.", ex);
+        }
+        if (!PathEquals(candidate, fBoundArchivePath)) {
+            throw new InvalidOperationException("Download History cannot change the physical archive while preserved history is disabled. Enable protection and reconcile the archive relocation first, or explicitly Reset History.");
+        }
+    }
 
     private static bool PathEquals(string left, string right) {
         try {

@@ -287,6 +287,27 @@ internal static partial class AuditRegression {
         }
         finally { try { Directory.Delete(fixture, true); } catch { } }
     }
+    private static void GuardedRepairRejectsTestOracleEdits() {
+        string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
+        string parser = Path.Combine(root, "tools", "apply-audit-repairs.py");
+        string folder = Path.Combine(Path.GetTempPath(), "audit-oracle-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(folder, "Controls"));
+        try {
+            File.WriteAllText(Path.Combine(folder, "Controls", "Fixture.cs"), "before", new UTF8Encoding(false));
+            string wrapper = "{\"version\":2,\"base_sha\":\"" + new string('b', 40) + "\",\"expected_failures\":[],\"repairs\":[{\"id\":\"ORACLE\",\"message\":\"fixture\",\"resolves\":[],\"files\":[{\"path\":\"PATH\",\"edits\":[{\"old\":\"before\",\"new\":\"after\"}]}]}]}";
+            string request = Path.Combine(folder, ".audit-repairs.json");
+            File.WriteAllText(request, wrapper.Replace("PATH", "Controls/Fixture.cs"), new UTF8Encoding(false));
+            string permitted = RunGuardParserWithFixture(parser, folder, "--preflight");
+            Require(permitted.StartsWith("0\n", StringComparison.Ordinal), "Legitimate production edit failed preflight: " + permitted);
+            File.WriteAllText(request, wrapper.Replace("PATH", "tests/AuditRegression.Fixture.cs"), new UTF8Encoding(false));
+            string denied = RunGuardParserWithFixture(parser, folder, "--preflight");
+            Require(!denied.StartsWith("0\n", StringComparison.Ordinal) && denied.Contains("Disallowed source path"),
+                "Production repair plan was permitted to weaken the test oracle: " + denied);
+            Require(File.ReadAllText(Path.Combine(folder, "Controls", "Fixture.cs")) == "before",
+                "Repair preflight unexpectedly modified a production fixture");
+        }
+        finally { try { Directory.Delete(folder, true); } catch { } }
+    }
     private static void RunRepairWave17Tests() {
         Test("POLICY_P002.SessionHistoryRetainsAndExports", SessionHistoryRetainsAndExports);
         Test("CURRENT_O020.ProviderReleaseRequiresAuthoritativeDigest", ProviderReleaseRequiresAuthoritativeDigest);
@@ -299,6 +320,7 @@ internal static partial class AuditRegression {
         Test("SECURITY.ReleaseCandidateDispatchVersionIsData", ReleaseCandidateDispatchVersionIsData);
         Test("SECURITY.GuardedRepairHasNoAutomaticWritePublisher", GuardedRepairHasNoAutomaticWritePublisher);
         Test("SECURITY.GuardedRepairCannotSelfWhitelistFlakyFailures", GuardedRepairCannotSelfWhitelistFlakyFailures);
+        Test("SECURITY.GuardedRepairRejectsTestOracleEdits", GuardedRepairRejectsTestOracleEdits);
         RunDownloadHistoryTests();
         RunV011Tests();
     }

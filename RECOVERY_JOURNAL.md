@@ -293,3 +293,25 @@ Source head before checkpoint: 7052228474889d9636eb61a8d7fa29e64a1a622c. Preserv
 1. Inspect runs #42311525829/#42311525724 for syntax/build failures and SECURITY.ProviderProxySettingCannotInjectArguments / SECURITY.ProviderSubtitleFormatCannotInjectArguments all 3 passes; remediate test/source if red.
 2. Then high #147 EJS unverified remote script injection, #24 playlist/date injected settings, #26 Authenticode revocation and #27 signed-app authenticity; Critical #93 publisher trust root still open despite read-only mitigation.
 3. Continue issue-specific checkpoints and queue only on accepted gates, no force updates or release promotion.
+
+## 2026-11-06 UTC — PROVIDER-ARGUMENT SECURITY ACCEPTED; EJS & SELECTION REMEDIATION IN PROGRESS
+
+**Current exact branch head before this journal commit:** `7db8a204e23f924514b303572a2306e6d2d92107`. All four GitHub branches remain, no release/master production integration.
+
+### High #59 and #66 ACCEPTED/CLOSED
+- Test commit `191bbd92d7c6b210efbdd5f39f914f54985b1345`: `SECURITY.ProviderProxySettingCannotInjectArguments` and `SECURITY.ProviderSubtitleFormatCannotInjectArguments` positive and negative settings tests for standard and extended builders under protected history.
+- #59 production `11583a6da93a0d9c646e867b462f3c812dbf8267`: validate pasted/persisted host/port/protocol; emit complete proxy URL as a single escaped operand; reject malformed settings before protected command publication.
+- #66 production `7052228474889d9636eb61a8d7fa29e64a1a622c`: validate persisted subtitle format grammar; emit one escaped `--sub-format` operand and reject malformed option-like values.
+- [Audit Build #42311525829](https://github.com/Proponent-8247/youtube-dl-gui/actions/runs/42311525829) and [Audit Verification #42311525724](https://github.com/Proponent-8247/youtube-dl-gui/actions/runs/42311525724) **SUCCESS** at exact code `7052228474889d9636eb61a8d7fa29e64a1a622c`. Both new tests PASS in **all three** runs including x86; no regression FAIL lines. Issues #59 and #66 CLOSED with acceptance details. Canonical queue #149 now has **121 remaining** of original 130.
+
+### High #147 / DH-A075 remote EJS loading, implementation pending full CI
+- `1e70e184ef43838baed858268c215dd6cbda514b`: `DOWNLOAD_HISTORY.RejectsUntrustedRemoteEjsScripts` tests explicit/equal/quoted/abbreviated `--remote-components ejs:github`, `ejs:npm`, `--extractor-args youtube-ejs` developer keys (dev/repo/script_version), safe normal YouTube extractor tuning, and unchanged disabled-history behavior.
+- `00d42b170b3a547fe27848e44e505dc4f1f2478f`: reject any custom remote component while Download History is protected, and reject custom `youtube-ejs:` developer extractor namespace without blocking unrelated safe `youtube:player_client` tuning. Block quoted/abbreviated/equal option forms through the existing tokenizer. No untrusted JavaScript is fetched or run by tests.
+- Windows Audit Build #42311986580 **SUCCESS**. Windows Audit Verification #42311986563 at exact source `00d42b1` has passed compiled regression and full Release package and was running x86/full-Release reruns at this checkpoint. **DO NOT CLOSE #147** until complete green exact-SHA log read-back, 3/3 negative EJS test and source scope review.
+- Downstream `7db8a204e23f924514b303572a2306e6d2d92107`: independent test-only [skip ci] commit for High #24 `SECURITY.ProviderSelectionFieldsCannotInjectOptions`: valid playlist range/date and invalid pasted `--exec`, option terminators/newlines/date; integer playlist start/end compatibility and disabled-history negative. #24 production implementation NOT YET COMMITTED. Do not mistake #147's run as testing #24.
+
+### Exact recovery cursor
+1. Inspect Windows run #42311986563 / #42311986580. If green, close #147 and queue mark after reviewing `DOWNLOAD_HISTORY.RejectsUntrustedRemoteEjsScripts` three PASS lines, no failures.
+2. Implement High #24 shared strict selector grammar with early command-generation fail closed and UI feedback, preserving valid playlist/date and integer start/end, then test [skip ci] test `7db8a20` and full Windows CI.
+3. Continue #143/#144/#146/#148 archive integrity, #26 Authenticode revocation, #27 signed-app updater trust, #70 PATH discovery writes, Critical #93 independently trusted publication.
+4. Preserve 4 branches, conceptual commits, per-issue evidence and journal, no release merge without gates.

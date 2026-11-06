@@ -312,9 +312,13 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
             if (Downloads.SaveSubtitles) {
                 ArgumentsBuffer.Add("--all-subs");
 
-                if (!Downloads.SubtitleFormat.IsNullEmptyWhitespace()) {
-                    ArgumentsBuffer.Add($"--sub-format {Downloads.SubtitleFormat} ");
+                if (!DownloadHelper.TryBuildSubtitleFormatArgument(out string subtitleArgument, out string subtitleError)) {
+                    Verbose(subtitleError);
+                    Status = DownloadStatus.ProgramError;
+                    DownloadHistoryExecution = null;
+                    return false;
                 }
+                ArgumentsBuffer.Add(subtitleArgument);
 
                 if (Downloads.EmbedSubtitles && Type == DownloadType.Video) {
                     ArgumentsBuffer.Add("--embed-subs");

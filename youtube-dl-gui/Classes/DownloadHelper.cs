@@ -51,6 +51,24 @@ public static class DownloadHelper {
         return true;
     }
 
+
+    // This INI-backed value is a selector, not arbitrary provider command text.
+    // Prevent whitespace, option delimiters and shell-looking expressions from
+    // becoming additional argv tokens (or a dangling option operand).
+    public static bool TryBuildSubtitleFormatArgument(out string argument, out string error) {
+        argument = string.Empty;
+        error = string.Empty;
+        if (!Downloads.SaveSubtitles || string.IsNullOrEmpty(Downloads.SubtitleFormat)) return true;
+        string format = Downloads.SubtitleFormat;
+        if (format.Length > 128 || !Regex.IsMatch(format,
+            @"\A[A-Za-z0-9][A-Za-z0-9._+*/-]*\z", RegexOptions.CultureInvariant)) {
+            error = "Invalid subtitle format. Use format names or slash-separated preferences only.";
+            return false;
+        }
+        argument = "--sub-format " + ArgumentList.EscapeArgument(format);
+        return true;
+    }
+
     // lang=regex The prefix for the initial regex, encompasing the connection protocol.
     private const string RegexPrefix = @"^(http(s)?:\/\/)?";
 

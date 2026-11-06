@@ -669,9 +669,14 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
 
             if (Downloads.SaveSubtitles) {
                 ArgumentBuffer.Add("--all-subs");
-                if (!Downloads.SubtitleFormat.IsNullEmptyWhitespace()) {
-                    ArgumentBuffer.Add("--sub-format " + Downloads.SubtitleFormat);
+                if (!DownloadHelper.TryBuildSubtitleFormatArgument(out string subtitleArgument, out string subtitleError)) {
+                    Log.Write(subtitleError);
+                    base.Arguments = null;
+                    ArgumentsCensored = string.Empty;
+                    DownloadHistoryExecution = null;
+                    return false;
                 }
+                ArgumentBuffer.Add(subtitleArgument);
 
                 if (Downloads.EmbedSubtitles && SelectedType == DownloadType.Video) {
                     ArgumentBuffer.Add("--embed-subs");

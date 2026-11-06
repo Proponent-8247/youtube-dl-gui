@@ -320,6 +320,8 @@ internal static partial class AuditRegression {
         Test("SECURITY.ReleaseCandidateDispatchVersionIsData", ReleaseCandidateDispatchVersionIsData);
         Test("SECURITY.ReleaseVersionInjectionCannotRunPowerShell", ReleaseVersionInjectionCannotRunPowerShell);
         Test("SECURITY.ReleaseCandidateRejectsOldReviewedHistory", ReleaseCandidateRejectsOldReviewedHistory);
+        Test("SECURITY.ProviderProxySettingCannotInjectArguments", ProviderProxySettingCannotInjectArguments);
+        Test("SECURITY.ProviderSubtitleFormatCannotInjectArguments", ProviderSubtitleFormatCannotInjectArguments);
         Test("SECURITY.GuardedRepairHasNoAutomaticWritePublisher", GuardedRepairHasNoAutomaticWritePublisher);
         Test("SECURITY.GuardedRepairCannotSelfWhitelistFlakyFailures", GuardedRepairCannotSelfWhitelistFlakyFailures);
         Test("SECURITY.GuardedRepairRejectsTestOracleEdits", GuardedRepairRejectsTestOracleEdits);

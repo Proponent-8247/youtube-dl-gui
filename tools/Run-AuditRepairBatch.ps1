@@ -32,6 +32,22 @@ if ($unauthorizedRequestFiles.Count -gt 0) { throw "Request commit contains unde
 if ('.audit-repairs.json' -cnotin $changedRequestFiles) { throw 'Request commit did not update the repair wrapper.' }
 $unusedRequestParts = @($allowedRequestFiles | Where-Object { $_ -cnotin $changedRequestFiles -and $_ -cne '.audit-repairs.json' })
 if ($unusedRequestParts.Count -gt 0) { throw "Request references unchanged/undeclared part files: $unusedRequestParts" }
+
+# Evidence must bind the COMPLETE trigger commit, not only subsequent repair
+# commits, or an unreviewed request change may disappear from the review patch.
+$requestPatch = Join-Path $EvidenceDirectory 'request-commit.patch'
+$requestDiff = @(git diff --binary $parent $initialHead)
+if ($LASTEXITCODE -ne 0) { throw 'Could not retain exact request-commit diff.' }
+$requestDiff | Set-Content -LiteralPath $requestPatch -Encoding utf8
+$requestEvidence = [ordered]@{
+    base_sha = $parent
+    request_sha = $initialHead
+    changed_files = @($changedRequestFiles)
+    declared_request_files = @($allowedRequestFiles)
+    request_patch_sha256 = (Get-FileHash -LiteralPath $requestPatch -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+$requestEvidence | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $EvidenceDirectory 'request-commit.json') -Encoding utf8
+
 python tools/apply-audit-repairs.py --preflight
 if ($LASTEXITCODE -ne 0) { throw 'Repair preflight failed; no source was changed.' }
 

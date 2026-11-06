@@ -39,6 +39,7 @@ internal sealed class DownloadHistoryReport {
 internal sealed class DownloadHistoryLease : IDisposable {
     private Mutex? mutex;
     private FileStream? fileLock;
+    internal Microsoft.Win32.SafeHandles.SafeFileHandle? FileLockHandle => fileLock?.SafeFileHandle;
 
     private DownloadHistoryLease(Mutex ownedMutex) {
         mutex = ownedMutex;
@@ -232,12 +233,26 @@ internal static class DownloadHistory {
         }
     }
 
-    private static void AssertArchiveStateNotHardLinked(string archive, bool inspectLock) {
+    private static void AssertArchiveStateNotHardLinked(string archive) {
         AssertNoStateHardLinks(archive);
         AssertNoStateHardLinks(archive + ".bak");
-        // The lock file is opened exclusively during an active lease. Inspect it
-        // before acquiring that lease; after acquisition the handle is stable.
-        if (inspectLock) AssertNoStateHardLinks(archive + ".lock");
+    }
+
+    private static void AssertAcquiredLockNotHardLinked(DownloadHistoryLease lease, string lockPath) {
+        // Never reopen an externally held exclusive lock: the existing lease
+        // operation must continue to report Busy rather than an alias error.
+        // Once acquired, inspect the actual handle so a racing hard link cannot
+        // bypass a separate pre-open path check.
+        Microsoft.Win32.SafeHandles.SafeFileHandle? handle = lease.FileLockHandle;
+        if (handle is null) return;
+        if (!GetFileInformationByHandle(handle, out NativeFileInfo info)) {
+            throw new InvalidOperationException("Download History cannot verify the acquired lock identity: " +
+                lockPath + " (Win32 " + Marshal.GetLastWin32Error() + ").");
+        }
+        if (info.LinkCount != 1) {
+            throw new InvalidOperationException(
+                "Download History refuses a lock state file with multiple hard links: " + lockPath);
+        }
     }
 
     private static readonly object Sync = new();
@@ -508,7 +523,7 @@ internal static class DownloadHistory {
 
             using DownloadHistoryLease lease = AcquireManagementLease(archive, "reset");
             AssertArchiveStateNotReparse(archive);
-            AssertArchiveStateNotHardLinked(archive, false);
+            AssertArchiveStateNotHardLinked(archive);
             foreach (string path in new[] { archive, archive + ".bak" }) {
                 if (File.Exists(path)) File.Delete(path);
             }
@@ -1194,13 +1209,14 @@ internal static class DownloadHistory {
         DownloadHistoryLease lease = new(GetArchiveMutexName(archivePath), cancellationRequested);
         try {
             AssertArchiveStateNotReparse(archivePath);
-            AssertArchiveStateNotHardLinked(archivePath, true);
+            AssertArchiveStateNotHardLinked(archivePath);
             string? parent = Path.GetDirectoryName(archivePath);
             if (!parent.IsNullEmptyWhitespace() && Directory.Exists(parent)) {
                 lease.AcquireFileLock(archivePath + ".lock", cancellationRequested);
+                AssertAcquiredLockNotHardLinked(lease, archivePath + ".lock");
             }
             AssertArchiveStateNotReparse(archivePath);
-            AssertArchiveStateNotHardLinked(archivePath, false);
+            AssertArchiveStateNotHardLinked(archivePath);
             return lease;
         }
         catch {
@@ -1214,14 +1230,17 @@ internal static class DownloadHistory {
         if (!DownloadHistoryLease.TryAcquire(GetArchiveMutexName(archivePath), out DownloadHistoryLease? candidate)) return false;
         try {
             AssertArchiveStateNotReparse(archivePath);
-            AssertArchiveStateNotHardLinked(archivePath, true);
+            AssertArchiveStateNotHardLinked(archivePath);
             string? parent = Path.GetDirectoryName(archivePath);
-            if (!parent.IsNullEmptyWhitespace() && Directory.Exists(parent) && !candidate!.TryAcquireFileLock(archivePath + ".lock")) {
-                candidate.Dispose();
-                return false;
+            if (!parent.IsNullEmptyWhitespace() && Directory.Exists(parent)) {
+                if (!candidate!.TryAcquireFileLock(archivePath + ".lock")) {
+                    candidate.Dispose();
+                    return false;
+                }
+                AssertAcquiredLockNotHardLinked(candidate!, archivePath + ".lock");
             }
             AssertArchiveStateNotReparse(archivePath);
-            AssertArchiveStateNotHardLinked(archivePath, false);
+            AssertArchiveStateNotHardLinked(archivePath);
             lease = candidate;
             return true;
         }
@@ -2788,7 +2807,7 @@ internal static class DownloadHistory {
         error = string.Empty;
         try {
             AssertArchiveStateNotReparse(archive);
-            AssertArchiveStateNotHardLinked(archive, false);
+            AssertArchiveStateNotHardLinked(archive);
             if (File.Exists(archive)) {
                 using FileStream stream = new(archive, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
                 return true;
@@ -2900,7 +2919,7 @@ internal static class DownloadHistory {
 
     private static void WriteArchiveAtomically(string path, HashSet<string> entries) {
         AssertArchiveStateNotReparse(path);
-        AssertArchiveStateNotHardLinked(path, false);
+        AssertArchiveStateNotHardLinked(path);
         foreach (string entry in entries) {
             if (!IsValidArchiveEntry(entry)) throw new InvalidDataException("Refusing to write invalid Download History archive entry: " + entry);
         }
@@ -2915,7 +2934,7 @@ internal static class DownloadHistory {
 
         try {
             AssertArchiveStateNotReparse(path);
-            AssertArchiveStateNotHardLinked(path, false);
+            AssertArchiveStateNotHardLinked(path);
             if (File.Exists(path)) File.Replace(temp, path, null, true);
             else File.Move(temp, path);
         }
@@ -2926,7 +2945,7 @@ internal static class DownloadHistory {
 
     private static void CopyArchiveToBackupAtomically(string archive) {
         AssertArchiveStateNotReparse(archive);
-        AssertArchiveStateNotHardLinked(archive, false);
+        AssertArchiveStateNotHardLinked(archive);
         if (!File.Exists(archive)) return;
         if (!CanReplaceBackupSafely(archive, out string backupSafetyError)) {
             throw new InvalidDataException(backupSafetyError);
@@ -2941,7 +2960,7 @@ internal static class DownloadHistory {
 
         try {
             AssertArchiveStateNotReparse(archive);
-            AssertArchiveStateNotHardLinked(archive, false);
+            AssertArchiveStateNotHardLinked(archive);
             if (File.Exists(backup)) File.Replace(temp, backup, null, true);
             else File.Move(temp, backup);
         }

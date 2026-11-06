@@ -442,6 +442,7 @@ internal static class DownloadHistory {
             }
 
             using DownloadHistoryLease lease = AcquireManagementLease(archive, "reset");
+            AssertArchiveStateNotReparse(archive);
             foreach (string path in new[] { archive, archive + ".bak" }) {
                 if (File.Exists(path)) File.Delete(path);
             }
@@ -1082,15 +1083,43 @@ internal static class DownloadHistory {
         }
     }
 
+    // A selected storage root may itself be a user-managed mount or junction.
+    // Inspect only the final archive and companion entries: neither a symlink
+    // nor a junction at these application-owned filenames grants ownership.
+    private static void AssertStateFileNotReparse(string path) {
+        FileAttributes attributes;
+        try { attributes = File.GetAttributes(path); }
+        catch (FileNotFoundException) { return; }
+        catch (DirectoryNotFoundException) { return; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            System.Security.SecurityException or ArgumentException or NotSupportedException) {
+            throw new InvalidOperationException("Download History cannot inspect the protected state file safely: " + path, ex);
+        }
+        if ((attributes & FileAttributes.ReparsePoint) != 0) {
+            throw new InvalidOperationException("Download History refuses a reparse-point archive or companion state file: " + path);
+        }
+        if ((attributes & FileAttributes.Directory) != 0) {
+            throw new InvalidOperationException("Download History refuses a directory at a protected state-file path: " + path);
+        }
+    }
+
+    private static void AssertArchiveStateNotReparse(string archive) {
+        AssertStateFileNotReparse(archive);
+        AssertStateFileNotReparse(archive + ".bak");
+        AssertStateFileNotReparse(archive + ".lock");
+    }
+
     public static DownloadHistoryLease AcquireArchiveLease() => AcquireArchiveLease(EffectiveArchivePath);
 
     private static DownloadHistoryLease AcquireArchiveLease(string archivePath, Func<bool>? cancellationRequested = null) {
         DownloadHistoryLease lease = new(GetArchiveMutexName(archivePath), cancellationRequested);
         try {
+            AssertArchiveStateNotReparse(archivePath);
             string? parent = Path.GetDirectoryName(archivePath);
             if (!parent.IsNullEmptyWhitespace() && Directory.Exists(parent)) {
                 lease.AcquireFileLock(archivePath + ".lock", cancellationRequested);
             }
+            AssertArchiveStateNotReparse(archivePath);
             return lease;
         }
         catch {
@@ -1103,11 +1132,13 @@ internal static class DownloadHistory {
         lease = null;
         if (!DownloadHistoryLease.TryAcquire(GetArchiveMutexName(archivePath), out DownloadHistoryLease? candidate)) return false;
         try {
+            AssertArchiveStateNotReparse(archivePath);
             string? parent = Path.GetDirectoryName(archivePath);
             if (!parent.IsNullEmptyWhitespace() && Directory.Exists(parent) && !candidate!.TryAcquireFileLock(archivePath + ".lock")) {
                 candidate.Dispose();
                 return false;
             }
+            AssertArchiveStateNotReparse(archivePath);
             lease = candidate;
             return true;
         }
@@ -2673,6 +2704,7 @@ internal static class DownloadHistory {
     private static bool CanWriteArchiveLocation(string archive, out string error) {
         error = string.Empty;
         try {
+            AssertArchiveStateNotReparse(archive);
             if (File.Exists(archive)) {
                 using FileStream stream = new(archive, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
                 return true;
@@ -2685,7 +2717,7 @@ internal static class DownloadHistory {
             finally { if (File.Exists(probe)) File.Delete(probe); }
             return true;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException) {
             error = ex.Message;
             return false;
         }
@@ -2711,6 +2743,11 @@ internal static class DownloadHistory {
 
     private static bool TryReadArchive(string path, HashSet<string> entries, out string error) {
         error = string.Empty;
+        try { AssertStateFileNotReparse(path); }
+        catch (InvalidOperationException ex) {
+            error = ex.Message;
+            return false;
+        }
         if (!File.Exists(path)) return false;
         HashSet<string> parsed = new(StringComparer.Ordinal);
         try {
@@ -2755,6 +2792,8 @@ internal static class DownloadHistory {
     private static bool CanReplaceBackupSafely(string archive, out string error) {
         string backup = archive + ".bak";
         error = string.Empty;
+        try { AssertStateFileNotReparse(backup); }
+        catch (InvalidOperationException ex) { error = ex.Message; return false; }
         if (Directory.Exists(backup)) {
             error = "The backup path is an existing directory: " + backup;
             return false;
@@ -2770,6 +2809,7 @@ internal static class DownloadHistory {
     }
 
     private static void WriteArchiveAtomically(string path, HashSet<string> entries) {
+        AssertArchiveStateNotReparse(path);
         foreach (string entry in entries) {
             if (!IsValidArchiveEntry(entry)) throw new InvalidDataException("Refusing to write invalid Download History archive entry: " + entry);
         }
@@ -2783,6 +2823,7 @@ internal static class DownloadHistory {
         }
 
         try {
+            AssertArchiveStateNotReparse(path);
             if (File.Exists(path)) File.Replace(temp, path, null, true);
             else File.Move(temp, path);
         }
@@ -2792,6 +2833,7 @@ internal static class DownloadHistory {
     }
 
     private static void CopyArchiveToBackupAtomically(string archive) {
+        AssertArchiveStateNotReparse(archive);
         if (!File.Exists(archive)) return;
         if (!CanReplaceBackupSafely(archive, out string backupSafetyError)) {
             throw new InvalidDataException(backupSafetyError);
@@ -2805,6 +2847,7 @@ internal static class DownloadHistory {
         }
 
         try {
+            AssertArchiveStateNotReparse(archive);
             if (File.Exists(backup)) File.Replace(temp, backup, null, true);
             else File.Move(temp, backup);
         }

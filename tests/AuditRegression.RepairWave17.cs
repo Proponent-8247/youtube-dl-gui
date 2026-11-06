@@ -323,6 +323,7 @@ internal static partial class AuditRegression {
         Test("SECURITY.ProviderProxySettingCannotInjectArguments", ProviderProxySettingCannotInjectArguments);
         Test("SECURITY.ProviderSubtitleFormatCannotInjectArguments", ProviderSubtitleFormatCannotInjectArguments);
         Test("SECURITY.ProviderSelectionFieldsCannotInjectOptions", ProviderSelectionFieldsCannotInjectOptions);
+        Test("SECURITY.UpdatesNeverTargetDiscoveredExternalTools", UpdatesNeverTargetDiscoveredExternalTools);
         Test("SECURITY.GuardedRepairHasNoAutomaticWritePublisher", GuardedRepairHasNoAutomaticWritePublisher);
         Test("SECURITY.GuardedRepairCannotSelfWhitelistFlakyFailures", GuardedRepairCannotSelfWhitelistFlakyFailures);
         Test("SECURITY.GuardedRepairRejectsTestOracleEdits", GuardedRepairRejectsTestOracleEdits);

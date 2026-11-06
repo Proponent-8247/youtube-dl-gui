@@ -1644,6 +1644,74 @@ internal static partial class AuditRegression {
     }
 
 
+    private static void DownloadHistoryCreateFileSymlink(string link, string target) {
+        System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo {
+            FileName = "cmd.exe",
+            Arguments = "/d /c mklink \"" + link + "\" \"" + target + "\"",
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using (System.Diagnostics.Process p = System.Diagnostics.Process.Start(psi)) {
+            Require(p.WaitForExit(10000), "File-symlink fixture creation timed out");
+            Equal(0, p.ExitCode);
+        }
+        Require((File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0,
+            "Expected a file reparse point for the archive-state negative fixture");
+    }
+
+    private static void DownloadHistoryRejectsReparseArchiveAndCompanions() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            string foreign = Path.Combine(Environment.CurrentDirectory, "foreign-ledger-" + Guid.NewGuid().ToString("N") + ".txt");
+            byte[] sentinel = new UTF8Encoding(false).GetBytes("youtube 9qFjkwAElDs\r\n");
+            File.WriteAllBytes(foreign, sentinel);
+            try {
+                DownloadHistoryCreateFileSymlink(fixture.Archive, foreign);
+                object[] read = { fixture.Archive, new HashSet<string>(StringComparer.Ordinal), null };
+                Equal(false, Call(fixture.History, null, "TryReadArchive", read));
+                Require(((string)read[2]).IndexOf("reparse", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Archive reparse point did not cause an explicit read rejection");
+                Throws<InvalidOperationException>(() => Call(fixture.History, null, "ReconcileLibrary", string.Empty, true, false, string.Empty));
+                Require(sentinel.SequenceEqual(File.ReadAllBytes(foreign)),
+                    "First-use archive validation modified the reparse target");
+            }
+            finally {
+                if (File.Exists(fixture.Archive)) File.Delete(fixture.Archive);
+                if (File.Exists(foreign)) File.Delete(foreign);
+            }
+        }
+
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null, string.Empty);
+            string foreign = Path.Combine(Environment.CurrentDirectory, "foreign-state-" + Guid.NewGuid().ToString("N") + ".txt");
+            byte[] sentinel = new UTF8Encoding(false).GetBytes("UNOWNED STATE\r\n");
+            File.WriteAllBytes(foreign, sentinel);
+            string backup = fixture.Archive + ".bak";
+            string lockFile = fixture.Archive + ".lock";
+            try {
+                if (File.Exists(backup)) File.Delete(backup);
+                DownloadHistoryCreateFileSymlink(backup, foreign);
+                Throws<InvalidOperationException>(() => Call(fixture.History, null, "ResetHistory"));
+                Require(File.Exists(fixture.Archive) && sentinel.SequenceEqual(File.ReadAllBytes(foreign)),
+                    "Rejected reparse backup damaged the bound archive or foreign target");
+                File.Delete(backup);
+                if (File.Exists(lockFile)) File.Delete(lockFile);
+                DownloadHistoryCreateFileSymlink(lockFile, foreign);
+                Throws<InvalidOperationException>(() => Call(fixture.History, null, "ResetHistory"));
+                Require(File.Exists(fixture.Archive) && sentinel.SequenceEqual(File.ReadAllBytes(foreign)),
+                    "Rejected reparse lock damaged the bound archive or foreign target");
+                File.Delete(lockFile);
+                Call(fixture.History, null, "ResetHistory");
+                Require(!File.Exists(fixture.Archive),
+                    "Ordinary bound archive could not reset after removing malicious companions");
+            }
+            finally {
+                if (File.Exists(backup)) File.Delete(backup);
+                if (File.Exists(lockFile)) File.Delete(lockFile);
+                if (File.Exists(foreign)) File.Delete(foreign);
+            }
+        }
+    }
     private static void DownloadHistoryRecoversRestrictedYtDlpIdSanitization() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             const string accentedId = "äabc";
@@ -3790,6 +3858,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.PreservesDelimiterBearingSchemas", DownloadHistoryPreservesDelimiterBearingSchemas);
         Test("DOWNLOAD_HISTORY.UnderstandsIdPlacementFromSchema", DownloadHistoryUnderstandsIdPlacementFromSchema);
         Test("DOWNLOAD_HISTORY.RejectsReparsePointTraversal", DownloadHistoryRejectsReparsePointTraversal);
+        Test("DOWNLOAD_HISTORY.RejectsReparseArchiveAndCompanions", DownloadHistoryRejectsReparseArchiveAndCompanions);
         Test("DOWNLOAD_HISTORY.RecoversRestrictedYtDlpIdSanitization", DownloadHistoryRecoversRestrictedYtDlpIdSanitization);
         Test("DOWNLOAD_HISTORY.RecoversSanitizedProviderIds", DownloadHistoryRecoversSanitizedProviderIds);
         Test("DOWNLOAD_HISTORY.ContainsSplitChapterOutputs", DownloadHistoryContainsSplitChapterOutputs);

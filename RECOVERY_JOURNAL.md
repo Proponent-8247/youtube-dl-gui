@@ -1,6 +1,6 @@
 # RECOVERY_JOURNAL.md — youtube-dl-gui whole-repository audit
 
-**Status (last reconciled 2026-10-24 UTC): READ-ONLY AUDIT COMPLETE; BRANCH CONSOLIDATION COMPLETE (17 → 4 VERIFIED); REMEDIATION STARTED BUT SECURITY/BUILD/REGRESSION ACCEPTANCE STILL PENDING.**
+**Status (last reconciled 2026-11-06 UTC): READ-ONLY AUDIT AND 17→4 BRANCH CONSOLIDATION COMPLETE; DH-A070/#142 FIX ACCEPTED AND CLOSED; 129 CANONICAL FINDINGS REMAIN; #100/#101 RELEASE SECURITY PATCHES AWAIT FOCUSED ACCEPTANCE; CRITICAL #93 SECURITY GATES REMAIN OPEN.**
 
 Repository: https://github.com/Proponent-8247/youtube-dl-gui
 Integration line: `feature/download-history-archive-3.3.0-2`
@@ -160,3 +160,30 @@ Goal: reduce 17 live branches to no more than 5 (prefer 4), preserving unique us
 **Status of separate gates:** This closes ONLY the branch-count/redundant-ref-cleanup milestone. Issue [#13](https://github.com/Proponent-8247/youtube-dl-gui/issues/13) remains open for final build/regression/security audit/release consolidation gates. Successful branch-prune workflow IS NOT evidence that Windows compilation or regression testing passed. The existing DH-A070/#142 regression and 130-finding remediation queue [#149](https://github.com/Proponent-8247/youtube-dl-gui/issues/149) remain outstanding; Critical #93 and related guard findings have unaccepted security changes isolated on remediation.
 
 **Next resumption:** Read this section and #13; verify the four branch refs before other Git operations. Continue acceptance tests and remediation on `remediation/whole-repo-20261016`; keep feature/release/master isolated until the tests and final release gate pass. Do not repeat the obsolete branch-deletion operation.
+
+## 2026-11-06 UTC — REMEDIATION RESUMED AFTER MEMORY/INSTRUCTIONS REVIEW
+
+**Authoritative base:** `remediation/whole-repo-20261016` from `a36e90fcbfed1c812e2a318bd4a4065fd47c7100` at start of this session. The entire 4-branch inventory was reverified; no branches were recreated and no source was merged to feature/release/master. Pinned audit source: `7e369eb4afa6477e81f3e185ce9754bfd91982a6`.
+
+**Recovered user workflow requirements:** Keep complete A–H interaction/decision skeleton (adaptive), versioned `RECOVERY_JOURNAL.md` plus issue-specific durable GitHub checkpoints and exact next cursor, conceptual commit per independent change, before/after build and adversarial execution-level gates. Do not close issues based only on source review, test-name inventory, or compiling; distinguish threat coverage and acceptance. No force/rewrite of published history; preserve release and historical audit snapshots. No secrets or private identifiers sent to unapproved external recipients.
+
+### Completed and accepted: DH-A070 / #142 (HIGH)
+- `1f8ce2d74ca6e8f690a36ac08200975e79f2b426`: independently scoped regression-contract correction: a legacy temp-companion test now establishes real archive ownership before Reset instead of bypassing the bound-state contract via private fields. Original temp-file non-destruction assertions preserved.
+- `8ec58efc6f48779d672c71c68263906c39e92b0a`: Reset under `Sync`, fail closed if never enabled or no durable bound archive, reset only `Path.GetFullPath(BoundArchivePath)` (not mutable `EffectiveArchivePath`). Reject disabled-mode physical rebinding from `CommitSettings` and `ArchivePath` setter while preserving equivalent representations/implicit bound path and never-enabled future candidates.
+- Windows Audit Build [#42306198166](https://github.com/Proponent-8247/youtube-dl-gui/actions/runs/42306198166): **SUCCESS**. Windows Audit Verification [#42306198170](https://github.com/Proponent-8247/youtube-dl-gui/actions/runs/42306198170): **SUCCESS** at exact production SHA, including compiled-application, full Release/packaging, and x86 regressions. Log explicitly shows `PASS DOWNLOAD_HISTORY.ResetRequiresOwnedBoundArchive` and `PASS DOWNLOAD_HISTORY.ResetPreservesUnownedTempCompanions` in all three passes. No FAIL regression lines.
+- GitHub [issue #142](https://github.com/Proponent-8247/youtube-dl-gui/issues/142) CLOSED with issue-specific evidence and acceptance. [Queue #149](https://github.com/Proponent-8247/youtube-dl-gui/issues/149) now checks DH-A070 and records **129 outstanding issues**. Related #143/#145/#102 (reparse and hard-link ownership) remain open, not conflated with #142.
+
+### Implemented, NOT YET ACCEPTED: release-security #101 and #100 (HIGH)
+- `1736152f39eeef58d8cba1785f9eacede58dda40`: add `SECURITY.ReleaseCandidateDispatchVersionIsData` regression protecting the exact workflow env-to-PowerShell data boundary and rejecting direct expressions in the PowerShell run body.
+- `d3f191eafff2014ed0497799043228b5fae94afe`: #101, move manual `expected_version` from inline expression in PowerShell source into step-level `EXPECTED_VERSION_INPUT` environment variable. Preserve branch-derived fallback. Adversarial `workflow_dispatch` with quotes/semicolons/newlines and forged artifact refusal still needs live execution-level proof.
+- `f2e8218622c1da8bd9f82d5200516cc1fb982afb`: #100, require true immutable reviewed SHA `7e369eb4afa6477e81f3e185ce9754bfd91982a6` in release-candidate ancestry check. Keep `audited_base` manifest field. Live GitHub compare proves current `release/3.3.0-2` is 545 commits behind the reviewed baseline and cannot pass; remediation is a descendant. Negative/positive candidate acceptance and independent verifier trust-root #116 still pending.
+- At this checkpoint: Audit Build [#42306784006](https://github.com/Proponent-8247/youtube-dl-gui/actions/runs/42306784006) **SUCCESS** at `f2e82186`; Audit Verification [#42306783959](https://github.com/Proponent-8247/youtube-dl-gui/actions/runs/42306783959) was **IN PROGRESS** after passing compiled regression and Release build, while the full-Release/x86 rerun continued. Do not infer final acceptance from this interim state. Earlier test-only CI was canceled automatically by later push; the final workflow run is the relevant code SHA.
+- Both findings remain OPEN. Issue-specific implementation comments are persisted in #100 and #101.
+
+### Next exact cursor / risks
+1. Re-query run `42306783959`, inspect exact head, step conclusions and hostile-input regression. If unsuccessful, remediate focused cause first. If successful, note that end-to-end `workflow_dispatch` exploit probes and release verifier independent trust (#116) are not yet proven by ordinary regression.
+2. Prioritize **Critical #93**: earlier verifier/publisher privilege split is implemented but independent artifact attestation, malicious `.csproj` write attempt and standalone read-only verification runner have not passed. Related #94/#95/#96/#105/#124 trusted guard/parser/test oracles remain open.
+3. Continue highest severity Download History archive/reparse and unsafe argument issues (#143-#148, #59, #66, #102, #147), and provider/updater provenance. Work on remediation branch, conceptual commits, issue-specific negative and full Windows test gates; update [queue #149](https://github.com/Proponent-8247/youtube-dl-gui/issues/149) only for accepted closures.
+4. Do not change the four-branch inventory, merge unfinished fixes into release/master or claim release-readiness. Four retained branches: `master`, `release/3.3.0-2`, `feature/download-history-archive-3.3.0-2`, `remediation/whole-repo-20261016`.
+
+**Exact source branch head before this journal-only commit:** `f2e8218622c1da8bd9f82d5200516cc1fb982afb`. Journal write uses `[skip ci]` to avoid interrupting the in-flight exact-source verification run. Resolve updated head and journal blob by read-back after writing.

@@ -69,6 +69,51 @@ public static class DownloadHelper {
         return true;
     }
 
+    // Playlist/date fields are app-generated provider options, NOT custom arguments.
+    // Validate again at the command boundary because KeyPress restrictions do not
+    // cover clipboard paste, automation or persisted/programmatic values.
+    public static bool TryBuildSelectionArgument(PlaylistSelectionType kind, string? value,
+        out string argument, out string error) {
+        argument = string.Empty;
+        error = string.Empty;
+        switch (kind) {
+            case PlaylistSelectionType.None:
+            case PlaylistSelectionType.PlaylistStartPlaylistEnd:
+                return true;
+            case PlaylistSelectionType.PlaylistItems:
+                // yt-dlp supports comma-separated indices and simple START:END[:STEP]
+                // or START-END ranges. This grammar cannot introduce a second argv.
+                if (string.IsNullOrEmpty(value) || value.Length > 512 ||
+                    !Regex.IsMatch(value,
+                        @"\A[0-9]+(?:(?::|-)[0-9]*)?(?::[0-9]+)?(?:,[0-9]+(?:(?::|-)[0-9]*)?(?::[0-9]+)?)*\z",
+                        RegexOptions.CultureInvariant)) {
+                    error = "Invalid playlist items. Use comma-separated numbers or numeric ranges only.";
+                    return false;
+                }
+                argument = "--playlist-items " + ArgumentList.EscapeArgument(value);
+                return true;
+            case PlaylistSelectionType.DateBefore:
+            case PlaylistSelectionType.DateDuring:
+            case PlaylistSelectionType.DateAfter:
+                if (string.IsNullOrEmpty(value) || !DateTime.TryParseExact(
+                    value, "yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out _)) {
+                    error = "Invalid video date. Enter a real calendar date as YYYYMMDD.";
+                    return false;
+                }
+                string option = kind switch {
+                    PlaylistSelectionType.DateBefore => "--datebefore",
+                    PlaylistSelectionType.DateDuring => "--date",
+                    _ => "--dateafter"
+                };
+                argument = option + " " + ArgumentList.EscapeArgument(value);
+                return true;
+            default:
+                error = "Invalid playlist or date selection mode.";
+                return false;
+        }
+    }
+
     // lang=regex The prefix for the initial regex, encompasing the connection protocol.
     private const string RegexPrefix = @"^(http(s)?:\/\/)?";
 

@@ -129,6 +129,17 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
             return false;
         }
 
+        string playlistSelectionArgument = string.Empty;
+        if (Type != DownloadType.Custom && !DownloadHelper.TryBuildSelectionArgument(
+            PlaylistSelection, PlaylistSelectionArg, out playlistSelectionArgument, out string selectionError)) {
+            Verbose(selectionError);
+            Status = DownloadStatus.ProgramError;
+            base.Arguments = null;
+            ArgumentsCensored = string.Empty;
+            DownloadHistoryExecution = null;
+            return false;
+        }
+
         if (!DownloadHistory.TryGetArchiveArguments(EffectiveFileNameSchema, CustomArguments, out string DownloadArchiveArguments, out string DownloadHistoryError, out DownloadHistoryExecution? HistoryExecution)) {
             Verbose(DownloadHistoryError);
             Status = DownloadStatus.ProgramError;
@@ -280,17 +291,11 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                         ArgumentsBuffer.Add($"--playlist-end {PlaylistSelectionIndexEnd}");
                     }
                     break;
-                case PlaylistSelectionType.PlaylistItems: // playlist-items
-                    ArgumentsBuffer.Add($"--playlist-items {PlaylistSelectionArg}");
-                    break;
-                case PlaylistSelectionType.DateBefore: // datebefore
-                    ArgumentsBuffer.Add($"--datebefore {PlaylistSelectionArg}");
-                    break;
-                case PlaylistSelectionType.DateDuring: // date
-                    ArgumentsBuffer.Add($"--date {PlaylistSelectionArg}");
-                    break;
-                case PlaylistSelectionType.DateAfter: // dateafter
-                    ArgumentsBuffer.Add($"--dateafter {PlaylistSelectionArg}");
+                case PlaylistSelectionType.PlaylistItems:
+                case PlaylistSelectionType.DateBefore:
+                case PlaylistSelectionType.DateDuring:
+                case PlaylistSelectionType.DateAfter:
+                    ArgumentsBuffer.Add(playlistSelectionArgument);
                     break;
             }
 

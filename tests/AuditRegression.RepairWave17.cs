@@ -246,6 +246,47 @@ internal static partial class AuditRegression {
         Require(workflow.Contains("actions/upload-artifact@"),
             "Read-only verification no longer retains a reviewable artifact");
     }
+    private static string RunGuardParserWithFixture(string pythonScript, string folder, string switchName) {
+        ProcessStartInfo start = new ProcessStartInfo("python.exe");
+        start.Arguments = "\"" + pythonScript + "\" " + switchName;
+        start.WorkingDirectory = folder;
+        start.CreateNoWindow = true;
+        start.UseShellExecute = false;
+        start.RedirectStandardOutput = true;
+        start.RedirectStandardError = true;
+        using (Process process = Process.Start(start)) {
+            Require(process.WaitForExit(15000), "Repair parser fixture exceeded the execution timeout");
+            string output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
+            return process.ExitCode.ToString() + "\n" + output;
+        }
+    }
+
+    private static void GuardedRepairCannotSelfWhitelistFlakyFailures() {
+        string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
+        string script = Path.Combine(root, "tools", "apply-audit-repairs.py");
+        string runner = File.ReadAllText(Path.Combine(root, "tools", "Run-AuditRepairBatch.ps1"));
+        int deny = runner.IndexOf("if ($allowedFlaky.Count -gt 0)", StringComparison.Ordinal);
+        int baseline = runner.IndexOf("$previous = Build-And-Test '00-before'", StringComparison.Ordinal);
+        Require(deny >= 0 && baseline > deny, "Flaky exemptions are not denied before the first untrusted baseline build");
+        string fixture = Path.Combine(Path.GetTempPath(), "audit-flaky-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(fixture);
+        try {
+            string plan = "{\"version\":2,\"base_sha\":\"" + new string('a', 40) + "\",\"expected_failures\":[],\"remaining_failures\":[],\"repairs\":[{\"id\":\"TEST\",\"message\":\"fixture\",\"resolves\":[],\"files\":[]}]}";
+            string request = Path.Combine(fixture, ".audit-repairs.json");
+            File.WriteAllText(request, plan, new UTF8Encoding(false));
+            string valid = RunGuardParserWithFixture(script, fixture, "--runner-metadata");
+            Require(valid.StartsWith("0\n", StringComparison.Ordinal), "A valid request without flaky exemptions was rejected: " + valid);
+            string malicious = plan.Replace("\"expected_failures\":[]", "\"expected_failures\":[],\"allowed_flaky_failures\":[\"DOWNLOAD_HISTORY.ResetRequiresOwnedBoundArchive\"]");
+            File.WriteAllText(request, malicious, new UTF8Encoding(false));
+            string rejected = RunGuardParserWithFixture(script, fixture, "--runner-metadata");
+            Require(!rejected.StartsWith("0\n", StringComparison.Ordinal) && rejected.Contains("flaky-test exemptions"),
+                "Self-declared flaky failure was accepted by the repair parser: " + rejected);
+            string preflight = RunGuardParserWithFixture(script, fixture, "--preflight");
+            Require(!preflight.StartsWith("0\n", StringComparison.Ordinal) && preflight.Contains("flaky-test exemptions"),
+                "Flaky request escaped the preflight security gate: " + preflight);
+        }
+        finally { try { Directory.Delete(fixture, true); } catch { } }
+    }
     private static void RunRepairWave17Tests() {
         Test("POLICY_P002.SessionHistoryRetainsAndExports", SessionHistoryRetainsAndExports);
         Test("CURRENT_O020.ProviderReleaseRequiresAuthoritativeDigest", ProviderReleaseRequiresAuthoritativeDigest);
@@ -257,6 +298,7 @@ internal static partial class AuditRegression {
         Test("CURRENT_O024.RedditUserscriptTargetsPermalinksSafely", RedditUserscriptTargetsPermalinksSafely);
         Test("SECURITY.ReleaseCandidateDispatchVersionIsData", ReleaseCandidateDispatchVersionIsData);
         Test("SECURITY.GuardedRepairHasNoAutomaticWritePublisher", GuardedRepairHasNoAutomaticWritePublisher);
+        Test("SECURITY.GuardedRepairCannotSelfWhitelistFlakyFailures", GuardedRepairCannotSelfWhitelistFlakyFailures);
         RunDownloadHistoryTests();
         RunV011Tests();
     }

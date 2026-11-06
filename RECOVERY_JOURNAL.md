@@ -272,3 +272,24 @@ Source head before this journal: eb94cb728947eb03d76b464482765b2cff44b5fa; four 
 1. Inspect runs 42310749163/42310749189, diagnose actual PowerShell process or git ancestry tests if red; close #100/#101 only when evidence complete and no unstated scope claims.
 2. Continue Critical #93 trusted promotion/root #94 and remaining high Download History #143/#144/#146/#147/#148, high injection #59/#66/#24.
 3. Maintain 4 branches and issue-centric recovery journal; no forced pushes/release publication.
+
+## 2026-11-06 UTC — RELEASE SECURITY ACCEPTED; PROXY/SUBTITLE ARGUMENT BOUNDARY IN PROGRESS
+
+Source head before checkpoint: 7052228474889d9636eb61a8d7fa29e64a1a622c. Preserve four branches, no release/master/feature application merge.
+
+### PAR-07-016/#100 and PAR-07-017/#101 accepted/closed
+- Source f2e8218622c1da8bd9f82d5200516cc1fb982afb pins required audited release SHA 7e369eb4afa6477e81f3e185ce9754bfd91982a6; source d3f191eafff2014ed0497799043228b5fae94afe sends expected_version through step env EXPECTED_VERSION_INPUT rather than interpolating shell source.
+- Tests eb94cb728947eb03d76b464482765b2cff44b5fa: SECURITY.ReleaseVersionInjectionCannotRunPowerShell executes the ACTUAL release workflow step in PowerShell with hostile strings and a harmless mock, then proves real verifier version mismatch; SECURITY.ReleaseCandidateRejectsOldReviewedHistory tests actual git ancestry and rejects stale release while accepting reviewed head.
+- Windows Audit Build #42310749163 SUCCESS and full Audit Verification #42310749189 SUCCESS at eb94cb7. Both tests PASS in all 3 runs, including x86. #100/#101 CLOSED with exact evidence. Caveat: no live GitHub workflow_dispatch event was performed, but Actions-equivalent actual PowerShell source/data-boundary execution was performed. #116 separately owned verifier trust root remains open.
+- Canonical issue #149 reduced from 125 to **123 remaining original findings**.
+
+### High #59 proxy input injection and #66 subtitle format injection implementation — pending acceptance
+- 191bbd92d7c6b210efbdd5f39f914f54985b1345: atomic test commit of tests/AuditRegression.ProviderArgumentSecurity.cs and RepairWave17 registration, with positive valid settings and malformed host/port/format negatives under protected Download History for standard and extended generators.
+- 11583a6da93a0d9c646e867b462f3c812dbf8267: #59, shared DownloadHelper.TryBuildProxyArgument validates protocol selection, host grammar, numeric 1-65535 port and URI, produces complete escaped proxy operand. Standard and extended argument builders refuse malformed settings and clear DownloadHistoryExecution before command publication. Previously KeyPress-only UI checks were bypassed by clipboard/INI settings.
+- 7052228474889d9636eb61a8d7fa29e64a1a622c: #66, shared DownloadHelper.TryBuildSubtitleFormatArgument validates format-name/slash-selector grammar and emits one escaped --sub-format value; invalid persisted whitespace/--exec or option terminator patterns reject both generators before command publication.
+- Windows Build #42311525829 and full Audit Verification #42311525724 running at exact 7052228; neither #59 nor #66 accepted or closed until CI read-back. Comments in each issue.
+
+### Next cursor
+1. Inspect runs #42311525829/#42311525724 for syntax/build failures and SECURITY.ProviderProxySettingCannotInjectArguments / SECURITY.ProviderSubtitleFormatCannotInjectArguments all 3 passes; remediate test/source if red.
+2. Then high #147 EJS unverified remote script injection, #24 playlist/date injected settings, #26 Authenticode revocation and #27 signed-app authenticity; Critical #93 publisher trust root still open despite read-only mitigation.
+3. Continue issue-specific checkpoints and queue only on accepted gates, no force updates or release promotion.

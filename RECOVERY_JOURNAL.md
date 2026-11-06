@@ -225,3 +225,29 @@ Goal: reduce 17 live branches to no more than 5 (prefer 4), preserving unique us
 1. Inspect GH runs 42308795862 / 42308795884; diagnose any failure before accepting #145.
 2. Add runtime hostile version-input and release-ancestry negative tests for #100/#101; #116 release verifier independence remains high severity.
 3. Implement Windows file identity/hard-link checks for #102 and trusted promotion for Critical #93/#94; preserve four branches and do not merge unverified source.
+
+## 2026-11-06 UTC — DH-A073 ACCEPTED, EMERGENCY FEATURE WORKFLOW HARDENING, HARD-LINK WORK
+
+Source head before this journal: fc5aa1cc7286ed56265b095b7ccb54da89abe5cb. Four retained branches; no release/master integration.
+
+### #145 / DH-A073 CLOSED — source SHA 1638dacaeae1426eae2eb8df270917685beb2c54
+- Real Windows file-symlink archive/backup/lock fixture e16458ad92a2db5ba4710cbf801def8ee9068a3f; production exact state-entry reparse refusal 1638dacaeae1426eae2eb8df270917685beb2c54.
+- Windows Audit Build run #42308795862 SUCCESS. Windows Audit Verification #42308795884 attempt 1 failed unrelated V011 rollback IPC startup timeout waiting for updater-pid in x86; the new reparse test passed all 3 passes. Exact same code SHA attempt 2 of #42308795884 SUCCESS, including packaging, x86 and 3/3 DOWNLOAD_HISTORY.RejectsReparseArchiveAndCompanions PASS, no FAIL lines.
+- #145 closed with acceptance details. Queue #149 reconciled to **126 original findings remaining** (accepted #142, #95, #96, #145). #102 physical aliasing and #143 descendant reparse paths remain open.
+
+### Critical #93 feature-branch deployment hotfix, separate from unaccepted production fixes
+- The feature branch still had the original guarded-repair workflow granting contents: write and default persisted checkout credentials, even though remediation branch had safe read-only workflow. The unsafe active feature CI needed immediate privilege reduction.
+- Feature-only CI workflow commit 5dac86e799b84609af2face5cf5031f26d5faf2f: .github/workflows/audit-repair.yml contents: read and persist-credentials: false. No product source changed, no remediation code merged, old runner may fail when attempting a push; that fail-closed behavior is intentional until trusted promotion exists.
+- GitHub read-back verified feature head and no-write/no-persistent-credentials; feature Audit Build #42309420222 SUCCESS. The feature baseline audit verification has unrelated Download History regressions and is not security acceptance. #93 remains open for trusted promoter, with #94/#124 separate.
+
+### #102 / PAR-09-001 HIGH — Win32 file identity work, pending CI acceptance
+- 7552c3b07edacf9f866246a53ed19e61d6e0792d: actual Windows CreateHardLinkW fixture against unrelated native archive, bound .bak and .lock companions, cookie hard-link alias, alternate directory junction alias and distinct identical-content positive control.
+- 2335128f36aeee9080ea96bf9daace157445691a: use read-only GetFileInformationByHandle BY_HANDLE_FILE_INFORMATION and Windows volume/file IDs; reject state with LinkCount !=1, compare cookie file identity against archive/backup/lock to catch hard-link/DOS/alternate junction names, without following state redirects or altering selected root semantics.
+- fc5aa1cc7286ed56265b095b7ccb54da89abe5cb: negative test expects fail-closed exception from lease state identity guard rather than a permissive report.
+- Windows Build #42309902049 SUCCESS at fc5aa; full Windows Audit Verification #42309902054 in progress at this checkpoint, NOT YET ACCEPTED. Recheck exact run and fix test/source failures before closing #102. This is preflight identity enforcement and does not claim race-free native provider write.
+
+### Next cursor
+1. Read run #42309902054, verify both new hard-link/physical-cookie regression tests in all 3 passes and no other failures; fix if necessary. Reconcile #102 issue/queue only after acceptance.
+2. Complete actual hostile PowerShell release input and reviewed ancestor positive/negative tests for #101/#100; #116 release verifier trust root independent and open.
+3. Implement separate trusted guarded-repair promotion after Critical #93 mitigation, plus #94/#105/#124 integrity acceptance. Review persistent source and V011 intermittent startup timeout without accepting flaky exemptions.
+4. Preserve exactly four branches and explicit GitHub journal; avoid released artifacts/branch integration until all release gates pass.

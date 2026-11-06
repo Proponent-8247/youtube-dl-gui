@@ -63,6 +63,29 @@ jobs:
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
 
+      - name: Prove build-time code cannot authenticate repository writes
+        if: github.ref_name == 'remediation/whole-repo-20261016'
+        shell: pwsh
+        env:
+          GIT_TERMINAL_PROMPT: '0'
+          GCM_INTERACTIVE: Never
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (![string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) {
+            throw 'A repository token was exposed to the build process through GITHUB_TOKEN.'
+          }
+          # Deliberately run an untrusted-style MSBuild Exec target from a checked-out
+          # repository. --dry-run guarantees no branch is created by this probe.
+          $output = & msbuild tests/AuditSecurityCredentialProbe.proj /t:Probe /nologo /v:minimal 2>&1 | Out-String
+          $exit = $LASTEXITCODE
+          $output | Out-Host
+          if ($exit -ne 0 -or $output -notmatch 'Hostile MSBuild dry-run push refused') {
+            throw "Credential probe did not complete its expected denied-write path (exit $exit)."
+          }
+          if ($output -notmatch '(?i)(403|401|permission denied|write access|authentication failed|could not read username|terminal prompts disabled|not granted|access denied|insufficient permissions)') {
+            throw 'Dry-run push failed for an unexpected reason; cannot establish credential isolation.'
+          }
+
       - name: Build Debug solution
         shell: pwsh
         run: |

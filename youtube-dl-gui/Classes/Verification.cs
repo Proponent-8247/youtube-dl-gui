@@ -136,6 +136,32 @@ internal static class Verification {
         return General.UseStaticFFmpeg ? General.ffmpegPath : Program.ProgramPath + "\\ffmpeg.exe";
     }
 
+    // Discovery is only authority to EXECUTE an existing executable; it never
+    // authorizes overwriting tools installed by package managers or other apps.
+    // Managed updates always target fixed filenames in this application's root.
+    public static string GetManagedYoutubeDlUpdatePath() =>
+        Path.Combine(Program.ProgramPath, GetYoutubeDlProvider(true));
+
+    public static string GetManagedFfmpegUpdatePath() =>
+        Path.Combine(Program.ProgramPath, "ffmpeg.exe");
+
+    private static bool IsConfiguredUpdateTarget(string? configured, string managed) {
+        try {
+            return !configured.IsNullEmptyWhitespace() &&
+                string.Equals(Path.GetFullPath(configured!), Path.GetFullPath(managed),
+                    StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
+    }
+
+    // A user-selectable STATIC executable can still be used for execution, but
+    // must not silently confer update ownership outside the app-owned location.
+    public static bool CanManageConfiguredYoutubeDlPath() =>
+        !General.UseStaticYtdl || IsConfiguredUpdateTarget(General.ytdlPath, GetManagedYoutubeDlUpdatePath());
+
+    public static bool CanManageConfiguredFfmpegPath() =>
+        !General.UseStaticFFmpeg || IsConfiguredUpdateTarget(General.ffmpegPath, GetManagedFfmpegUpdatePath());
+
     private static string? GetProgramVersion(string ProgramPath) {
         try {
             return File.Exists(ProgramPath) ?

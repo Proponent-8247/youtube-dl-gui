@@ -715,6 +715,10 @@ internal static class Updater {
             return CanUseProviderSelfUpdater();
         }
         else {
+            if (!Verification.CanManageConfiguredYoutubeDlPath()) {
+                Log.Write("Provider update refused: the configured static executable is externally managed. Update that binary with its owning installer, or select the application-managed provider.");
+                return false;
+            }
             int TypeIndex = Verification.GetYoutubeDlType();
             if (LatestYoutubeDl is null || LatestYoutubeDlType != TypeIndex) {
                 Log.Write("Provider selection changed; check its release before downloading an update.");
@@ -736,7 +740,7 @@ internal static class Updater {
             string ExpectedHash = LatestYoutubeDl.ExecutableHash!;
             using frmGenericDownloadProgress Downloader = new(
                 DownloadUrl!,
-                Verification.YoutubeDlPath ?? Verification.GetExpectedYoutubeDlPath(),
+                Verification.GetManagedYoutubeDlUpdatePath(),
                 Location,
                 TempPath => VerifyDownloadedExecutable(TempPath, ExpectedHash));
             if (Downloader.ShowDialog() != DialogResult.OK) {
@@ -765,6 +769,10 @@ internal static class Updater {
     /// </summary>
     /// <returns><see langword="true"/> if it was updated; otherwise, <see langword="false"/>.</returns>
     public static async Task<bool> UpdateFfmpeg(System.Drawing.Point? Location) {
+        if (!Verification.CanManageConfiguredFfmpegPath()) {
+            Log.Write("FFmpeg update refused: the configured static executable is externally managed. Update it with its owning installer, or select the application-managed FFmpeg.");
+            return false;
+        }
         Log.Write("Downloading the latest ffmpeg release.");
         string FfmpegZipPath = Environment.CurrentDirectory + "\\ffmpeg.zip";
         string? ExpectedArchiveHash = await GetFfmpegArchiveDigest();
@@ -786,7 +794,7 @@ internal static class Updater {
         bool CanRetry = true;
         do {
             try {
-                string FfmpegPath = Path.GetDirectoryName(Verification.FFmpegPath ?? Verification.GetExpectedFfmpegPath()) ??
+                string FfmpegPath = Path.GetDirectoryName(Verification.GetManagedFfmpegUpdatePath()) ??
                     Environment.CurrentDirectory;
 
                 using ZipArchive archive = ZipFile.OpenRead(FfmpegZipPath);
@@ -806,7 +814,7 @@ internal static class Updater {
                 ZipArchiveEntry FfmpegEntry = FfmpegEntries[0];
                 ZipArchiveEntry FfprobeEntry = FfprobeEntries[0];
 
-                string FfmpegOutputPath = Verification.FFmpegPath ?? Verification.GetExpectedFfmpegPath();
+                string FfmpegOutputPath = Verification.GetManagedFfmpegUpdatePath();
                 string FfprobeOutputPath = Path.Combine(FfmpegPath, "ffprobe.exe");
                 string FfmpegTempPath = FfmpegOutputPath + ".update";
                 string FfprobeTempPath = FfprobeOutputPath + ".update";

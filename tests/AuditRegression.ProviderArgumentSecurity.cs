@@ -93,6 +93,62 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void ProviderSelectionFieldsCannotInjectOptions() {
+        Type selection = T("youtube_dl_gui.PlaylistSelectionType");
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string[,] safe = {
+                { "PlaylistItems", "1,3:5", "--playlist-items 1,3:5" },
+                { "DateBefore", "20261106", "--datebefore 20261106" },
+                { "DateDuring", "20261106", "--date 20261106" },
+                { "DateAfter", "20261106", "--dateafter 20261106" }
+            };
+            for (int i = 0; i < safe.GetLength(0); i++) {
+                object item = NewProviderBoundaryDownloader(false);
+                Set(item.GetType(), item, "PlaylistSelection", Enum.Parse(selection, safe[i, 0]));
+                Set(item.GetType(), item, "PlaylistSelectionArg", safe[i, 1]);
+                Require(ProviderBoundaryGenerate(item, false), "Valid selection rejected: " + safe[i, 0]);
+                string args = (string)Get(item, "Arguments");
+                Require(args.Contains(safe[i, 2]) && args.Contains("--download-archive"),
+                    "Valid selection or protected suffix missing from command: " + safe[i, 0]);
+            }
+
+            string[,] hostile = {
+                { "PlaylistItems", "1 --exec unwanted" },
+                { "PlaylistItems", "1 --" },
+                { "PlaylistItems", "1,\r\n--plugin-dirs rogue" },
+                { "DateBefore", "20261106 --exec unwanted" },
+                { "DateDuring", "20261106 --" },
+                { "DateAfter", "20261106\r\n--config-locations rogue" },
+                { "DateDuring", "20260230" }
+            };
+            for (int i = 0; i < hostile.GetLength(0); i++) {
+                object item = NewProviderBoundaryDownloader(false);
+                Set(item.GetType(), item, "PlaylistSelection", Enum.Parse(selection, hostile[i, 0]));
+                Set(item.GetType(), item, "PlaylistSelectionArg", hostile[i, 1]);
+                Require(!ProviderBoundaryGenerate(item, false),
+                    "Selection field injected provider options: " + hostile[i, 0]);
+                Equal(null, Get(item, "DownloadHistoryExecution"));
+            }
+
+            object bounded = NewProviderBoundaryDownloader(false);
+            Set(bounded.GetType(), bounded, "PlaylistSelection", Enum.Parse(selection, "PlaylistStartPlaylistEnd"));
+            Set(bounded.GetType(), bounded, "PlaylistSelectionIndexStart", 2);
+            Set(bounded.GetType(), bounded, "PlaylistSelectionIndexEnd", 4);
+            Require(ProviderBoundaryGenerate(bounded, false), "Integer playlist start/end path regressed");
+            string boundedArgs = (string)Get(bounded, "Arguments");
+            Require(boundedArgs.Contains("--playlist-start 2") && boundedArgs.Contains("--playlist-end 4"),
+                "Integer playlist start/end controls were lost");
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            object disabled = NewProviderBoundaryDownloader(false);
+            Set(disabled.GetType(), disabled, "PlaylistSelection", Enum.Parse(selection, "PlaylistItems"));
+            Set(disabled.GetType(), disabled, "PlaylistSelectionArg", "1 --exec unwanted");
+            Require(!ProviderBoundaryGenerate(disabled, false),
+                "Malformed pasted selection changed command semantics while history was disabled");
+        }
+    }
+
     private static void ProviderSubtitleFormatCannotInjectArguments() {
         Type downloads = T("youtube_dl_gui.Downloads");
         FieldInfo enabled = downloads.GetField("fSaveSubtitles", All);

@@ -1,4 +1,5 @@
-name: Guarded audit repairs
+name: Guarded audit repairs (read-only emergency guard)
+# Automatic publishing is intentionally unavailable pending an independently trusted promoter.
 on:
   push:
     branches:
@@ -6,7 +7,7 @@ on:
       - feature/download-history-archive-3.3.0-2
     paths: [.audit-repairs.json]
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: audit-repair-${{ github.ref }}
   cancel-in-progress: true
@@ -19,6 +20,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+          persist-credentials: false
       - uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
       - name: Reject superseded or duplicate requests
         id: head

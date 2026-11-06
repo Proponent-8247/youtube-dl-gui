@@ -198,3 +198,30 @@ Goal: reduce 17 live branches to no more than 5 (prefer 4), preserving unique us
 - Read-only audit, 4-branch consolidation, and #142 closure remain complete. **129 findings remain open** in canonical queue #149.
 - Exact current working branch head before this journal-only update: `a199e997bd1ac2f4771b28b3697f9b5b7fe2587c`.
 - Resumption cursor: prioritize Critical #93 credential separation verification and independent artifact trust; test #94/#95/#96/#105/#124 with adversarial job fixtures. Then full hostile release input/ancestry acceptance for #100/#101 and archive path/reparse/hardlink ownership regressions #143/#145/#102. No unverified releases or merges.
+
+## 2026-11-06 UTC — REPAIR SECURITY AND REPARSE-STATE CHECKPOINT
+
+**Source head before journal:** 1638dacaeae1426eae2eb8df270917685beb2c54. Four branch limit maintained; no release/feature/master integration.
+
+### Critical #93 - automatic privileged publication DISABLED; trusted promotion still pending
+- 67d8e4f21210f18b6f3c0f6ad3760dff16f0803d adds read-only publisher-absence regression.
+- d3ee0c7b7fd632ed437be20eb7b274e6a8dc4afd removes the privileged artifact-consuming publish job entirely. Guarded repairs now generate read-only review artifacts, not automated repository writes.
+- 4df4858addba11eaddbb9d9ce04508663e746546 adds hostile MSBuild fixture with dry-run git push; 592bac9914748bebe29506844fcd69fe4c78319d fixes XML comment, 7155107991d7b305b537d96897a7aae2b4c2b43f wires workflow probe, f61e0c78022bf6a26002dc007e13a4f565b166fe accepts observed Git Credential Manager denial.
+- Windows Audit Build #42308255974 SUCCESS; Audit Verification #42308255968 SUCCESS at source f61e0c7. Dry-run push failed for lack of authentication. SECURITY.GuardedRepairHasNoAutomaticWritePublisher PASS 3/3.
+- Critical #93 remains OPEN: no separately trusted review/promote path implemented. #94/#124 are independent unresolved trust-oracle issues.
+
+### High #95 and #96 CLOSED — canonical count 127 outstanding
+- #95: tests 42205bbaa07815e900a390aef25a29794b856131; parser fail-closed commit ce7c9824c745e58416d8f846db93c0a59aef1ee1; runner pre-build rejection f9c86ab63a6696eb74e39c32becf08c9f46b37bd. Both metadata and preflight reject request-controlled flaky exemptions.
+- #96: tests aa7feedd4279bf6771d6db74169e4852120d0f2c and prior source parser restriction 186f1c06323d0452c9766489c616d0d5860e714b. Actual positive allowed-edit and negative tests-edit parser fixtures.
+- All tests PASS in three Windows regressions at f61e0c7, including full Release and x86; the two findings were closed and canonical queue #149 updated to 127 remaining.
+
+### High #145 IN PROGRESS — exact archive/backup/lock reparse-point protection
+- e16458ad92a2db5ba4710cbf801def8ee9068a3f adds real Windows mklink symlink fixtures covering unrelated archive, bound-archive .bak and .lock; assert target bytes intact.
+- 1638dacaeae1426eae2eb8df270917685beb2c54 adds exact entry reparse-point rejection before read, lease, reset, write/backup and with rechecks. Configured root junctions remain allowed.
+- At checkpoint Audit Build #42308795862 and Audit Verification #42308795884 were running on 1638daca. Do not close #145 until all three Windows passes and adversarial fixture behavior verified.
+- File-system TOCTOU races and hard-link/DOS alias identity (#102) remain separate unaccepted risks.
+
+### Next cursor
+1. Inspect GH runs 42308795862 / 42308795884; diagnose any failure before accepting #145.
+2. Add runtime hostile version-input and release-ancestry negative tests for #100/#101; #116 release verifier independence remains high severity.
+3. Implement Windows file identity/hard-link checks for #102 and trusted promotion for Critical #93/#94; preserve four branches and do not merge unverified source.

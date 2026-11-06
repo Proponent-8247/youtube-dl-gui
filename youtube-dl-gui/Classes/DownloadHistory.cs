@@ -3,6 +3,7 @@ namespace youtube_dl_gui;
 
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -175,6 +176,70 @@ internal sealed class DownloadHistoryAnalysis {
 internal static class DownloadHistory {
     private const string ConfigName = "DownloadHistory";
     internal const string ProtectedIsolationArguments = "--ignore-config --no-plugin-dirs";
+
+    // Win32 BY_HANDLE_FILE_INFORMATION identifies the underlying file across
+    // NTFS hard links, 8.3 names and alternate directory junction aliases.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeFileTime {
+        internal uint Low;
+        internal uint High;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeFileInfo {
+        internal uint Attributes;
+        internal NativeFileTime Creation;
+        internal NativeFileTime LastAccess;
+        internal NativeFileTime LastWrite;
+        internal uint VolumeSerial;
+        internal uint SizeHigh;
+        internal uint SizeLow;
+        internal uint LinkCount;
+        internal uint IndexHigh;
+        internal uint IndexLow;
+    }
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetFileInformationByHandle(
+        Microsoft.Win32.SafeHandles.SafeFileHandle handle, out NativeFileInfo info);
+
+    private static bool TryGetExistingFileInfo(string path, out NativeFileInfo info) {
+        info = default;
+        if (!File.Exists(path)) return false;
+        // Query with read-only access; never write to or truncate a foreign alias.
+        using FileStream stream = new(path, FileMode.Open, FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        if (!GetFileInformationByHandle(stream.SafeFileHandle, out info)) {
+            throw new IOException("Could not verify Windows file identity (Win32 error " +
+                Marshal.GetLastWin32Error() + ").");
+        }
+        return true;
+    }
+
+    private static bool SamePhysicalFile(NativeFileInfo left, NativeFileInfo right) =>
+        left.VolumeSerial == right.VolumeSerial && left.IndexHigh == right.IndexHigh &&
+        left.IndexLow == right.IndexLow;
+
+    private static void AssertNoStateHardLinks(string path) {
+        try {
+            if (TryGetExistingFileInfo(path, out NativeFileInfo info) && info.LinkCount != 1) {
+                throw new InvalidOperationException(
+                    "Download History refuses a protected state file with multiple hard links: " + path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            System.Security.SecurityException) {
+            throw new InvalidOperationException(
+                "Download History cannot establish protected state hard link ownership: " + path, ex);
+        }
+    }
+
+    private static void AssertArchiveStateNotHardLinked(string archive, bool inspectLock) {
+        AssertNoStateHardLinks(archive);
+        AssertNoStateHardLinks(archive + ".bak");
+        // The lock file is opened exclusively during an active lease. Inspect it
+        // before acquiring that lease; after acquisition the handle is stable.
+        if (inspectLock) AssertNoStateHardLinks(archive + ".lock");
+    }
+
     private static readonly object Sync = new();
     private static string? PreparedKey;
     private static string? PreparedArchiveFloorPath;
@@ -443,6 +508,7 @@ internal static class DownloadHistory {
 
             using DownloadHistoryLease lease = AcquireManagementLease(archive, "reset");
             AssertArchiveStateNotReparse(archive);
+            AssertArchiveStateNotHardLinked(archive, false);
             foreach (string path in new[] { archive, archive + ".bak" }) {
                 if (File.Exists(path)) File.Delete(path);
             }
@@ -721,9 +787,22 @@ internal static class DownloadHistory {
             return true;
         }
 
-        return string.Equals(normalizedCookie, normalizedArchive, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(normalizedCookie, normalizedArchive + ".bak", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(normalizedCookie, normalizedArchive + ".lock", StringComparison.OrdinalIgnoreCase);
+        string[] protectedPaths = { normalizedArchive, normalizedArchive + ".bak", normalizedArchive + ".lock" };
+        if (protectedPaths.Any(p => string.Equals(normalizedCookie, p, StringComparison.OrdinalIgnoreCase))) return true;
+        // Path string comparisons do not detect alternate names of one NTFS file.
+        try {
+            if (!TryGetExistingFileInfo(normalizedCookie, out NativeFileInfo cookieInfo)) return false;
+            foreach (string protectedPath in protectedPaths) {
+                if (TryGetExistingFileInfo(protectedPath, out NativeFileInfo stateInfo) &&
+                    SamePhysicalFile(cookieInfo, stateInfo)) return true;
+            }
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            System.Security.SecurityException or InvalidOperationException) {
+            error = "Download History cannot safely verify cookie and archive file identity: " + ex.Message;
+            return true; // Uninspectable protected files must not be treated as safe.
+        }
     }
 
     private static bool IsAsciiEnvironmentNameCharacter(char value) =>
@@ -1115,11 +1194,13 @@ internal static class DownloadHistory {
         DownloadHistoryLease lease = new(GetArchiveMutexName(archivePath), cancellationRequested);
         try {
             AssertArchiveStateNotReparse(archivePath);
+            AssertArchiveStateNotHardLinked(archivePath, true);
             string? parent = Path.GetDirectoryName(archivePath);
             if (!parent.IsNullEmptyWhitespace() && Directory.Exists(parent)) {
                 lease.AcquireFileLock(archivePath + ".lock", cancellationRequested);
             }
             AssertArchiveStateNotReparse(archivePath);
+            AssertArchiveStateNotHardLinked(archivePath, false);
             return lease;
         }
         catch {
@@ -1133,12 +1214,14 @@ internal static class DownloadHistory {
         if (!DownloadHistoryLease.TryAcquire(GetArchiveMutexName(archivePath), out DownloadHistoryLease? candidate)) return false;
         try {
             AssertArchiveStateNotReparse(archivePath);
+            AssertArchiveStateNotHardLinked(archivePath, true);
             string? parent = Path.GetDirectoryName(archivePath);
             if (!parent.IsNullEmptyWhitespace() && Directory.Exists(parent) && !candidate!.TryAcquireFileLock(archivePath + ".lock")) {
                 candidate.Dispose();
                 return false;
             }
             AssertArchiveStateNotReparse(archivePath);
+            AssertArchiveStateNotHardLinked(archivePath, false);
             lease = candidate;
             return true;
         }
@@ -2705,6 +2788,7 @@ internal static class DownloadHistory {
         error = string.Empty;
         try {
             AssertArchiveStateNotReparse(archive);
+            AssertArchiveStateNotHardLinked(archive, false);
             if (File.Exists(archive)) {
                 using FileStream stream = new(archive, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
                 return true;
@@ -2743,7 +2827,10 @@ internal static class DownloadHistory {
 
     private static bool TryReadArchive(string path, HashSet<string> entries, out string error) {
         error = string.Empty;
-        try { AssertStateFileNotReparse(path); }
+        try {
+            AssertStateFileNotReparse(path);
+            AssertNoStateHardLinks(path);
+        }
         catch (InvalidOperationException ex) {
             error = ex.Message;
             return false;
@@ -2792,7 +2879,10 @@ internal static class DownloadHistory {
     private static bool CanReplaceBackupSafely(string archive, out string error) {
         string backup = archive + ".bak";
         error = string.Empty;
-        try { AssertStateFileNotReparse(backup); }
+        try {
+            AssertStateFileNotReparse(backup);
+            AssertNoStateHardLinks(backup);
+        }
         catch (InvalidOperationException ex) { error = ex.Message; return false; }
         if (Directory.Exists(backup)) {
             error = "The backup path is an existing directory: " + backup;
@@ -2810,6 +2900,7 @@ internal static class DownloadHistory {
 
     private static void WriteArchiveAtomically(string path, HashSet<string> entries) {
         AssertArchiveStateNotReparse(path);
+        AssertArchiveStateNotHardLinked(path, false);
         foreach (string entry in entries) {
             if (!IsValidArchiveEntry(entry)) throw new InvalidDataException("Refusing to write invalid Download History archive entry: " + entry);
         }
@@ -2824,6 +2915,7 @@ internal static class DownloadHistory {
 
         try {
             AssertArchiveStateNotReparse(path);
+            AssertArchiveStateNotHardLinked(path, false);
             if (File.Exists(path)) File.Replace(temp, path, null, true);
             else File.Move(temp, path);
         }
@@ -2834,6 +2926,7 @@ internal static class DownloadHistory {
 
     private static void CopyArchiveToBackupAtomically(string archive) {
         AssertArchiveStateNotReparse(archive);
+        AssertArchiveStateNotHardLinked(archive, false);
         if (!File.Exists(archive)) return;
         if (!CanReplaceBackupSafely(archive, out string backupSafetyError)) {
             throw new InvalidDataException(backupSafetyError);
@@ -2848,6 +2941,7 @@ internal static class DownloadHistory {
 
         try {
             AssertArchiveStateNotReparse(archive);
+            AssertArchiveStateNotHardLinked(archive, false);
             if (File.Exists(backup)) File.Replace(temp, backup, null, true);
             else File.Move(temp, backup);
         }

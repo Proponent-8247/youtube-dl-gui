@@ -1734,9 +1734,8 @@ internal static partial class AuditRegression {
                 Equal(false, Call(fixture.History, null, "TryReadArchive", read));
                 Require(((string)read[2]).IndexOf("hard link", StringComparison.OrdinalIgnoreCase) >= 0,
                     "Read did not reject an unowned hard-linked archive by file identity");
-                object analyzed = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
-                Require(!DownloadHistoryCanReconcile(analyzed),
-                    "Hard-linked archive was incorrectly accepted as owned history");
+                Throws<InvalidOperationException>(() =>
+                    Call(fixture.History, null, "AnalyzeLibrary", string.Empty));
                 Require(bytes.SequenceEqual(File.ReadAllBytes(foreign)),
                     "Rejecting a hard-linked archive modified the unrelated file");
             }

@@ -73,17 +73,27 @@ def load_plan():
     wrapper = load_wrapper()
     compressed = compressed_payload(wrapper)
     if compressed is None:
-        return wrapper
-    try:
-        if len(compressed) > MAX_PLAN_BYTES:
-            raise ValueError('Compressed repair request is too large')
-        with gzip.GzipFile(fileobj=io.BytesIO(compressed), mode='rb') as stream:
-            decoded = stream.read(MAX_PLAN_BYTES + 1)
-    except (ValueError, OSError) as ex:
-        raise ValueError('Invalid compressed repair request payload') from ex
-    if len(decoded) > MAX_PLAN_BYTES:
-        raise ValueError('Decoded repair request is too large')
-    return json.loads(decoded.decode('utf-8'))
+        plan = wrapper
+    else:
+        try:
+            if len(compressed) > MAX_PLAN_BYTES:
+                raise ValueError('Compressed repair request is too large')
+            with gzip.GzipFile(fileobj=io.BytesIO(compressed), mode='rb') as stream:
+                decoded = stream.read(MAX_PLAN_BYTES + 1)
+        except (ValueError, OSError) as ex:
+            raise ValueError('Invalid compressed repair request payload') from ex
+        if len(decoded) > MAX_PLAN_BYTES:
+            raise ValueError('Decoded repair request is too large')
+        plan = json.loads(decoded.decode('utf-8'))
+
+    if not isinstance(plan, dict):
+        raise ValueError('Repair request must contain a JSON object')
+    # Never permit a request to mark its own failures as nondeterministic.
+    # Reject during decoding, including --runner-metadata and --request-files,
+    # before any build can execute or edits can be applied.
+    if plan.get('allowed_flaky_failures', []) != []:
+        raise ValueError('Repair requests cannot declare flaky-test exemptions')
+    return plan
 
 
 def request_files():

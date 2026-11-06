@@ -318,6 +318,8 @@ internal static partial class AuditRegression {
         Test("CURRENT_O037.FfmpegZipExtractionIsBounded", FfmpegZipExtractionIsBounded);
         Test("CURRENT_O024.RedditUserscriptTargetsPermalinksSafely", RedditUserscriptTargetsPermalinksSafely);
         Test("SECURITY.ReleaseCandidateDispatchVersionIsData", ReleaseCandidateDispatchVersionIsData);
+        Test("SECURITY.ReleaseVersionInjectionCannotRunPowerShell", ReleaseVersionInjectionCannotRunPowerShell);
+        Test("SECURITY.ReleaseCandidateRejectsOldReviewedHistory", ReleaseCandidateRejectsOldReviewedHistory);
         Test("SECURITY.GuardedRepairHasNoAutomaticWritePublisher", GuardedRepairHasNoAutomaticWritePublisher);
         Test("SECURITY.GuardedRepairCannotSelfWhitelistFlakyFailures", GuardedRepairCannotSelfWhitelistFlakyFailures);
         Test("SECURITY.GuardedRepairRejectsTestOracleEdits", GuardedRepairRejectsTestOracleEdits);

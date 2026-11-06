@@ -3166,9 +3166,14 @@ internal static partial class AuditRegression {
             File.WriteAllBytes(temp, tempBytes);
             File.WriteAllBytes(backupTemp, backupTempBytes);
 
-            fixture.History.GetField("fArchivePath", All).SetValue(null, custom);
-            fixture.History.GetField("fEnabled", All).SetValue(null, false);
+            // Reset may destroy only an archive actually bound by a successful enable.
+            // The old test bypassed ownership by writing private fields directly.
+            DownloadHistoryEnable(fixture, custom);
+            Call(fixture.History, null, "CommitSettings", false, custom, true, null, string.Empty);
+            Equal(Path.GetFullPath(custom),
+                Path.GetFullPath((string)fixture.History.GetProperty("BoundArchivePath", All).GetValue(null, null)));
             Call(fixture.History, null, "ResetHistory");
+            Require(!File.Exists(custom), "Reset did not remove the successfully bound archive");
 
             Require(File.Exists(temp) && tempBytes.SequenceEqual(File.ReadAllBytes(temp)),
                 "Reset History deleted or modified an unowned fixed primary temp-path collision");

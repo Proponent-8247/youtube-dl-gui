@@ -1074,6 +1074,22 @@ internal static class DownloadHistory {
                     return false;
                 }
             }
+            // Remote components can supply JavaScript to the configured runtime.
+            // Protected history cannot prove the origin or hash of a caller-selected
+            // EJS distribution, including cached copies fetched by an earlier run.
+            if (ContainsOption(customArguments, "--remote-components")) {
+                error = "Custom --remote-components is not permitted while Download History protection is enabled because remote JavaScript can bypass the validated executable trust boundary. Disable history to use unverified remote components.";
+                return false;
+            }
+            foreach (string extractorArgs in GetOptionValues(customArguments, "--extractor-args")) {
+                // yt-dlp's youtube-ejs developer namespace can choose a custom
+                // repository/tag and disable script hashes; deny that entire
+                // namespace while preserving ordinary non-EJS extractor tuning.
+                if (extractorArgs.TrimStart().StartsWith("youtube-ejs:", StringComparison.OrdinalIgnoreCase)) {
+                    error = "Custom youtube-ejs extractor arguments are not allowed in protected Download History: EJS developer controls can select and execute unverified JavaScript sources.";
+                    return false;
+                }
+            }
 
             if (ContainsShortOption(customArguments, "-o") || ContainsOption(customArguments, "--output") || ContainsOption(customArguments, "--id") ||
                 ContainsShortOption(customArguments, "-P") || ContainsOption(customArguments, "--paths")) {

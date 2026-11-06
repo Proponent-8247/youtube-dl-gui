@@ -9,6 +9,12 @@ if (!(Test-Path .audit-repairs.json)) { return }
 $planJson = (& python tools/apply-audit-repairs.py --runner-metadata | Out-String)
 if ($LASTEXITCODE -ne 0) { throw 'Repair request metadata could not be decoded safely.' }
 $plan = $planJson | ConvertFrom-Json
+# The request cannot exempt its own failing tests. Deny before the baseline build.
+$allowedFlaky = @()
+if ($plan.PSObject.Properties.Name -contains 'allowed_flaky_failures') {
+    $allowedFlaky = @($plan.allowed_flaky_failures | Sort-Object -Unique)
+}
+if ($allowedFlaky.Count -gt 0) { throw 'Repair-request controlled flaky exemptions are not permitted.' }
 $initialHead = (git rev-parse HEAD).Trim()
 $parent = (git rev-parse HEAD^).Trim()
 if ($parent -ne $plan.base_sha) { throw 'Repair request is not based on the pinned source revision.' }
@@ -78,15 +84,6 @@ function Assert-ReviewedFailures([string[]]$Failures, [string[]]$Required, [stri
 try {
     $previous = Build-And-Test '00-before'
     $expected = @($plan.expected_failures | Sort-Object)
-    $allowedFlaky = @()
-    if ($plan.PSObject.Properties.Name -contains 'allowed_flaky_failures') {
-        $allowedFlaky = @($plan.allowed_flaky_failures | Sort-Object -Unique)
-    }
-    # An untrusted repair request must not select its own regression exemptions.
-    # Until a reviewed, immutable policy manifest exists, no flaky exemptions are approved.
-    if ($allowedFlaky.Count -gt 0) { throw 'Repair-request controlled flaky exemptions are not permitted.' }
-    $unknownFlaky = @($allowedFlaky | Where-Object { $_ -notin $previous.Names })
-    if ($unknownFlaky.Count -gt 0) { throw "Allowed flaky failures name tests that do not exist: $unknownFlaky" }
     Assert-ReviewedFailures -Failures $previous.Failed -Required $expected -AllowedFlaky $allowedFlaky -Label 'The baseline'
     git config user.name 'github-actions[bot]'
     git config user.email '41898282+github-actions[bot]@users.noreply.github.com'

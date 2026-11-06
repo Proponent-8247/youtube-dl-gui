@@ -385,8 +385,14 @@ internal sealed class DownloadInfo(string URL) : MediaInfo(URL) {
                 ArgumentsBuffer.Add("--force-ipv6");
             }
 
-            if (Downloads.UseProxy && Downloads.ProxyType > -1 && Downloads.ProxyType < DownloadHelper.ProxyProtocols.Length && !string.IsNullOrEmpty(Downloads.ProxyIP) && !string.IsNullOrEmpty(Downloads.ProxyPort)) {
-                ArgumentsBuffer.Add($"--proxy {DownloadHelper.ProxyProtocols[Downloads.ProxyType]}{Downloads.ProxyIP}:{Downloads.ProxyPort}/");
+            if (Downloads.UseProxy) {
+                if (!DownloadHelper.TryBuildProxyArgument(out string proxyArgument, out string proxyError)) {
+                    Verbose(proxyError);
+                    Status = DownloadStatus.ProgramError;
+                    DownloadHistoryExecution = null;
+                    return false;
+                }
+                ArgumentsBuffer.Add(proxyArgument);
             }
 
             if (Downloads.SkipUnavailableFragments) {

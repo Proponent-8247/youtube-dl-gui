@@ -11,6 +11,46 @@ public static class DownloadHelper {
         "socks5://"
     ];
 
+
+    // Proxy data must never be allowed to introduce argv option boundaries.
+    // Keep host/port validation at command generation as persisted settings and
+    // clipboard/programmatic writes bypass the Settings UI's KeyPress filters.
+    public static bool TryBuildProxyArgument(out string argument, out string error) {
+        argument = string.Empty;
+        error = string.Empty;
+        if (!Downloads.UseProxy) return true;
+        if (Downloads.ProxyType < 0 || Downloads.ProxyType >= ProxyProtocols.Length) {
+            error = "Invalid proxy protocol selection.";
+            return false;
+        }
+
+        string host = (Downloads.ProxyIP ?? string.Empty).Trim();
+        string port = (Downloads.ProxyPort ?? string.Empty).Trim();
+        if (host.Length == 0 || host.Length > 253 || host.StartsWith("-", StringComparison.Ordinal) ||
+            host.Any(char.IsWhiteSpace) || host.Any(char.IsControl) ||
+            host.IndexOfAny(new[] { '\\', '/', '@', '?', '#', '"', '\'', '%' }) >= 0 ||
+            Uri.CheckHostName(host) == UriHostNameType.Unknown) {
+            error = "Invalid proxy host. Enter one DNS name, IP address or bracketed IPv6 address.";
+            return false;
+        }
+
+        if (!ushort.TryParse(port, System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture, out ushort number) || number == 0) {
+            error = "Invalid proxy port. Enter an integer from 1 through 65535.";
+            return false;
+        }
+
+        string url = ProxyProtocols[Downloads.ProxyType] + host + ":" + number + "/";
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed) ||
+            parsed.Host.Length == 0 || parsed.UserInfo.Length > 0 ||
+            parsed.Query.Length > 0 || parsed.Fragment.Length > 0) {
+            error = "Invalid proxy endpoint.";
+            return false;
+        }
+        argument = "--proxy " + ArgumentList.EscapeArgument(url);
+        return true;
+    }
+
     // lang=regex The prefix for the initial regex, encompasing the connection protocol.
     private const string RegexPrefix = @"^(http(s)?:\/\/)?";
 

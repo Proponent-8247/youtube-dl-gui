@@ -731,18 +731,15 @@ internal sealed class ExtendedMediaDetails(string URL) : MediaDetails(URL) {
                 ArgumentBuffer.Add("--force-ipv6");
             }
 
-            if (Downloads.UseProxy
-            && Downloads.ProxyType > -1
-            && Downloads.ProxyType < DownloadHelper.ProxyProtocols.Length
-            && !Downloads.ProxyIP.IsNullEmptyWhitespace()
-            && !Downloads.ProxyPort.IsNullEmptyWhitespace()) {
-                ArgumentBuffer.Add(
-                    "--proxy " +
-                    DownloadHelper.ProxyProtocols[Downloads.ProxyType] +
-                    Downloads.ProxyIP +
-                    ':' +
-                    Downloads.ProxyPort +
-                    '/');
+            if (Downloads.UseProxy) {
+                if (!DownloadHelper.TryBuildProxyArgument(out string proxyArgument, out string proxyError)) {
+                    Log.Write(proxyError);
+                    base.Arguments = null;
+                    ArgumentsCensored = string.Empty;
+                    DownloadHistoryExecution = null;
+                    return false;
+                }
+                ArgumentBuffer.Add(proxyArgument);
             }
 
             if (Downloads.RetryAttempts != 10 && Downloads.RetryAttempts >= 0) {

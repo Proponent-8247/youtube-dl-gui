@@ -9,7 +9,7 @@ Set-StrictMode -Version Latest
 
 $Root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $EvidenceDirectory = [IO.Path]::GetFullPath($EvidenceDirectory)
-$AuditedBase = '7283444431e1243d83b86bf54838d22e3048cae9'
+$AuditedBase = '7e369eb4afa6477e81f3e185ce9754bfd91982a6'  # immutable reviewed whole-source audit baseline
 
 function Get-ProgramVersion {
     param([Parameter(Mandatory = $true)][string]$Path)

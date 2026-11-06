@@ -187,3 +187,14 @@ Goal: reduce 17 live branches to no more than 5 (prefer 4), preserving unique us
 4. Do not change the four-branch inventory, merge unfinished fixes into release/master or claim release-readiness. Four retained branches: `master`, `release/3.3.0-2`, `feature/download-history-archive-3.3.0-2`, `remediation/whole-repo-20261016`.
 
 **Exact source branch head before this journal-only commit:** `f2e8218622c1da8bd9f82d5200516cc1fb982afb`. Journal write uses `[skip ci]` to avoid interrupting the in-flight exact-source verification run. Resolve updated head and journal blob by read-back after writing.
+
+### 2026-11-06 final CI read-back for release-security changes
+
+- Exact tested source `f2e8218622c1da8bd9f82d5200516cc1fb982afb`.
+- [Windows Audit Build #42306784006](https://github.com/Proponent-8247/youtube-dl-gui/actions/runs/42306784006): **SUCCESS**.
+- [Windows Audit Verification #42306783959](https://github.com/Proponent-8247/youtube-dl-gui/actions/runs/42306783959): **SUCCESS**. Debug build, updater and application Release baseline, compiled regression harness, full Release packaging, and full-Release/x86 re-runs all green. `SECURITY.ReleaseCandidateDispatchVersionIsData` explicitly PASS three times; `DOWNLOAD_HISTORY.ResetRequiresOwnedBoundArchive` remains PASS in all three passes.
+- Artifacts: `audit-verification-f2e8218622c1da8bd9f82d5200516cc1fb982afb` (ID `13546493626`, SHA256 `0ed90310e970551f3a1df7d115cc1d8776de79ff47ef256b672c030f7efb3169`) and `audit-source-f2e8218622c1da8bd9f82d5200516cc1fb982afb` (ID `13546478250`). Both stored by GitHub Actions, no local artifact substitution.
+- #100 and #101 are **NOT CLOSED**: actual negative `workflow_dispatch` hostile-version probes, legacy-head rejection and independent release verifier enforcement still require issue-specific proof; #116 remains open. This is a positive full-regression gate, not all security acceptance gates.
+- Read-only audit, 4-branch consolidation, and #142 closure remain complete. **129 findings remain open** in canonical queue #149.
+- Exact current working branch head before this journal-only update: `a199e997bd1ac2f4771b28b3697f9b5b7fe2587c`.
+- Resumption cursor: prioritize Critical #93 credential separation verification and independent artifact trust; test #94/#95/#96/#105/#124 with adversarial job fixtures. Then full hostile release input/ancestry acceptance for #100/#101 and archive path/reparse/hardlink ownership regressions #143/#145/#102. No unverified releases or merges.

@@ -211,6 +211,24 @@ internal static partial class AuditRegression {
         finally { try { File.Delete(export); } catch { } }
     }
 
+    private static void ReleaseCandidateDispatchVersionIsData() {
+        string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
+        string workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "release-candidate.yml"));
+        int start = workflow.IndexOf("      - name: Build and verify release candidate", StringComparison.Ordinal);
+        int end = workflow.IndexOf("      - name: Summarize candidate", start < 0 ? 0 : start, StringComparison.Ordinal);
+        Require(start >= 0 && end > start, "Release candidate build step is missing or renamed");
+        string step = workflow.Substring(start, end - start);
+        Require(step.Contains("EXPECTED_VERSION_INPUT: ${{ inputs.expected_version }}"),
+            "Manual release version is not supplied through a data-only step environment variable");
+        int run = step.IndexOf("        run: |", StringComparison.Ordinal);
+        Require(run >= 0, "Release candidate build step lost its PowerShell runner");
+        string script = step.Substring(run);
+        Require(script.Contains("$Expected = $env:EXPECTED_VERSION_INPUT"),
+            "Release candidate build step is not reading the version from the environment");
+        Require(script.IndexOf("${{ inputs.", StringComparison.Ordinal) < 0,
+            "Untrusted workflow_dispatch inputs are interpolated directly into PowerShell code");
+    }
+
     private static void RunRepairWave17Tests() {
         Test("POLICY_P002.SessionHistoryRetainsAndExports", SessionHistoryRetainsAndExports);
         Test("CURRENT_O020.ProviderReleaseRequiresAuthoritativeDigest", ProviderReleaseRequiresAuthoritativeDigest);
@@ -220,6 +238,7 @@ internal static partial class AuditRegression {
         Test("CURRENT_O030.SavedWindowLocationRequiresCurrentScreen", SavedWindowLocationRequiresCurrentScreen);
         Test("CURRENT_O037.FfmpegZipExtractionIsBounded", FfmpegZipExtractionIsBounded);
         Test("CURRENT_O024.RedditUserscriptTargetsPermalinksSafely", RedditUserscriptTargetsPermalinksSafely);
+        Test("SECURITY.ReleaseCandidateDispatchVersionIsData", ReleaseCandidateDispatchVersionIsData);
         RunDownloadHistoryTests();
         RunV011Tests();
     }

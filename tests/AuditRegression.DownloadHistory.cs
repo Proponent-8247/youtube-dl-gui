@@ -1826,6 +1826,52 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void DownloadHistoryRejectsUntrustedRemoteEjsScripts() {
+        using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
+            DownloadHistoryEnable(fixture, string.Empty);
+            string[] malicious = {
+                "--remote-components ejs:github",
+                "--remote-components=ejs:github",
+                "--remote-c ejs:github",
+                "\"--remote-components\" \"ejs:github\"",
+                "--remote-components ejs:npm",
+                "--extractor-args youtube-ejs:dev=true;repo=arbitrary/repository",
+                "--extractor-args=youtube-ejs:dev=true;repo=arbitrary/repository",
+                "--extractor-a youtube-ejs:repo=arbitrary/repository",
+                "--extractor-args \"youtube-ejs:script_version=unverified\"",
+                "--extractor-args \"youtube-ejs:dev=true\" --remote-c ejs:github"
+            };
+            foreach (string custom in malicious) {
+                string arguments, error;
+                object execution;
+                Equal(false, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                    custom, out arguments, out error, out execution));
+                Require(error.IndexOf("JavaScript", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    error.IndexOf("EJS", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    error.IndexOf("remote", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Unverified EJS source was rejected without a useful explanation: " + custom);
+                Equal(null, execution);
+            }
+
+            string safeArguments, safeError;
+            object safeExecution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--extractor-args youtube:player_client=web", out safeArguments, out safeError, out safeExecution));
+            Require(safeArguments.IndexOf("--download-archive", StringComparison.Ordinal) >= 0,
+                "Safe extractor tuning lost native archive protection");
+            Require(safeExecution != null, "Safe extractor tuning no longer prepares a protected session");
+
+            Call(fixture.History, null, "CommitSettings", false, string.Empty, true, null);
+            string disabledArguments, disabledError;
+            object disabledExecution;
+            Equal(true, DownloadHistoryArguments(fixture.History, "%(title)s-%(id)s.%(ext)s",
+                "--remote-components ejs:github --extractor-args youtube-ejs:dev=true",
+                out disabledArguments, out disabledError, out disabledExecution));
+            Equal(string.Empty, disabledArguments);
+            Equal(null, disabledExecution);
+        }
+    }
+
     private static void DownloadHistoryRecoversRestrictedYtDlpIdSanitization() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             const string accentedId = "äabc";
@@ -3954,6 +4000,7 @@ internal static partial class AuditRegression {
         Test("DOWNLOAD_HISTORY.RejectsFalseCompletionErrorControls", DownloadHistoryRejectsFalseCompletionErrorControls);
         Test("DOWNLOAD_HISTORY.ForcesCompleteFragmentDownloads", DownloadHistoryForcesCompleteFragmentDownloads);
         Test("DOWNLOAD_HISTORY.RejectsExecutablePathAndSelfUpdateOverrides", DownloadHistoryRejectsExecutablePathAndSelfUpdateOverrides);
+        Test("DOWNLOAD_HISTORY.RejectsUntrustedRemoteEjsScripts", DownloadHistoryRejectsUntrustedRemoteEjsScripts);
         Test("DOWNLOAD_HISTORY.MatchesYtDlpPathExpansion", DownloadHistoryMatchesYtDlpPathExpansion);
         Test("DOWNLOAD_HISTORY.IsolationPrecedesDanglingCustomOptions", DownloadHistoryIsolationPrecedesDanglingCustomOptions);
         Test("DOWNLOAD_HISTORY.ProtectsMostlyCustomOutputBeforeRawArguments", DownloadHistoryProtectsMostlyCustomOutputBeforeRawArguments);

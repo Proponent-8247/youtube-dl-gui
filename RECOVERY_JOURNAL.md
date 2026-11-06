@@ -251,3 +251,24 @@ Source head before this journal: fc5aa1cc7286ed56265b095b7ccb54da89abe5cb. Four 
 2. Complete actual hostile PowerShell release input and reviewed ancestor positive/negative tests for #101/#100; #116 release verifier trust root independent and open.
 3. Implement separate trusted guarded-repair promotion after Critical #93 mitigation, plus #94/#105/#124 integrity acceptance. Review persistent source and V011 intermittent startup timeout without accepting flaky exemptions.
 4. Preserve exactly four branches and explicit GitHub journal; avoid released artifacts/branch integration until all release gates pass.
+
+## 2026-11-06 UTC — HIGH #102 ACCEPTED, RELEASE SECURITY NEGATIVE TESTS STARTED
+
+Source head before this journal: eb94cb728947eb03d76b464482765b2cff44b5fa; four branch limit maintained, no release/master/feature product merge.
+
+### PAR-09-001/#102 CLOSED with Windows file-identity acceptance
+- Test commit 7552c3b07edacf9f866246a53ed19e61d6e0792d creates NTFS hard-link primary/backup/lock and cookie junction alias fixtures; production 2335128f36aeee9080ea96bf9daace157445691a uses read-only GetFileInformationByHandle and link count/file identity; test expectation corrected fc5aa1cc7286ed56265b095b7ccb54da89abe5cb.
+- Initial Windows test at fc5aa1c failed existing DOWNLOAD_HISTORY.ManagementFailsFastWhenBusy because link count verification attempted a second open of an exclusively held lock. Fixed in fdeba304d4fe5edce7ad43960e78605ae8b02048 by inspecting the acquired lock's SafeFileHandle, rather than reopening it; important regression/compatibility fix.
+- Windows Audit Build #42310174106 SUCCESS and Audit Verification #42310174238 SUCCESS on exact fdeba304. Both new hardlink and cookie aliases, existing busy-lock and prior reparse-point tests all PASS 3/3 including x86 with no FAIL lines. #102 closed with evidence, canonical queue #149 now **125 original findings remain**.
+- Remaining distinction: identity at preflight is not a race-free handle pinned to native yt-dlp open. #143 descendant reparse path and other TOCTOU risks still OPEN.
+
+### PAR-07-016/#100 and PAR-07-017/#101 execution-level test implementation
+- eb94cb728947eb03d76b464482765b2cff44b5fa: atomic two-file commit adds tests/AuditRegression.ReleaseSecurity.cs and registers SECURITY.ReleaseVersionInjectionCannotRunPowerShell and SECURITY.ReleaseCandidateRejectsOldReviewedHistory in RepairWave17.
+- Release input test extracts real workflow run source, executes it under Windows PowerShell with quoted/semi-colon, CRLF and expression-like input through EXPECTED_VERSION_INPUT; uses mock verifier to prove literal data and no injected.marker side effect. Then invokes real release verifier with malicious version and requires version mismatch before build, not artifact creation.
+- Release ancestry test uses actual git merge-base runtime checks: reviewed audit SHA is ancestor of current code; stale prerelease SHA descends from old policy but not required reviewed source. Verifies release script pins the real reviewed SHA and manifest records audited_base.
+- Windows Audit Build #42310749163 and Audit Verification #42310749189 started at exact test SHA, no accepted result yet. Keep #100/#101 OPEN pending all three passes and any separate release workflow trust #116.
+
+### Next cursor
+1. Inspect runs 42310749163/42310749189, diagnose actual PowerShell process or git ancestry tests if red; close #100/#101 only when evidence complete and no unstated scope claims.
+2. Continue Critical #93 trusted promotion/root #94 and remaining high Download History #143/#144/#146/#147/#148, high injection #59/#66/#24.
+3. Maintain 4 branches and issue-centric recovery journal; no forced pushes/release publication.

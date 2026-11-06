@@ -82,7 +82,7 @@ jobs:
           if ($exit -ne 0 -or $output -notmatch 'Hostile MSBuild dry-run push refused') {
             throw "Credential probe did not complete its expected denied-write path (exit $exit)."
           }
-          if ($output -notmatch '(?i)(403|401|permission denied|write access|authentication failed|could not read username|terminal prompts disabled|not granted|access denied|insufficient permissions)') {
+          if ($output -notmatch '(?i)(403|401|permission denied|write access|authentication failed|could not read username|cannot prompt because user interactivity has been disabled|unable to get password from user|terminal prompts disabled|not granted|access denied|insufficient permissions)') {
             throw 'Dry-run push failed for an unexpected reason; cannot establish credential isolation.'
           }
 

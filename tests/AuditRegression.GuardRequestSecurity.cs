@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 
 internal static partial class AuditRegression {
@@ -86,6 +87,23 @@ internal static partial class AuditRegression {
                 "Request-only wrapper plus referenced chunk did not pass request-purity preflight: " + valid);
             Require(!valid.Contains("undeclared paths"),
                 "Legitimate request-only commit was rejected as a smuggled source change");
+            string validManifest = Path.Combine(evidence, "valid", "request-commit.json");
+            string validPatch = Path.Combine(evidence, "valid", "request-commit.patch");
+            Require(File.Exists(validManifest) && File.Exists(validPatch),
+                "Trusted request-only commit did not produce a reviewable request diff and manifest");
+            string requestEvidence = File.ReadAllText(validManifest);
+            Require(requestEvidence.Contains(trustedBase) &&
+                requestEvidence.Contains(".audit-repairs.json") &&
+                requestEvidence.Contains(".audit-repairs.parts/part-000.txt") &&
+                !requestEvidence.Contains("Controls/Smuggled.cs"),
+                "Request evidence does not bind the expected base and declared wrapper/part paths");
+            using (SHA256 sha = SHA256.Create())
+            using (FileStream stream = File.OpenRead(validPatch)) {
+                string expectedHash = BitConverter.ToString(sha.ComputeHash(stream))
+                    .Replace("-", "").ToLowerInvariant();
+                Require(requestEvidence.IndexOf(expectedHash, StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Request-commit patch digest is not bound to the evidence manifest");
+            }
 
             GuardGit(work, "checkout -q -b smuggled-request " + trustedBase);
             writeRequest();
@@ -100,6 +118,8 @@ internal static partial class AuditRegression {
             Require(rejectedExit != 0 && rejected.Contains("undeclared paths") &&
                 rejected.Contains("Controls/Smuggled.cs"),
                 "Guard failed to reject an undeclared file in the trigger commit before builds: " + rejected);
+            Require(!File.Exists(Path.Combine(evidence, "rejected", "request-commit.json")),
+                "Rejected smuggled request was falsely marked as a validated request commit");
             Equal("original source\n", File.ReadAllText(Path.Combine(work, "Controls", "Fixture.cs")));
         }
         finally { try { Directory.Delete(temporary, true); } catch { } }

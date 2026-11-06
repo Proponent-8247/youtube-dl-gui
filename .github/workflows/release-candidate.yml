@@ -44,8 +44,10 @@ jobs:
 
       - name: Build and verify release candidate
         shell: pwsh
+        env:
+          EXPECTED_VERSION_INPUT: ${{ inputs.expected_version }}
         run: |
-          $Expected = '${{ inputs.expected_version }}'
+          $Expected = $env:EXPECTED_VERSION_INPUT
           if ([string]::IsNullOrWhiteSpace($Expected) -and $env:GITHUB_REF_NAME.StartsWith('release/', [StringComparison]::Ordinal)) {
             $Expected = $env:GITHUB_REF_NAME.Substring('release/'.Length)
           }

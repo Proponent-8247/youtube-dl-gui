@@ -204,6 +204,12 @@ internal static partial class AuditRegression {
 
     private static void GuardedRepairCleansOnlyValidatedChunkedPayloads() {
         string sourceRoot = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
+        string workflow = File.ReadAllText(Path.Combine(sourceRoot, ".github", "workflows", "audit-repair.yml"));
+        string runner = File.ReadAllText(Path.Combine(sourceRoot, "tools", "Run-AuditRepairBatch.ps1"));
+        Require(workflow.Contains(".audit-repairs.parts/**"),
+            "Guarded repair pushes that modify only referenced parts are invisible to the workflow");
+        Require(runner.Contains("Complete-GuardedRepairRequest -ValidatedFiles $allowedRequestFiles"),
+            "Runner still deletes only the wrapper or ignores the validated chunk-file inventory");
         string module = Path.Combine(sourceRoot, "tools", "RepairRequestLifecycle.ps1");
         string root = Path.Combine(Path.GetTempPath(), "audit-cleanup-" + Guid.NewGuid().ToString("N"));
         string parts = Path.Combine(root, ".audit-repairs.parts");

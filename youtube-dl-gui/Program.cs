@@ -339,12 +339,14 @@ internal static class Program {
 
         if (!Verification.YoutubeDlAvailable && Log.MessageBox(Language.dlgFirstTimeDownloadYoutubeDl, MessageBoxButtons.YesNo) == DialogResult.Yes) {
             if (await Updater.CheckForYoutubeDlUpdate()) {
-                Updater.UpdateYoutubeDl(false, null);
+                // The user has explicitly approved first-time installation. Allow
+                // a freshly configured, unoccupied static path, but never an overwrite.
+                Updater.UpdateYoutubeDl(false, null, true);
             }
         }
 
         if (!Verification.FfmpegAvailable && Log.MessageBox(Language.dlgFirstTimeDownloadFfmpeg, MessageBoxButtons.YesNo) == DialogResult.Yes) {
-            await Updater.UpdateFfmpeg(null);
+            await Updater.UpdateFfmpeg(null, true);
         }
 
         Log.Write("First time setup has concluded.");

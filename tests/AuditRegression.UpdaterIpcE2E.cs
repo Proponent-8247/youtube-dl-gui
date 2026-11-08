@@ -138,7 +138,9 @@ internal static partial class AuditRegression {
                     }
                 }
             }
-            V011Kill(Main);
+            // A fault can occur before the child's PID is published. Kill the
+            // process tree, not only the parent, to avoid orphaned updater windows.
+            StopHarnessProcess(Main);
             if (Updater != null) Updater.Dispose();
             if (Main != null) Main.Dispose();
             if (Server != null) Server.Dispose();
@@ -188,7 +190,15 @@ internal static partial class AuditRegression {
         state.Main = Process.Start(start);
         Require(state.Main != null, "Actual debug application process did not start");
 
-        Dictionary<string, string> mainValues = V011WaitFor(state.MainResult, "updater-pid", 10000);
+        Dictionary<string, string> mainValues;
+        try { mainValues = V011WaitFor(state.MainResult, "updater-pid", 10000); }
+        catch (Exception ex) {
+            throw new InvalidOperationException(
+                "Updater launch did not publish PID; parent=" +
+                V011Describe(V011ReadResult(state.MainResult)) +
+                "; updater=" + V011Describe(V011ReadResult(state.UpdaterResult)) +
+                "; parent-exited=" + state.Main.HasExited, ex);
+        }
         int updaterPid;
         Require(int.TryParse(mainValues["updater-pid"], out updaterPid) && updaterPid > 0, "Actual updater process id was not recorded");
         if (failAfterUpdaterPid) {
@@ -314,7 +324,7 @@ internal static partial class AuditRegression {
         // Keep the real parent message loop pumping while PID publication is delayed.
         // The child can send a request before the parent knows its identity; it must
         // retry until authenticated update data arrives, not wait forever on delivery.
-        using (V011Scenario state = V011Start("success", true, false, 1250)) {
+        using (V011Scenario state = V011Start("success", true, false, 4000)) {
             Dictionary<string, string> early = V011WaitFor(state.MainResult, "early-rejected", 10000);
             Equal("1", early["early-rejected"]);
             Dictionary<string, string> updater = V011WaitForOutcome(state, "replacement", 20000,

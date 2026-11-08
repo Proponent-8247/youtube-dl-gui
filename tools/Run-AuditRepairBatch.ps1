@@ -69,7 +69,7 @@ $requestEvidence = [ordered]@{
     request_sha = $initialHead
     changed_files = @($changedRequestFiles)
     declared_request_files = @($allowedRequestFiles)
-    request_patch_sha256 = Get-FileSha256Hex $requestPatch
+    request_patch_sha256 = (Get-FileSha256Hex $requestPatch)
 }
 $requestEvidence | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $EvidenceDirectory 'request-commit.json') -Encoding utf8
 
@@ -177,7 +177,7 @@ try {
         base_sha = $parent
         verified_sha = $verifiedHead
         target_branch = $env:GITHUB_REF_NAME
-        bundle_sha256 = Get-FileSha256Hex $bundle
+        bundle_sha256 = (Get-FileSha256Hex $bundle)
     } | ConvertTo-Json | Set-Content -Path (Join-Path $EvidenceDirectory 'publish.json') -Encoding utf8
     if ($remaining.Count -eq 0) {
         'Verification passed; publication is pending. Only explicitly reviewed nondeterministic baseline failures, if any, were tolerated.' | Set-Content (Join-Path $EvidenceDirectory 'status.txt')

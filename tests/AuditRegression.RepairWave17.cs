@@ -370,6 +370,7 @@ internal static partial class AuditRegression {
         Test("SECURITY.UpdatesNeverTargetDiscoveredExternalTools", UpdatesNeverTargetDiscoveredExternalTools);
         Test("SECURITY.GuardedRepairRejectsSmuggledRequestCommit", GuardedRepairRejectsSmuggledRequestCommit);
         Test("SECURITY.GuardedRepairRequiresReviewedFailureResolution", GuardedRepairRequiresReviewedFailureResolution);
+        Test("SECURITY.GuardedRepairCleansOnlyValidatedChunkedPayloads", GuardedRepairCleansOnlyValidatedChunkedPayloads);
         Test("SECURITY.GuardedRepairDetectsBuildTimeOracleMutation", GuardedRepairDetectsBuildTimeOracleMutation);
         Test("SECURITY.GuardedRepairHasNoAutomaticWritePublisher", GuardedRepairHasNoAutomaticWritePublisher);
         Test("SECURITY.GuardedRepairCannotSelfWhitelistFlakyFailures", GuardedRepairCannotSelfWhitelistFlakyFailures);

@@ -329,6 +329,7 @@ internal static partial class AuditRegression {
         Test("SECURITY.ReleaseCandidateDispatchVersionIsData", ReleaseCandidateDispatchVersionIsData);
         Test("SECURITY.ReleaseVersionInjectionCannotRunPowerShell", ReleaseVersionInjectionCannotRunPowerShell);
         Test("SECURITY.ReleaseCandidateRejectsOldReviewedHistory", ReleaseCandidateRejectsOldReviewedHistory);
+        Test("SECURITY.AuditVerificationUsesImmutableReleaseBase", AuditVerificationUsesImmutableReleaseBase);
         Test("SECURITY.ProviderProxySettingCannotInjectArguments", ProviderProxySettingCannotInjectArguments);
         Test("SECURITY.ProviderSubtitleFormatCannotInjectArguments", ProviderSubtitleFormatCannotInjectArguments);
         Test("SECURITY.ProviderSelectionFieldsCannotInjectOptions", ProviderSelectionFieldsCannotInjectOptions);

@@ -129,6 +129,15 @@ try {
     [xml]$Before = Get-Content (Join-Path $EvidenceDirectory 'before-full-release\regression-results.xml') -Raw
     [xml]$After = Get-Content (Join-Path $EvidenceDirectory 'after-full-release\regression-results.xml') -Raw
     [xml]$X86 = Get-Content (Join-Path $EvidenceDirectory 'x86-full-release\regression-results.xml') -Raw
+    # Pin regression coverage independently of any candidate-controlled tests.
+    $reviewedCoverageChecker = Join-Path $PSScriptRoot 'Assert-ReviewedRegressions.ps1'
+    foreach ($resultRelative in @(
+        'before-full-release\regression-results.xml',
+        'after-full-release\regression-results.xml',
+        'x86-full-release\regression-results.xml')) {
+        & $reviewedCoverageChecker -ResultsXml (Join-Path $EvidenceDirectory $resultRelative) -RepositoryRoot $Root
+        if (!$?) { throw "Release candidate lost reviewed regression coverage: $resultRelative" }
+    }
     $BeforeNames = @($Before.SelectNodes('/testsuite/testcase') | ForEach-Object { $_.GetAttribute('name') } | Sort-Object)
     $AfterNames = @($After.SelectNodes('/testsuite/testcase') | ForEach-Object { $_.GetAttribute('name') } | Sort-Object)
     $X86Names = @($X86.SelectNodes('/testsuite/testcase') | ForEach-Object { $_.GetAttribute('name') } | Sort-Object)
@@ -217,6 +226,8 @@ try {
         updater_product_version = $UpdaterVersionInfo.ProductVersion
         target_framework = 'net472'
         tests_per_pass = $AfterNames.Count
+        reviewed_regression_manifest_commit = 'ec7ee09e5658e8371ef2ac422f805f74411c61c4'
+        reviewed_regression_minimum = 312
         regression_passes = 3
         runtime_platforms = @('AnyCPU on x64 runner', 'x86')
         failures = 0

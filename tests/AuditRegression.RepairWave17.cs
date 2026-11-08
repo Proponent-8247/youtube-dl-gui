@@ -366,6 +366,7 @@ internal static partial class AuditRegression {
         Test("SECURITY.AuditVerificationUsesImmutableReleaseBase", AuditVerificationUsesImmutableReleaseBase);
         Test("SECURITY.ReviewedRegressionInventoryCannotShrink", ReviewedRegressionInventoryCannotShrink);
         Test("SECURITY.AuthenticodeTrustChecksWholeSignerChainRevocation", AuthenticodeTrustChecksWholeSignerChainRevocation);
+        Test("SECURITY.ProviderDiscoveryUsesFullyInitializedPersistedType", ProviderDiscoveryUsesFullyInitializedPersistedType);
         Test("SECURITY.ProviderProxySettingCannotInjectArguments", ProviderProxySettingCannotInjectArguments);
         Test("SECURITY.ProviderSubtitleFormatCannotInjectArguments", ProviderSubtitleFormatCannotInjectArguments);
         Test("SECURITY.ProviderSelectionFieldsCannotInjectOptions", ProviderSelectionFieldsCannotInjectOptions);

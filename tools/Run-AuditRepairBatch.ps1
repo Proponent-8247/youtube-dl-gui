@@ -76,6 +76,29 @@ $requestEvidence | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path
 python $GuardParser --preflight
 if ($LASTEXITCODE -ne 0) { throw 'Repair preflight failed; no source was changed.' }
 
+# Load the oracle inspector into this trusted PowerShell process before executing
+# any candidate project build. A subsequent build changing its on-disk .ps1 file
+# cannot substitute the in-memory checker.
+$integrityScript = Join-Path $PSScriptRoot 'RepairInputIntegrity.ps1'
+if (!(Test-Path -LiteralPath $integrityScript -PathType Leaf)) {
+    throw 'Trusted repair workspace integrity checker is missing.'
+}
+. $integrityScript
+$repositoryRoot = [IO.Path]::GetFullPath((Get-Location).Path)
+$trustedInputBaseline = Get-RepairInputSnapshot -RepositoryRoot $repositoryRoot
+$trustedReceipt = Join-Path $EvidenceDirectory 'trusted-inputs.sha256'
+$trustedInputBytes = [Text.Encoding]::UTF8.GetBytes($trustedInputBaseline)
+$receiptHash = [Security.Cryptography.SHA256]::Create()
+try {
+    [BitConverter]::ToString($receiptHash.ComputeHash($trustedInputBytes)).Replace('-', '').ToLowerInvariant() |
+        Set-Content -LiteralPath $trustedReceipt -Encoding ascii
+}
+finally { $receiptHash.Dispose() }
+
+function Assert-ImmutableOracle([string]$phase) {
+    Assert-RepairInputSnapshot -RepositoryRoot $repositoryRoot -Baseline $trustedInputBaseline -Phase $phase
+}
+
 function Build-And-Test([string]$label) {
     # Detect tracked and untracked source mutations created by builds/tests.
     # Build outputs belong in ignored output trees; arbitrary source mutations do not.
@@ -85,14 +108,19 @@ function Build-And-Test([string]$label) {
     if ($LASTEXITCODE -ne 0) { throw "Unable to snapshot source diff before $label." }
     $dir = Join-Path $EvidenceDirectory $label
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    Assert-ImmutableOracle "$label / before candidate build"
     msbuild youtube-dl-gui.sln /m /nologo /v:minimal /p:Configuration=Debug '/p:Platform=Any CPU' "/bl:$dir/debug.binlog" | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Debug build failed at $label" }
+    Assert-ImmutableOracle "$label / after Debug build"
     msbuild youtube-dl-gui-updater/youtube-dl-gui-updater.csproj /m /nologo /v:minimal /p:Configuration=Release /p:Platform=AnyCPU "/bl:$dir/updater.binlog" | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Updater build failed at $label" }
+    Assert-ImmutableOracle "$label / after updater build"
     msbuild youtube-dl-gui/youtube-dl-gui.csproj /m /nologo /v:minimal /p:Configuration=Release /p:Platform=AnyCPU /p:BuildProjectReferences=false /p:PreBuildEvent= /p:PostBuildEvent= "/bl:$dir/application.binlog" | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Application build failed at $label" }
+    Assert-ImmutableOracle "$label / before regression compilation"
     & ./tests/Run-AuditRegression.ps1 -EvidenceDirectory $dir | Out-Host
     $testExit = $LASTEXITCODE
+    Assert-ImmutableOracle "$label / after regression execution"
     $afterStatus = @((git -c core.quotePath=false status --porcelain=v1 --untracked-files=all))
     if ($LASTEXITCODE -ne 0) { throw "Unable to snapshot working tree after $label." }
     $afterDiff = @(git diff --binary HEAD)

@@ -127,6 +127,13 @@ internal static partial class AuditRegression {
     private static void GuardedRepairDetectsBuildTimeOracleMutation() {
         string sourceRoot = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
         string integrityModule = Path.Combine(sourceRoot, "tools", "RepairInputIntegrity.ps1");
+        string hostileProject = Path.Combine(sourceRoot, "tests", "AuditOracleTamperProbe.proj");
+        string guardedRunner = File.ReadAllText(Path.Combine(sourceRoot, "tools", "Run-AuditRepairBatch.ps1"));
+        Require(guardedRunner.Contains("Assert-ImmutableOracle \"$label / after Debug build\"") &&
+                guardedRunner.Contains("Assert-ImmutableOracle \"$label / after updater build\"") &&
+                guardedRunner.Contains("Assert-ImmutableOracle \"$label / before regression compilation\"") &&
+                guardedRunner.Contains("Assert-ImmutableOracle \"$label / after regression execution\""),
+            "Guard runner does not check trusted inputs at each build/test boundary");
         string root = Path.Combine(Path.GetTempPath(), "audit-immutable-inputs-" + Guid.NewGuid().ToString("N"));
         string tests = Path.Combine(root, "tests");
         string tools = Path.Combine(root, "tools");
@@ -144,10 +151,12 @@ internal static partial class AuditRegression {
             File.WriteAllText(Path.Combine(workflows, "audit-repair.yml"), "TRUSTED WORKFLOW", new UTF8Encoding(false));
             string psQuoteRoot = "'" + root.Replace("'", "''") + "'";
             string psQuoteModule = "'" + integrityModule.Replace("'", "''") + "'";
+            string psQuoteProject = "'" + hostileProject.Replace("'", "''") + "'";
             StringBuilder script = new StringBuilder();
             script.AppendLine("$ErrorActionPreference = 'Stop'");
             script.AppendLine(". " + psQuoteModule);
             script.AppendLine("$root = " + psQuoteRoot);
+            script.AppendLine("$project = " + psQuoteProject);
             script.AppendLine("$base = Get-RepairInputSnapshot -RepositoryRoot $root");
             script.AppendLine("Assert-RepairInputSnapshot -RepositoryRoot $root -Baseline $base -Phase 'clean'");
             script.AppendLine("function Require-OracleRejection([string]$label) {");
@@ -155,8 +164,11 @@ internal static partial class AuditRegression {
             script.AppendLine("  catch { if ($_.Exception.Message -notmatch 'Trusted repair test/tool/workflow inputs mutated') { throw } }");
             script.AppendLine("}");
             script.AppendLine("$testSource = Join-Path $root 'tests/AuditRegression.Fixture.cs'");
+            script.AppendLine("& msbuild $project /t:Tamper ('/p:SourceFile=' + $testSource) /nologo /v:quiet");
+            script.AppendLine("if ($LASTEXITCODE -ne 0) { throw 'Hostile MSBuild fixture failed to modify test input' }");
+            script.AppendLine("Require-OracleRejection 'MSBuild target changed tracked test'");
             script.AppendLine("[IO.File]::WriteAllText($testSource, 'TAMPERED TEST')");
-            script.AppendLine("Require-OracleRejection 'tracked test mutation'");
+            script.AppendLine("Require-OracleRejection 'direct tracked test mutation'");
             script.AppendLine("[IO.File]::WriteAllText($testSource, 'TRUSTED TEST')");
             script.AppendLine("$newTest = Join-Path $root 'tests/AuditRegression.New.cs'");
             script.AppendLine("[IO.File]::WriteAllText($newTest, 'NEW UNDECLARED TEST')");

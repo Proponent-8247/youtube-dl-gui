@@ -133,4 +133,25 @@ internal static partial class AuditRegression {
         Equal(0, ReleaseAncestryExit(root, oldPolicy, oldCandidate));
         Equal(1, ReleaseAncestryExit(root, reviewed, oldCandidate));
     }
+    private static void AuditVerificationUsesImmutableReleaseBase() {
+        string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
+        string workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "audit-verify.yml"));
+        const string reviewed = "49a290d07b220e4a9cd98d44c6db7f45a5bbbc98";
+        Require(workflow.Contains("$ReviewedBase = '" + reviewed + "'"),
+            "Audit verification lacks the audited release-base immutable SHA");
+        Require(workflow.Contains("git merge-base --is-ancestor $ReviewedBase HEAD"),
+            "Audit verification does not verify the candidate descends from the reviewed release base");
+        foreach (string evidence in new[] {
+            "reviewed-base-commit.txt", "reviewed-base-source.zip",
+            "reviewed-base-merge-base.txt", "reviewed-base-history.txt",
+            "reviewed-base-diff-stat.txt", "reviewed-base-diff-files.txt",
+            "reviewed-base-source.diff", "reviewed-base-sha256.txt"
+        }) {
+            Require(workflow.Contains(evidence), "Audited base provenance evidence missing: " + evidence);
+        }
+        Require(workflow.IndexOf("git log --format='%H %s' b734c05944eeffccfde3208cd1ea45ef2ae401f9", StringComparison.Ordinal) < 0,
+            "Audit verification still uses an unrelated historical comparison base");
+        Equal(0, ReleaseAncestryExit(root, reviewed, "HEAD"));
+    }
+
 }

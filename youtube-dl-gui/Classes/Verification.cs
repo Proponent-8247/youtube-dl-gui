@@ -162,6 +162,36 @@ internal static class Verification {
     public static bool CanManageConfiguredFfmpegPath() =>
         !General.UseStaticFFmpeg || IsConfiguredUpdateTarget(General.ffmpegPath, GetManagedFfmpegUpdatePath());
 
+    // Only first-run UI consent may provision a user-selected missing custom tool.
+    // Ordinary updates never treat discovery or an external static path as ownership.
+    private static string? GetUnoccupiedFirstRunTarget(bool isStatic, string? configured,
+        string expectedFileName, bool ffmpegPair) {
+        if (!isStatic || configured.IsNullEmptyWhitespace() || !Path.IsPathRooted(configured)) return null;
+        try {
+            string full = Path.GetFullPath(configured);
+            string? directory = Path.GetDirectoryName(full);
+            if (directory.IsNullEmptyWhitespace() || !Directory.Exists(directory) ||
+                !Path.GetFileName(full).Equals(expectedFileName, StringComparison.OrdinalIgnoreCase)) return null;
+            string[] entries = ffmpegPair
+                ? [full, full + ".update", full + ".bck",
+                    Path.Combine(directory, "ffprobe.exe"),
+                    Path.Combine(directory, "ffprobe.exe.update"),
+                    Path.Combine(directory, "ffprobe.exe.bck")]
+                : [full, full + ".tmp", full + ".bck"];
+            return entries.Any(path => File.Exists(path) || Directory.Exists(path)) ? null : full;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException) {
+            return null;
+        }
+    }
+
+    public static string? GetExplicitFirstRunYoutubeDlInstallPath() =>
+        GetUnoccupiedFirstRunTarget(General.UseStaticYtdl, General.ytdlPath,
+            GetYoutubeDlProvider(true), false);
+
+    public static string? GetExplicitFirstRunFfmpegInstallPath() =>
+        GetUnoccupiedFirstRunTarget(General.UseStaticFFmpeg, General.ffmpegPath, "ffmpeg.exe", true);
+
     private static string? GetProgramVersion(string ProgramPath) {
         try {
             return File.Exists(ProgramPath) ?

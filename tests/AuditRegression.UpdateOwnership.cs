@@ -60,6 +60,29 @@ internal static partial class AuditRegression {
             configuredFfmpeg.SetValue(null, outsideFfmpeg);
             Equal(false, Call(verification, null, "CanManageConfiguredYoutubeDlPath"));
             Equal(false, Call(verification, null, "CanManageConfiguredFfmpegPath"));
+            Equal(null, Call(verification, null, "GetExplicitFirstRunYoutubeDlInstallPath"));
+            Equal(null, Call(verification, null, "GetExplicitFirstRunFfmpegInstallPath"));
+
+            // An explicit first-run consent may CREATE a new custom location, but
+            // must not replace an already occupied external executable or companion.
+            string fresh = Path.Combine(foreign, "explicit-new-install");
+            Directory.CreateDirectory(fresh);
+            string newProvider = Path.Combine(fresh, providerName);
+            string newFfmpeg = Path.Combine(fresh, "ffmpeg.exe");
+            configuredProvider.SetValue(null, newProvider);
+            configuredFfmpeg.SetValue(null, newFfmpeg);
+            Equal(newProvider, Call(verification, null, "GetExplicitFirstRunYoutubeDlInstallPath"));
+            Equal(newFfmpeg, Call(verification, null, "GetExplicitFirstRunFfmpegInstallPath"));
+            File.WriteAllBytes(newProvider, bytes);
+            File.WriteAllBytes(Path.Combine(fresh, "ffprobe.exe"), bytes);
+            Equal(null, Call(verification, null, "GetExplicitFirstRunYoutubeDlInstallPath"));
+            Equal(null, Call(verification, null, "GetExplicitFirstRunFfmpegInstallPath"));
+            File.Delete(newProvider);
+            File.Delete(Path.Combine(fresh, "ffprobe.exe"));
+            File.WriteAllBytes(newFfmpeg + ".update", bytes);
+            Equal(null, Call(verification, null, "GetExplicitFirstRunFfmpegInstallPath"));
+            File.Delete(newFfmpeg + ".update");
+
             Equal(expectedProvider, Call(verification, null, "GetManagedYoutubeDlUpdatePath"));
             Equal(expectedFfmpeg, Call(verification, null, "GetManagedFfmpegUpdatePath"));
 

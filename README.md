@@ -8,7 +8,7 @@ GUI for [yt-dlp](https://github.com/yt-dlp/yt-dlp) ([youtube-dl](https://github.
 
 The goal of youtube-dl-gui is to make it as accessible to as many people as possible, with as many arguments added as options as I use them... or get requested to add them. If at all.
 
-Powerusers can use the custom arguments option to have almost absolute control of the input arguments, excepting the URL and the output.
+Power users can customize many provider options through custom arguments. The application still controls the source URL, output location, and mandatory safety, archive, and authentication options where applicable. Protected Download History rejects options that would bypass its integrity rules.
 
 Additionally, [userscripts](USERSCRIPTS.md) can be used in conjunction with this program to extend functionality.
 
@@ -37,13 +37,17 @@ This is the original download form, and while doesn't provide specific formats t
 This form gives you more information about the media you requested, such as all available formats, and any unknown formats that can additionally be downloaded. It also supports custom arguments, but if that is your choice of download, it'd be faster to use the quick downloader. It does not support mass downloading (playlist, channel, etc) and most likely will not work in that way.
 
 # Custom Arguments
-When using custom arguments, the url and save directory are automatically passed, url being the first thing passed, followed by custom arguments, and the save-to directory being the final one passed.
+For normal quick and extended yt-dlp downloads, youtube-dl-gui generates the output template and its own options first, then appends applicable custom options, protected Download History/archive requirements, and private authentication configuration. The source URL is passed **last** as a separate `-- <escaped URL>` operand so option-like URLs cannot be interpreted as switches. The precise set of generated options depends on the download mode.
 
-Examples:  
-`youtube-dl.exe https://awebsite.tld/video.html \<custom arguments> -o "C:\Users\User\Downloads\"`  
-`ffmpeg.exe -i "C:\Users\User\Downloads\VideoToConvert.ext" \<custom arguments> "C:\Users\User\Downloads\FileOutput.ext"`
+A simplified illustrative ordering is:
 
-Additionally, if you do include custom arguments on non-custom downloads, they will be appended to the end of the generated arguments, so you can use custom arguments along the generated arguments.
+`yt-dlp.exe -o "C:\Users\User\Downloads\%(title)s-%(id)s.%(ext)s" <app-generated options> <custom options> <history/auth options when enabled> -- "https://awebsite.tld/video.html"`
+
+Protected Download History may refuse conflicting or unsafe custom options instead of silently allowing them to override output, archive, or execution controls. Specialized mostly-custom/archive flows can use a different internal order. Converter/FFmpeg arguments are a separate contract, for example:
+
+`ffmpeg.exe -i "C:\Users\User\Downloads\VideoToConvert.ext" <conversion options> "C:\Users\User\Downloads\FileOutput.ext"`
+
+For ordinary downloads, custom options are added to the generated command, not given unconditional precedence over the application's protected settings.
 
 # Compatible sites
 Each fork may have differences in compatible sites. It's recommended to do your own research. Or just try it, and see if it works. The worst that can happen is you blow up.

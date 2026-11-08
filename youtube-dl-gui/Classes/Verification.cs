@@ -50,15 +50,8 @@ internal static class Verification {
     /// </summary>
     /// <param name="CheckType">The ID of the type to verify.</param>
     /// <returns>A valid ID, if <paramref name="CheckType"/> is valid then it will be the value returned.</returns>
-    public static int GetYoutubeDlType(int? CheckType) {
-        int CheckId = CheckType ?? Downloads.YtdlType;
-        return CheckId switch {
-            (int)GitID.YtDlpNightly => 1,
-            (int)GitID.YoutubeDl => 2,
-            (int)GitID.YoutubeDlNightly => 3,
-            _ => 0,
-        };
-    }
+    public static int GetYoutubeDlType(int? CheckType) =>
+        Downloads.NormalizeYtdlType(CheckType ?? Downloads.YtdlType);
 
     public static void Refresh() {
         RefreshYoutubeDlLocation();
@@ -67,6 +60,7 @@ internal static class Verification {
 
     public static bool RefreshYoutubeDlLocation() {
         YoutubeDlPath = null;
+        YoutubeDlVersion = null;
         string? TempPath;
         string YoutubeDlName = GetYoutubeDlProvider(true);
 

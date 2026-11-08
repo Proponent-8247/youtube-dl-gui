@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Runtime.InteropServices;
+using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using murrty.controls;
@@ -164,6 +165,33 @@ internal partial class frmUpdater : Form {
     private static string CreateUpdateDestinationPath() =>
         Path.Combine(Environment.CurrentDirectory, $"update.{Process.GetCurrentProcess().Id}.{Guid.NewGuid():N}.part");
 
+    // Reconstruct the last known executable BEFORE attempting network/download work.
+    // The deterministic .old file can be the only remaining working application after
+    // an interrupted move. Do not destroy it merely because another update was requested.
+    // If live and backup both exist, provenance is ambiguous: preserve both and stop.
+    // The assembly-identity check prevents moving an unrelated user file into the live path;
+    // it is not a substitute for Authenticode verification of a downloaded replacement.
+    private static bool TryRestoreInterruptedBackup(string applicationPath) {
+        if (string.IsNullOrWhiteSpace(applicationPath)) return false;
+        string backup = applicationPath + ".old";
+        if (!File.Exists(backup)) return true;
+        if (File.Exists(applicationPath) || Directory.Exists(applicationPath)) return false;
+        try {
+            if ((File.GetAttributes(backup) & FileAttributes.ReparsePoint) != 0) return false;
+            AssemblyName name = AssemblyName.GetAssemblyName(backup);
+            if (!string.Equals(name.Name, "youtube-dl-gui", StringComparison.OrdinalIgnoreCase)) return false;
+            // The two names share a parent directory. File.Move refuses an occupied
+            // destination and can never overwrite an unrelated live executable.
+            File.Move(backup, applicationPath);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
+            or BadImageFormatException) {
+            Debug.WriteLine($"Updater preserved an unrecoverable or unowned backup: {ex}");
+            return false;
+        }
+    }
+
     private void LoadLanguage() {
         this.Text = Language.frmUpdater;
         lbUpdaterHeader.Text = Language.lbUpdaterHeader;
@@ -210,6 +238,13 @@ internal partial class frmUpdater : Form {
 
         // This will be the backup location for the current version.
         string BackupLocation = UpdateData.FileName + ".old";
+        if (!TryRestoreInterruptedBackup(UpdateData.FileName)) {
+            tmrForm.Stop();
+            pbDownloadProgress.Style = ProgressBarStyle.Blocks;
+            pbDownloadProgress.ProgressState = ProgressState.Error;
+            pbDownloadProgress.Text = "An existing update backup needs manual review. No executable was deleted.";
+            return;
+        }
 
         // The temp path of the file.
         string UpdateDestination = CreateUpdateDestinationPath();
@@ -228,9 +263,8 @@ internal partial class frmUpdater : Form {
 
         try {
             Cancellation.ThrowIfCancellationRequested();
-            // Delete the old backup, if it exists, since it's clearly unused.
-            if (File.Exists(BackupLocation))
-                File.Delete(BackupLocation);
+            // Never pre-delete the old backup: the preflight either restored the
+            // sole surviving copy or rejected an ambiguous pre-existing sidecar.
 
             // Add the events.
             Program.DownloadClient.ProgressChanged += DownloadProgressChanged;
@@ -291,6 +325,16 @@ internal partial class frmUpdater : Form {
             pbDownloadProgress.Style = ProgressBarStyle.Blocks;
             pbDownloadProgress.Text = Language.pbDownloadProgressDownloadFinishedLaunching;
             Process.Start(UpdateData.FileName);
+
+            // The backup was created by this update, and the replacement passed
+            // its hash check and launched. Only this in-process owned backup may
+            // be cleaned; an inherited or crash-orphaned .old is never deleted.
+            if (MovedOldVersion && MovedNewVersion && File.Exists(BackupLocation)) {
+                try { File.Delete(BackupLocation); }
+                catch (Exception cleanupEx) when (cleanupEx is IOException or UnauthorizedAccessException) {
+                    Debug.WriteLine($"Retaining previous executable because cleanup failed: {cleanupEx}");
+                }
+            }
 
             // Kill this process.
             Program.ExitCode = 0;

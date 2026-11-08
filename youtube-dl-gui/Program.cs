@@ -100,6 +100,13 @@ internal static class Program {
     }
 #endif
 
+    // An abandoned named mutex is granted to the waiter as its new owner.
+    // Treat that state as acquired rather than crashing at process startup.
+    private static bool TryAcquireInstanceMutex(Mutex mutex) {
+        try { return mutex.WaitOne(TimeSpan.Zero, true); }
+        catch (AbandonedMutexException) { return true; }
+    }
+
     [STAThread]
     private static int Main(string[] args) {
         if (args.Length == 1 && args[0].TrimStart('-').Equals("installprotocol", StringComparison.OrdinalIgnoreCase)) {
@@ -114,7 +121,10 @@ internal static class Program {
         DebugMode = true;
         Instance = new(true, ProgramGUID);
 #else
-        if (!(Instance = new(true, ProgramGUID)).WaitOne(TimeSpan.Zero, true)) {
+        Instance = new(false, ProgramGUID);
+        if (!TryAcquireInstanceMutex(Instance)) {
+            // A secondary instance owns no mutex; dispose its handle before IPC forwarding.
+            Instance.Dispose();
             nint hwnd = CopyData.FindWindow(null, ProgramGUID);
 
             if (hwnd != 0) {

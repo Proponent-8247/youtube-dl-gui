@@ -90,6 +90,17 @@ internal static partial class AuditRegression {
         catch { }
     }
 
+    private static int V011FaultMainPid;
+    private static int V011FaultUpdaterPid;
+    private static string V011FaultRoot;
+
+    private static bool V011ProcessSurvives(int pid) {
+        try {
+            using (Process process = Process.GetProcessById(pid)) return !process.HasExited;
+        }
+        catch (ArgumentException) { return false; }
+    }
+
     private sealed class V011Scenario : IDisposable {
         internal string Root;
         internal string AppPath;
@@ -104,15 +115,41 @@ internal static partial class AuditRegression {
 
         public void Dispose() {
             V011Kill(Updater);
+            // The updater may have been launched but the factory may have thrown
+            // before attaching its Process wrapper. Verify the executable path
+            // before terminating a PID found in the fixture's own result file.
+            if (Updater == null && !string.IsNullOrEmpty(MainResult) &&
+                !string.IsNullOrEmpty(Root)) {
+                int pid;
+                Dictionary<string, string> values = V011ReadResult(MainResult);
+                string recorded;
+                if (values.TryGetValue("updater-pid", out recorded) &&
+                    int.TryParse(recorded, out pid) && pid > 0) {
+                    try {
+                        using (Process orphan = Process.GetProcessById(pid)) {
+                            string expected = Path.GetFullPath(Path.Combine(Root, "youtube-dl-gui-updater.exe"));
+                            string actual = Path.GetFullPath(orphan.MainModule.FileName);
+                            if (string.Equals(expected, actual, StringComparison.OrdinalIgnoreCase))
+                                V011Kill(orphan);
+                        }
+                    }
+                    catch (Exception ex) when (ex is ArgumentException ||
+                        ex is InvalidOperationException || ex is System.ComponentModel.Win32Exception ||
+                        ex is System.IO.IOException) { }
+                }
+            }
             V011Kill(Main);
             if (Updater != null) Updater.Dispose();
             if (Main != null) Main.Dispose();
             if (Server != null) Server.Dispose();
-            try { Directory.Delete(Root, true); } catch { }
+            if (!string.IsNullOrEmpty(Root)) {
+                try { Directory.Delete(Root, true); } catch { }
+            }
         }
     }
 
-    private static V011Scenario V011Start(string scenario, bool servePayload) {
+    private static V011Scenario V011Start(string scenario, bool servePayload,
+        bool failAfterUpdaterPid = false) {
         string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
         string debugApp = Path.Combine(root, "youtube-dl-gui", "bin", "Debug", "youtube-dl-gui.exe");
         string debugUpdater = Path.Combine(root, "youtube-dl-gui-updater", "bin", "Debug", "youtube-dl-gui-updater.exe");
@@ -120,6 +157,7 @@ internal static partial class AuditRegression {
         Require(File.Exists(debugUpdater), "Debug updater executable is unavailable for V011");
 
         var state = new V011Scenario();
+        try {
         state.Root = Path.Combine(Environment.CurrentDirectory, "v011-" + scenario + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(state.Root);
         state.AppPath = Path.Combine(state.Root, "youtube-dl-gui-\u03bb.exe");
@@ -150,8 +188,21 @@ internal static partial class AuditRegression {
         Dictionary<string, string> mainValues = V011WaitFor(state.MainResult, "updater-pid", 10000);
         int updaterPid;
         Require(int.TryParse(mainValues["updater-pid"], out updaterPid) && updaterPid > 0, "Actual updater process id was not recorded");
+        if (failAfterUpdaterPid) {
+            V011FaultMainPid = state.Main.Id;
+            V011FaultUpdaterPid = updaterPid;
+            V011FaultRoot = state.Root;
+            throw new InvalidOperationException("Injected V011 startup failure after updater PID");
+        }
         state.Updater = Process.GetProcessById(updaterPid);
         return state;
+        }
+        catch {
+            // Covers failures in binary copy, listener startup, process launch,
+            // PID evidence and Process attachment BEFORE caller ownership begins.
+            state.Dispose();
+            throw;
+        }
     }
 
     private static void ActualUpdaterExecutablesExchangeBoundPacket() {
@@ -256,10 +307,33 @@ internal static partial class AuditRegression {
         finally { try { Directory.Delete(scratch, true); } catch { } }
     }
 
+    private static void UpdaterScenarioFactoryDisposesAfterPartialStartup() {
+        V011FaultMainPid = 0;
+        V011FaultUpdaterPid = 0;
+        V011FaultRoot = null;
+        try {
+            V011Start("cancel", false, true);
+            throw new Exception("V011 startup fault injection did not trigger");
+        }
+        catch (InvalidOperationException ex) {
+            Require(ex.Message.Contains("Injected V011 startup failure"),
+                "Unexpected startup fault, not the controlled injection: " + ex);
+        }
+        Require(V011FaultMainPid > 0 && V011FaultUpdaterPid > 0 &&
+            !string.IsNullOrEmpty(V011FaultRoot), "Fault injection did not start both live processes");
+        Require(!V011ProcessSurvives(V011FaultMainPid),
+            "Partially constructed V011 left its main application process running");
+        Require(!V011ProcessSurvives(V011FaultUpdaterPid),
+            "Partially constructed V011 left its updater child process running");
+        Require(!Directory.Exists(V011FaultRoot),
+            "Partially constructed V011 leaked its scenario files after cleanup");
+    }
+
     private static void RunV011Tests() {
         Test("V011.ActualUpdaterExecutablesExchangeBoundPacket", ActualUpdaterExecutablesExchangeBoundPacket);
         Test("V011.ActualUpdaterCancellationLeavesApplicationUntouched", ActualUpdaterCancellationLeavesApplicationUntouched);
         Test("V011.ActualUpdaterRollbackRestoresApplication", ActualUpdaterRollbackRestoresApplication);
         Test("V011.UpdaterRestartNeverDiscardsSoleRecoveryExecutable", UpdaterRestartNeverDiscardsSoleRecoveryExecutable);
+        Test("V011.UpdaterScenarioFactoryDisposesAfterPartialStartup", UpdaterScenarioFactoryDisposesAfterPartialStartup);
     }
 }

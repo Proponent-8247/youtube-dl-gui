@@ -114,12 +114,11 @@ internal partial class frmLog : Form, ILocalizedForm {
     [System.Diagnostics.DebuggerStepThrough]
     public void ShowLog() {
         if (!IsShown) {
+            // A log form registered before its handle exists may have missed
+            // Language.LocalizationChanged. Replay the entire presentation
+            // contract before the first show (and every subsequent re-show).
+            LoadLanguage();
             this.Show();
-
-            this.Text = Language.frmLog;
-            btnClear.Text = Language.frmLogClear;
-            btnClose.Text = Language.GenericClose;
-
             IsShown = true;
         }
         else {

@@ -124,4 +124,62 @@ internal static partial class AuditRegression {
         }
         finally { try { Directory.Delete(temporary, true); } catch { } }
     }
+    private static void GuardedRepairDetectsBuildTimeOracleMutation() {
+        string sourceRoot = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
+        string integrityModule = Path.Combine(sourceRoot, "tools", "RepairInputIntegrity.ps1");
+        string root = Path.Combine(Path.GetTempPath(), "audit-immutable-inputs-" + Guid.NewGuid().ToString("N"));
+        string tests = Path.Combine(root, "tests");
+        string tools = Path.Combine(root, "tools");
+        string workflows = Path.Combine(root, ".github", "workflows");
+        Directory.CreateDirectory(tests);
+        Directory.CreateDirectory(tools);
+        Directory.CreateDirectory(workflows);
+        try {
+            File.WriteAllText(Path.Combine(tests, "AuditRegression.Fixture.cs"), "TRUSTED TEST", new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(tools, "apply-audit-repairs.py"), "TRUSTED PARSER", new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(workflows, "audit-repair.yml"), "TRUSTED WORKFLOW", new UTF8Encoding(false));
+            string psQuoteRoot = "'" + root.Replace("'", "''") + "'";
+            string psQuoteModule = "'" + integrityModule.Replace("'", "''") + "'";
+            StringBuilder script = new StringBuilder();
+            script.AppendLine("$ErrorActionPreference = 'Stop'");
+            script.AppendLine(". " + psQuoteModule);
+            script.AppendLine("$root = " + psQuoteRoot);
+            script.AppendLine("$base = Get-RepairInputSnapshot -RepositoryRoot $root");
+            script.AppendLine("Assert-RepairInputSnapshot -RepositoryRoot $root -Baseline $base -Phase 'clean'");
+            script.AppendLine("function Require-OracleRejection([string]$label) {");
+            script.AppendLine("  try { Assert-RepairInputSnapshot -RepositoryRoot $root -Baseline $base -Phase $label; throw 'UNSAFE_ORACLE_ACCEPTED' }");
+            script.AppendLine("  catch { if ($_.Exception.Message -notmatch 'Trusted repair test/tool/workflow inputs mutated') { throw } }");
+            script.AppendLine("}");
+            script.AppendLine("$testSource = Join-Path $root 'tests/AuditRegression.Fixture.cs'");
+            script.AppendLine("[IO.File]::WriteAllText($testSource, 'TAMPERED TEST')");
+            script.AppendLine("Require-OracleRejection 'tracked test mutation'");
+            script.AppendLine("[IO.File]::WriteAllText($testSource, 'TRUSTED TEST')");
+            script.AppendLine("$newTest = Join-Path $root 'tests/AuditRegression.New.cs'");
+            script.AppendLine("[IO.File]::WriteAllText($newTest, 'NEW UNDECLARED TEST')");
+            script.AppendLine("Require-OracleRejection 'untracked test creation'");
+            script.AppendLine("[IO.File]::Delete($newTest)");
+            script.AppendLine("$parser = Join-Path $root 'tools/apply-audit-repairs.py'");
+            script.AppendLine("[IO.File]::WriteAllText($parser, 'TAMPERED PARSER')");
+            script.AppendLine("Require-OracleRejection 'guard parser mutation'");
+            script.AppendLine("[IO.File]::WriteAllText($parser, 'TRUSTED PARSER')");
+            script.AppendLine("$workflow = Join-Path $root '.github/workflows/audit-repair.yml'");
+            script.AppendLine("[IO.File]::WriteAllText($workflow, 'TAMPERED WORKFLOW')");
+            script.AppendLine("Require-OracleRejection 'workflow mutation'");
+            script.AppendLine("[IO.File]::WriteAllText($workflow, 'TRUSTED WORKFLOW')");
+            script.AppendLine("$output = Join-Path $root 'bin/Debug'");
+            script.AppendLine("[IO.Directory]::CreateDirectory($output) | Out-Null");
+            script.AppendLine("[IO.File]::WriteAllText((Join-Path $output 'app.exe'), 'GENERATED OUTPUT')");
+            script.AppendLine("Assert-RepairInputSnapshot -RepositoryRoot $root -Baseline $base -Phase 'normal build output'");
+            script.AppendLine("Write-Output 'IMMUTABLE_REPAIR_INPUTS_VALIDATED'");
+            string fixture = Path.Combine(root, "check-immutable.ps1");
+            File.WriteAllText(fixture, script.ToString(), new UTF8Encoding(false));
+            int exit;
+            string result = GuardRunCli("powershell.exe", "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"" +
+                fixture + "\"", root, out exit);
+            Require(exit == 0 && result.Contains("IMMUTABLE_REPAIR_INPUTS_VALIDATED"),
+                "Build-time oracle mutation detection failed its positive/negative runtime fixture: " + result);
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
 }

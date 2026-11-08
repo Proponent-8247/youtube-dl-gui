@@ -6,6 +6,18 @@ internal static partial class AuditRegression {
     private static void RawProviderSessionHistoryHasBoundedRecentWindow() {
         Type log = T("murrty.logging.Log");
         const int quota = 32768, retain = 16384;
+        // Exercise the real session writer as well as the parameterized small
+        // quota algorithm: provider stdout and stderr must still be accepted.
+        string session = (string)log.GetProperty("SessionHistoryPath", All).GetValue(null, null);
+        string sourceMarker = "AUDIT_RAW_PROVIDER_QUOTA_" + Guid.NewGuid().ToString("N");
+        Call(log, null, "WriteRawProviderHistory", true, sourceMarker + "_out");
+        Call(log, null, "WriteRawProviderHistory", false, sourceMarker + "_err");
+        string live = File.ReadAllText(session, Encoding.UTF8);
+        Require(live.Contains("[RAW-PROVIDER-STDOUT] " + sourceMarker + "_out") &&
+            live.Contains("[RAW-PROVIDER-STDERR] " + sourceMarker + "_err"),
+            "Provider stdout/stderr bypassed the bounded session history writer");
+        Require(new FileInfo(session).Length <= 16 * 1024 * 1024,
+            "Real session history exceeded its configured maximum");
         string path = Path.Combine(Environment.CurrentDirectory,
             "session-quota-" + Guid.NewGuid().ToString("N") + ".log");
         try {

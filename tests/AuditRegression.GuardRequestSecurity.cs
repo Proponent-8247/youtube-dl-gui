@@ -53,9 +53,9 @@ internal static partial class AuditRegression {
             string trustedBase = GuardGit(work, "rev-parse HEAD");
             Require(trustedBase.Length == 40, "Request fixture has no valid base SHA");
 
-            string plan = "{\"version\":2,\"base_sha\":\"" + trustedBase + "\",\"expected_failures\":[]," +
+            string plan = "{\"version\":2,\"base_sha\":\"" + trustedBase + "\",\"expected_failures\":[\"FIXTURE.REVIEWED_FAILURE\"]," +
                 "\"remaining_failures\":[],\"repairs\":[{\"id\":\"fixture\",\"message\":\"test-only\"," +
-                "\"resolves\":[],\"files\":[{\"path\":\"Controls/Fixture.cs\"," +
+                "\"resolves\":[\"FIXTURE.REVIEWED_FAILURE\"],\"files\":[{\"path\":\"Controls/Fixture.cs\"," +
                 "\"edits\":[{\"old\":\"anchor-does-not-exist\",\"new\":\"new\"}]}]}]}";
             string request = Path.Combine(work, ".audit-repairs.json");
             string partDir = Path.Combine(work, ".audit-repairs.parts");

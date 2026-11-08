@@ -341,12 +341,12 @@ internal static class Program {
             if (await Updater.CheckForYoutubeDlUpdate()) {
                 // The user has explicitly approved first-time installation. Allow
                 // a freshly configured, unoccupied static path, but never an overwrite.
-                Updater.UpdateYoutubeDl(false, null, true);
+                Updater.InstallFirstTimeYoutubeDl(null);
             }
         }
 
         if (!Verification.FfmpegAvailable && Log.MessageBox(Language.dlgFirstTimeDownloadFfmpeg, MessageBoxButtons.YesNo) == DialogResult.Yes) {
-            await Updater.UpdateFfmpeg(null, true);
+            await Updater.InstallFirstTimeFfmpeg(null);
         }
 
         Log.Write("First time setup has concluded.");

@@ -202,4 +202,49 @@ internal static partial class AuditRegression {
         finally { try { Directory.Delete(root, true); } catch { } }
     }
 
+    private static void GuardedRepairCleansOnlyValidatedChunkedPayloads() {
+        string sourceRoot = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
+        string module = Path.Combine(sourceRoot, "tools", "RepairRequestLifecycle.ps1");
+        string root = Path.Combine(Path.GetTempPath(), "audit-cleanup-" + Guid.NewGuid().ToString("N"));
+        string parts = Path.Combine(root, ".audit-repairs.parts");
+        Directory.CreateDirectory(parts);
+        try {
+            File.WriteAllText(Path.Combine(root, ".audit-repairs.json"), "wrapper", new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(parts, "part-000.txt"), "first chunk", new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(parts, "part-001.txt"), "second chunk", new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(parts, "part-999.txt"), "unrelated tracked payload", new UTF8Encoding(false));
+            GuardGit(root, "init -q");
+            GuardGit(root, "config user.name fixture");
+            GuardGit(root, "config user.email fixture@invalid.example");
+            GuardGit(root, "add -A");
+            GuardGit(root, "commit -q -m fixture");
+            StringBuilder script = new StringBuilder();
+            script.AppendLine("$ErrorActionPreference = 'Stop'");
+            script.AppendLine(". '" + module.Replace("'", "''") + "'");
+            script.AppendLine("try {");
+            script.AppendLine("  Complete-GuardedRepairRequest -ValidatedFiles @('.audit-repairs.json', '../out-of-tree.txt')");
+            script.AppendLine("  throw 'UNSAFE_CLEANUP_ACCEPTED'");
+            script.AppendLine("} catch { if ($_.Exception.Message -notmatch 'refused an undeclared/non-request path') { throw } }");
+            script.AppendLine("if (!(Test-Path -LiteralPath '.audit-repairs.json')) { throw 'Negative cleanup deleted request wrapper' }");
+            script.AppendLine("Complete-GuardedRepairRequest -ValidatedFiles @('.audit-repairs.json', '.audit-repairs.parts/part-000.txt', '.audit-repairs.parts/part-001.txt')");
+            script.AppendLine("foreach ($path in @('.audit-repairs.json', '.audit-repairs.parts/part-000.txt', '.audit-repairs.parts/part-001.txt')) {");
+            script.AppendLine("  if (Test-Path -LiteralPath $path) { throw ('Retained declared request payload: ' + $path) }");
+            script.AppendLine("}");
+            script.AppendLine("if (!(Test-Path -LiteralPath '.audit-repairs.parts/part-999.txt')) { throw 'Cleanup deleted an unrelated chunk' }");
+            script.AppendLine("$staged = @(git diff --cached --name-only | Sort-Object)");
+            script.AppendLine("if ($LASTEXITCODE -ne 0 -or ($staged -join ',') -cne '.audit-repairs.json,.audit-repairs.parts/part-000.txt,.audit-repairs.parts/part-001.txt') {");
+            script.AppendLine("  throw ('Incorrect staged deletion paths: ' + ($staged -join ','))");
+            script.AppendLine("}");
+            script.AppendLine("Write-Output 'CHUNKED_REPAIR_CLEANUP_PASS'");
+            string fixture = Path.Combine(root, "check-closure.ps1");
+            File.WriteAllText(fixture, script.ToString(), new UTF8Encoding(false));
+            int exit;
+            string result = GuardRunCli("powershell.exe", "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"" +
+                fixture + "\"", root, out exit);
+            Require(exit == 0 && result.Contains("CHUNKED_REPAIR_CLEANUP_PASS"),
+                "Chunked request cleanup did not preserve exact, unrelated payloads: " + result);
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
 }

@@ -35,6 +35,9 @@ public partial class MessageHandler : Form {
     }
     public void AwaitExit() {
         AwaitingExit = true;
+        // Last action may have completed before we armed this gate; there
+        // will be no later completion callback to wake an empty hidden loop.
+        CheckExit();
     }
 
     public void CheckExit() {

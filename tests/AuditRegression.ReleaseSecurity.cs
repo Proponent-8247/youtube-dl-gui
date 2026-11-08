@@ -154,4 +154,69 @@ internal static partial class AuditRegression {
         Equal(0, ReleaseAncestryExit(root, reviewed, "HEAD"));
     }
 
+    private static void ReviewedRegressionInventoryCannotShrink() {
+        string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
+        string checker = Path.Combine(root, "tools", "Assert-ReviewedRegressions.ps1");
+        string manifestFile = Path.Combine(root, "tests", "REVIEWED-REGRESSION-NAMES.txt");
+        string[] required = File.ReadAllLines(manifestFile);
+        Equal(312, required.Length);
+        string script = File.ReadAllText(checker);
+        Require(script.Contains("$ReviewedManifestCommit = 'ec7ee09e5658e8371ef2ac422f805f74411c61c4'") &&
+                script.Contains("git show $manifestObject"),
+            "Reviewed test gate trusts a mutable candidate-local manifest");
+        string workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "audit-verify.yml"));
+        string releaseBuilder = File.ReadAllText(Path.Combine(root, "tools", "Build-ReleaseCandidate.ps1"));
+        Require(workflow.Contains("Assert-ReviewedRegressions.ps1") &&
+                releaseBuilder.Contains("Assert-ReviewedRegressions.ps1"),
+            "Full verification or release builder omitted the immutable reviewed test gate");
+
+        string temporary = Path.Combine(Path.GetTempPath(), "reviewed-tests-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temporary);
+        try {
+            string full = Path.Combine(temporary, "full.xml");
+            string missing = Path.Combine(temporary, "missing.xml");
+            string extra = Path.Combine(temporary, "extra.xml");
+            string duplicate = Path.Combine(temporary, "duplicate.xml");
+            Action<string, System.Collections.Generic.IEnumerable<string>> write = (path, names) => {
+                StringBuilder xml = new StringBuilder("<testsuite>");
+                foreach (string name in names) {
+                    xml.Append("<testcase name=\"").Append(System.Security.SecurityElement.Escape(name)).Append("\"/>");
+                }
+                xml.Append("</testsuite>");
+                File.WriteAllText(path, xml.ToString(), new UTF8Encoding(false));
+            };
+            write(full, required);
+            System.Collections.Generic.List<string> others = new System.Collections.Generic.List<string>(required);
+            others.RemoveAt(others.Count - 1);
+            write(missing, others);
+            others.Add("FIXTURE.ExtraRegressionsMayBeAdded");
+            others.Add(required[required.Length - 1]);
+            write(extra, others);
+            others.Add(required[0]);
+            write(duplicate, others);
+
+            Func<string, string, string> run = (path, expected) => {
+                int exit;
+                string output = GuardRunCli("powershell.exe",
+                    "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"" + checker +
+                    "\" -ResultsXml \"" + path + "\" -RepositoryRoot \"" + root + "\"",
+                    root, out exit);
+                if (expected == "accept") {
+                    Require(exit == 0 && output.Contains("Reviewed regression coverage verified"),
+                        "Valid reviewed-test superset was rejected: " + output);
+                }
+                else {
+                    Require(exit != 0 && output.IndexOf(expected, StringComparison.OrdinalIgnoreCase) >= 0,
+                        "Missing/duplicate reviewed regression was accepted or rejected for an unrelated reason: " + output);
+                }
+                return output;
+            };
+            run(full, "accept");
+            run(missing, "missing reviewed regressions");
+            run(extra, "accept");
+            run(duplicate, "duplicate test names");
+        }
+        finally { try { Directory.Delete(temporary, true); } catch { } }
+    }
+
 }

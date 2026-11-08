@@ -133,9 +133,9 @@ internal static partial class AuditRegression {
                                 V011Kill(orphan);
                         }
                     }
-                    catch (Exception ex) when (ex is ArgumentException ||
-                        ex is InvalidOperationException || ex is System.ComponentModel.Win32Exception ||
-                        ex is System.IO.IOException) { }
+                    catch (Exception) {
+                        // A child that already exited may be absent; cleanup remains best-effort.
+                    }
                 }
             }
             V011Kill(Main);

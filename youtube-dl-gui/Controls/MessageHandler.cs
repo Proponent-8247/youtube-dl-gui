@@ -102,6 +102,10 @@ public partial class MessageHandler : Form {
             // Only allowed when the updater is launched from youtube-dl-gui.
             case CopyData.WM_UPDATEDATAREQUEST: {
                 if (!IsExpectedUpdaterWindow(m.WParam)) {
+#if DEBUG
+                    if (Program.AuditUpdaterIpcMode)
+                        Program.WriteAuditUpdaterIpcResult("early-rejected=1");
+#endif
                     m.Result = IntPtr.Zero;
                     break;
                 }

@@ -317,6 +317,40 @@ internal static partial class AuditRegression {
         }
         finally { try { Directory.Delete(folder, true); } catch { } }
     }
+
+    private static void GuardedRepairRequiresReviewedFailureResolution() {
+        string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
+        string parser = Path.Combine(root, "tools", "apply-audit-repairs.py");
+        string runner = File.ReadAllText(Path.Combine(root, "tools", "Run-AuditRepairBatch.ps1"));
+        Require(runner.Contains("$test -notin $previous.Failed"),
+            "Guard runner accepts a resolved test that was never failing before the repair");
+        string folder = Path.Combine(Path.GetTempPath(), "audit-proof-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(folder, "Controls"));
+        try {
+            File.WriteAllText(Path.Combine(folder, "Controls", "Fixture.cs"), "before", new UTF8Encoding(false));
+            string template = "{\"version\":2,\"base_sha\":\"" + new string('c', 40) +
+                "\",\"expected_failures\":[\"FIXTURE.ReviewedFailure\"],\"remaining_failures\":[],\"repairs\":[{\"id\":\"PROOF\"," +
+                "\"message\":\"fixture\",\"resolves\":[\"REPLACE_ME\"],\"files\":[{\"path\":\"Controls/Fixture.cs\"," +
+                "\"edits\":[{\"old\":\"before\",\"new\":\"after\"}]}]}]}";
+            string request = Path.Combine(folder, ".audit-repairs.json");
+            File.WriteAllText(request, template.Replace("REPLACE_ME", "FIXTURE.ReviewedFailure"), new UTF8Encoding(false));
+            string accepted = RunGuardParserWithFixture(parser, folder, "--preflight");
+            Require(accepted.StartsWith("0\n", StringComparison.Ordinal),
+                "Legitimate reviewed-failure repair plan was rejected: " + accepted);
+            File.WriteAllText(request, template.Replace("\"REPLACE_ME\"", ""), new UTF8Encoding(false));
+            string empty = RunGuardParserWithFixture(parser, folder, "--preflight");
+            Require(!empty.StartsWith("0\n", StringComparison.Ordinal) &&
+                empty.Contains("at least one reviewed baseline failure"),
+                "A repair with resolves:[] was accepted: " + empty);
+            File.WriteAllText(request, template.Replace("REPLACE_ME", "FIXTURE.UnrelatedPassingTest"), new UTF8Encoding(false));
+            string unrelated = RunGuardParserWithFixture(parser, folder, "--runner-metadata");
+            Require(!unrelated.StartsWith("0\n", StringComparison.Ordinal) &&
+                unrelated.Contains("not a reviewed baseline failure"),
+                "A repair claimed a passing non-baseline regression: " + unrelated);
+        }
+        finally { try { Directory.Delete(folder, true); } catch { } }
+    }
+
     private static void RunRepairWave17Tests() {
         Test("POLICY_P002.SessionHistoryRetainsAndExports", SessionHistoryRetainsAndExports);
         Test("CURRENT_O020.ProviderReleaseRequiresAuthoritativeDigest", ProviderReleaseRequiresAuthoritativeDigest);
@@ -335,6 +369,7 @@ internal static partial class AuditRegression {
         Test("SECURITY.ProviderSelectionFieldsCannotInjectOptions", ProviderSelectionFieldsCannotInjectOptions);
         Test("SECURITY.UpdatesNeverTargetDiscoveredExternalTools", UpdatesNeverTargetDiscoveredExternalTools);
         Test("SECURITY.GuardedRepairRejectsSmuggledRequestCommit", GuardedRepairRejectsSmuggledRequestCommit);
+        Test("SECURITY.GuardedRepairRequiresReviewedFailureResolution", GuardedRepairRequiresReviewedFailureResolution);
         Test("SECURITY.GuardedRepairDetectsBuildTimeOracleMutation", GuardedRepairDetectsBuildTimeOracleMutation);
         Test("SECURITY.GuardedRepairHasNoAutomaticWritePublisher", GuardedRepairHasNoAutomaticWritePublisher);
         Test("SECURITY.GuardedRepairCannotSelfWhitelistFlakyFailures", GuardedRepairCannotSelfWhitelistFlakyFailures);

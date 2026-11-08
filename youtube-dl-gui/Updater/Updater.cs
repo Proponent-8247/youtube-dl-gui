@@ -430,7 +430,8 @@ internal static class Updater {
 
     private const long MaxFfmpegExecutableBytes = 512L * 1024L * 1024L;
 
-    private static void ExtractZipEntryBounded(ZipArchiveEntry Entry, string OutputPath, long MaxBytes) {
+    private static void ExtractZipEntryBounded(ZipArchiveEntry Entry, string OutputPath, long MaxBytes,
+        bool CreateOnly = false) {
         if (Entry is null) throw new ArgumentNullException(nameof(Entry));
         if (MaxBytes <= 0) throw new ArgumentOutOfRangeException(nameof(MaxBytes));
         if (Entry.Length < 0 || Entry.Length > MaxBytes) {
@@ -438,10 +439,13 @@ internal static class Updater {
         }
 
         long Written = 0;
+        bool created = false;
         byte[] Buffer = new byte[81920];
         try {
             using Stream Input = Entry.Open();
-            using FileStream Output = new(OutputPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            using FileStream Output = new(OutputPath, CreateOnly ? FileMode.CreateNew : FileMode.Create,
+                FileAccess.Write, FileShare.None);
+            created = true;
             while (true) {
                 int Read = Input.Read(Buffer, 0, Buffer.Length);
                 if (Read <= 0) break;
@@ -453,7 +457,10 @@ internal static class Updater {
             }
         }
         catch {
-            try { File.Delete(OutputPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            // Never delete a pre-existing custom-path collision when CreateNew fails.
+            if (created) {
+                try { File.Delete(OutputPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            }
             throw;
         }
     }

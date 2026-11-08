@@ -93,6 +93,30 @@ def load_plan():
     # before any build can execute or edits can be applied.
     if plan.get('allowed_flaky_failures', []) != []:
         raise ValueError('Repair requests cannot declare flaky-test exemptions')
+
+    # Ordinary guarded production repairs are specifically for reviewed failing
+    # regressions. Tooling/refactor/test-contract changes require separate review,
+    # never a vacuous 'green' repair with resolves=[].
+    reviewed = plan.get('expected_failures')
+    if (not isinstance(reviewed, list) or not reviewed or
+            any(not isinstance(name, str) or not name.strip() for name in reviewed) or
+            len(set(reviewed)) != len(reviewed)):
+        raise ValueError('Guarded production request requires distinct reviewed baseline failures')
+    claims = set()
+    for repair in plan.get('repairs', []):
+        resolves = repair.get('resolves')
+        if (not isinstance(resolves, list) or not resolves or
+                any(not isinstance(name, str) or not name.strip() for name in resolves)):
+            raise ValueError('Each guarded production repair must resolve at least one reviewed baseline failure')
+        for name in resolves:
+            if name not in reviewed:
+                raise ValueError('Repair claims a regression that is not a reviewed baseline failure: ' + name)
+            if name in claims:
+                raise ValueError('A reviewed baseline failure cannot be claimed by multiple repair steps: ' + name)
+            claims.add(name)
+    remaining = plan.get('remaining_failures', [])
+    if not isinstance(remaining, list) or any(name not in reviewed for name in remaining):
+        raise ValueError('Remaining failures must belong to the reviewed baseline')
     return plan
 
 

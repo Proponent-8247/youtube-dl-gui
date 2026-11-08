@@ -366,7 +366,9 @@ internal static class Program {
 
     private static void AwaitActions() {
         QueueHandler.AwaitExit();
-        Application.Run(QueueHandler);
+        // AwaitExit may dispose the hidden handler immediately if all actions
+        // finished just before the exit gate was armed.
+        if (!QueueHandler.IsDisposed) Application.Run(QueueHandler);
     }
 
     internal static void KillProcessTree(uint ProcessId) {

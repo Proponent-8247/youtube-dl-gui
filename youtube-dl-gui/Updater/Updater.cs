@@ -602,10 +602,15 @@ internal static class Updater {
         // application-rejected WM_UPDATEDATAREQUEST before the parent publishes
         // its PID. Pump the actual message queue to reproduce that interleaving.
         string? delayText = Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_DELAY_IDENTITY_MS");
-        if (int.TryParse(delayText, out int delayMs) && delayMs is > 0 and <= 2500) {
+        if (int.TryParse(delayText, out int delayMs) && delayMs is > 0 and <= 5000) {
+            int before = Program.AuditUpdaterRejectedRequests;
             Stopwatch delay = Stopwatch.StartNew();
             while (delay.ElapsedMilliseconds < delayMs) {
+                // Let the child send a request while this PID is still unknown.
+                // Release the gate on the ACTUAL rejection, not after a fixed
+                // scheduler-dependent wait that could hang a slower x86 fixture.
                 Application.DoEvents();
+                if (Program.AuditUpdaterRejectedRequests > before) break;
                 Thread.Sleep(10);
             }
         }

@@ -168,7 +168,12 @@ try {
         $introduced = @($next.Failed | Where-Object { $_ -notin $previous.Failed -and $_ -notin $allowedFlaky })
         if ($introduced.Count -gt 0) { throw "New regression failures: $introduced" }
         foreach ($test in $repair.resolves) {
-            if ($test -notin $next.Names -or $test -in $next.Failed) { throw "Repair did not satisfy its required regression: $test" }
+            if ($test -notin $previous.Failed) {
+                throw "Repair cannot claim a test that was not failing before this step: $test"
+            }
+            if ($test -notin $next.Names -or $test -in $next.Failed) {
+                throw "Repair did not transition its required regression from failing to passing: $test"
+            }
         }
         $paths = @($repair.files | ForEach-Object { $_.path })
         # No implicit updater binary staging: rebuilt resources must be declared and reviewed.

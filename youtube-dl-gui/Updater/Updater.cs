@@ -716,8 +716,25 @@ internal static class Updater {
     /// <param name="Internal">Whether to use the youtube-dl providers' internal updater as opposed to youtube-dl-guis' updater.</param>
     /// <param name="Location">The location where the generic downloader should appear.</param>
     /// <returns><see langword="true"/> if the youtube-dl provider update has went through regardless of success; otherwise, <see langword="false"/>.</returns>
-    public static bool UpdateYoutubeDl(bool Internal, System.Drawing.Point? Location = null,
-        bool ExplicitFirstRunInstall = false) {
+    // Restrict first-run provisioning consent to the active call/async flow.
+    // The established public updater signatures remain unchanged for callers.
+    private static readonly AsyncLocal<bool> FirstRunProvisioningConsent = new();
+
+    internal static bool InstallFirstTimeYoutubeDl(System.Drawing.Point? Location) {
+        bool previous = FirstRunProvisioningConsent.Value;
+        FirstRunProvisioningConsent.Value = true;
+        try { return UpdateYoutubeDl(false, Location); }
+        finally { FirstRunProvisioningConsent.Value = previous; }
+    }
+
+    internal static async Task<bool> InstallFirstTimeFfmpeg(System.Drawing.Point? Location) {
+        bool previous = FirstRunProvisioningConsent.Value;
+        FirstRunProvisioningConsent.Value = true;
+        try { return await UpdateFfmpeg(Location); }
+        finally { FirstRunProvisioningConsent.Value = previous; }
+    }
+
+    public static bool UpdateYoutubeDl(bool Internal, System.Drawing.Point? Location = null) {
         if (Internal) {
             Log.Write("Provider self-update is disabled because the replacement executable cannot be independently verified before installation.");
             return CanUseProviderSelfUpdater();
@@ -726,7 +743,7 @@ internal static class Updater {
             // First-time installation follows a separate user-confirmed, create-only path.
             // Routine update calls cannot overwrite externally managed static/PATH tools.
             bool managed = Verification.CanManageConfiguredYoutubeDlPath();
-            string? firstRunTarget = !managed && ExplicitFirstRunInstall
+            string? firstRunTarget = !managed && FirstRunProvisioningConsent.Value
                 ? Verification.GetExplicitFirstRunYoutubeDlInstallPath() : null;
             if (!managed && firstRunTarget is null) {
                 Log.Write("Provider update refused: the configured static executable is externally managed or the requested new first-run path is occupied.");
@@ -782,10 +799,9 @@ internal static class Updater {
     /// Updates ffmpeg.
     /// </summary>
     /// <returns><see langword="true"/> if it was updated; otherwise, <see langword="false"/>.</returns>
-    public static async Task<bool> UpdateFfmpeg(System.Drawing.Point? Location,
-        bool ExplicitFirstRunInstall = false) {
+    public static async Task<bool> UpdateFfmpeg(System.Drawing.Point? Location) {
         bool managed = Verification.CanManageConfiguredFfmpegPath();
-        string? firstRunTarget = !managed && ExplicitFirstRunInstall
+        string? firstRunTarget = !managed && FirstRunProvisioningConsent.Value
             ? Verification.GetExplicitFirstRunFfmpegInstallPath() : null;
         if (!managed && firstRunTarget is null) {
             Log.Write("FFmpeg update refused: the configured static executable is externally managed or the requested new first-run path is occupied.");

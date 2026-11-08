@@ -280,12 +280,12 @@ internal static partial class AuditRegression {
         string fixture = Path.Combine(Path.GetTempPath(), "audit-flaky-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(fixture);
         try {
-            string plan = "{\"version\":2,\"base_sha\":\"" + new string('a', 40) + "\",\"expected_failures\":[],\"remaining_failures\":[],\"repairs\":[{\"id\":\"TEST\",\"message\":\"fixture\",\"resolves\":[],\"files\":[]}]}";
+            string plan = "{\"version\":2,\"base_sha\":\"" + new string('a', 40) + "\",\"expected_failures\":[\"FIXTURE.REVIEWED_FAILURE\"],\"remaining_failures\":[],\"repairs\":[{\"id\":\"TEST\",\"message\":\"fixture\",\"resolves\":[\"FIXTURE.REVIEWED_FAILURE\"],\"files\":[]}]}";
             string request = Path.Combine(fixture, ".audit-repairs.json");
             File.WriteAllText(request, plan, new UTF8Encoding(false));
             string valid = RunGuardParserWithFixture(script, fixture, "--runner-metadata");
             Require(valid.StartsWith("0\n", StringComparison.Ordinal), "A valid request without flaky exemptions was rejected: " + valid);
-            string malicious = plan.Replace("\"expected_failures\":[]", "\"expected_failures\":[],\"allowed_flaky_failures\":[\"DOWNLOAD_HISTORY.ResetRequiresOwnedBoundArchive\"]");
+            string malicious = plan.Replace("\"expected_failures\":[\"FIXTURE.REVIEWED_FAILURE\"]", "\"expected_failures\":[\"FIXTURE.REVIEWED_FAILURE\"],\"allowed_flaky_failures\":[\"DOWNLOAD_HISTORY.ResetRequiresOwnedBoundArchive\"]");
             File.WriteAllText(request, malicious, new UTF8Encoding(false));
             string rejected = RunGuardParserWithFixture(script, fixture, "--runner-metadata");
             Require(!rejected.StartsWith("0\n", StringComparison.Ordinal) && rejected.Contains("flaky-test exemptions"),
@@ -303,7 +303,7 @@ internal static partial class AuditRegression {
         Directory.CreateDirectory(Path.Combine(folder, "Controls"));
         try {
             File.WriteAllText(Path.Combine(folder, "Controls", "Fixture.cs"), "before", new UTF8Encoding(false));
-            string wrapper = "{\"version\":2,\"base_sha\":\"" + new string('b', 40) + "\",\"expected_failures\":[],\"repairs\":[{\"id\":\"ORACLE\",\"message\":\"fixture\",\"resolves\":[],\"files\":[{\"path\":\"PATH\",\"edits\":[{\"old\":\"before\",\"new\":\"after\"}]}]}]}";
+            string wrapper = "{\"version\":2,\"base_sha\":\"" + new string('b', 40) + "\",\"expected_failures\":[\"FIXTURE.REVIEWED_FAILURE\"],\"repairs\":[{\"id\":\"ORACLE\",\"message\":\"fixture\",\"resolves\":[\"FIXTURE.REVIEWED_FAILURE\"],\"files\":[{\"path\":\"PATH\",\"edits\":[{\"old\":\"before\",\"new\":\"after\"}]}]}]}";
             string request = Path.Combine(folder, ".audit-repairs.json");
             File.WriteAllText(request, wrapper.Replace("PATH", "Controls/Fixture.cs"), new UTF8Encoding(false));
             string permitted = RunGuardParserWithFixture(parser, folder, "--preflight");

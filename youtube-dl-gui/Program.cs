@@ -90,6 +90,7 @@ internal static class Program {
     internal static bool UpdaterEnabled { get; private set; } = true;
 #if DEBUG
     internal static bool AuditUpdaterIpcMode { get; private set; }
+    internal static int AuditUpdaterRejectedRequests;
     internal static string AuditUpdaterIpcScenario => Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_SCENARIO") ?? string.Empty;
     internal static void WriteAuditUpdaterIpcResult(string Value) {
         string? PathValue = Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_MAIN_RESULT");

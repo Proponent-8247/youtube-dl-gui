@@ -371,6 +371,7 @@ internal static partial class AuditRegression {
         Test("RESOURCE.ExceptionDialogRollDisposesCryptographicGenerator", ExceptionDialogRollDisposesCryptographicGenerator);
         Test("LOCALIZATION.HiddenLogAppliesCurrentLanguageBeforeFirstDisplay", HiddenLogAppliesCurrentLanguageBeforeFirstDisplay);
         Test("RESOURCE.HarnessDeadlineTerminatesStalledProcess", HarnessDeadlineTerminatesStalledProcess);
+        Test("RESOURCE.RawProviderSessionHistoryHasBoundedRecentWindow", RawProviderSessionHistoryHasBoundedRecentWindow);
         Test("SECURITY.ProviderProxySettingCannotInjectArguments", ProviderProxySettingCannotInjectArguments);
         Test("SECURITY.ProviderSubtitleFormatCannotInjectArguments", ProviderSubtitleFormatCannotInjectArguments);
         Test("SECURITY.ProviderSelectionFieldsCannotInjectOptions", ProviderSelectionFieldsCannotInjectOptions);

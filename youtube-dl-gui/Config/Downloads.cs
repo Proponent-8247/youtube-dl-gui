@@ -123,8 +123,10 @@ internal static class Downloads {
         fAddDateToBatchDownloadFolders =
             IniProvider.Read(AddDateToBatchDownloadFolders, true, ConfigName);
 
+        // Normalize without touching Verification: its static initializer discovers
+        // executables and must not observe fYtdlType before this constructor completes.
         int readType = IniProvider.Read(YtdlType, 0, ConfigName);
-        fYtdlType = Verification.GetYoutubeDlType(readType);
+        fYtdlType = NormalizeYtdlType(readType);
 
         fSubdomainFolderNames =
             IniProvider.Read(SubdomainFolderNames, false, ConfigName);
@@ -566,12 +568,24 @@ internal static class Downloads {
     }
     private static bool fAddDateToBatchDownloadFolders;
 
+    // Pure provider-id normalization. Do not call Verification from static
+    // configuration initialization: doing so performs premature PATH discovery.
+    internal static int NormalizeYtdlType(int value) => value switch {
+        (int)GitID.YtDlpNightly => 1,
+        (int)GitID.YoutubeDl => 2,
+        (int)GitID.YoutubeDlNightly => 3,
+        _ => 0
+    };
+
     public static int YtdlType {
         get => fYtdlType;
         set {
-            if (fYtdlType != value) {
-                IniProvider.Write(value, ConfigName, nameof(YtdlType));
-                fYtdlType = value;
+            int selected = NormalizeYtdlType(value);
+            if (fYtdlType != selected) {
+                IniProvider.Write(selected, ConfigName, nameof(YtdlType));
+                fYtdlType = selected;
+                // Cached executable/version must match the newly persisted choice.
+                Verification.RefreshYoutubeDlLocation();
             }
         }
     }

@@ -5,6 +5,19 @@ Set-StrictMode -Version Latest
 # Parser is resolved alongside the reviewed runner, never from the candidate CWD.
 $GuardParser = Join-Path $PSScriptRoot 'apply-audit-repairs.py'
 if (!(Test-Path -LiteralPath $GuardParser -PathType Leaf)) { throw 'Trusted repair parser is missing.' }
+function Get-FileSha256Hex([string]$Path) {
+    # .NET crypto is available on the complete Windows PowerShell/MSBuild runtime.
+    # Avoid PS module autoload state from untrusted build/test fixtures.
+    $hash = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [System.IO.File]::OpenRead($Path)
+        try {
+            return [System.BitConverter]::ToString($hash.ComputeHash($stream)).Replace('-', '').ToLowerInvariant()
+        }
+        finally { $stream.Dispose() }
+    }
+    finally { $hash.Dispose() }
+}
 $EvidenceDirectory = [IO.Path]::GetFullPath($EvidenceDirectory)
 New-Item -ItemType Directory -Force -Path $EvidenceDirectory | Out-Null
 'Unverified repair request; publication has not completed.' | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
@@ -56,7 +69,7 @@ $requestEvidence = [ordered]@{
     request_sha = $initialHead
     changed_files = @($changedRequestFiles)
     declared_request_files = @($allowedRequestFiles)
-    request_patch_sha256 = (Get-FileHash -LiteralPath $requestPatch -Algorithm SHA256).Hash.ToLowerInvariant()
+    request_patch_sha256 = Get-FileSha256Hex $requestPatch
 }
 $requestEvidence | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $EvidenceDirectory 'request-commit.json') -Encoding utf8
 
@@ -164,7 +177,7 @@ try {
         base_sha = $parent
         verified_sha = $verifiedHead
         target_branch = $env:GITHUB_REF_NAME
-        bundle_sha256 = (Get-FileHash -LiteralPath $bundle -Algorithm SHA256).Hash
+        bundle_sha256 = Get-FileSha256Hex $bundle
     } | ConvertTo-Json | Set-Content -Path (Join-Path $EvidenceDirectory 'publish.json') -Encoding utf8
     if ($remaining.Count -eq 0) {
         'Verification passed; publication is pending. Only explicitly reviewed nondeterministic baseline failures, if any, were tolerated.' | Set-Content (Join-Path $EvidenceDirectory 'status.txt')

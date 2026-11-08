@@ -178,7 +178,10 @@ internal static class Verification {
                     Path.Combine(directory, "ffprobe.exe.update"),
                     Path.Combine(directory, "ffprobe.exe.bck")]
                 : [full, full + ".tmp", full + ".bck"];
-            return entries.Any(path => File.Exists(path) || Directory.Exists(path)) ? null : full;
+            foreach (string entry in entries) {
+                if (File.Exists(entry) || Directory.Exists(entry)) return null;
+            }
+            return full;
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException) {
             return null;

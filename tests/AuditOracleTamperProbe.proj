@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Hostile-build fixture for PAR-09-012/#124.
+  Never included in the solution: security regressions invoke /t:Tamper only
+  against disposable files under the test's temporary fixture directory.
+  This models an attacker-controlled MSBuild target changing a test oracle.
+-->
+<Project DefaultTargets="NoOp" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Target Name="NoOp">
+    <Message Text="Explicit /t:Tamper required; no source modified." Importance="low" />
+  </Target>
+  <Target Name="Tamper" Condition="'$(SourceFile)' != ''">
+    <WriteLinesToFile File="$(SourceFile)" Lines="TAMPERED BY MSBUILD" Overwrite="true" />
+  </Target>
+</Project>

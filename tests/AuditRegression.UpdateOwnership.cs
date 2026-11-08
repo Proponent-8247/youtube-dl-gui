@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading.Tasks;
 
 internal static partial class AuditRegression {
     private static void UpdatesNeverTargetDiscoveredExternalTools() {
@@ -60,6 +61,16 @@ internal static partial class AuditRegression {
             configuredFfmpeg.SetValue(null, outsideFfmpeg);
             Equal(false, Call(verification, null, "CanManageConfiguredYoutubeDlPath"));
             Equal(false, Call(verification, null, "CanManageConfiguredFfmpegPath"));
+            // Invoke real update entry points. A configured existing external tool
+            // must be rejected before release metadata lookup, network I/O or writes.
+            Type updater = T("youtube_dl_gui.Updater");
+            Equal(false, Call(updater, null, "UpdateYoutubeDl", false, null));
+            Task<bool> refusedFfmpeg = (Task<bool>)Call(updater, null, "UpdateFfmpeg", (object)null);
+            Equal(false, refusedFfmpeg.GetAwaiter().GetResult());
+            Require(bytes.SequenceEqual(File.ReadAllBytes(outsideProvider)) &&
+                bytes.SequenceEqual(File.ReadAllBytes(outsideFfmpeg)) &&
+                bytes.SequenceEqual(File.ReadAllBytes(Path.Combine(foreign, "ffprobe.exe"))),
+                "A rejected updater call modified external tools");
             Equal(null, Call(verification, null, "GetExplicitFirstRunYoutubeDlInstallPath"));
             Equal(null, Call(verification, null, "GetExplicitFirstRunFfmpegInstallPath"));
 

@@ -49,6 +49,18 @@ internal static partial class AuditRegression {
                 Equal(expected == "InstallProtocol" ? null : source, data.GetValue(entry));
                 Require(!it.MoveNext(), "Parser produced duplicate actions for " + alias);
             }
+            // Alias matching is case-insensitive in both direct and protocol forwarding.
+            string[] upperInput = expected == "InstallProtocol"
+                ? new[] { "-" + alias.ToUpperInvariant() }
+                : new[] { "-" + alias.ToUpperInvariant(), source };
+            IEnumerable upperParsed = (IEnumerable)Call(parser, null, "RetrieveArguments", (object)upperInput);
+            IEnumerator upperCursor = upperParsed.GetEnumerator();
+            Require(upperCursor.MoveNext(),
+                "Case-insensitive documented alias was rejected: " + alias);
+            FieldInfo upperType = upperCursor.Current.GetType().GetField("Item1");
+            Require(upperType != null && upperType.GetValue(upperCursor.Current).ToString() == expected,
+                "Case-insensitive alias was misrouted: " + alias);
+            Require(!upperCursor.MoveNext(), "Uppercase alias produced multiple actions: " + alias);
         }
 
         foreach (string unsupported in new[] { "vaa", "varchiveauth", "videoarchiveauth",

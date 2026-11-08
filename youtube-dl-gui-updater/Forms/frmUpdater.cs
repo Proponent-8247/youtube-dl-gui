@@ -410,16 +410,28 @@ internal partial class frmUpdater : Form {
         try {
             Program.CancelToken.Token.ThrowIfCancellationRequested();
 
-            // We are gonna gather the update data from the running process.
-            // WM_UPDATEREADY is a non-standard message that tells youtube-dl-gui to send the updater is ready and that it should close.
-            // The updater is going to wait for the main program to exit, allowing the user to finish any in-progress downloads.
-            if (!CopyData.TrySendMessageReentrant(
-                ApplicationData.MessageHandle,
-                CopyData.WM_UPDATEDATAREQUEST,
-                this.Handle,
-                0,
-                ParentMessageTimeoutMilliseconds)) {
-                throw new TimeoutException("The main application did not accept the updater request within the allowed time.");
+            // A transport-delivered WM_UPDATEDATAREQUEST is not proof that the
+            // parent accepted the updater's identity. The parent can reject it
+            // while its newly launched child PID has not yet been published.
+            // Only receiving and validating WM_COPYDATA sets UpdateDataAccepted.
+            // Retry that transient rejection with a strict overall deadline.
+            Stopwatch requestTimer = Stopwatch.StartNew();
+            while (!UpdateDataAccepted) {
+                Program.CancelToken.Token.ThrowIfCancellationRequested();
+                if (ProgramProcess.HasExited) {
+                    throw new InvalidOperationException("The application exited before accepting updater data.");
+                }
+                _ = CopyData.TrySendMessageReentrant(
+                    ApplicationData.MessageHandle,
+                    CopyData.WM_UPDATEDATAREQUEST,
+                    this.Handle,
+                    0,
+                    ParentMessageTimeoutMilliseconds);
+                if (UpdateDataAccepted) break;
+                if (requestTimer.ElapsedMilliseconds >= 12000) {
+                    throw new TimeoutException("The main application did not authenticate the updater request within 12 seconds.");
+                }
+                await Task.Delay(100, Program.CancelToken.Token);
             }
             pbDownloadProgress.Text = Language.pbDownloadProgressWaitingForClose;
 

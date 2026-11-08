@@ -149,7 +149,7 @@ internal static partial class AuditRegression {
     }
 
     private static V011Scenario V011Start(string scenario, bool servePayload,
-        bool failAfterUpdaterPid = false) {
+        bool failAfterUpdaterPid = false, int identityPublicationDelayMs = 0) {
         string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
         string debugApp = Path.Combine(root, "youtube-dl-gui", "bin", "Debug", "youtube-dl-gui.exe");
         string debugUpdater = Path.Combine(root, "youtube-dl-gui-updater", "bin", "Debug", "youtube-dl-gui-updater.exe");
@@ -177,6 +177,9 @@ internal static partial class AuditRegression {
         start.WorkingDirectory = state.Root;
         start.EnvironmentVariables["YTDL_AUDIT_IPC"] = "1";
         start.EnvironmentVariables["YTDL_AUDIT_IPC_SCENARIO"] = scenario;
+        if (identityPublicationDelayMs > 0)
+            start.EnvironmentVariables["YTDL_AUDIT_IPC_DELAY_IDENTITY_MS"] =
+                identityPublicationDelayMs.ToString(System.Globalization.CultureInfo.InvariantCulture);
         start.EnvironmentVariables["YTDL_AUDIT_IPC_HASH"] = state.PayloadHash;
         start.EnvironmentVariables["YTDL_AUDIT_IPC_MAIN_RESULT"] = state.MainResult;
         start.EnvironmentVariables["YTDL_AUDIT_IPC_UPDATER_RESULT"] = state.UpdaterResult;
@@ -307,6 +310,25 @@ internal static partial class AuditRegression {
         finally { try { Directory.Delete(scratch, true); } catch { } }
     }
 
+    private static void UpdaterEarlyRequestRejectionIsRetriedUntilAuthenticated() {
+        // Keep the real parent message loop pumping while PID publication is delayed.
+        // The child can send a request before the parent knows its identity; it must
+        // retry until authenticated update data arrives, not wait forever on delivery.
+        using (V011Scenario state = V011Start("success", true, false, 1250)) {
+            Dictionary<string, string> early = V011WaitFor(state.MainResult, "early-rejected", 10000);
+            Equal("1", early["early-rejected"]);
+            Dictionary<string, string> updater = V011WaitForOutcome(state, "replacement", 20000,
+                "rollback", "cancelled");
+            Dictionary<string, string> main = V011WaitFor(state.MainResult, "malformed-sent", 10000);
+            Equal("1", main["malformed-sent"]);
+            Equal("1", updater["accepted"]);
+            Equal("1", updater["ack-sent"]);
+            Require(state.Main.WaitForExit(10000), "Parent did not complete after retried accepted handshake");
+            Require(state.Updater.WaitForExit(10000), "Updater did not exit after retried accepted handshake");
+            Equal(state.PayloadHash, FileSha256(state.AppPath));
+        }
+    }
+
     private static void UpdaterScenarioFactoryDisposesAfterPartialStartup() {
         V011FaultMainPid = 0;
         V011FaultUpdaterPid = 0;
@@ -335,5 +357,6 @@ internal static partial class AuditRegression {
         Test("V011.ActualUpdaterRollbackRestoresApplication", ActualUpdaterRollbackRestoresApplication);
         Test("V011.UpdaterRestartNeverDiscardsSoleRecoveryExecutable", UpdaterRestartNeverDiscardsSoleRecoveryExecutable);
         Test("V011.UpdaterScenarioFactoryDisposesAfterPartialStartup", UpdaterScenarioFactoryDisposesAfterPartialStartup);
+        Test("V011.UpdaterEarlyRequestRejectionIsRetriedUntilAuthenticated", UpdaterEarlyRequestRejectionIsRetriedUntilAuthenticated);
     }
 }

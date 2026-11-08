@@ -21,10 +21,10 @@ internal static class ExecutableTrust {
     }
 
     private const uint WTD_UI_NONE = 2;
-    private const uint WTD_REVOKE_NONE = 0;
+    private const uint WTD_REVOKE_WHOLECHAIN = 1;
     private const uint WTD_CHOICE_FILE = 1;
     private const uint WTD_STATEACTION_IGNORE = 0;
-    private const uint WTD_REVOCATION_CHECK_NONE = 0x00000010;
+    private const uint WTD_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT = 0x00000080;
     private const int MAX_PATH = 260;
 
     private static readonly Guid GenericVerifyAction = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
@@ -82,6 +82,24 @@ internal static class ExecutableTrust {
     [System.Runtime.InteropServices.DllImport("wintrust.dll", SetLastError = true)]
     private static extern bool CryptCATAdminReleaseContext(IntPtr hCatAdmin, uint dwFlags);
 
+    private static WinTrustData CreateTrustData(IntPtr FileInfoPointer) => new() {
+        cbStruct = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(WinTrustData)),
+        pPolicyCallbackData = IntPtr.Zero,
+        pSIPClientData = IntPtr.Zero,
+        dwUIChoice = WTD_UI_NONE,
+        // Reject revoked signer/intermediates. A revocation lookup that cannot
+        // complete (including offline CRL/OCSP) must NOT yield Valid. Unsigned
+        // releases remain a separate compatibility policy.
+        fdwRevocationChecks = WTD_REVOKE_WHOLECHAIN,
+        dwUnionChoice = WTD_CHOICE_FILE,
+        pFile = FileInfoPointer,
+        dwStateAction = WTD_STATEACTION_IGNORE,
+        hWVTStateData = IntPtr.Zero,
+        pwszURLReference = IntPtr.Zero,
+        dwProvFlags = WTD_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT,
+        dwUIContext = 0,
+    };
+
     private static bool VerifyEmbeddedSignature(string FilePath) {
         IntPtr PathPointer = IntPtr.Zero;
         IntPtr FileInfoPointer = IntPtr.Zero;
@@ -97,20 +115,7 @@ internal static class ExecutableTrust {
             FileInfoPointer = System.Runtime.InteropServices.Marshal.AllocCoTaskMem(System.Runtime.InteropServices.Marshal.SizeOf(typeof(WinTrustFileInfo)));
             System.Runtime.InteropServices.Marshal.StructureToPtr(FileInfo, FileInfoPointer, false);
 
-            WinTrustData TrustData = new() {
-                cbStruct = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(WinTrustData)),
-                pPolicyCallbackData = IntPtr.Zero,
-                pSIPClientData = IntPtr.Zero,
-                dwUIChoice = WTD_UI_NONE,
-                fdwRevocationChecks = WTD_REVOKE_NONE,
-                dwUnionChoice = WTD_CHOICE_FILE,
-                pFile = FileInfoPointer,
-                dwStateAction = WTD_STATEACTION_IGNORE,
-                hWVTStateData = IntPtr.Zero,
-                pwszURLReference = IntPtr.Zero,
-                dwProvFlags = WTD_REVOCATION_CHECK_NONE,
-                dwUIContext = 0,
-            };
+            WinTrustData TrustData = CreateTrustData(FileInfoPointer);
             TrustDataPointer = System.Runtime.InteropServices.Marshal.AllocCoTaskMem(System.Runtime.InteropServices.Marshal.SizeOf(typeof(WinTrustData)));
             System.Runtime.InteropServices.Marshal.StructureToPtr(TrustData, TrustDataPointer, false);
             Guid Action = GenericVerifyAction;

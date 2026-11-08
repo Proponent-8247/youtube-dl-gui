@@ -716,14 +716,20 @@ internal static class Updater {
     /// <param name="Internal">Whether to use the youtube-dl providers' internal updater as opposed to youtube-dl-guis' updater.</param>
     /// <param name="Location">The location where the generic downloader should appear.</param>
     /// <returns><see langword="true"/> if the youtube-dl provider update has went through regardless of success; otherwise, <see langword="false"/>.</returns>
-    public static bool UpdateYoutubeDl(bool Internal, System.Drawing.Point? Location = null) {
+    public static bool UpdateYoutubeDl(bool Internal, System.Drawing.Point? Location = null,
+        bool ExplicitFirstRunInstall = false) {
         if (Internal) {
             Log.Write("Provider self-update is disabled because the replacement executable cannot be independently verified before installation.");
             return CanUseProviderSelfUpdater();
         }
         else {
-            if (!Verification.CanManageConfiguredYoutubeDlPath()) {
-                Log.Write("Provider update refused: the configured static executable is externally managed. Update that binary with its owning installer, or select the application-managed provider.");
+            // First-time installation follows a separate user-confirmed, create-only path.
+            // Routine update calls cannot overwrite externally managed static/PATH tools.
+            bool managed = Verification.CanManageConfiguredYoutubeDlPath();
+            string? firstRunTarget = !managed && ExplicitFirstRunInstall
+                ? Verification.GetExplicitFirstRunYoutubeDlInstallPath() : null;
+            if (!managed && firstRunTarget is null) {
+                Log.Write("Provider update refused: the configured static executable is externally managed or the requested new first-run path is occupied.");
                 return false;
             }
             int TypeIndex = Verification.GetYoutubeDlType();
@@ -747,9 +753,10 @@ internal static class Updater {
             string ExpectedHash = LatestYoutubeDl.ExecutableHash!;
             using frmGenericDownloadProgress Downloader = new(
                 DownloadUrl!,
-                Verification.GetManagedYoutubeDlUpdatePath(),
+                firstRunTarget ?? Verification.GetManagedYoutubeDlUpdatePath(),
                 Location,
-                TempPath => VerifyDownloadedExecutable(TempPath, ExpectedHash));
+                TempPath => VerifyDownloadedExecutable(TempPath, ExpectedHash),
+                firstRunTarget is not null);
             if (Downloader.ShowDialog() != DialogResult.OK) {
                 return false;
             }
@@ -775,11 +782,17 @@ internal static class Updater {
     /// Updates ffmpeg.
     /// </summary>
     /// <returns><see langword="true"/> if it was updated; otherwise, <see langword="false"/>.</returns>
-    public static async Task<bool> UpdateFfmpeg(System.Drawing.Point? Location) {
-        if (!Verification.CanManageConfiguredFfmpegPath()) {
-            Log.Write("FFmpeg update refused: the configured static executable is externally managed. Update it with its owning installer, or select the application-managed FFmpeg.");
+    public static async Task<bool> UpdateFfmpeg(System.Drawing.Point? Location,
+        bool ExplicitFirstRunInstall = false) {
+        bool managed = Verification.CanManageConfiguredFfmpegPath();
+        string? firstRunTarget = !managed && ExplicitFirstRunInstall
+            ? Verification.GetExplicitFirstRunFfmpegInstallPath() : null;
+        if (!managed && firstRunTarget is null) {
+            Log.Write("FFmpeg update refused: the configured static executable is externally managed or the requested new first-run path is occupied.");
             return false;
         }
+        string installTarget = firstRunTarget ?? Verification.GetManagedFfmpegUpdatePath();
+        bool createOnly = firstRunTarget is not null;
         Log.Write("Downloading the latest ffmpeg release.");
         string FfmpegZipPath = Environment.CurrentDirectory + "\\ffmpeg.zip";
         string? ExpectedArchiveHash = await GetFfmpegArchiveDigest();
@@ -801,7 +814,7 @@ internal static class Updater {
         bool CanRetry = true;
         do {
             try {
-                string FfmpegPath = Path.GetDirectoryName(Verification.GetManagedFfmpegUpdatePath()) ??
+                string FfmpegPath = Path.GetDirectoryName(installTarget) ??
                     Environment.CurrentDirectory;
 
                 using ZipArchive archive = ZipFile.OpenRead(FfmpegZipPath);
@@ -821,7 +834,7 @@ internal static class Updater {
                 ZipArchiveEntry FfmpegEntry = FfmpegEntries[0];
                 ZipArchiveEntry FfprobeEntry = FfprobeEntries[0];
 
-                string FfmpegOutputPath = Verification.GetManagedFfmpegUpdatePath();
+                string FfmpegOutputPath = installTarget;
                 string FfprobeOutputPath = Path.Combine(FfmpegPath, "ffprobe.exe");
                 string FfmpegTempPath = FfmpegOutputPath + ".update";
                 string FfprobeTempPath = FfprobeOutputPath + ".update";

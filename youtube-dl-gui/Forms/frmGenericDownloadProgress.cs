@@ -18,13 +18,15 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
     private readonly ManagedHttpClient DownloadClient;
     private readonly CancellationTokenSource CancelToken;
     private readonly Func<string, bool>? Validator;
+    private readonly bool CreateOnly;
     private bool Cancelled;
     private bool Finished;
     private bool Downloaded;
 
     public frmGenericDownloadProgress(string URL, string Output) : this(URL, Output, null, null) { }
     public frmGenericDownloadProgress(string URL, string Output, Point? Location) : this(URL, Output, Location, null) { }
-    internal frmGenericDownloadProgress(string URL, string Output, Point? Location, Func<string, bool>? Validator) {
+    internal frmGenericDownloadProgress(string URL, string Output, Point? Location, Func<string, bool>? Validator,
+        bool createOnly = false) {
         InitializeComponent();
         LoadLanguage();
         this.URL = URL;
@@ -36,6 +38,7 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
         this.BackupFile = Output + SidecarId + ".bck";
         CancelToken = new();
         this.Validator = Validator;
+        this.CreateOnly = createOnly;
         Log.Write($"Using generic downloader to display progress for '{Log.RedactDiagnosticValue(URL)}'.");
 
         DownloadClient = new();
@@ -70,19 +73,31 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
 
         while (CanRetry) {
             try {
-                // Recover deterministic sidecars left by older versions before using
-                // operation-owned sidecars for this attempt. Existing live output remains authoritative.
-                if (!File.Exists(Output) && File.Exists(LegacyBackupFile))
-                    File.Move(LegacyBackupFile, Output);
+                if (CreateOnly) {
+                    // Explicit first-run provisioning may CREATE a new custom path.
+                    // Never adopt, move, delete or back up pre-existing external files,
+                    // including legacy sidecars that are not owned by this operation.
+                    if (File.Exists(Output) || Directory.Exists(Output) ||
+                        File.Exists(LegacyBackupFile) || File.Exists(LegacyTempFile) ||
+                        File.Exists(BackupFile) || File.Exists(TempFile)) {
+                        throw new IOException("The new first-run installation path or a companion is already occupied.");
+                    }
+                }
+                else {
+                    // Recover deterministic sidecars left by older versions before using
+                    // operation-owned sidecars for this attempt. Existing live output remains authoritative.
+                    if (!File.Exists(Output) && File.Exists(LegacyBackupFile))
+                        File.Move(LegacyBackupFile, Output);
 
-                if (File.Exists(LegacyTempFile))
-                    File.Delete(LegacyTempFile);
+                    if (File.Exists(LegacyTempFile))
+                        File.Delete(LegacyTempFile);
 
-                if (!File.Exists(Output) && File.Exists(BackupFile))
-                    File.Move(BackupFile, Output);
+                    if (!File.Exists(Output) && File.Exists(BackupFile))
+                        File.Move(BackupFile, Output);
 
-                if (File.Exists(TempFile))
-                    File.Delete(TempFile);
+                    if (File.Exists(TempFile))
+                        File.Delete(TempFile);
+                }
 
                 //await Task.Delay(5000000, CancelToken.Token);
                 await DownloadClient.DownloadFileTaskAsync(new Uri(URL, UriKind.Absolute), TempFile, CancelToken.Token);
@@ -90,19 +105,26 @@ public partial class frmGenericDownloadProgress : LocalizedForm {
                     throw new InvalidDataException("The downloaded file failed its integrity or authenticity check.");
                 }
 
-                if (File.Exists(BackupFile) && File.Exists(Output))
-                    File.Delete(BackupFile);
-
-                if (File.Exists(Output))
-                    File.Move(Output, BackupFile);
-
-                try {
+                if (CreateOnly) {
+                    // File.Move without replacement is atomic against a target that
+                    // becomes occupied after the initial check.
                     File.Move(TempFile, Output);
                 }
-                catch {
-                    if (!File.Exists(Output) && File.Exists(BackupFile))
-                        File.Move(BackupFile, Output);
-                    throw;
+                else {
+                    if (File.Exists(BackupFile) && File.Exists(Output))
+                        File.Delete(BackupFile);
+
+                    if (File.Exists(Output))
+                        File.Move(Output, BackupFile);
+
+                    try {
+                        File.Move(TempFile, Output);
+                    }
+                    catch {
+                        if (!File.Exists(Output) && File.Exists(BackupFile))
+                            File.Move(BackupFile, Output);
+                        throw;
+                    }
                 }
 
                 // The unique backup is transactional, not durable user data. Once

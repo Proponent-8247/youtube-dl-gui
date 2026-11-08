@@ -134,7 +134,11 @@ internal static partial class AuditRegression {
         Directory.CreateDirectory(tests);
         Directory.CreateDirectory(tools);
         Directory.CreateDirectory(workflows);
+        string resourceDirectory = Path.Combine(root, "youtube-dl-gui", "Resources");
+        Directory.CreateDirectory(resourceDirectory);
+        string embeddedUpdater = Path.Combine(resourceDirectory, "youtube-dl-gui-updater.exe");
         try {
+            File.WriteAllText(embeddedUpdater, "TRUSTED UPDATER", new UTF8Encoding(false));
             File.WriteAllText(Path.Combine(tests, "AuditRegression.Fixture.cs"), "TRUSTED TEST", new UTF8Encoding(false));
             File.WriteAllText(Path.Combine(tools, "apply-audit-repairs.py"), "TRUSTED PARSER", new UTF8Encoding(false));
             File.WriteAllText(Path.Combine(workflows, "audit-repair.yml"), "TRUSTED WORKFLOW", new UTF8Encoding(false));
@@ -166,6 +170,10 @@ internal static partial class AuditRegression {
             script.AppendLine("[IO.File]::WriteAllText($workflow, 'TAMPERED WORKFLOW')");
             script.AppendLine("Require-OracleRejection 'workflow mutation'");
             script.AppendLine("[IO.File]::WriteAllText($workflow, 'TRUSTED WORKFLOW')");
+            script.AppendLine("$resource = Join-Path $root 'youtube-dl-gui/Resources/youtube-dl-gui-updater.exe'");
+            script.AppendLine("[IO.File]::WriteAllText($resource, 'REPLACED UPDATER')");
+            script.AppendLine("Require-OracleRejection 'undeclared embedded updater mutation'");
+            script.AppendLine("[IO.File]::WriteAllText($resource, 'TRUSTED UPDATER')");
             script.AppendLine("$output = Join-Path $root 'bin/Debug'");
             script.AppendLine("[IO.Directory]::CreateDirectory($output) | Out-Null");
             script.AppendLine("[IO.File]::WriteAllText((Join-Path $output 'app.exe'), 'GENERATED OUTPUT')");

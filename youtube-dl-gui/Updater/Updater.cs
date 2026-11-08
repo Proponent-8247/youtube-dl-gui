@@ -841,30 +841,42 @@ internal static class Updater {
                 string FfmpegBackupPath = FfmpegOutputPath + ".bck";
                 string FfprobeBackupPath = FfprobeOutputPath + ".bck";
 
+                if (createOnly) {
+                    string[] reserved = [FfmpegOutputPath, FfprobeOutputPath, FfmpegTempPath,
+                        FfprobeTempPath, FfmpegBackupPath, FfprobeBackupPath];
+                    if (reserved.Any(path => File.Exists(path) || Directory.Exists(path))) {
+                        Log.Write("First-run FFmpeg installation refused: custom executable or companion path is occupied.");
+                        return false;
+                    }
+                }
+                bool ownsFfmpegTemp = false;
+                bool ownsFfprobeTemp = false;
                 try {
-                    if (!File.Exists(FfmpegOutputPath) && File.Exists(FfmpegBackupPath)) {
+                    if (!createOnly && !File.Exists(FfmpegOutputPath) && File.Exists(FfmpegBackupPath)) {
                         File.Move(FfmpegBackupPath, FfmpegOutputPath);
                     }
-                    else if (File.Exists(FfmpegBackupPath)) {
+                    else if (!createOnly && File.Exists(FfmpegBackupPath)) {
                         File.Delete(FfmpegBackupPath);
                     }
 
-                    if (!File.Exists(FfprobeOutputPath) && File.Exists(FfprobeBackupPath)) {
+                    if (!createOnly && !File.Exists(FfprobeOutputPath) && File.Exists(FfprobeBackupPath)) {
                         File.Move(FfprobeBackupPath, FfprobeOutputPath);
                     }
-                    else if (File.Exists(FfprobeBackupPath)) {
+                    else if (!createOnly && File.Exists(FfprobeBackupPath)) {
                         File.Delete(FfprobeBackupPath);
                     }
 
-                    if (File.Exists(FfmpegTempPath)) {
+                    if (!createOnly && File.Exists(FfmpegTempPath)) {
                         File.Delete(FfmpegTempPath);
                     }
-                    if (File.Exists(FfprobeTempPath)) {
+                    if (!createOnly && File.Exists(FfprobeTempPath)) {
                         File.Delete(FfprobeTempPath);
                     }
 
-                    await Task.Run(() => ExtractZipEntryBounded(FfmpegEntry, FfmpegTempPath, MaxFfmpegExecutableBytes));
-                    await Task.Run(() => ExtractZipEntryBounded(FfprobeEntry, FfprobeTempPath, MaxFfmpegExecutableBytes));
+                    await Task.Run(() => ExtractZipEntryBounded(FfmpegEntry, FfmpegTempPath, MaxFfmpegExecutableBytes, createOnly));
+                    ownsFfmpegTemp = true;
+                    await Task.Run(() => ExtractZipEntryBounded(FfprobeEntry, FfprobeTempPath, MaxFfmpegExecutableBytes, createOnly));
+                    ownsFfprobeTemp = true;
 
                     bool FfmpegMovedOld = false;
                     bool FfprobeMovedOld = false;
@@ -872,14 +884,16 @@ internal static class Updater {
                     bool FfprobeMovedNew = false;
 
                     try {
-                        if (File.Exists(FfmpegOutputPath)) {
+                        if (File.Exists(FfmpegOutputPath) || Directory.Exists(FfmpegOutputPath)) {
+                            if (createOnly) throw new IOException("First-run FFmpeg destination became occupied.");
                             File.Move(FfmpegOutputPath, FfmpegBackupPath);
                             FfmpegMovedOld = true;
                         }
                         File.Move(FfmpegTempPath, FfmpegOutputPath);
                         FfmpegMovedNew = true;
 
-                        if (File.Exists(FfprobeOutputPath)) {
+                        if (File.Exists(FfprobeOutputPath) || Directory.Exists(FfprobeOutputPath)) {
+                            if (createOnly) throw new IOException("First-run ffprobe destination became occupied.");
                             File.Move(FfprobeOutputPath, FfprobeBackupPath);
                             FfprobeMovedOld = true;
                         }
@@ -916,10 +930,10 @@ internal static class Updater {
                 }
                 finally {
                     try {
-                        if (File.Exists(FfmpegTempPath)) {
+                        if ((!createOnly || ownsFfmpegTemp) && File.Exists(FfmpegTempPath)) {
                             File.Delete(FfmpegTempPath);
                         }
-                        if (File.Exists(FfprobeTempPath)) {
+                        if ((!createOnly || ownsFfprobeTemp) && File.Exists(FfprobeTempPath)) {
                             File.Delete(FfprobeTempPath);
                         }
                     }

@@ -28,6 +28,16 @@ internal partial class frmException : Form {
     /// </summary>
     private bool UwU_ify { get; }
 
+    // A short-lived cryptographic roll must release its native RNG provider
+    // synchronously; the form may be opened repeatedly on retry/error paths.
+    private static int GenerateUwURoll() {
+        byte[] bytes = new byte[sizeof(double)];
+        using RandomNumberGenerator rng = RandomNumberGenerator.Create();
+        rng.GetBytes(bytes);
+        uint value = BitConverter.ToUInt32(bytes, 0);
+        return (int)Math.Floor(5000d * (value / (uint.MaxValue + 1.0)));
+    }
+
     /// <summary>
     /// Initializes a new <see cref="frmException"/> instance.
     /// </summary>
@@ -46,11 +56,7 @@ internal partial class frmException : Form {
         rtbExtraData.Clear();
 
         // Roll for UwU-ification.
-        RandomNumberGenerator RNG = new RNGCryptoServiceProvider();
-        byte[] ByteData = new byte[sizeof(double)];
-        RNG.GetBytes(ByteData);
-        uint RandUint = BitConverter.ToUInt32(ByteData, 0);
-        int GeneratedNumber = (int)Math.Floor(5000d * (RandUint / (uint.MaxValue + 1.0)));
+        int GeneratedNumber = GenerateUwURoll();
         UwU_ify = GeneratedNumber == 621;
         Log.WriteToConsole($"The generated exception number was {GeneratedNumber}.");
 

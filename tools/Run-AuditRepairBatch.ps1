@@ -24,7 +24,16 @@ if (git status --porcelain) { throw 'The initial checkout is not clean.' }
 # This check occurs before loading/building potentially modified application code.
 $requestFilesJson = (& python tools/apply-audit-repairs.py --request-files | Out-String)
 if ($LASTEXITCODE -ne 0) { throw 'Could not validate request parts.' }
-$allowedRequestFiles = @($requestFilesJson | ConvertFrom-Json)
+# ConvertFrom-Json can emit a single nested array in Windows PowerShell 5.x.
+# Materialize individual JSON string entries before using -cnotin membership checks.
+$decodedRequestFiles = ConvertFrom-Json -InputObject $requestFilesJson
+$allowedRequestFiles = @(
+    foreach ($requestPath in $decodedRequestFiles) {
+        if ($requestPath -isnot [string]) { throw 'A repair request file entry is not a string.' }
+        $requestPath
+    }
+)
+if ($allowedRequestFiles.Count -eq 0) { throw 'Repair request file inventory is empty.' }
 $changedRequestFiles = @(git diff-tree --no-commit-id --name-only -r $initialHead)
 if ($LASTEXITCODE -ne 0) { throw 'Could not enumerate request commit changes.' }
 $unauthorizedRequestFiles = @($changedRequestFiles | Where-Object { $_ -cnotin $allowedRequestFiles })

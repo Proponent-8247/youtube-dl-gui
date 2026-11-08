@@ -84,6 +84,11 @@ if (!(Test-Path -LiteralPath $integrityScript -PathType Leaf)) {
     throw 'Trusted repair workspace integrity checker is missing.'
 }
 . $integrityScript
+$lifecycleScript = Join-Path $PSScriptRoot 'RepairRequestLifecycle.ps1'
+if (!(Test-Path -LiteralPath $lifecycleScript -PathType Leaf)) {
+    throw 'Trusted exact repair-request cleanup helper is missing.'
+}
+. $lifecycleScript
 $repositoryRoot = [IO.Path]::GetFullPath((Get-Location).Path)
 $trustedInputBaseline = Get-RepairInputSnapshot -RepositoryRoot $repositoryRoot
 $trustedReceipt = Join-Path $EvidenceDirectory 'trusted-inputs.sha256'
@@ -193,8 +198,9 @@ try {
     if ($unknownRemaining.Count -gt 0) { throw "Remaining failure set contains tests not present in the reviewed deterministic baseline: $unknownRemaining" }
     Assert-ReviewedFailures -Failures $previous.Failed -Required $remaining -AllowedFlaky $allowedFlaky -Label 'The final result'
 
-    Remove-Item .audit-repairs.json
-    git add -- .audit-repairs.json
+    # Remove precisely the parser-validated wrapper and referenced chunk parts.
+    # Leave unrelated files under .audit-repairs.parts alone.
+    Complete-GuardedRepairRequest -ValidatedFiles $allowedRequestFiles
     git commit -m 'audit: close regression-verified repair batch'
     if ($LASTEXITCODE -ne 0) { throw 'Request cleanup commit failed.' }
     $allowedBranches = @('audit-fixes', 'feature/download-history-archive-3.3.0-2')

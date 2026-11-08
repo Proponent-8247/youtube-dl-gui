@@ -368,6 +368,7 @@ internal static partial class AuditRegression {
         Test("SECURITY.AuthenticodeTrustChecksWholeSignerChainRevocation", AuthenticodeTrustChecksWholeSignerChainRevocation);
         Test("SECURITY.ProviderDiscoveryUsesFullyInitializedPersistedType", ProviderDiscoveryUsesFullyInitializedPersistedType);
         Test("SECURITY.ArgumentReferenceMatchesRuntimeParser", ArgumentReferenceMatchesRuntimeParser);
+        Test("RESOURCE.ExceptionDialogRollDisposesCryptographicGenerator", ExceptionDialogRollDisposesCryptographicGenerator);
         Test("SECURITY.ProviderProxySettingCannotInjectArguments", ProviderProxySettingCannotInjectArguments);
         Test("SECURITY.ProviderSubtitleFormatCannotInjectArguments", ProviderSubtitleFormatCannotInjectArguments);
         Test("SECURITY.ProviderSelectionFieldsCannotInjectOptions", ProviderSelectionFieldsCannotInjectOptions);

@@ -243,6 +243,9 @@ internal static partial class AuditRegression {
             "A repair workflow checkout can supply a write credential to untrusted code");
         Require(runner.IndexOf("git push ", StringComparison.OrdinalIgnoreCase) < 0,
             "Untrusted repair runner attempts direct publication");
+        Require(runner.Contains("$GuardParser = Join-Path $PSScriptRoot 'apply-audit-repairs.py'") &&
+                runner.IndexOf("python tools/apply-audit-repairs.py", StringComparison.OrdinalIgnoreCase) < 0,
+            "Repair runner invokes a candidate-workspace parser instead of its own reviewed companion");
         Require(workflow.Contains("actions/upload-artifact@"),
             "Read-only verification no longer retains a reviewable artifact");
         Require(workflow.Contains("Prove repair job cannot authenticate repository writes") &&

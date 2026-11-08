@@ -140,10 +140,20 @@ internal static partial class AuditRegression {
         string assemblyPath = Path.GetFullPath(args[0]);
         string resultPath = Path.GetFullPath(args[1]);
         string originalDirectory = Environment.CurrentDirectory;
+        string originalPath = Environment.GetEnvironmentVariable("PATH");
         string scratch = Path.Combine(Path.GetTempPath(), "youtube-dl-gui-audit-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(scratch);
         try {
             Environment.CurrentDirectory = scratch;
+            // Test provider selection with *real discoverable executables* instead of
+            // only mutating a private cached path. A provider switch must invalidate
+            // and rediscover its executable; the previous Self-only fixture masked that.
+            foreach (string provider in new[] {
+                "yt-dlp.exe", "yt-dlp-nightly.exe", "youtube-dl.exe", "youtube-dl-nightly.exe"
+            }) {
+                File.Copy(Self, Path.Combine(scratch, provider));
+            }
+            Environment.SetEnvironmentVariable("PATH", scratch + ";" + originalPath);
             // Configuration and file operations are isolated from the user's installation.
             File.WriteAllText(Path.Combine(scratch, "youtube-dl-gui.ini"), "[youtube-dl-gui]\r\nfirstTime=False\r\nCheckForUpdatesOnLaunch=False\r\nAutoUpdateYoutubeDl=False\r\n");
             App = Assembly.LoadFrom(assemblyPath);
@@ -195,6 +205,7 @@ internal static partial class AuditRegression {
         }
         catch (Exception e) { Test("Harness.Initialization", () => { throw e; }); }
         finally {
+            Environment.SetEnvironmentVariable("PATH", originalPath);
             Environment.CurrentDirectory = originalDirectory;
             try { Directory.Delete(scratch, true); } catch (IOException) { }
             int failures = Results.Count(x => x.Element("failure") != null);

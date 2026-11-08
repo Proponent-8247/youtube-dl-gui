@@ -193,6 +193,59 @@ internal static class Log {
     internal const string RawProviderDiagnosticWarning =
         "WARNING: Raw provider diagnostics below are not redacted and may contain URLs, cookies, tokens, or credentials. Review them before sharing.";
 
+    // Bound the entire session export, including unredacted RAW provider chunks,
+    // without ever stopping stdout/stderr pipe draining when the quota is reached.
+    internal const int MaxSessionHistoryBytes = 16 * 1024 * 1024;
+    internal const int RetainedSessionHistoryBytes = 8 * 1024 * 1024;
+    private const string SessionHistoryRotationNotice =
+        "\n[SESSION HISTORY TRUNCATED: older session history discarded to enforce the diagnostic storage quota. Newer raw provider output may still contain secrets.]\n";
+
+    // The caller holds SessionHistorySync; the small limit arguments allow the
+    // real file-window algorithm to be tested without writing tens of megabytes.
+    internal static void AppendBoundedSessionHistory(string FilePath, string Data, int MaxBytes, int RetainBytes) {
+        if (MaxBytes < 1024 || RetainBytes < 0 || RetainBytes >= MaxBytes) {
+            throw new ArgumentOutOfRangeException(nameof(MaxBytes));
+        }
+        byte[] notice = new UTF8Encoding(false).GetBytes(SessionHistoryRotationNotice);
+        int maxEntry = MaxBytes - RetainBytes - notice.Length;
+        if (maxEntry <= notice.Length) throw new ArgumentOutOfRangeException(nameof(RetainBytes));
+        byte[] entry = new UTF8Encoding(false).GetBytes(Data);
+        if (entry.Length > maxEntry) {
+            // Even one hostile input cannot exceed the documented cap.
+            int start = entry.Length - (maxEntry - notice.Length);
+            while (start < entry.Length && (entry[start] & 0xC0) == 0x80) start++;
+            byte[] suffix = new byte[entry.Length - start];
+            Buffer.BlockCopy(entry, start, suffix, 0, suffix.Length);
+            byte[] bounded = new byte[notice.Length + suffix.Length];
+            Buffer.BlockCopy(notice, 0, bounded, 0, notice.Length);
+            Buffer.BlockCopy(suffix, 0, bounded, notice.Length, suffix.Length);
+            entry = bounded;
+        }
+
+        using FileStream stream = new(FilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+        if (stream.Length + entry.Length > MaxBytes) {
+            // Reclaim the oldest bytes in-place; do not create an additional
+            // recoverable temp copy of potentially secret unredacted diagnostics.
+            int keep = (int)Math.Min(stream.Length, RetainBytes);
+            byte[] tail = new byte[keep];
+            stream.Seek(-keep, SeekOrigin.End);
+            int offset = 0;
+            while (offset < keep) {
+                int read = stream.Read(tail, offset, keep - offset);
+                if (read <= 0) throw new IOException("Session-history retention read was incomplete.");
+                offset += read;
+            }
+            int utf8Boundary = 0;
+            while (utf8Boundary < keep && (tail[utf8Boundary] & 0xC0) == 0x80) utf8Boundary++;
+            stream.Position = 0;
+            stream.SetLength(0);
+            stream.Write(notice, 0, notice.Length);
+            stream.Write(tail, utf8Boundary, keep - utf8Boundary);
+        }
+        stream.Seek(0, SeekOrigin.End);
+        stream.Write(entry, 0, entry.Length);
+    }
+
     private static void InitializeSessionHistory() {
         lock (SessionHistorySync) {
             try {
@@ -209,9 +262,9 @@ internal static class Log {
         if (Message is null) return;
         lock (SessionHistorySync) {
             try {
-                File.AppendAllText(SessionHistoryFilePath,
+                AppendBoundedSessionHistory(SessionHistoryFilePath,
                     $"[{DateTime.Now:yyyy/MM/dd HH:mm:ss.fff}] [{Channel}] {Message}{Environment.NewLine}",
-                    new UTF8Encoding(false));
+                    MaxSessionHistoryBytes, RetainedSessionHistoryBytes);
             }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }

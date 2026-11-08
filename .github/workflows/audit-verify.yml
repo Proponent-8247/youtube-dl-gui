@@ -35,7 +35,31 @@ jobs:
           git archive --format=zip --output=audit-evidence/source.zip HEAD
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git rev-parse HEAD | Set-Content audit-evidence/commit.txt
-          git log --format='%H %s' b734c05944eeffccfde3208cd1ea45ef2ae401f9..HEAD | Set-Content audit-evidence/history.txt
+          # This reviewed release base is immutable. Comparing only to moving master
+          # could describe a different source delta than the audited feature.
+          $ReviewedBase = '49a290d07b220e4a9cd98d44c6db7f45a5bbbc98'
+          git cat-file -e "${ReviewedBase}^{commit}"
+          if ($LASTEXITCODE -ne 0) { throw 'Reviewed release baseline commit is unavailable.' }
+          git merge-base --is-ancestor $ReviewedBase HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate is not descended from the approved audited release base.' }
+          git rev-parse $ReviewedBase | Set-Content audit-evidence/reviewed-base-commit.txt
+          git archive --format=zip --output=audit-evidence/reviewed-base-source.zip $ReviewedBase
+          if ($LASTEXITCODE -ne 0) { throw 'Could not preserve the immutable reviewed release-base source.' }
+          git merge-base HEAD $ReviewedBase | Set-Content audit-evidence/reviewed-base-merge-base.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Could not compute the reviewed release-base merge ancestor.' }
+          git log --format='%H %s' "$ReviewedBase..HEAD" | Set-Content audit-evidence/reviewed-base-history.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Could not capture reviewed release-base history.' }
+          Copy-Item audit-evidence/reviewed-base-history.txt audit-evidence/history.txt
+          git diff --stat $ReviewedBase HEAD | Set-Content audit-evidence/reviewed-base-diff-stat.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Could not compute reviewed-base diff summary.' }
+          git diff --name-status $ReviewedBase HEAD | Set-Content audit-evidence/reviewed-base-diff-files.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Could not compute reviewed-base changed files.' }
+          git diff $ReviewedBase HEAD -- '*.cs' '*.csproj' '*.projitems' | Set-Content audit-evidence/reviewed-base-source.diff
+          if ($LASTEXITCODE -ne 0) { throw 'Could not capture reviewed-base source delta.' }
+          (Get-FileHash audit-evidence/reviewed-base-source.zip -Algorithm SHA256).Hash.ToLowerInvariant() |
+            Set-Content audit-evidence/reviewed-base-sha256.txt
+          # Supplemental moving-master comparison is retained for historical use,
+          # but is not the authoritative audit/release provenance baseline.
           git rev-parse refs/remotes/origin/master | Set-Content audit-evidence/master-commit.txt
           git archive --format=zip --output=audit-evidence/master-source.zip refs/remotes/origin/master
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -146,6 +170,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Build or tests modified reviewed source files.' }
           [ordered]@{
             revision = $env:GITHUB_SHA
+            reviewed_release_base_revision = (Get-Content audit-evidence/reviewed-base-commit.txt).Trim()
+            reviewed_release_base_archive_sha256 = (Get-Content audit-evidence/reviewed-base-sha256.txt).Trim()
             master_revision = (Get-Content audit-evidence/master-commit.txt).Trim()
             tests_per_pass = $afterNames.Count
             passes = 3

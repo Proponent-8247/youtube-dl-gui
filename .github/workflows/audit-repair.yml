@@ -5,7 +5,9 @@ on:
   push:
     branches:
       - feature/download-history-archive-3.3.0-2
-    paths: [.audit-repairs.json]
+    paths:
+      - .audit-repairs.json
+      - '.audit-repairs.parts/**'
 permissions:
   contents: read
 concurrency:

@@ -2,11 +2,14 @@
 param([Parameter(Mandatory = $true)][string]$EvidenceDirectory)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+# Parser is resolved alongside the reviewed runner, never from the candidate CWD.
+$GuardParser = Join-Path $PSScriptRoot 'apply-audit-repairs.py'
+if (!(Test-Path -LiteralPath $GuardParser -PathType Leaf)) { throw 'Trusted repair parser is missing.' }
 $EvidenceDirectory = [IO.Path]::GetFullPath($EvidenceDirectory)
 New-Item -ItemType Directory -Force -Path $EvidenceDirectory | Out-Null
 'Unverified repair request; publication has not completed.' | Set-Content (Join-Path $EvidenceDirectory 'status.txt')
 if (!(Test-Path .audit-repairs.json)) { return }
-$planJson = (& python tools/apply-audit-repairs.py --runner-metadata | Out-String)
+$planJson = (& python $GuardParser --runner-metadata | Out-String)
 if ($LASTEXITCODE -ne 0) { throw 'Repair request metadata could not be decoded safely.' }
 $plan = $planJson | ConvertFrom-Json
 # The request cannot exempt its own failing tests. Deny before the baseline build.
@@ -22,7 +25,7 @@ if (Test-Path .audit-patch-request.json) { throw 'Legacy and guarded repair requ
 if (git status --porcelain) { throw 'The initial checkout is not clean.' }
 # The request commit must contain only its exact request wrapper and declared parts.
 # This check occurs before loading/building potentially modified application code.
-$requestFilesJson = (& python tools/apply-audit-repairs.py --request-files | Out-String)
+$requestFilesJson = (& python $GuardParser --request-files | Out-String)
 if ($LASTEXITCODE -ne 0) { throw 'Could not validate request parts.' }
 # ConvertFrom-Json can emit a single nested array in Windows PowerShell 5.x.
 # Materialize individual JSON string entries before using -cnotin membership checks.
@@ -57,7 +60,7 @@ $requestEvidence = [ordered]@{
 }
 $requestEvidence | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $EvidenceDirectory 'request-commit.json') -Encoding utf8
 
-python tools/apply-audit-repairs.py --preflight
+python $GuardParser --preflight
 if ($LASTEXITCODE -ne 0) { throw 'Repair preflight failed; no source was changed.' }
 
 function Build-And-Test([string]$label) {
@@ -114,7 +117,7 @@ try {
     git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
     for ($i = 0; $i -lt $plan.repairs.Count; $i++) {
         $repair = $plan.repairs[$i]
-        python tools/apply-audit-repairs.py --apply $i
+        python $GuardParser --apply $i
         if ($LASTEXITCODE -ne 0) { throw "Exact application failed for $($repair.id)" }
         git -c core.whitespace=cr-at-eol diff --check
         if ($LASTEXITCODE -ne 0) { throw 'Whitespace validation failed.' }

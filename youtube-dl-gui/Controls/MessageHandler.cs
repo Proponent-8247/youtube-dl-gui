@@ -103,8 +103,10 @@ public partial class MessageHandler : Form {
             case CopyData.WM_UPDATEDATAREQUEST: {
                 if (!IsExpectedUpdaterWindow(m.WParam)) {
 #if DEBUG
-                    if (Program.AuditUpdaterIpcMode)
+                    if (Program.AuditUpdaterIpcMode) {
+                        System.Threading.Interlocked.Increment(ref Program.AuditUpdaterRejectedRequests);
                         Program.WriteAuditUpdaterIpcResult("early-rejected=1");
+                    }
 #endif
                     m.Result = IntPtr.Zero;
                     break;

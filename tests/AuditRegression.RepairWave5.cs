@@ -277,8 +277,15 @@ internal static partial class AuditRegression {
 
                 Task wait = (Task)Call(formType, form, "WaitForApplication");
                 PumpUntil(() => wait.IsCompleted, 2000, "Updater did not complete when the parent had already exited");
-                wait.GetAwaiter().GetResult();
-                Require(sink.Received, "Updater skipped the update-data request during the parent exit race");
+                bool correctlyRejected = false;
+                try { wait.GetAwaiter().GetResult(); }
+                catch (InvalidOperationException ex) {
+                    correctlyRejected = ex.Message.Contains("exited before accepting updater data");
+                }
+                Require(correctlyRejected,
+                    "Updater did not fail closed after the parent exited without authenticating IPC");
+                Require(!sink.Received,
+                    "Updater sent an update request to the already terminated parent");
             }
             finally {
                 if (form != null) form.Dispose();

@@ -1,37 +1,46 @@
-# Arguments
-youtube-dl-gui supports arguments. Surprise, surprise. It's mostly to interact with userscripts to download from websites using easy to click buttons. All arguments can optionally have a hyphen `-` before the argument, but it is not required.
+# Supported command-line and protocol arguments
 
-For protocol information, see the bottom of this markdown.
+youtube-dl-gui 3.3.0 and later can accept commands from the command line, a second instance, or the `ytdlgui:` browser protocol. An alias may be used with no prefix or with **one** leading hyphen (for example `video` or `-video`); the command is followed by a media/source URL unless noted otherwise.
 
-The following arguments are supported on version >= 3.3.0:
+The following aliases reflect the active `youtube-dl-gui/Arguments.cs` parser.
 
 ## Video
-### `-v` or `-video`
-Downloads a video that does not require authentication and is not archived or unavailable. Availablility may differ between websites and/or media requested. It's up to you to make sure it is supported.
 
-### `-var` or `-varchive` or `-videoarchive`
-Downloads a youtube video from an archive. View the youtube-dl forks README for information about archived videos which uses the `ytarchive:` argument.
+### `-v` or `-video`
+Open a video download without an authentication prompt.
 
 ### `-vau` or `-vauth` or `-videoauth`
-Downloads a video using authentication to access the media. This will display the authentication window before downloading.
+Open a video download with an authentication prompt.
 
-### `-vaa` or `-varchiveauth` or `-videoarchiveauth`
-A possible future argument for archived data that may not use the `ytarchive` youtube-dl argument. This may or may not be removed in the future.
+### `-archived` or `-ar` or `-var` or `-varchive` or `-videoarchive`
+Open an archived-video download. Archive-source support depends on the installed downloader and the source (for example `ytarchive:`).
 
 ## Audio
-### `-a` or `-audio`
-Downloads audio that does not require authentication and is not archived or unavailable. Availablility may differ between websites and/or media requested. It's up to you to make sure it is supported.
 
-### `-aar` or `-aarchive` or `-audioarchive`
-Downloads youtube audio from an archive. View the youtube-dl forks README for information about archived videos which uses the `ytarchive:` argument.
+### `-a` or `-audio`
+Open an audio download without an authentication prompt.
 
 ### `-aau` or `-aauth` or `-audioauth`
-Downloads audio using authentication to access the media. This will display the authentication window before downloading.
+Open an audio download with an authentication prompt.
 
-### `-aaa` or `-aarchiveauth` or `-audioarchiveauth`
-A possible future argument for archived data that may not use the `ytarchive` youtube-dl argument. This may or may not be removed in the future.
+### `-aar` or `-aarchive` or `-audioarchive`
+Open an archived-audio download, without sound/video selection beyond the archive mode's support.
 
-# Protocol support
-Optionally supported is browser protocols. You can also send arguments to the application through the use of protocols. The `ytdlgui` protocol will be used to forward arguments to youtube-dl-gui.
+## Custom
 
-This mainly allows web browsers to run the application to download media. You can install the protocol within the application, and it supports all the arguments above. You can read more information about protocols [here](https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/aa767914(v=vs.85)).
+### `-c` or `-custom`
+Open the custom-download workflow.
+
+### `-cau` or `-cauth` or `-customauth`
+Open the custom-download workflow with an authentication prompt.
+
+## Protocol maintenance
+
+### `-installprotocol`
+Register the `ytdlgui:` browser-protocol handler. This maintenance command takes **no media URL** and can require appropriate Windows registry permissions.
+
+## Protocol support
+
+Browser/userscript integrations may send supported commands through the `ytdlgui:` protocol. URL encoding and quoting matter when the browser invokes the handler. The application uses the same parser for command-line and protocol arguments. More information on Windows custom protocol handlers is available in [Microsoft's protocol documentation](https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/aa767914(v=vs.85)).
+
+Aliases not listed above should not be assumed to exist; unsupported options are not silently converted to the closest supported download mode.

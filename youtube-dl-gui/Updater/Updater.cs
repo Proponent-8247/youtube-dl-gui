@@ -430,8 +430,14 @@ internal static class Updater {
 
     private const long MaxFfmpegExecutableBytes = 512L * 1024L * 1024L;
 
-    private static void ExtractZipEntryBounded(ZipArchiveEntry Entry, string OutputPath, long MaxBytes,
-        bool CreateOnly = false) {
+    private static void ExtractZipEntryBounded(ZipArchiveEntry Entry, string OutputPath, long MaxBytes) =>
+        ExtractZipEntryBoundedCore(Entry, OutputPath, MaxBytes, false);
+
+    private static void ExtractZipEntryBoundedCreateOnly(ZipArchiveEntry Entry, string OutputPath, long MaxBytes) =>
+        ExtractZipEntryBoundedCore(Entry, OutputPath, MaxBytes, true);
+
+    private static void ExtractZipEntryBoundedCore(ZipArchiveEntry Entry, string OutputPath, long MaxBytes,
+        bool CreateOnly) {
         if (Entry is null) throw new ArgumentNullException(nameof(Entry));
         if (MaxBytes <= 0) throw new ArgumentOutOfRangeException(nameof(MaxBytes));
         if (Entry.Length < 0 || Entry.Length > MaxBytes) {
@@ -889,9 +895,15 @@ internal static class Updater {
                         File.Delete(FfprobeTempPath);
                     }
 
-                    await Task.Run(() => ExtractZipEntryBounded(FfmpegEntry, FfmpegTempPath, MaxFfmpegExecutableBytes, createOnly));
+                    await Task.Run(() => {
+                        if (createOnly) ExtractZipEntryBoundedCreateOnly(FfmpegEntry, FfmpegTempPath, MaxFfmpegExecutableBytes);
+                        else ExtractZipEntryBounded(FfmpegEntry, FfmpegTempPath, MaxFfmpegExecutableBytes);
+                    });
                     ownsFfmpegTemp = true;
-                    await Task.Run(() => ExtractZipEntryBounded(FfprobeEntry, FfprobeTempPath, MaxFfmpegExecutableBytes, createOnly));
+                    await Task.Run(() => {
+                        if (createOnly) ExtractZipEntryBoundedCreateOnly(FfprobeEntry, FfprobeTempPath, MaxFfmpegExecutableBytes);
+                        else ExtractZipEntryBounded(FfprobeEntry, FfprobeTempPath, MaxFfmpegExecutableBytes);
+                    });
                     ownsFfprobeTemp = true;
 
                     bool FfmpegMovedOld = false;

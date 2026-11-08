@@ -153,6 +153,16 @@ jobs:
           [xml]$x86 = Get-Content audit-evidence/x86-full-release/regression-results.xml -Raw
           [xml]$before = Get-Content audit-evidence/regression-results.xml -Raw
           [xml]$after = Get-Content audit-evidence/after-full-release/regression-results.xml -Raw
+          # Fail closed if this candidate silently removed/renamed ANY baseline
+          # regression approved at the immutable reviewed-manifest commit.
+          # New regression names may be added, never unilaterally subtracted.
+          foreach ($resultPath in @(
+            'audit-evidence/regression-results.xml',
+            'audit-evidence/after-full-release/regression-results.xml',
+            'audit-evidence/x86-full-release/regression-results.xml')) {
+            & ./tools/Assert-ReviewedRegressions.ps1 -ResultsXml $resultPath -RepositoryRoot $PWD.Path
+            if (!$?) { throw "Immutable reviewed regression coverage check failed for $resultPath" }
+          }
           $beforeNames = @($before.SelectNodes('/testsuite/testcase') | ForEach-Object { $_.GetAttribute('name') } | Sort-Object)
           $afterNames = @($after.SelectNodes('/testsuite/testcase') | ForEach-Object { $_.GetAttribute('name') } | Sort-Object)
           if ($beforeNames.Count -lt 80 -or ($beforeNames -join "`n") -cne ($afterNames -join "`n")) {
@@ -174,6 +184,8 @@ jobs:
             reviewed_release_base_archive_sha256 = (Get-Content audit-evidence/reviewed-base-sha256.txt).Trim()
             master_revision = (Get-Content audit-evidence/master-commit.txt).Trim()
             tests_per_pass = $afterNames.Count
+            reviewed_regression_manifest_commit = 'ec7ee09e5658e8371ef2ac422f805f74411c61c4'
+            reviewed_regression_minimum = 312
             passes = 3
             runtime_platforms = @("AnyCPU on x64 runner", "x86")
             failures = 0

@@ -40,6 +40,28 @@ jobs:
           if (!$current) {
             'Superseded request: the branch moved. This run made no source changes.' | Set-Content (Join-Path $evidence 'status.txt')
           }
+      - name: Prove repair job cannot authenticate repository writes
+        if: steps.head.outputs.current == 'True'
+        shell: pwsh
+        env:
+          GIT_TERMINAL_PROMPT: '0'
+          GCM_INTERACTIVE: Never
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (![string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) {
+            throw 'Guarded repair code must not receive GITHUB_TOKEN.'
+          }
+          # This is an intentionally hostile build target. A push dry-run never
+          # creates a ref, and should fail authentication with checkout credentials off.
+          $output = & msbuild tests/AuditSecurityCredentialProbe.proj /t:Probe /nologo /v:minimal 2>&1 | Out-String
+          $exit = $LASTEXITCODE
+          $output | Out-Host
+          if ($exit -ne 0 -or $output -notmatch 'Hostile MSBuild dry-run push refused') {
+            throw "Repair credential-denial probe failed (exit $exit)."
+          }
+          if ($output -notmatch '(?i)(403|401|permission denied|write access|authentication failed|could not read username|cannot prompt because user interactivity has been disabled|unable to get password from user|terminal prompts disabled|not granted|access denied|insufficient permissions)') {
+            throw 'Unexpected dry-run failure; repository credential isolation was not proven.'
+          }
       - name: Build, test and commit each exact repair
         if: steps.head.outputs.current == 'True'
         shell: pwsh

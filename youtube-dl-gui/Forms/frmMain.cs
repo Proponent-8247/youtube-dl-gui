@@ -19,6 +19,12 @@ public partial class frmMain : LocalizedForm {
     #region form
     public frmMain() {
         InitializeComponent();
+        // Updater shutdown may dispose this form before ApplicationExit fires.
+        // The global delegate must not retain a disposed HWND owner.
+        this.Disposed += (sender, args) => {
+            Application.ApplicationExit -= ApplicationExit;
+            ClipboardScannerActive = false;
+        };
         if (Program.DebugMode) {
             trayIcon.Dispose();
         }
@@ -454,8 +460,12 @@ public partial class frmMain : LocalizedForm {
     }
 
     internal void ApplicationExit(object sender, EventArgs e) {
-        if (ClipboardScannerActive && NativeMethods.RemoveClipboardFormatListener(this.Handle))
-            ClipboardScannerActive = false;
+        Application.ApplicationExit -= ApplicationExit;
+        if (ClipboardScannerActive && !this.IsDisposed && this.IsHandleCreated) {
+            // Never query Handle on a disposed control (it may recreate a HWND).
+            _ = NativeMethods.RemoveClipboardFormatListener(this.Handle);
+        }
+        ClipboardScannerActive = false;
     }
     #endregion
 

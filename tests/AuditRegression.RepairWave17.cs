@@ -375,6 +375,7 @@ internal static partial class AuditRegression {
         Test("STARTUP.AbandonedInstanceMutexIsRecoveredWithoutRecursiveAcquisition", AbandonedInstanceMutexIsRecoveredWithoutRecursiveAcquisition);
         Test("SECURITY.RedditUserscriptDistributionCannotSwitchToMutableUpstream", RedditUserscriptDistributionCannotSwitchToMutableUpstream);
         Test("RESOURCE.NativeArchiveRejectsOversizedLineBeforeAllocatingWholeEntry", NativeArchiveRejectsOversizedLineBeforeAllocatingWholeEntry);
+        Test("SECURITY.ExternalCustomProtocolNeverSilentlyReplaysAmbientHeaders", ExternalCustomProtocolNeverSilentlyReplaysAmbientHeaders);
         Test("SECURITY.ProviderProxySettingCannotInjectArguments", ProviderProxySettingCannotInjectArguments);
         Test("SECURITY.ProviderSubtitleFormatCannotInjectArguments", ProviderSubtitleFormatCannotInjectArguments);
         Test("SECURITY.ProviderSelectionFieldsCannotInjectOptions", ProviderSelectionFieldsCannotInjectOptions);

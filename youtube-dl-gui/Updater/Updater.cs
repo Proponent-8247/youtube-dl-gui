@@ -598,6 +598,17 @@ internal static class Updater {
             }
         };
         if (!AuditUpdater.Start()) throw new InvalidOperationException("Audit updater process did not start.");
+        // DEBUG acceptance fixture for PAR-10-003: the updater may send an
+        // application-rejected WM_UPDATEDATAREQUEST before the parent publishes
+        // its PID. Pump the actual message queue to reproduce that interleaving.
+        string? delayText = Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_DELAY_IDENTITY_MS");
+        if (int.TryParse(delayText, out int delayMs) && delayMs is > 0 and <= 2500) {
+            Stopwatch delay = Stopwatch.StartNew();
+            while (delay.ElapsedMilliseconds < delayMs) {
+                Application.DoEvents();
+                Thread.Sleep(10);
+            }
+        }
         ExpectedUpdaterProcessId = AuditUpdater.Id;
         return AuditUpdater.Id;
     }

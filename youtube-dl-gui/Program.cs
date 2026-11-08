@@ -406,6 +406,15 @@ internal static class Program {
                 }
 
                 PassedCount++;
+                string approvedExternalCustomArguments = string.Empty;
+                if (Arg.Type is ArgumentType.DownloadCustom or ArgumentType.DownloadAuthenticateCustom &&
+                    !TryApproveExternalCustomArguments(Arg.Data,
+                        youtube_dl_gui.CustomArguments.LastUsedYtdlArgument,
+                        ConfirmExternalCustomArguments, out approvedExternalCustomArguments)) {
+                    PassedCount--;
+                    Log.Write("External custom download canceled: saved options were not approved for this URL.");
+                    continue;
+                }
                 AuthenticationDetails? Auth = null;
                 if (Arg.Type == ArgumentType.DownloadAuthenticateVideo || Arg.Type == ArgumentType.DownloadAuthenticateAudio || Arg.Type == ArgumentType.DownloadAuthenticateCustom) {
                     Auth = AuthenticationDetails.GetAuthentication();
@@ -443,7 +452,9 @@ internal static class Program {
                 }
 
                 if (Downloads.ExtendedDownloaderPreferExtendedForm) {
-                    new frmExtendedDownloader(Arg.Data, Arg.Type is ArgumentType.DownloadCustom or ArgumentType.DownloadAuthenticateCustom ? youtube_dl_gui.CustomArguments.LastUsedYtdlArgument : null, false, Auth, Arg.Type).Show();
+                    new frmExtendedDownloader(Arg.Data,
+                        Arg.Type is ArgumentType.DownloadCustom or ArgumentType.DownloadAuthenticateCustom
+                            ? approvedExternalCustomArguments : null, false, Auth, Arg.Type).Show();
                     continue;
                 }
 
@@ -478,7 +489,7 @@ internal static class Program {
                     case ArgumentType.DownloadAuthenticateCustom: {
                         DownloadInfo NewCustom = new(Arg.Data) {
                             Type = DownloadType.Custom,
-                            CustomArguments = youtube_dl_gui.CustomArguments.LastUsedYtdlArgument,
+                            CustomArguments = approvedExternalCustomArguments,
                             Authentication = Auth,
                         };
                         new frmDownloader(NewCustom).Show();
@@ -491,6 +502,30 @@ internal static class Program {
             return PassedCount > 0;
         }
         return false;
+    }
+
+    // External URL commands may originate in a browser or another process.
+    // Saved provider arguments could include Authorization headers, cookies or
+    // process hooks. Never reuse them against a new origin without consent.
+    internal static bool TryApproveExternalCustomArguments(string url, string? inherited,
+        Func<string, string, bool> confirm, out string approved) {
+        approved = string.Empty;
+        if (string.IsNullOrWhiteSpace(url) || url.Length > 4096 || confirm is null) return false;
+        if (string.IsNullOrWhiteSpace(inherited)) return true;
+        if (inherited.Length > 8192) return false;
+        if (!confirm(url, inherited)) return false;
+        approved = inherited;
+        return true;
+    }
+
+    private static bool ConfirmExternalCustomArguments(string url, string args) {
+        string message =
+            "An external command or website asked youtube-dl-gui to download:\n\n" +
+            url + "\n\nusing previously saved custom provider arguments:\n\n" +
+            args + "\n\nThese options can include credentials, cookies or command hooks. " +
+            "They may reach the requested destination. Continue only if you explicitly trust it.";
+        return MessageBox.Show(Form.ActiveForm, message, "Review external custom download",
+            MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) == DialogResult.Yes;
     }
 
     internal static bool IsValidDownloadCopyData(CopyDataStruct Data) {
@@ -599,7 +634,14 @@ internal static class Program {
 
             case ArgumentType.DownloadCustom:
             case ArgumentType.DownloadAuthenticateCustom: {
-                CustomArguments = CustomArguments.IsNullEmptyWhitespace() ? youtube_dl_gui.CustomArguments.LastUsedYtdlArgument : CustomArguments;
+                string inherited = CustomArguments.IsNullEmptyWhitespace()
+                    ? youtube_dl_gui.CustomArguments.LastUsedYtdlArgument : CustomArguments;
+                if (!TryApproveExternalCustomArguments(URL, inherited,
+                    ConfirmExternalCustomArguments, out string approvedCustomArguments)) {
+                    Log.Write("Second-instance custom download canceled: options were not approved for this URL.");
+                    return;
+                }
+                CustomArguments = approvedCustomArguments;
                 AuthenticationDetails? Auth = null;
                 if (Type == ArgumentType.DownloadAuthenticateCustom) {
                     Auth = AuthenticationDetails.GetAuthentication();
@@ -739,7 +781,14 @@ internal static class Program {
 
             case ArgumentType.DownloadCustom:
             case ArgumentType.DownloadAuthenticateCustom: {
-                CustomArguments = CustomArguments.IsNullEmptyWhitespace() ? youtube_dl_gui.CustomArguments.LastUsedYtdlArgument : CustomArguments;
+                string inherited = CustomArguments.IsNullEmptyWhitespace()
+                    ? youtube_dl_gui.CustomArguments.LastUsedYtdlArgument : CustomArguments;
+                if (!TryApproveExternalCustomArguments(URL, inherited,
+                    ConfirmExternalCustomArguments, out string approvedCustomArguments)) {
+                    Log.Write("Second-instance custom download canceled: options were not approved for this URL.");
+                    return;
+                }
+                CustomArguments = approvedCustomArguments;
                 AuthenticationDetails? Auth = null;
                 if (Type == ArgumentType.DownloadAuthenticateCustom) {
                     Auth = AuthenticationDetails.GetAuthentication();

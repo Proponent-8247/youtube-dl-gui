@@ -80,8 +80,13 @@ internal static partial class AuditRegression {
         Test("D002.WindowsArgumentRoundTrip", () => {
             string[] values = { "", "plain", "two  spaces", "tab\there", "quote\"here", "trailing slash \\", "\\\\server\\share\\", "--help", "https://example.invalid/?x=1&y=2", "a\\\\\"b", "unicode-\u03bb" };
             using (Process p = Process.Start(new ProcessStartInfo(Self, "--echo " + string.Join(" ", values.Select(Escape))) { UseShellExecute = false, RedirectStandardOutput = true, CreateNoWindow = true })) {
-                string data = p.StandardOutput.ReadToEnd();
-                Require(p.WaitForExit(10000), "Recording child hung");
+                // Drain concurrently, but enforce an actual process deadline.
+                // Reading stdout to EOF first could block forever on a stalled child.
+                System.Threading.Tasks.Task<string> output =
+                    System.Threading.Tasks.Task.Run(() => p.StandardOutput.ReadToEnd());
+                Require(WaitForHarnessChild(p, 10000), "Recording child hung");
+                Require(output.Wait(2000), "Recording child stdout did not close");
+                string data = output.Result;
                 Equal(0, p.ExitCode);
                 string[] actual = data.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(x => Encoding.UTF8.GetString(Convert.FromBase64String(x.Substring(1)))).ToArray();
                 Equal(values.Length, actual.Length);

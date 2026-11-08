@@ -16,7 +16,7 @@ internal static partial class AuditRegression {
         Form late = null;
         try {
             count.SetValue(null, 0);
-            Require(!(bool)Get(program, "HasRunningActions"),
+            Require(!(bool)program.GetProperty("HasRunningActions", All).GetValue(null, null),
                 "A previous regression left active processing actions behind");
             empty = (Form)Activator.CreateInstance(handlerType, true);
             // Last completion was observed before shutdown armed its exit gate.

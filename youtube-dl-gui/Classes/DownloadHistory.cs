@@ -2853,7 +2853,31 @@ internal static class DownloadHistory {
         return true;
     }
 
+    private const int MaximumNativeArchiveLineCharacters = 8192;
+
+    // StreamReader.ReadLine() materializes an entire adversarial line before any
+    // validation. Consume only a bounded number of characters, preserving streaming
+    // support for an arbitrary number of normal archive identities.
+    private static string? ReadBoundedArchiveLine(StreamReader reader) {
+        StringBuilder bounded = new(128);
+        while (true) {
+            int next = reader.Read();
+            if (next == -1) {
+                if (bounded.Length == 0) return null;
+                break;
+            }
+            if (next == '\n') break;
+            if (bounded.Length >= MaximumNativeArchiveLineCharacters) {
+                throw new InvalidDataException("Native Download History archive entry exceeds the per-line size limit.");
+            }
+            bounded.Append((char)next);
+        }
+        if (bounded.Length > 0 && bounded[bounded.Length - 1] == '\r') bounded.Length--;
+        return bounded.ToString();
+    }
+
     private static bool IsValidArchiveEntry(string entry) {
+        if (entry.Length > MaximumNativeArchiveLineCharacters) return false;
         int separator = entry.IndexOf(' ');
         if (separator <= 0 || separator == entry.Length - 1) return false;
         return TryCreateArchiveEntry(entry.Substring(0, separator), entry.Substring(separator + 1), out string normalized)
@@ -2875,8 +2899,10 @@ internal static class DownloadHistory {
         try {
             using StreamReader reader = new(path, new UTF8Encoding(false, true), false);
             bool firstLine = true;
+            int lineNumber = 0;
             string? line;
-            while ((line = reader.ReadLine()) is not null) {
+            while ((line = ReadBoundedArchiveLine(reader)) is not null) {
+                lineNumber++;
                 if (firstLine && line.Length > 0 && line[0] == '\uFEFF') {
                     error = "Download History archives must be plain UTF-8 without a byte-order mark.";
                     return false;
@@ -2885,7 +2911,7 @@ internal static class DownloadHistory {
                 string entry = line.Trim();
                 if (entry.Length == 0) continue;
                 if (!IsValidArchiveEntry(entry)) {
-                    error = "Invalid archive entry: " + entry;
+                    error = "Invalid native archive entry at line " + lineNumber + " (the entry content is not included in diagnostics).";
                     return false;
                 }
                 parsed.Add(entry);
@@ -2893,7 +2919,7 @@ internal static class DownloadHistory {
             foreach (string entry in parsed) entries.Add(entry);
             return true;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DecoderFallbackException) {
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DecoderFallbackException or InvalidDataException) {
             error = ex.Message;
             return false;
         }

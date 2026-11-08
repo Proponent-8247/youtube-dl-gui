@@ -1629,7 +1629,7 @@ internal static partial class AuditRegression {
                     CreateNoWindow = true
                 };
                 using (System.Diagnostics.Process process = System.Diagnostics.Process.Start(psi)) {
-                    Require(process.WaitForExit(5000), "Junction creation did not complete");
+                    Require(WaitForHarnessChild(process, 5000), "Junction creation did not complete");
                     Equal(0, process.ExitCode);
                 }
                 object analysis = Call(fixture.History, null, "AnalyzeLibrary", string.Empty);
@@ -1653,7 +1653,7 @@ internal static partial class AuditRegression {
             CreateNoWindow = true
         };
         using (System.Diagnostics.Process p = System.Diagnostics.Process.Start(psi)) {
-            Require(p.WaitForExit(10000), "File-symlink fixture creation timed out");
+            Require(WaitForHarnessChild(p, 10000), "File-symlink fixture creation timed out");
             Equal(0, p.ExitCode);
         }
         Require((File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0,

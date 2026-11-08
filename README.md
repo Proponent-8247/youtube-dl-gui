@@ -60,7 +60,7 @@ This project aims to be as independant as possible, losing functionaity in favor
 This project isn't targetting users who run Linux or GNU. It may be possible to run using Wine or Mono, but I wouldn't hold my breath.
 
 # Contributing
-For anyone looking to translate, feel free to open a pull request with the new language file in the `Language` folder. Check if a language you're translating exists already, and you can edit it off of that.
+For translation contributions, check the existing locale files in [`Languages/`](Languages/) and use [`Languages/English.ini`](Languages/English.ini) as the reference for translation keys and placeholders. Submit new or updated `.ini` files in `Languages/`, preserving key names and required placeholder syntax so the application can load them.
 
 For anyone looking to contribute to the code, make a pull request with the changed code.
 

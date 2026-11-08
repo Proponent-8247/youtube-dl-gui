@@ -428,8 +428,8 @@ internal partial class frmUpdater : Form {
                     0,
                     ParentMessageTimeoutMilliseconds);
                 if (UpdateDataAccepted) break;
-                if (requestTimer.ElapsedMilliseconds >= 12000) {
-                    throw new TimeoutException("The main application did not authenticate the updater request within 12 seconds.");
+                if (requestTimer.ElapsedMilliseconds >= 2000) {
+                    throw new TimeoutException("The main application did not authenticate the updater request within 2 seconds.");
                 }
                 await Task.Delay(100, Program.CancelToken.Token);
             }

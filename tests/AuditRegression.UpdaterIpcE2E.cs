@@ -4,7 +4,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Reflection;
 using System.Security.Cryptography;
+using System.Text;
 
 internal static partial class AuditRegression {
     private static Dictionary<string, string> V011ReadResult(string path) {
@@ -212,9 +214,52 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void UpdaterRestartNeverDiscardsSoleRecoveryExecutable() {
+        string repo = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
+        string appExe = Path.Combine(repo, "youtube-dl-gui", "bin", "Debug", "youtube-dl-gui.exe");
+        string updaterExe = Path.Combine(repo, "youtube-dl-gui-updater", "bin", "Debug", "youtube-dl-gui-updater.exe");
+        Require(File.Exists(appExe) && File.Exists(updaterExe), "Updater recovery fixtures were not built");
+        Assembly assembly = Assembly.LoadFrom(updaterExe);
+        Type form = assembly.GetType("youtube_dl_gui_updater.frmUpdater", true);
+        MethodInfo recover = form.GetMethod("TryRestoreInterruptedBackup", BindingFlags.NonPublic | BindingFlags.Static);
+        Require(recover != null, "Standalone updater has no crash-recovery preflight");
+        string scratch = Path.Combine(Path.GetTempPath(), "updater-recovery-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(scratch);
+        try {
+            string live = Path.Combine(scratch, "youtube-dl-gui.exe");
+            string backup = live + ".old";
+            byte[] valid = File.ReadAllBytes(appExe);
+            // Crash after the old executable was moved, before replacement.
+            File.WriteAllBytes(backup, valid);
+            Equal(true, recover.Invoke(null, new object[] { live }));
+            Require(File.Exists(live) && !File.Exists(backup) &&
+                valid.SequenceEqual(File.ReadAllBytes(live)),
+                "Updater failed to restore the only recoverable previous application");
+            // A subsequent network failure cannot delete the recovered executable.
+            Require(valid.SequenceEqual(File.ReadAllBytes(live)), "Recovered executable was modified");
+
+            // Crash after a new file became live, or a pre-existing unrelated backup:
+            // both files must survive for deliberate review rather than auto-deletion.
+            byte[] unowned = Encoding.UTF8.GetBytes("UNOWNED USER BACKUP - NEVER REMOVE");
+            File.WriteAllBytes(backup, unowned);
+            Equal(false, recover.Invoke(null, new object[] { live }));
+            Require(unowned.SequenceEqual(File.ReadAllBytes(backup)) &&
+                valid.SequenceEqual(File.ReadAllBytes(live)),
+                "Updater replaced or destroyed an ambiguous pre-existing backup");
+            File.Delete(live);
+            Equal(false, recover.Invoke(null, new object[] { live }));
+            Require(!File.Exists(live) && unowned.SequenceEqual(File.ReadAllBytes(backup)),
+                "Updater promoted unrelated or corrupt backup data into an executable");
+            File.Delete(backup);
+            Equal(true, recover.Invoke(null, new object[] { live }));
+        }
+        finally { try { Directory.Delete(scratch, true); } catch { } }
+    }
+
     private static void RunV011Tests() {
         Test("V011.ActualUpdaterExecutablesExchangeBoundPacket", ActualUpdaterExecutablesExchangeBoundPacket);
         Test("V011.ActualUpdaterCancellationLeavesApplicationUntouched", ActualUpdaterCancellationLeavesApplicationUntouched);
         Test("V011.ActualUpdaterRollbackRestoresApplication", ActualUpdaterRollbackRestoresApplication);
+        Test("V011.UpdaterRestartNeverDiscardsSoleRecoveryExecutable", UpdaterRestartNeverDiscardsSoleRecoveryExecutable);
     }
 }

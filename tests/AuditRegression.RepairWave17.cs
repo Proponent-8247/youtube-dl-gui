@@ -245,6 +245,12 @@ internal static partial class AuditRegression {
             "Untrusted repair runner attempts direct publication");
         Require(workflow.Contains("actions/upload-artifact@"),
             "Read-only verification no longer retains a reviewable artifact");
+        Require(workflow.Contains("Prove repair job cannot authenticate repository writes") &&
+                workflow.Contains("tests/AuditSecurityCredentialProbe.proj"),
+            "Guarded repair lacks the malicious-MSBuild credential isolation acceptance probe");
+        Require(workflow.Contains("GIT_TERMINAL_PROMPT: '0'") &&
+                workflow.Contains("GCM_INTERACTIVE: Never"),
+            "Guarded repair credential probe may prompt instead of demonstrating denied writes");
     }
     private static string RunGuardParserWithFixture(string pythonScript, string folder, string switchName) {
         ProcessStartInfo start = new ProcessStartInfo("python.exe");

@@ -266,7 +266,7 @@ internal static partial class AuditRegression {
                 Set(program, null, "CancelToken", cancellation);
                 child = Process.Start(Fixture("exit", pidFile));
                 Require(child != null, "Could not start the exiting parent fixture");
-                Require(child.WaitForExit(5000), "Exiting parent fixture did not exit");
+                Require(WaitForHarnessChild(child, 5000), "Exiting parent fixture did not exit");
 
                 form = (Form)Activator.CreateInstance(formType, true);
                 object handles = Activator.CreateInstance(
@@ -282,7 +282,10 @@ internal static partial class AuditRegression {
             }
             finally {
                 if (form != null) form.Dispose();
-                if (child != null) child.Dispose();
+                if (child != null) {
+                    StopHarnessProcess(child);
+                    child.Dispose();
+                }
                 try { File.Delete(pidFile); } catch (IOException) { } catch (UnauthorizedAccessException) { }
                 Set(program, null, "CancelToken", previousToken);
             }

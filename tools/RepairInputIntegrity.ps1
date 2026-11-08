@@ -60,6 +60,27 @@ function Get-RepairInputSnapshot {
                 finally { $stream.Dispose() }
             }
         }
+        # A tracked embedded updater resource must not be silently regenerated
+        # or staged as an undeclared build side effect. Preserve an ABSENT marker
+        # too, so creation of a previously missing resource is detected.
+        $resourceName = 'youtube-dl-gui/Resources/youtube-dl-gui-updater.exe'
+        $resourcePath = Join-Path $root $resourceName
+        if (Test-Path -LiteralPath $resourcePath) {
+            $resource = Get-Item -LiteralPath $resourcePath -Force -ErrorAction Stop
+            if ($resource.PSIsContainer -or
+                ($resource.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw 'Embedded updater resource is not an ordinary file.'
+            }
+            $stream = [IO.File]::OpenRead($resourcePath)
+            try {
+                $digest = [BitConverter]::ToString($hash.ComputeHash($stream)).Replace('-', '').ToLowerInvariant()
+                $rows.Add("$resourceName|$($resource.Length)|$digest")
+            }
+            finally { $stream.Dispose() }
+        }
+        else {
+            $rows.Add("$resourceName|ABSENT")
+        }
     }
     finally { $hash.Dispose() }
     if ($rows.Count -lt 3) { throw 'Trusted repair input inventory is unexpectedly empty.' }

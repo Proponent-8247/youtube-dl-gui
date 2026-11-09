@@ -26,7 +26,7 @@ internal static partial class AuditRegression {
         try {
             foreach (string locale in locales) {
                 string sourceFile = Path.Combine(source, locale);
-                File.WriteAllText(sourceFile, "[fixture]\\r\\nname=" + locale, Encoding.UTF8);
+                File.WriteAllText(sourceFile, "[fixture]\r\nname=" + locale, Encoding.UTF8);
                 File.Copy(sourceFile, Path.Combine(packed, locale));
             }
             foreach (string name in payload.Where(n => !n.StartsWith("lang/", StringComparison.Ordinal))) {
@@ -35,24 +35,24 @@ internal static partial class AuditRegression {
             Func<string> manifest = () => {
                 string[] records = payload.Select(name => {
                     string file = Path.Combine(release, name.Replace('/', Path.DirectorySeparatorChar));
-                    return "{\\"path\\":\\"" + name + "\\",\\"sha256\\":\\"" +
-                        FileSha256(file) + "\\",\\"bytes\\":" +
+                    return "{\"path\":\"" + name + "\",\"sha256\":\"" +
+                        FileSha256(file) + "\",\"bytes\":" +
                         new FileInfo(file).Length.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}";
                 }).ToArray();
-                return "{\\"version\\":\\"" + tag + "\\",\\"commit\\":\\"" +
-                    new string('c', 40) + "\\",\\"exe_sha256\\":\\"" +
-                    FileSha256(Path.Combine(release, payload[0])) + "\\",\\"zip_sha256\\":\\"" +
+                return "{\"version\":\"" + tag + "\",\"commit\":\"" +
+                    new string('c', 40) + "\",\"exe_sha256\":\"" +
+                    FileSha256(Path.Combine(release, payload[0])) + "\",\"zip_sha256\":\"" +
                     FileSha256(Path.Combine(release, payload[1])) +
-                    "\\",\\"artifacts\\":[" + string.Join(",", records) + "]}";
+                    "\",\"artifacts\":[" + string.Join(",", records) + "]}";
             };
             File.WriteAllText(Path.Combine(release, "Release-manifest.json"), manifest(), Encoding.UTF8);
 
             Func<string> run = () => {
                 int exit;
                 string output = GuardRunCli("powershell.exe",
-                    "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \\"" + guard +
-                    "\\\" -ReleaseRoot \\"" + release + "\\\" -ExpectedVersion " + tag +
-                    " -SourceLanguageDirectory \\"" + source + "\\\"",
+                    "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"" + guard +
+                    "\\" -ReleaseRoot \"" + release + "\\" -ExpectedVersion " + tag +
+                    " -SourceLanguageDirectory \"" + source + "\\"",
                     repo, out exit);
                 return exit.ToString() + "\n" + output;
             };

@@ -98,6 +98,26 @@ static class Program {
         if (Environment.CurrentDirectory != ApplicationPath)
             Environment.CurrentDirectory = ApplicationPath;
 
+#if DEBUG
+        if (args.Length == 1 && args[0].Equals("--audit-direct-fetch-cancel", StringComparison.Ordinal)) {
+            // Exercise the actual Debug EXE, WinForms message pump and delayed
+            // release request. No production command-line behavior is added.
+            ExitCode = 1;
+            Application.ThreadException += (sender, exception) => {
+                string evidence = Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_UPDATER_RESULT");
+                if (!string.IsNullOrWhiteSpace(evidence)) {
+                    try { File.AppendAllText(evidence, "thread-exception=" +
+                        exception.Exception.GetType().Name + Environment.NewLine); }
+                    catch (IOException) { } catch (UnauthorizedAccessException) { }
+                }
+                Application.ExitThread();
+            };
+            SetTls();
+            Application.Run(new frmUpdater((UpdateData?)null));
+            return ExitCode;
+        }
+#endif
+
         if (ApplicationData is null && UpdateData is null && !InvalidData())
             return 1;
 

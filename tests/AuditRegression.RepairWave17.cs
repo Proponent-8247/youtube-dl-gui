@@ -382,6 +382,7 @@ internal static partial class AuditRegression {
         Test("LIFETIME.UpdaterAsyncCloseWaitsForCancellationAndCatchesOuterErrors", UpdaterAsyncCloseWaitsForCancellationAndCatchesOuterErrors);
         Test("RESOURCE.DownloadHistoryFailureTeardownJoinsWorkersBeforeDisposingEvents", DownloadHistoryFailureTeardownJoinsWorkersBeforeDisposingEvents);
         Test("RESOURCE.HarnessCleanupRestoresGlobalsBeforeThrowing", HarnessCleanupRestoresGlobalsBeforeThrowing);
+        Test("SECURITY.UnsolicitedUpdaterReadyCannotClaimParentAcceptance", UnsolicitedUpdaterReadyCannotClaimParentAcceptance);
         Test("SECURITY.ReleaseCandidateRejectsUndeclaredArtifactsAndDigestDrift", ReleaseCandidateRejectsUndeclaredArtifactsAndDigestDrift);
         Test("SECURITY.ProviderProxySettingCannotInjectArguments", ProviderProxySettingCannotInjectArguments);
         Test("SECURITY.ProviderSubtitleFormatCannotInjectArguments", ProviderSubtitleFormatCannotInjectArguments);

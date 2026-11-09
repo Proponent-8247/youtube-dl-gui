@@ -151,7 +151,8 @@ internal static partial class AuditRegression {
     }
 
     private static V011Scenario V011Start(string scenario, bool servePayload,
-        bool failAfterUpdaterPid = false, int identityPublicationDelayMs = 0) {
+        bool failAfterUpdaterPid = false, int identityPublicationDelayMs = 0,
+        bool failAfterListenerCreation = false) {
         string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(App.Location), "..", "..", ".."));
         string debugApp = Path.Combine(root, "youtube-dl-gui", "bin", "Debug", "youtube-dl-gui.exe");
         string debugUpdater = Path.Combine(root, "youtube-dl-gui-updater", "bin", "Debug", "youtube-dl-gui-updater.exe");
@@ -173,6 +174,10 @@ internal static partial class AuditRegression {
         state.MainResult = Path.Combine(state.Root, "main-result.txt");
         state.UpdaterResult = Path.Combine(state.Root, "updater-result.txt");
         if (servePayload) state.Server = new LoopbackResponse(200, state.Payload, null, false, "/youtube-dl-gui.exe");
+        if (failAfterListenerCreation) {
+            V011FaultRoot = state.Root;
+            throw new InvalidOperationException("Injected V011 setup failure after listener creation");
+        }
 
         var start = new ProcessStartInfo(state.AppPath, "--audit-updater-ipc");
         start.UseShellExecute = false;
@@ -343,6 +348,19 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static void UpdaterScenarioFactoryDisposesPrelaunchServerOnFailure() {
+        V011FaultRoot = null;
+        bool observed = false;
+        try { V011Start("success", true, false, 0, true); }
+        catch (InvalidOperationException ex) {
+            observed = ex.Message.Contains("Injected V011 setup failure after listener creation");
+        }
+        Require(observed, "Scenario startup did not exercise listener-before-launch failure");
+        Require(!string.IsNullOrEmpty(V011FaultRoot), "Failure did not record its scenario root");
+        Require(!Directory.Exists(V011FaultRoot),
+            "Updater IPC prelaunch failure leaked its listener-owned scenario files");
+    }
+
     private static void UpdaterScenarioFactoryDisposesAfterPartialStartup() {
         V011FaultMainPid = 0;
         V011FaultUpdaterPid = 0;
@@ -371,6 +389,7 @@ internal static partial class AuditRegression {
         Test("V011.ActualUpdaterRollbackRestoresApplication", ActualUpdaterRollbackRestoresApplication);
         Test("V011.UpdaterRestartNeverDiscardsSoleRecoveryExecutable", UpdaterRestartNeverDiscardsSoleRecoveryExecutable);
         Test("V011.UpdaterScenarioFactoryDisposesAfterPartialStartup", UpdaterScenarioFactoryDisposesAfterPartialStartup);
+        Test("V011.UpdaterScenarioFactoryDisposesPrelaunchServerOnFailure", UpdaterScenarioFactoryDisposesPrelaunchServerOnFailure);
         Test("V011.UpdaterEarlyRequestRejectionIsRetriedUntilAuthenticated", UpdaterEarlyRequestRejectionIsRetriedUntilAuthenticated);
     }
 }

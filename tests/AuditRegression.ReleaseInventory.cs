@@ -51,8 +51,8 @@ internal static partial class AuditRegression {
                 int exit;
                 string output = GuardRunCli("powershell.exe",
                     "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"" + guard +
-                    "\\" -ReleaseRoot \"" + release + "\\" -ExpectedVersion " + tag +
-                    " -SourceLanguageDirectory \"" + source + "\\"",
+                    "\" -ReleaseRoot \"" + release + "\" -ExpectedVersion " + tag +
+                    " -SourceLanguageDirectory \"" + source + "\"",
                     repo, out exit);
                 return exit.ToString() + "\n" + output;
             };

@@ -21,6 +21,10 @@ internal partial class frmUpdater : Form {
     private readonly bool DownloadLatest = false;
     private bool WaitingForApplication;
     private bool UpdateDataAccepted;
+    // The WinForms event must own this task until its cancellation/rollback has
+    // completed; no continuation may operate on a disposed updater form.
+    private Task? UpdateWorkflow;
+    private bool CloseWhenFinished;
 #if DEBUG
     private static bool AuditIpcMode => Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC") == "1";
     private static string AuditScenario => Environment.GetEnvironmentVariable("YTDL_AUDIT_IPC_SCENARIO") ?? string.Empty;
@@ -101,6 +105,13 @@ internal partial class frmUpdater : Form {
     protected override void OnFormClosing(FormClosingEventArgs e) {
         CancellationTokenSource Cancellation = Program.CancelToken;
         if (!Cancellation.IsCancellationRequested) Cancellation.Cancel();
+        if (e.CloseReason == CloseReason.UserClosing &&
+            UpdateWorkflow is not null && !UpdateWorkflow.IsCompleted) {
+            // Cancel, but keep controls alive until every async checkpoint and
+            // transactional rollback has completed. frmUpdater_Shown closes later.
+            CloseWhenFinished = true;
+            e.Cancel = true;
+        }
         base.OnFormClosing(e);
     }
 
@@ -165,8 +176,37 @@ internal partial class frmUpdater : Form {
         }
     }
 
+    // A single outer boundary covers every RunUpdate checkpoint, including
+    // release lookup and the gap between parent-exit wait and replacement.
+    // No exception may escape the async-void event into WinForms exception UI.
+    private async Task RunUpdateSafelyAsync() {
+        try {
+            await RunUpdate();
+        }
+        catch (OperationCanceledException) when (Program.CancelToken.IsCancellationRequested) {
+            Program.ExitCode = 1;
+#if DEBUG
+            if (AuditIpcMode) AuditWrite("cancelled=1");
+#endif
+        }
+        catch (Exception ex) {
+            Program.ExitCode = 1;
+            if (!IsDisposed && !Disposing) {
+                try { Log.ReportException(ex, "The updater failed outside the protected replacement phase.", this); }
+                catch (Exception reportError) { Debug.WriteLine(reportError); }
+            }
+            else Debug.WriteLine(ex);
+        }
+    }
+
     private async void frmUpdater_Shown(object sender, EventArgs e) {
-        await RunUpdate();
+        if (UpdateWorkflow is not null) return;
+        UpdateWorkflow = RunUpdateSafelyAsync();
+        await UpdateWorkflow;
+        if (CloseWhenFinished && !IsDisposed && !Disposing) {
+            CloseWhenFinished = false;
+            Close();
+        }
     }
 
     private static string CreateUpdateDestinationPath() =>

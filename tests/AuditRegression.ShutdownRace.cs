@@ -14,6 +14,7 @@ internal static partial class AuditRegression {
         Form empty = null;
         Form active = null;
         Form late = null;
+        Form tracked = null;
         try {
             count.SetValue(null, 0);
             Require(!(bool)program.GetProperty("HasRunningActions", All).GetValue(null, null),
@@ -31,6 +32,20 @@ internal static partial class AuditRegression {
             Call(program, null, "EndBackgroundAction");
             Require(active.IsDisposed, "Last completion did not release an already armed exit gate");
 
+            // A tracked processing form is a separate shutdown ownership mode
+            // from the background-action counter; prove it also retains and
+            // releases the same exit gate.
+            tracked = new Form();
+            Form trackedHandler = (Form)Activator.CreateInstance(handlerType, true);
+            queue.SetValue(null, trackedHandler, null);
+            Call(program, null, "AddProcessingForm", tracked);
+            Call(handlerType, trackedHandler, "AwaitExit");
+            Require(!trackedHandler.IsDisposed, "Exit gate disposed with an active processing form");
+            Call(program, null, "RemoveProcessingForm", tracked);
+            Require(trackedHandler.IsDisposed, "Removing the last processing form failed to wake shutdown");
+            tracked.Dispose();
+            tracked = null;
+
             late = (Form)Activator.CreateInstance(handlerType, true);
             queue.SetValue(null, late, null);
             // Same transition the normal shutdown and command-line paths use.
@@ -39,6 +54,11 @@ internal static partial class AuditRegression {
             Require(late.IsDisposed, "Graceful shutdown failed to exit after a lost-wakeup interleaving");
         }
         finally {
+            if (tracked != null) {
+                try { Call(program, null, "RemoveProcessingForm", tracked); }
+                catch (Exception) { }
+                tracked.Dispose();
+            }
             if (late != null && !late.IsDisposed) late.Dispose();
             if (active != null && !active.IsDisposed) active.Dispose();
             if (empty != null && !empty.IsDisposed) empty.Dispose();

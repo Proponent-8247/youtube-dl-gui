@@ -38,8 +38,12 @@ internal static partial class AuditRegression {
                 return exit.ToString() + "\n" + output;
             };
             string clean = run();
+            string diagnosticLog = Path.Combine(root, "tools", "Assert-ReleaseCandidateInventory.log");
+            string diagnostic = File.Exists(diagnosticLog)
+                ? File.ReadAllText(diagnosticLog, Encoding.UTF8) : "(no guard diagnostic log)";
             Require(clean.StartsWith("0\n", StringComparison.Ordinal),
-                "Approved release inventory failed pre-upload attestation: " + clean);
+                "Approved release inventory failed pre-upload attestation: " + clean +
+                "; latest guard diagnostic: " + diagnostic.Substring(Math.Max(0, diagnostic.Length - 1600)));
             string extra = Path.Combine(release, "unreviewed-provider.exe");
             File.WriteAllText(extra, "NOT PART OF RELEASE", Encoding.UTF8);
             string rejected = run();

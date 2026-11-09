@@ -50,7 +50,7 @@ try {
     $allFiles = @($all | Where-Object { $_ -is [IO.FileInfo] })
     if ($allFiles.Count -eq 0) { throw 'Release staging contains no payload files.' }
     $relativePaths = @($allFiles | ForEach-Object {
-        $_.FullName.Substring($sourceRoot.Length + 1).Replace('\\', '/')
+        $_.FullName.Substring($sourceRoot.Length + 1).Replace('\', '/')
     })
     [Array]::Sort($relativePaths, [StringComparer]::Ordinal)
 

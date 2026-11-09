@@ -9,6 +9,10 @@ on:
       - 'tools/Build-ReleaseCandidate.ps1'
       - 'tools/Assert-ReleaseCandidateInventory.ps1'
       - 'tests/AuditRegression.ReleaseInventory.cs'
+      - 'youtube-dl-gui-updater/Forms/frmUpdater.cs'
+      - 'youtube-dl-gui/Controls/MessageHandler.cs'
+      - 'Controls/CopyData.cs'
+      - 'tests/AuditRegression.UpdaterIpcE2E.cs'
   workflow_dispatch:
 
 permissions:

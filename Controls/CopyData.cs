@@ -242,6 +242,20 @@ internal static class CopyData {
         uint TimeoutMilliseconds) =>
         TrySendMessageCore(hWnd, Msg, wParam, lParam, TimeoutMilliseconds, blockSender: false);
 
+    // A successful Win32 message *delivery* does not imply application-level
+    // acceptance. The updater requires the parent WndProc's explicit LRESULT.
+    public static bool TrySendMessageReentrantWithResult(
+        nint hWnd,
+        int Msg,
+        nint wParam,
+        nint lParam,
+        uint TimeoutMilliseconds,
+        out nint Result) {
+        const uint SMTO_ABORTIFHUNG = 0x0002;
+        return SendMessageTimeout(hWnd, Msg, wParam, lParam,
+            SMTO_ABORTIFHUNG, TimeoutMilliseconds, out Result) != 0;
+    }
+
     private static bool TrySendMessageCore(
         nint hWnd,
         int Msg,

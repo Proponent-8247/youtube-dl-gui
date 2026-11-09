@@ -378,6 +378,7 @@ internal static partial class AuditRegression {
         Test("SECURITY.ExternalCustomProtocolNeverSilentlyReplaysAmbientHeaders", ExternalCustomProtocolNeverSilentlyReplaysAmbientHeaders);
         Test("CONCURRENCY.ShutdownGateRechecksActionsWhenLastCompletionPrecedesArming", ShutdownGateRechecksActionsWhenLastCompletionPrecedesArming);
         Test("SHUTDOWN.DisposedMainFormCannotRecreateClipboardListenerDuringExit", DisposedMainFormCannotRecreateClipboardListenerDuringExit);
+        Test("CONCURRENCY.ProviderChecksAndInstallShareOneGate", ProviderChecksAndInstallShareOneGate);
         Test("SECURITY.ReleaseCandidateRejectsUndeclaredArtifactsAndDigestDrift", ReleaseCandidateRejectsUndeclaredArtifactsAndDigestDrift);
         Test("SECURITY.ProviderProxySettingCannotInjectArguments", ProviderProxySettingCannotInjectArguments);
         Test("SECURITY.ProviderSubtitleFormatCannotInjectArguments", ProviderSubtitleFormatCannotInjectArguments);

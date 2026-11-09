@@ -20,8 +20,23 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+# Windows PowerShell launched from pwsh may inherit a PSModulePath that omits
+# Microsoft.PowerShell.Utility. SHA-256 must work without module auto-import.
+function Get-ReleaseSha256 {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    try {
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try {
+            return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+        }
+        finally { $sha.Dispose() }
+    }
+    finally { $stream.Dispose() }
+}
+
 try {
-    if ($ExpectedVersion -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$') {
+    if ($ExpectedVersion -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9]+)?$') {
         throw 'Release version does not match the supported exact prerelease tag.'
     }
     $root = [IO.Path]::GetFullPath($ReleaseRoot)
@@ -70,7 +85,7 @@ try {
         }
         $seen[$name] = $true
         $file = Get-Item -LiteralPath (Join-Path $root $name)
-        $digest = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        $digest = Get-ReleaseSha256 -Path $file.FullName
         if ($record.sha256 -cne $digest -or [long]$record.bytes -ne $file.Length) {
             throw "Release candidate payload digest/size differs from manifest: $name"
         }

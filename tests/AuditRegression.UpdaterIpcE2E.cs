@@ -196,11 +196,23 @@ internal static partial class AuditRegression {
         Require(state.Main != null, "Actual debug application process did not start");
 
         Dictionary<string, string> mainValues;
-        try { mainValues = V011WaitFor(state.MainResult, "updater-pid", 10000); }
+        try {
+            // On Windows runners a newly copied signed/unsigned EXE can spend
+            // significant time in process loader/AV scanning before managed
+            // Main executes. That is distinct from the IPC handshake deadline.
+            // Observe the earliest Main marker with its own bounded startup
+            // deadline rather than misclassifying it as a handshake deadlock.
+            PumpUntil(() => state.Main.HasExited ||
+                V011ReadResult(state.MainResult).ContainsKey("bootstrap-entered"),
+                25000, "Debug application never reached its entrypoint");
+            Require(V011ReadResult(state.MainResult).ContainsKey("bootstrap-entered"),
+                "Debug application exited before its first startup marker");
+            mainValues = V011WaitFor(state.MainResult, "updater-pid", 10000);
+        }
         catch (Exception ex) {
             throw new InvalidOperationException(
-                "Updater launch did not publish PID; parent=" +
-                V011Describe(V011ReadResult(state.MainResult)) +
+                "Updater launch did not publish PID; parent-pid=" + state.Main.Id +
+                "; parent=" + V011Describe(V011ReadResult(state.MainResult)) +
                 "; updater=" + V011Describe(V011ReadResult(state.UpdaterResult)) +
                 "; parent-exited=" + state.Main.HasExited, ex);
         }

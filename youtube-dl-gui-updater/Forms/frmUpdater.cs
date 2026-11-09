@@ -450,6 +450,15 @@ internal partial class frmUpdater : Form {
     private async Task GetVersionFromGithub() {
         try {
             Program.CancelToken.Token.ThrowIfCancellationRequested();
+#if DEBUG
+            if (AuditIpcMode && AuditScenario.Equals("direct-fetch-cancel", StringComparison.OrdinalIgnoreCase)) {
+                // Live WinForms regression: block exactly at the direct-mode
+                // release lookup await until OnFormClosing cancels the token.
+                AuditWrite("direct-fetch-pending=1");
+                await Task.Delay(System.Threading.Timeout.Infinite, Program.CancelToken.Token);
+                return;
+            }
+#endif
             UpdateData = await Github.GetUpdateData();
             Program.CancelToken.Token.ThrowIfCancellationRequested();
             Process RunningProcess = Process.GetProcessesByName(Language.ApplicationName).FirstOrDefault();

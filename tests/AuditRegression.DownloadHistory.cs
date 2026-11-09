@@ -3173,6 +3173,8 @@ internal static partial class AuditRegression {
         }
     }
 
+    private static bool HistoryLeaseCleanupFaultInjection;
+
     private static void DownloadHistoryLeaseSerializesWorkers() {
         using (DownloadHistoryFixture fixture = new DownloadHistoryFixture(true)) {
             DownloadHistoryReconcile(fixture, string.Empty, true);
@@ -3188,8 +3190,12 @@ internal static partial class AuditRegression {
                 catch (Exception ex) { workerError = ex; acquired.Set(); }
             });
             worker.IsBackground = true;
+            bool workerStarted = false;
             try {
                 worker.Start();
+                workerStarted = true;
+                if (HistoryLeaseCleanupFaultInjection)
+                    throw new InvalidOperationException("Injected lease-serialization cleanup failure.");
                 Require(started.WaitOne(2000), "Second history worker did not start");
                 Thread.Sleep(200);
                 Require(!acquired.WaitOne(0), "Two workers acquired the same archive lease concurrently");
@@ -3200,9 +3206,23 @@ internal static partial class AuditRegression {
                 if (workerError != null) throw workerError;
             }
             finally {
+                // Never dispose an event while the worker can still call Set().
+                // Releasing the held lease lets any blocked second worker finish.
                 if (first != null) first.Dispose();
-                started.Dispose();
-                acquired.Dispose();
+                bool joined = !workerStarted || worker.Join(5000);
+                if (!joined) {
+                    try { worker.Interrupt(); } catch (ThreadStateException) { }
+                    joined = worker.Join(3000);
+                }
+                if (joined) {
+                    started.Dispose();
+                    acquired.Dispose();
+                }
+                else {
+                    // Retain handles rather than cause unhandled ObjectDisposedException
+                    // in a still-running background thread; fail this testcase visibly.
+                    throw new TimeoutException("Lease worker survived failure cleanup; synchronization handles were preserved.");
+                }
             }
         }
     }
@@ -3230,8 +3250,12 @@ internal static partial class AuditRegression {
                 finally { finished.Set(); }
             });
             worker.IsBackground = true;
+            bool workerStarted = false;
             try {
                 worker.Start();
+                workerStarted = true;
+                if (HistoryLeaseCleanupFaultInjection)
+                    throw new InvalidOperationException("Injected protected-lease cancellation cleanup failure.");
                 Require(started.WaitOne(2000), "Protected lease waiter did not start");
                 Thread.Sleep(200);
                 Require(!finished.WaitOne(0), "Protected lease waiter did not actually block behind the active worker");
@@ -3241,10 +3265,23 @@ internal static partial class AuditRegression {
                 if (workerError != null) throw workerError;
             }
             finally {
+                // Signal cancellation before releasing the first lease; this
+                // avoids falsely acquiring it and prevents use-after-dispose.
+                cancel.Set();
                 first.Dispose();
-                started.Dispose();
-                cancel.Dispose();
-                finished.Dispose();
+                bool joined = !workerStarted || worker.Join(5000);
+                if (!joined) {
+                    try { worker.Interrupt(); } catch (ThreadStateException) { }
+                    joined = worker.Join(3000);
+                }
+                if (joined) {
+                    started.Dispose();
+                    cancel.Dispose();
+                    finished.Dispose();
+                }
+                else {
+                    throw new TimeoutException("Protected lease worker survived cleanup; signals remain undisposed.");
+                }
             }
         }
     }

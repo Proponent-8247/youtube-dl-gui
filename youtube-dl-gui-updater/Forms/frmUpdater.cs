@@ -158,13 +158,20 @@ internal partial class frmUpdater : Form {
                 // Using SMTO_BLOCK here prevents the sender from dispatching the
                 // nested WM_UPDATERREADY and can deadlock for the full timeout.
                 // Permit reentrant send-message processing on the parent thread.
-                bool readyDelivered = CopyData.TrySendMessageReentrant(
+                bool readyDelivered = CopyData.TrySendMessageReentrantWithResult(
                     ApplicationData.MessageHandle, CopyData.WM_UPDATERREADY,
-                    this.Handle, 0, ParentMessageTimeoutMilliseconds);
+                    this.Handle, 0, ParentMessageTimeoutMilliseconds, out nint readyResult);
+                bool readyAccepted = readyDelivered && readyResult == 1;
+                if (!readyAccepted) {
+                    // Never confuse transport delivery with acceptance. Refuse
+                    // replacement if the parent rejected/never processed READY.
+                    UpdateDataAccepted = false;
+                }
 #if DEBUG
                 if (AuditIpcMode) {
                     AuditWrite("ack-sent=1");
                     AuditWrite("ack-transport=" + (readyDelivered ? "1" : "0"));
+                    AuditWrite("ack-accepted=" + (readyAccepted ? "1" : "0"));
                     if (AuditScenario.Equals("cancel", StringComparison.OrdinalIgnoreCase)) {
                         BeginInvoke((Action)(() => Program.CancelToken.Cancel()));
                     }

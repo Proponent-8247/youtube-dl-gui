@@ -74,13 +74,23 @@ internal static partial class AuditRegression {
         finally {
             KillFixture(pidFile);
             if (form != null && !form.IsDisposed) form.Dispose();
-            if (worker != null) PumpUntil(() => !worker.IsAlive, 5000, "Transfer test left a worker running");
-            Environment.SetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE", null);
-            Environment.SetEnvironmentVariable("YTDL_AUDIT_PID_FILE", null);
-            Set(verification, null, "YoutubeDlPath", oldDownloader);
-            Set(verification, null, "FFmpegPath", oldConverter);
-            handler.Dispose();
-            Set(T("youtube_dl_gui.Program"), null, "QueueHandler", null);
+            RestoreBeforeReportingCleanupFailure(
+                () => {
+                    if (worker != null)
+                        PumpUntil(() => !worker.IsAlive, 5000, "Transfer test left a worker running");
+                },
+                () => {
+                    Environment.SetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE", null);
+                    Environment.SetEnvironmentVariable("YTDL_AUDIT_PID_FILE", null);
+                    try {
+                        Set(verification, null, "YoutubeDlPath", oldDownloader);
+                        Set(verification, null, "FFmpegPath", oldConverter);
+                    }
+                    finally {
+                        try { handler.Dispose(); }
+                        finally { Set(T("youtube_dl_gui.Program"), null, "QueueHandler", null); }
+                    }
+                });
         }
     }
     static partial void RunConversionOptionTests();

@@ -120,11 +120,14 @@ internal static partial class AuditRegression {
                 finally {
                     cancel.Cancel();
                     KillFixture(pid);
-                    ObserveHttp(task);
-                    Environment.SetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE", null);
-                    Environment.SetEnvironmentVariable("YTDL_AUDIT_PID_FILE", null);
-                    Environment.SetEnvironmentVariable("YTDL_AUDIT_THUMB_INPUT", null);
-                    Set(T("youtube_dl_gui.Verification"), null, "FFmpegPath", previousFfmpeg);
+                    RestoreBeforeReportingCleanupFailure(
+                        () => ObserveHttp(task),
+                        () => {
+                            Environment.SetEnvironmentVariable("YTDL_AUDIT_PROVIDER_MODE", null);
+                            Environment.SetEnvironmentVariable("YTDL_AUDIT_PID_FILE", null);
+                            Environment.SetEnvironmentVariable("YTDL_AUDIT_THUMB_INPUT", null);
+                            Set(T("youtube_dl_gui.Verification"), null, "FFmpegPath", previousFfmpeg);
+                        });
                 }
             }
         });

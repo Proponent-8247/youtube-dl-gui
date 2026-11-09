@@ -117,6 +117,9 @@ internal static class Program {
 
 #if DEBUG
         if (args.Length == 1 && args[0].Equals("--audit-updater-ipc", StringComparison.Ordinal)) {
+            // First observable signal before WinForms/locale and message-pump setup.
+            // Distinguishes slow process boot from an IPC handshake deadlock.
+            WriteAuditUpdaterIpcResult("bootstrap-entered=1");
             return RunAuditUpdaterIpc();
         }
         DebugMode = true;
@@ -280,7 +283,9 @@ internal static class Program {
         WriteAuditUpdaterIpcResult($"app-copydata-size={Marshal.SizeOf<CopyDataStruct>()}");
 
         QueueHandler = new();
+        WriteAuditUpdaterIpcResult("message-handler-created=1");
         QueueHandler.Shown += (_, _) => {
+            WriteAuditUpdaterIpcResult("message-loop-shown=1");
             try {
                 int UpdaterProcessId = Updater.BeginAuditUpdate(Hash, UpdaterPath);
                 WriteAuditUpdaterIpcResult($"updater-pid={UpdaterProcessId}");

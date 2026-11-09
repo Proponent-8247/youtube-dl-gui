@@ -21,6 +21,9 @@ internal partial class frmUpdater : Form {
     private readonly bool DownloadLatest = false;
     private bool WaitingForApplication;
     private bool UpdateDataAccepted;
+    // Data transfer is one-shot; READY authorization is a separate state.
+    // Denied READY must never allow a second WM_COPYDATA to mutate UpdateData.
+    private bool UpdateReadyAcknowledged;
     // The WinForms event must own this task until its cancellation/rollback has
     // completed; no continuation may operate on a disposed updater form.
     private Task? UpdateWorkflow;
@@ -162,11 +165,10 @@ internal partial class frmUpdater : Form {
                     ApplicationData.MessageHandle, CopyData.WM_UPDATERREADY,
                     this.Handle, 0, ParentMessageTimeoutMilliseconds, out nint readyResult);
                 bool readyAccepted = readyDelivered && readyResult == 1;
-                if (!readyAccepted) {
-                    // Never confuse transport delivery with acceptance. Refuse
-                    // replacement if the parent rejected/never processed READY.
-                    UpdateDataAccepted = false;
-                }
+                // Do not clear UpdateDataAccepted when READY fails. A packet was
+                // already accepted, and the one-shot target/hash freeze must
+                // remain in force even if the parent rejects authorization.
+                UpdateReadyAcknowledged = readyAccepted;
 #if DEBUG
                 if (AuditIpcMode) {
                     AuditWrite("ack-sent=1");
@@ -486,6 +488,10 @@ internal partial class frmUpdater : Form {
                     throw new TimeoutException("The main application did not authenticate the updater request within 2 seconds.");
                 }
                 await Task.Delay(100, Program.CancelToken.Token);
+            }
+            if (!UpdateReadyAcknowledged) {
+                throw new InvalidOperationException(
+                    "The main application never authenticated updater READY. Refusing executable replacement.");
             }
             pbDownloadProgress.Text = Language.pbDownloadProgressWaitingForClose;
 

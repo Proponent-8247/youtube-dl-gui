@@ -223,6 +223,10 @@ try {
         'Release-body.md',
         "Release-notes-$($AppVersion.Tag).md"
     )
+    $LocaleSources = @(Get-ChildItem -LiteralPath (Join-Path $Root 'Languages') -Filter '*.ini' -File |
+        Sort-Object -Property Name)
+    if ($LocaleSources.Count -eq 0) { throw 'No canonical source language files are available.' }
+    $ArtifactNames = @($ArtifactNames + @($LocaleSources | ForEach-Object { 'lang/' + $_.Name }))
     $ArtifactRecords = @(
         foreach ($ArtifactName in $ArtifactNames) {
             $ArtifactPath = Join-Path $ReleaseRoot $ArtifactName

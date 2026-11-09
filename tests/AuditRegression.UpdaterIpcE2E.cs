@@ -235,6 +235,8 @@ internal static partial class AuditRegression {
             Equal("1", main["malformed-sent"]);
             Equal("1", updater["accepted"]);
             Equal("1", updater["ack-sent"]);
+            Equal("1", updater["ack-transport"]);
+            Equal("1", updater["ack-accepted"]);
             Require(updater["target"].EndsWith("youtube-dl-gui-\u03bb.exe", StringComparison.Ordinal), "Unicode application filename was not preserved through live IPC");
             Equal("9.8.7-6", updater["version"]);
             Equal(state.PayloadHash, updater["hash"]);
@@ -333,6 +335,8 @@ internal static partial class AuditRegression {
             Equal("1", main["malformed-sent"]);
             Equal("1", updater["accepted"]);
             Equal("1", updater["ack-sent"]);
+            Equal("1", updater["ack-transport"]);
+            Equal("1", updater["ack-accepted"]);
             Require(state.Main.WaitForExit(10000), "Parent did not complete after retried accepted handshake");
             Require(state.Updater.WaitForExit(10000), "Updater did not exit after retried accepted handshake");
             Equal(state.PayloadHash, FileSha256(state.AppPath));

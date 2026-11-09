@@ -214,6 +214,30 @@ try {
 
     Copy-Item $ReleaseNotesPath (Join-Path $ReleaseRoot "Release-notes-$($AppVersion.Tag).md") -Force
 
+    # The release manifest inventories every upload payload by exact path, byte
+    # size, and digest. Hash only finalized files, after the full test matrix.
+    $ArtifactNames = @(
+        'youtube-dl-gui.exe',
+        'youtube-dl-gui.zip',
+        'Release-hashes.md',
+        'Release-body.md',
+        "Release-notes-$($AppVersion.Tag).md"
+    )
+    $ArtifactRecords = @(
+        foreach ($ArtifactName in $ArtifactNames) {
+            $ArtifactPath = Join-Path $ReleaseRoot $ArtifactName
+            $ArtifactFile = Get-Item -LiteralPath $ArtifactPath -ErrorAction Stop
+            if ($ArtifactFile -isnot [IO.FileInfo]) {
+                throw "Release payload is not an ordinary file: $ArtifactName"
+            }
+            [ordered]@{
+                path = $ArtifactName
+                sha256 = (Get-FileHash -LiteralPath $ArtifactPath -Algorithm SHA256).Hash.ToLowerInvariant()
+                bytes = [long]$ArtifactFile.Length
+            }
+        }
+    )
+
     $Manifest = [ordered]@{
         version = $AppVersion.Tag
         prerelease = ($AppVersion.Beta -gt 0)
@@ -235,9 +259,15 @@ try {
         exe_sha256 = $ExeHash
         zip_sha256 = $ZipHash
         updater_sha256 = $UpdaterHash
+        artifacts = $ArtifactRecords
     }
-    $Manifest | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $ReleaseRoot 'Release-manifest.json') -Encoding utf8
-    $Manifest | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $EvidenceDirectory 'release-candidate-summary.json') -Encoding utf8
+    $Manifest | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $ReleaseRoot 'Release-manifest.json') -Encoding utf8
+    $Manifest | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $EvidenceDirectory 'release-candidate-summary.json') -Encoding utf8
+
+    # Last gate: ensure no unreviewed output appeared during build or packaging.
+    # The workflow independently repeats this check immediately before upload.
+    & (Join-Path $PSScriptRoot 'Assert-ReleaseCandidateInventory.ps1') -ReleaseRoot $ReleaseRoot -ExpectedVersion $AppVersion.Tag
+    if (!$?) { throw 'Release payload inventory attestation failed.' }
 
     Write-Host "Release candidate $($AppVersion.Tag) is ready."
     Write-Host "EXE SHA-256: $ExeHash"

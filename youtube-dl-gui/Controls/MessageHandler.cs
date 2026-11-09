@@ -165,12 +165,16 @@ public partial class MessageHandler : Form {
             // Only ran when WM_UPDATEDATAREQUEST has been called at least once.
             // Other cases, this is not a valid request.
             case CopyData.WM_UPDATERREADY: {
+                // LRESULT=1 is an explicit authenticated parent ACK. A delivered
+                // message with an unsolicited/incorrect updater HWND stays zero.
+                nint accepted = 0;
                 if (CanUpdate && m.WParam == ExpectedUpdaterWindow) {
                     CanUpdate = false;
                     Updater.ClearExpectedUpdaterProcess();
                     Program.KillForUpdate();
+                    accepted = 1;
                 }
-                m.Result = IntPtr.Zero;
+                m.Result = accepted;
             } break;
 
             default: {

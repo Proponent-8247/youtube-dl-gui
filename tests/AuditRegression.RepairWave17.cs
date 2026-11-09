@@ -380,6 +380,7 @@ internal static partial class AuditRegression {
         Test("SHUTDOWN.DisposedMainFormCannotRecreateClipboardListenerDuringExit", DisposedMainFormCannotRecreateClipboardListenerDuringExit);
         Test("CONCURRENCY.ProviderChecksAndInstallShareOneGate", ProviderChecksAndInstallShareOneGate);
         Test("LIFETIME.UpdaterAsyncCloseWaitsForCancellationAndCatchesOuterErrors", UpdaterAsyncCloseWaitsForCancellationAndCatchesOuterErrors);
+        Test("LIFETIME.UpdaterDirectFetchCloseCancelsWithoutUiException", UpdaterDirectFetchCloseCancelsWithoutUiException);
         Test("RESOURCE.DownloadHistoryFailureTeardownJoinsWorkersBeforeDisposingEvents", DownloadHistoryFailureTeardownJoinsWorkersBeforeDisposingEvents);
         Test("RESOURCE.HarnessCleanupRestoresGlobalsBeforeThrowing", HarnessCleanupRestoresGlobalsBeforeThrowing);
         Test("SECURITY.UnsolicitedUpdaterReadyCannotClaimParentAcceptance", UnsolicitedUpdaterReadyCannotClaimParentAcceptance);

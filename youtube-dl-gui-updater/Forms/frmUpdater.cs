@@ -143,10 +143,17 @@ internal partial class frmUpdater : Form {
                     AuditWrite($"copydata-size={Marshal.SizeOf<CopyDataStruct>()}");
                 }
 #endif
-                _ = CopyData.TrySendMessage(ApplicationData.MessageHandle, CopyData.WM_UPDATERREADY, this.Handle, 0, ParentMessageTimeoutMilliseconds);
+                // The parent is synchronously inside SendMessage(WM_COPYDATA).
+                // Using SMTO_BLOCK here prevents the sender from dispatching the
+                // nested WM_UPDATERREADY and can deadlock for the full timeout.
+                // Permit reentrant send-message processing on the parent thread.
+                bool readyDelivered = CopyData.TrySendMessageReentrant(
+                    ApplicationData.MessageHandle, CopyData.WM_UPDATERREADY,
+                    this.Handle, 0, ParentMessageTimeoutMilliseconds);
 #if DEBUG
                 if (AuditIpcMode) {
                     AuditWrite("ack-sent=1");
+                    AuditWrite("ack-transport=" + (readyDelivered ? "1" : "0"));
                     if (AuditScenario.Equals("cancel", StringComparison.OrdinalIgnoreCase)) {
                         BeginInvoke((Action)(() => Program.CancelToken.Cancel()));
                     }

@@ -222,6 +222,10 @@ internal static class Updater {
     private const string FfmpegDownloadLink = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
 
     private static int UpdateCheckerRunning;
+    // Shared across provider metadata lookups and modal provider replacement.
+    // A modal dialog runs a nested message loop: without one gate, another
+    // check/install could mutate the same release state and executable path.
+    private static int ProviderOperationRunning;
     private static CancellationTokenSource UpdateToken = new();
 
     #region Properties
@@ -675,6 +679,11 @@ internal static class Updater {
     /// </summary>
     /// <param name="ForceCheck"></param>
     public static async Task<bool> CheckForYoutubeDlUpdate(bool ForceCheck = false) {
+        if (Interlocked.CompareExchange(ref ProviderOperationRunning, 1, 0) != 0) {
+            Log.Write("Provider update check skipped: another provider check/install is already running.");
+            return false;
+        }
+        try {
         int TypeIndex = Verification.GetYoutubeDlType();
         if (LatestYoutubeDl is null || LatestYoutubeDl.VersionTag is null || LatestYoutubeDlType != TypeIndex || ForceCheck) {
             bool CanRetry;
@@ -684,6 +693,10 @@ internal static class Updater {
                     Log.Write("Manually checking for youtube-dl update...");
                     // Always get the latest ytdl version regardless of if the application exists.
                     await GetLatestYoutubeDl(TypeIndex);
+                    if (Verification.GetYoutubeDlType() != TypeIndex) {
+                        Log.Write("Provider selection changed during release lookup; discard the outdated check.");
+                        return false;
+                    }
 
                     // If the file does not exist, it needs to be re-downloaded.
                     if (!Verification.YoutubeDlAvailable || LatestYoutubeDl is null) {
@@ -735,6 +748,8 @@ internal static class Updater {
 
         Log.Write($"Found youtube-dl version: {LatestYoutubeDl.VersionTag}");
         return LatestYoutubeDl.IsNewerVersion;
+        }
+        finally { Interlocked.Exchange(ref ProviderOperationRunning, 0); }
     }
 
     /// <summary>
@@ -762,6 +777,11 @@ internal static class Updater {
     }
 
     public static bool UpdateYoutubeDl(bool Internal, System.Drawing.Point? Location = null) {
+        if (Interlocked.CompareExchange(ref ProviderOperationRunning, 1, 0) != 0) {
+            Log.Write("Provider installation refused: another provider check/install is already running.");
+            return false;
+        }
+        try {
         if (Internal) {
             Log.Write("Provider self-update is disabled because the replacement executable cannot be independently verified before installation.");
             return CanUseProviderSelfUpdater();
@@ -809,6 +829,8 @@ internal static class Updater {
             LatestYoutubeDl.IsNewerVersion = false;
             return true;
         }
+        }
+        finally { Interlocked.Exchange(ref ProviderOperationRunning, 0); }
     }
 
     private static bool TryDeleteFfmpegArchive(string FilePath) {

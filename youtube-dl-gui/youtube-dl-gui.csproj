@@ -401,7 +401,8 @@
     </ItemGroup>
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(_ReleaseStage)" />
     <Copy SourceFiles="@(_ReleaseLanguages)" DestinationFolder="$(_ReleaseStage)\lang" />
-    <ZipDirectory SourceDirectory="$(_ReleaseStage)" DestinationFile="$(_ReleaseRoot)\$(TargetName).zip" Overwrite="true" />
+    <!-- Stable entry names, order, timestamps and compression ensure reproducible ZIP metadata. -->
+    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\tools\New-DeterministicReleaseZip.ps1&quot; -SourceDirectory &quot;$(_ReleaseStage)&quot; -DestinationFile &quot;$(_ReleaseRoot)\$(TargetName).zip&quot;" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(_ReleaseRoot)" />
     <Copy SourceFiles="@(_ReleaseLanguages)" DestinationFolder="$(_ReleaseRoot)\lang" />
     <GetFileHash Files="$(_ReleaseRoot)\$(TargetFileName)" Algorithm="SHA256">

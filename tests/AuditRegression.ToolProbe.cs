@@ -24,9 +24,12 @@ internal static partial class AuditRegression {
                 finally {
                     KillFixture(pid + ".child");
                     KillFixture(pid);
-                    ObserveHttp(task);
-                    Environment.SetEnvironmentVariable("YTDL_AUDIT_TOOL_MODE", null);
-                    Environment.SetEnvironmentVariable("YTDL_AUDIT_PID_FILE", null);
+                    RestoreBeforeReportingCleanupFailure(
+                        () => ObserveHttp(task),
+                        () => {
+                            Environment.SetEnvironmentVariable("YTDL_AUDIT_TOOL_MODE", null);
+                            Environment.SetEnvironmentVariable("YTDL_AUDIT_PID_FILE", null);
+                        });
                 }
             });
         }

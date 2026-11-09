@@ -61,6 +61,19 @@ jobs:
           $Manifest = Get-Content Release/Release-manifest.json -Raw
           "## Release candidate manifest`n`n``````json`n$Manifest`n``````" | Add-Content $env:GITHUB_STEP_SUMMARY
 
+      - name: Reject undeclared or modified release artifacts
+        if: success()
+        shell: pwsh
+        run: |
+          # This is intentionally separate from Build-ReleaseCandidate: check
+          # the complete directory after all candidate-controlled build steps.
+          $Manifest = Get-Content -LiteralPath Release/Release-manifest.json -Raw | ConvertFrom-Json
+          if ($Manifest.commit -cne $env:GITHUB_SHA) {
+            throw 'Release manifest source SHA differs from the uploaded revision.'
+          }
+          & ./tools/Assert-ReleaseCandidateInventory.ps1 -ReleaseRoot ./Release -ExpectedVersion $Manifest.version
+          if (!$?) { throw 'Release artifact inventory failed its final upload gate.' }
+
       - name: Upload release candidate
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
